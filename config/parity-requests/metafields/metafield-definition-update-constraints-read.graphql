@@ -1,0 +1,15 @@
+query MetafieldDefinitionUpdateConstraintsRead($namespace: String!) {
+  definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "tier" }) {
+    id
+    key
+    constraints {
+      key
+      values(first: 10) {
+        nodes {
+          value
+        }
+      }
+    }
+    pinnedPosition
+  }
+}

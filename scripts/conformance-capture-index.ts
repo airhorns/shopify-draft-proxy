@@ -823,6 +823,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-update-constraints',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-update-constraints.mts',
+    purpose:
+      'metafieldDefinitionUpdate constraintsUpdates staging, constrained pin guard, unconstrain, and pin-after-unconstrain readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-constraints.json`,
+      'config/parity-specs/metafields/metafield-definition-update-constraints.json',
+      'config/parity-requests/metafields/metafield-definition-update-constraints*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned definition, updates its constraints, then deletes any remaining definitions in the temporary namespace.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-app-namespace-resolution',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-app-namespace-resolution-conformance.mts',
@@ -940,6 +957,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product saved search for positive/update validation and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
+    captureId: 'saved-search-unknown-filter-field',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-unknown-filter-field-conformance.ts',
+    purpose:
+      'SavedSearch per-resource unknown-filter validation for PRODUCT create plus known-filter positive control.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-unknown-filter-field.json`,
+      'config/parity-specs/saved-searches/saved-search-unknown-filter-field.json',
+      'config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product saved search for positive-control validation and deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1392,6 +1425,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-shop-locale-enable-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-shop-locale-enable-validation-conformance.mts',
+    purpose:
+      'shopLocaleEnable unsupported-locale, duplicate-locale, max-locale validation plus shopLocaleUpdate market-web-presence-only missing-locale behavior.',
+    requiredAuthScopes: ['read_markets', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-shop-locale-enable-validation.json`,
+      'config/parity-specs/localization/localization-shop-locale-enable-validation.json',
+      'config/parity-requests/localization/localization-shop-locale-update-market-web-presences.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily disables pre-existing alternate locales, enables disposable alternates to reach the locale cap, records validation branches, disables captured locales, and restores the pre-capture alternate locales.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-translations-mutation-noop-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-mutation-noop-validation-conformance.mts',
@@ -1615,6 +1665,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Waits for any prior delete-all job to stop blocking writes, captures a delete-all job and blocked follow-up create, records parent/native setup blockers, and deletes the disposable follow-up remote ID if it unexpectedly exists.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
+    captureId: 'marketing-activity-create-external-validation',
+    scriptPath: 'scripts/capture-marketing-activity-create-external-validation-conformance.mts',
+    purpose:
+      'External marketing activity create validation for unknown channel handles, budget/adSpend currency mismatch, and uniqueness userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-create-external-validation.json`,
+      'config/parity-specs/marketing/marketing-activity-create-external-validation.json',
+      'config/parity-requests/marketing/marketing-activity-create-external-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable external marketing activities needed for uniqueness probes, captures rejected validation branches, then deletes every disposable remote ID.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2046,6 +2112,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-invoice-send-email-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-invoice-send-email-validation-conformance.ts',
+    purpose:
+      'orderInvoiceSend resolved-recipient and explicit EmailInput.to validation, plus order-email happy-path baseline.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderInvoiceSend-email-validation.json`,
+      'config/parity-specs/orders/orderInvoiceSend-email-validation.json',
+      'config/parity-requests/orders/orderInvoiceSend-email-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders, records validation and happy-path invoice-send behavior, then cancels created orders in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

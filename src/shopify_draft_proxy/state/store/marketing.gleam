@@ -10,8 +10,8 @@ import shopify_draft_proxy/state/store/types.{
   type Store, BaseState, StagedState, Store,
 }
 import shopify_draft_proxy/state/types.{
-  type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  MarketingObject, MarketingString,
+  type MarketingChannelDefinitionRecord, type MarketingEngagementRecord,
+  type MarketingRecord, type MarketingValue, MarketingObject, MarketingString,
 } as types_mod
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,26 @@ pub fn upsert_base_marketing_events(
         deleted_marketing_event_ids: dict.delete(
           base.deleted_marketing_event_ids,
           record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_base_marketing_channel_definitions(
+  store: Store,
+  records: List(MarketingChannelDefinitionRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        marketing_channel_definitions: dict.insert(
+          base.marketing_channel_definitions,
+          record.handle,
+          record,
         ),
       ),
     )
@@ -388,6 +408,38 @@ pub fn has_known_marketing_channel_handle(
   store: Store,
   handle: String,
 ) -> Bool {
+  has_registered_marketing_channel_handle(store, handle)
+  || has_hydrated_marketing_channel_handle(store, handle)
+}
+
+pub fn has_known_marketing_channel_handle_for_app(
+  store: Store,
+  handle: String,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case dict.get(store.base_state.marketing_channel_definitions, handle) {
+    Ok(record) -> {
+      case record.api_client_ids, requesting_api_client_id {
+        [], _ -> True
+        ids, Some(api_client_id) -> list.contains(ids, api_client_id)
+        _, None -> False
+      }
+    }
+    Error(_) -> has_hydrated_marketing_channel_handle(store, handle)
+  }
+}
+
+fn has_registered_marketing_channel_handle(
+  store: Store,
+  handle: String,
+) -> Bool {
+  case dict.get(store.base_state.marketing_channel_definitions, handle) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn has_hydrated_marketing_channel_handle(store: Store, handle: String) -> Bool {
   list.any(list_effective_marketing_events(store), fn(event) {
     read_marketing_channel_handle(event.data) == Some(handle)
   })

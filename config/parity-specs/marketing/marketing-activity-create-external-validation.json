@@ -1,0 +1,62 @@
+{
+  "scenarioId": "marketing-activity-create-external-validation",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "local-staging", "marketing-activity-validation"],
+  "operationNames": ["marketingActivityCreateExternal"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-create-external-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-validation.graphql",
+    "variablesCapturePath": "$.operations.primary.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-channel-handle",
+        "capturePath": "$.operations.primary.response.payload.data.unknownChannel",
+        "proxyPath": "$.data.unknownChannel"
+      },
+      {
+        "name": "currency-mismatch",
+        "capturePath": "$.operations.primary.response.payload.data.currencyMismatch",
+        "proxyPath": "$.data.currencyMismatch"
+      },
+      {
+        "name": "remote-seed-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.remoteSeed.userErrors",
+        "proxyPath": "$.data.remoteSeed.userErrors"
+      },
+      {
+        "name": "duplicate-remote-id",
+        "capturePath": "$.operations.primary.response.payload.data.duplicateRemoteId",
+        "proxyPath": "$.data.duplicateRemoteId"
+      },
+      {
+        "name": "utm-seed-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.utmSeed.userErrors",
+        "proxyPath": "$.data.utmSeed.userErrors"
+      },
+      {
+        "name": "duplicate-utm-campaign",
+        "capturePath": "$.operations.primary.response.payload.data.duplicateUtmCampaign",
+        "proxyPath": "$.data.duplicateUtmCampaign"
+      },
+      {
+        "name": "url-seed-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.urlSeed.userErrors",
+        "proxyPath": "$.data.urlSeed.userErrors"
+      },
+      {
+        "name": "duplicate-url-parameter-value",
+        "capturePath": "$.operations.primary.response.payload.data.duplicateUrlParameterValue",
+        "proxyPath": "$.data.duplicateUrlParameterValue"
+      }
+    ]
+  },
+  "notes": "Captures Shopify validation for external marketing activity create: unknown channel handles, budget/adSpend currency mismatch, duplicate remote IDs, duplicate UTM triplets, and duplicate URL parameter values. The checked-in API behavior returns INVALID_CHANNEL_HANDLE for unknown channel handles, but the uniqueness branches return branch-specific validation messages with null code. Seed aliases in the same mutation establish the uniqueness constraints through Shopify's serial top-level mutation execution; the proxy parity runner replays the same request locally without runtime Shopify writes."
+}

@@ -34,6 +34,7 @@ import shopify_draft_proxy/proxy/orders/common.{
   read_object, read_object_list, read_string, read_string_arg, read_string_list,
   replace_captured_object_fields, replace_if_present, selection_children,
   serialize_nullable_user_error, serialize_user_error, upsert_captured_fields,
+  valid_email_address,
 }
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{
   build_draft_order_address, build_draft_order_from_input,
@@ -616,19 +617,6 @@ pub fn validate_draft_order_create_email(
         ]
       }
     _ -> []
-  }
-}
-
-@internal
-pub fn valid_email_address(email: String) -> Bool {
-  case string.contains(email, " ") {
-    True -> False
-    False ->
-      case string.split(email, "@") {
-        [local, domain] ->
-          string.trim(local) != "" && string.contains(domain, ".")
-        _ -> False
-      }
   }
 }
 

@@ -24,6 +24,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionConstraintValueRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
@@ -1032,7 +1033,11 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
   let input =
     definition_types.read_object(args, "definition")
     |> definition_types.resolve_namespace_input(requesting_api_client_id)
-  let errors = definition_types.validate_definition_input(input, False)
+  let errors =
+    list.append(
+      definition_types.validate_definition_input(input, False),
+      constraint_update_input_conflict_errors(input),
+    )
   case errors {
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
@@ -1241,6 +1246,7 @@ pub fn update_definition_success(
           ))
         False -> definition.capabilities
       },
+      constraints: update_definition_constraints(input, definition.constraints),
     )
   let next_store =
     store.upsert_staged_metafield_definitions(store_in, [updated])
@@ -1257,6 +1263,264 @@ pub fn update_definition_success(
     identity,
     [updated.id],
   )
+}
+
+@internal
+pub fn constraint_update_input_conflict_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  let has_constraints = definition_types.has_field(input, "constraints")
+  let has_constraints_updates =
+    definition_types.has_field(input, "constraintsUpdates")
+  let has_constraints_set = definition_types.has_field(input, "constraintsSet")
+
+  case has_constraints, has_constraints_updates, has_constraints_set {
+    True, True, _ -> [
+      invalid_constraint_update_input_error(
+        "Cannot use both `constraints` and `constraintsUpdates` in the same request.",
+      ),
+    ]
+    True, _, True -> [
+      invalid_constraint_update_input_error(
+        "Cannot use both `constraints` and `constraintsSet` in the same request.",
+      ),
+    ]
+    _, True, True -> [
+      invalid_constraint_update_input_error(
+        "Cannot use both `constraintsUpdates` and `constraintsSet` in the same request.",
+      ),
+    ]
+    _, _, _ -> []
+  }
+}
+
+fn invalid_constraint_update_input_error(
+  message: String,
+) -> definition_types.UserError {
+  definition_types.UserError(
+    field: None,
+    message: message,
+    code: "INVALID_INPUT",
+  )
+}
+
+@internal
+pub fn update_definition_constraints(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(MetafieldDefinitionConstraintsRecord),
+) -> Option(MetafieldDefinitionConstraintsRecord) {
+  case definition_types.has_field(input, "constraintsSet") {
+    True -> Some(read_constraints_set(input))
+    False ->
+      case definition_types.has_field(input, "constraintsUpdates") {
+        True ->
+          Some(apply_constraints_updates(
+            normalize_constraints(existing),
+            definition_types.read_object(input, "constraintsUpdates"),
+          ))
+        False ->
+          case definition_types.has_field(input, "constraints") {
+            True ->
+              Some(apply_legacy_constraints(
+                normalize_constraints(existing),
+                definition_types.read_input_objects(input, "constraints"),
+              ))
+            False -> existing
+          }
+      }
+  }
+}
+
+fn normalize_constraints(
+  constraints: Option(MetafieldDefinitionConstraintsRecord),
+) -> MetafieldDefinitionConstraintsRecord {
+  case constraints {
+    Some(record) -> record
+    None -> empty_definition_constraints()
+  }
+}
+
+fn read_constraints_set(
+  input: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  let constraints_set = definition_types.read_object(input, "constraintsSet")
+  MetafieldDefinitionConstraintsRecord(
+    key: definition_types.read_optional_string(constraints_set, "key"),
+    values: read_string_list(constraints_set, "values")
+      |> string_values_to_constraint_values,
+  )
+}
+
+fn apply_constraints_updates(
+  existing: MetafieldDefinitionConstraintsRecord,
+  updates: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  let values = definition_types.read_input_objects(updates, "values")
+  case definition_types.has_field(updates, "key"), values {
+    True, [] ->
+      case definition_types.read_optional_string(updates, "key") {
+        None -> empty_definition_constraints()
+        Some(key) ->
+          MetafieldDefinitionConstraintsRecord(key: Some(key), values: [])
+      }
+    _, _ -> {
+      let starting_key = case
+        definition_types.read_optional_string(updates, "key")
+      {
+        Some(key) -> Some(key)
+        None ->
+          case definition_types.has_field(updates, "key") {
+            True -> None
+            False -> existing.key
+          }
+      }
+      let starting =
+        MetafieldDefinitionConstraintsRecord(..existing, key: starting_key)
+      list.fold(values, starting, apply_constraint_update_value)
+    }
+  }
+}
+
+fn apply_constraint_update_value(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  update: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  case read_constraint_operation(update, "delete", constraints.key) {
+    Some(#(key, value)) -> delete_constraint_value(constraints, key, value)
+    None ->
+      case read_constraint_operation(update, "update", constraints.key) {
+        Some(#(key, value)) -> upsert_constraint_value(constraints, key, value)
+        None ->
+          case read_constraint_operation(update, "create", constraints.key) {
+            Some(#(key, value)) ->
+              upsert_constraint_value(constraints, key, value)
+            None -> constraints
+          }
+      }
+  }
+}
+
+fn apply_legacy_constraints(
+  existing: MetafieldDefinitionConstraintsRecord,
+  operations: List(Dict(String, root_field.ResolvedValue)),
+) -> MetafieldDefinitionConstraintsRecord {
+  list.fold(operations, existing, apply_legacy_constraint_operation)
+}
+
+fn apply_legacy_constraint_operation(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  operation: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  case read_constraint_operation(operation, "delete", constraints.key) {
+    Some(#(key, value)) -> delete_constraint_value(constraints, key, value)
+    None ->
+      case read_constraint_operation(operation, "update", constraints.key) {
+        Some(#(key, value)) -> upsert_constraint_value(constraints, key, value)
+        None ->
+          case read_constraint_operation(operation, "create", constraints.key) {
+            Some(#(key, value)) ->
+              upsert_constraint_value(constraints, key, value)
+            None -> constraints
+          }
+      }
+  }
+}
+
+fn read_constraint_operation(
+  operation: Dict(String, root_field.ResolvedValue),
+  name: String,
+  fallback_key: Option(String),
+) -> Option(#(Option(String), String)) {
+  case dict.get(operation, name) {
+    Ok(root_field.StringVal(value)) ->
+      Some(#(fallback_key, normalize_constraint_value(value)))
+    Ok(root_field.ObjectVal(input)) ->
+      case definition_types.read_optional_string(input, "value") {
+        Some(value) ->
+          Some(#(
+            first_some(
+              definition_types.read_optional_string(input, "key"),
+              fallback_key,
+            ),
+            normalize_constraint_value(value),
+          ))
+        None -> None
+      }
+    _ -> None
+  }
+}
+
+fn first_some(first: Option(a), second: Option(a)) -> Option(a) {
+  case first {
+    Some(_) -> first
+    None -> second
+  }
+}
+
+fn upsert_constraint_value(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  key: Option(String),
+  value: String,
+) -> MetafieldDefinitionConstraintsRecord {
+  let next_key = first_some(key, constraints.key)
+  let existing_values = constraint_value_strings(constraints.values)
+  case list.contains(existing_values, value) {
+    True -> MetafieldDefinitionConstraintsRecord(..constraints, key: next_key)
+    False ->
+      MetafieldDefinitionConstraintsRecord(
+        key: next_key,
+        values: list.append(constraints.values, [
+          MetafieldDefinitionConstraintValueRecord(value: value),
+        ]),
+      )
+  }
+}
+
+fn delete_constraint_value(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  key: Option(String),
+  value: String,
+) -> MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: first_some(key, constraints.key),
+    values: list.filter(constraints.values, fn(record) { record.value != value }),
+  )
+}
+
+fn string_values_to_constraint_values(
+  values: List(String),
+) -> List(MetafieldDefinitionConstraintValueRecord) {
+  values
+  |> list.map(normalize_constraint_value)
+  |> dedupe_strings
+  |> list.map(fn(value) {
+    MetafieldDefinitionConstraintValueRecord(value: value)
+  })
+}
+
+fn normalize_constraint_value(value: String) -> String {
+  let taxonomy_category_prefix = "gid://shopify/TaxonomyCategory/"
+  case string.starts_with(value, taxonomy_category_prefix) {
+    True ->
+      value
+      |> string.drop_start(string.length(taxonomy_category_prefix))
+    False -> value
+  }
+}
+
+fn constraint_value_strings(
+  values: List(MetafieldDefinitionConstraintValueRecord),
+) -> List(String) {
+  list.map(values, fn(record) { record.value })
+}
+
+fn dedupe_strings(values: List(String)) -> List(String) {
+  list.fold(values, [], fn(seen, value) {
+    case list.contains(seen, value) {
+      True -> seen
+      False -> list.append(seen, [value])
+    }
+  })
 }
 
 @internal

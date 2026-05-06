@@ -1,0 +1,404 @@
+{
+  "scenarioId": "marketing-activity-create-external-validation",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-06T02:37:09.391Z",
+  "operations": {
+    "primary": {
+      "request": {
+        "query": "mutation MarketingActivityCreateExternalValidation(\n  $unknownChannelInput: MarketingActivityCreateExternalInput!\n  $currencyMismatchInput: MarketingActivityCreateExternalInput!\n  $remoteSeedInput: MarketingActivityCreateExternalInput!\n  $duplicateRemoteIdInput: MarketingActivityCreateExternalInput!\n  $utmSeedInput: MarketingActivityCreateExternalInput!\n  $duplicateUtmCampaignInput: MarketingActivityCreateExternalInput!\n  $urlSeedInput: MarketingActivityCreateExternalInput!\n  $duplicateUrlParameterValueInput: MarketingActivityCreateExternalInput!\n) {\n  unknownChannel: marketingActivityCreateExternal(input: $unknownChannelInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  currencyMismatch: marketingActivityCreateExternal(input: $currencyMismatchInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  remoteSeed: marketingActivityCreateExternal(input: $remoteSeedInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicateRemoteId: marketingActivityCreateExternal(input: $duplicateRemoteIdInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  utmSeed: marketingActivityCreateExternal(input: $utmSeedInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicateUtmCampaign: marketingActivityCreateExternal(input: $duplicateUtmCampaignInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  urlSeed: marketingActivityCreateExternal(input: $urlSeedInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicateUrlParameterValue: marketingActivityCreateExternal(input: $duplicateUrlParameterValueInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "unknownChannelInput": {
+            "title": "Marketing validation unknown-channel 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-unknown-channel-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/unknown-channel/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-unknown-channel-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "channelHandle": "made-up-channel-1778035028193-8dc6cz"
+          },
+          "currencyMismatchInput": {
+            "title": "Marketing validation currency-mismatch 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-currency-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/currency-mismatch/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-currency-mismatch-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "budget": {
+              "budgetType": "DAILY",
+              "total": {
+                "amount": "1.00",
+                "currencyCode": "USD"
+              }
+            },
+            "adSpend": {
+              "amount": "1.00",
+              "currencyCode": "EUR"
+            }
+          },
+          "remoteSeedInput": {
+            "title": "Marketing validation remote-seed 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-remote-seed-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/remote-seed/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-remote-seed-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-validation-remote-seed-1778035028193-8dc6cz"
+          },
+          "duplicateRemoteIdInput": {
+            "title": "Marketing validation duplicate-remote 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-remote-seed-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/duplicate-remote/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-duplicate-remote-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-validation-duplicate-remote-1778035028193-8dc6cz"
+          },
+          "utmSeedInput": {
+            "title": "Marketing validation utm-seed 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-utm-seed-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/utm-seed/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-utm-seed-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-validation-utm-seed-1778035028193-8dc6cz"
+          },
+          "duplicateUtmCampaignInput": {
+            "title": "Marketing validation duplicate-utm 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-duplicate-utm-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/duplicate-utm/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-utm-seed-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-validation-duplicate-utm-1778035028193-8dc6cz"
+          },
+          "urlSeedInput": {
+            "title": "Marketing validation url-seed 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-url-seed-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/url-seed/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-url-seed-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-validation-url-1778035028193-8dc6cz"
+          },
+          "duplicateUrlParameterValueInput": {
+            "title": "Marketing validation duplicate-url 1778035028193-8dc6cz",
+            "remoteId": "marketing-validation-duplicate-url-1778035028193-8dc6cz",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-validation/duplicate-url/1778035028193-8dc6cz",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-validation-duplicate-url-1778035028193-8dc6cz",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-validation-url-1778035028193-8dc6cz"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "unknownChannel": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                  "code": "INVALID_CHANNEL_HANDLE"
+                }
+              ]
+            },
+            "currencyMismatch": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Currency code is not matching between budget and ad spend",
+                  "code": null
+                }
+              ]
+            },
+            "remoteSeed": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197040668978"
+              },
+              "userErrors": []
+            },
+            "duplicateRemoteId": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Validation failed: Remote ID has already been taken",
+                  "code": null
+                }
+              ]
+            },
+            "utmSeed": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197040701746"
+              },
+              "userErrors": []
+            },
+            "duplicateUtmCampaign": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Validation failed: Utm campaign has already been taken",
+                  "code": null
+                }
+              ]
+            },
+            "urlSeed": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197040734514"
+              },
+              "userErrors": []
+            },
+            "duplicateUrlParameterValue": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Validation failed: Url parameter value has already been taken",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 80,
+              "actualQueryCost": 80,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1920,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "marketing-validation-remote-seed-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197040668978",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1924,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-validation-utm-seed-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197040701746",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1920,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-validation-url-seed-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197040734514",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1914,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-validation-unknown-channel-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1908,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-validation-currency-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1908,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-validation-duplicate-utm-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1899,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-validation-duplicate-url-1778035028193-8dc6cz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1899,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

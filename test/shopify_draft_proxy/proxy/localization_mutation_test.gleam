@@ -120,6 +120,19 @@ fn seed_source_content_marker(
   s
 }
 
+fn enable_locale(store_in: store.Store, locale: String) -> store.Store {
+  run_outcome(
+    store_in,
+    "mutation { shopLocaleEnable(locale: \""
+      <> locale
+      <> "\") { shopLocale { locale } userErrors { field } } }",
+  ).store
+}
+
+fn enable_locales(store_in: store.Store, locales: List(String)) -> store.Store {
+  list.fold(locales, store_in, fn(acc, locale) { enable_locale(acc, locale) })
+}
+
 fn repeated_translation_inputs(count: Int) -> String {
   repeat_translation_input_loop(count, [])
 }
@@ -187,17 +200,18 @@ pub fn shop_locale_enable_projects_market_web_presences_test() {
     == "{\"shopLocales\":[{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]}]}"
 }
 
-pub fn shop_locale_enable_resets_existing_locale_to_unpublished_test() {
+pub fn shop_locale_enable_duplicate_locale_returns_taken_test() {
   let s = seed_shop_locale(store.new(), "fr", False, True)
   let outcome =
     run_outcome(
       s,
-      "mutation { shopLocaleEnable(locale: \"fr\") { shopLocale { locale published } userErrors { field } } }",
+      "mutation { shopLocaleEnable(locale: \"fr\") { shopLocale { locale published } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":{\"locale\":\"fr\",\"published\":false},\"userErrors\":[]}}}"
+    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"Locale has already been taken\",\"code\":\"TAKEN\"}]}}}"
+  assert outcome.staged_resource_ids == []
   let assert Some(record) = store.get_effective_shop_locale(outcome.store, "fr")
-  assert record.published == False
+  assert record.published == True
 }
 
 pub fn shop_locale_query_projects_staged_market_web_presences_test() {
@@ -221,10 +235,26 @@ pub fn shop_locale_enable_unknown_locale_returns_user_error_test() {
   let body =
     run(
       store.new(),
-      "mutation { shopLocaleEnable(locale: \"xx\") { shopLocale { locale } userErrors { field message code } } }",
+      "mutation { shopLocaleEnable(locale: \"tlh\") { shopLocale { locale } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The locale doesn't exist.\",\"code\":\"SHOP_LOCALE_DOES_NOT_EXIST\"}]}}}"
+    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"Locale is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn shop_locale_enable_rejects_twenty_first_alternate_locale_test() {
+  let twenty_alternate_locales = [
+    "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs",
+    "br", "bg", "my", "ca", "ckb", "ce", "fr",
+  ]
+  let s = enable_locales(store.new(), twenty_alternate_locales)
+  let outcome =
+    run_outcome(
+      s,
+      "mutation { shopLocaleEnable(locale: \"zu\") { shopLocale { locale } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Your store has reached its 20 language limit. To add Zulu, delete one of your other languages.\",\"code\":\"LIMIT_REACHED\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn shop_locale_enable_primary_returns_user_error_test() {
@@ -261,6 +291,22 @@ pub fn shop_locale_update_unknown_locale_returns_user_error_test() {
   // "de" is in the available catalog but not enabled, so update fails.
   assert body
     == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":null,\"userErrors\":[{\"field\":[\"locale\"],\"message\":\"The locale doesn't exist.\",\"code\":\"SHOP_LOCALE_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn shop_locale_update_market_web_presence_only_allows_missing_locale_test() {
+  let market_web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let outcome =
+    run_outcome(
+      store.new(),
+      "mutation { shopLocaleUpdate(locale: \"tr\", shopLocale: { marketWebPresenceIds: [\""
+        <> market_web_presence_id
+        <> "\"] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":{\"locale\":\"tr\",\"name\":\"Turkish\",\"published\":false,\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["ShopLocale/tr"]
+  let assert Some(record) = store.get_effective_shop_locale(outcome.store, "tr")
+  assert record.market_web_presence_ids == [market_web_presence_id]
 }
 
 pub fn shop_locale_update_primary_unpublish_returns_user_error_test() {
