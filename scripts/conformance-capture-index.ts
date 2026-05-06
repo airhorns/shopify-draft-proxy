@@ -2116,6 +2116,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-invoice-send-email-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-invoice-send-email-validation-conformance.ts',
+    purpose:
+      'orderInvoiceSend resolved-recipient and explicit EmailInput.to validation, plus order-email happy-path baseline.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderInvoiceSend-email-validation.json`,
+      'config/parity-specs/orders/orderInvoiceSend-email-validation.json',
+      'config/parity-requests/orders/orderInvoiceSend-email-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders, records validation and happy-path invoice-send behavior, then cancels created orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'fulfillment-create-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-create-preconditions-conformance.ts',
