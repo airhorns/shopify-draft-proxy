@@ -531,6 +531,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-publish-input-validation',
+    scriptPath: 'scripts/capture-product-publish-input-validation-conformance.ts',
+    purpose:
+      'productPublish ProductPublicationInput validation for omitted lists, empty lists, and unknown publication/channel targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productPublish-input-validation.json`,
+      'config/parity-specs/products/productPublish-input-validation.json',
+      'config/parity-requests/products/productPublish-input-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, records validation branches, captures a hydration cassette while the product exists, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-media-mutations',
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',
     purpose: 'Product media create/update/delete validation and downstream read branches.',
