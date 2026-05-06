@@ -934,6 +934,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'selling-plan-group-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-selling-plan-group-input-validation-conformance.ts',
+    purpose: 'Selling-plan group create/update input validation for group limits and nested selling-plan guardrails.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-input-validation.json`,
+      'config/parity-specs/products/sellingPlanGroupCreate-input-validation.json',
+      'config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql',
+      'config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable selling-plan group, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
@@ -1269,6 +1285,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, enables French only when needed, captures no-op/error translation mutation branches, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization-translations-mutation-noop-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-mutation-noop-validation-conformance.mts',
+    purpose:
+      'translationsRemove unknown-key and disabled-locale no-op success behavior plus translationsRegister primary-locale validation.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-mutation-noop-validation.json`,
+      'config/parity-specs/localization/localization-translations-mutation-noop-validation.json',
+      'config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, temporarily enables and disables Italian for the disabled-locale removal branch, deletes the product, and restores Italian only if it was enabled before capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2802,6 +2842,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
     fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
     cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-topic-enum-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-topic-enum-validation.ts',
+    purpose: 'WebhookSubscriptionTopic enum coercion for unknown, hidden, variable, and accepted topic values.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-topic-enum-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-topic-enum-validation.json',
+      'config/parity-requests/webhooks/webhook-subscription-bogus-topic.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-hidden-topic.graphql',
+    ],
+    cleanupBehavior:
+      'Invalid enum branches fail before resolver side effects; accepted SHOP_UPDATE control creates one temporary HTTP webhook subscription and deletes it during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

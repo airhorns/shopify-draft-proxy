@@ -10,6 +10,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   Config, PassthroughUnsupportedMutations, Request, Response, Snapshot,
 }
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
   type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
@@ -72,7 +73,27 @@ fn assert_product_option_user_error(
   assert string.contains(body, "\"code\":\"" <> code <> "\"")
   assert string.contains(body, "\"field\":" <> field_json)
   let assert [entry] = store.get_log(next_proxy.store)
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
+}
+
+fn assert_selling_plan_group_create_user_error(
+  query: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(serialized, "\"code\":\"" <> code <> "\"")
+  assert string.contains(serialized, "\"field\":" <> field_json)
+  assert string.contains(serialized, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
 }
 
 fn graphql_document_request(query: String) -> Request {
@@ -82,6 +103,112 @@ fn graphql_document_request(query: String) -> Request {
     headers: empty_headers(),
     body: json.to_string(json.object([#("query", json.string(query))])),
   )
+}
+
+fn valid_selling_plan_input() -> String {
+  "name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 1, minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 1, cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }]"
+}
+
+pub fn selling_plan_group_create_rejects_group_input_validation_errors_test() {
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many\\\", options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"] }, resources: {}) { sellingPlanGroup { id options } userErrors { field message code } } }",
+    "TOO_LONG",
+    "[\"input\",\"options\"]",
+    "Too many selling plan group options (maximum 3 options)",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Bad position\\\", position: 9999999999 }, resources: {}) { sellingPlanGroup { id position } userErrors { field message code } } }",
+    "INVALID",
+    "[\"input\",\"position\"]",
+    "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+  )
+}
+
+pub fn selling_plan_group_create_rejects_nested_plan_validation_errors_test() {
+  let base_plan = valid_selling_plan_input()
+  let recurring_policy =
+    "{ recurring: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 5 }, afterCycle: 2 } }"
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many plan options\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "TOO_LONG",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"options\"]",
+    "Too many selling plan options (maximum 3 options)",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many pricing policies\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }, "
+      <> recurring_policy
+      <> ", "
+      <> recurring_policy
+      <> "] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "SELLING_PLAN_PRICING_POLICIES_LIMIT",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"pricingPolicies\"]",
+    "Selling plans to create pricing policies can't have more than 2 pricing policies",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Bad plan position\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", position: 9999999999 }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "INVALID",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"position\"]",
+    "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Policy mismatch\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", deliveryPolicy: { fixed: { fulfillmentTrigger: ASAP } } }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME",
+    "[\"input\",\"sellingPlansToCreate\",\"0\"]",
+    "billing and delivery policy types must be the same.",
+  )
+}
+
+pub fn selling_plan_group_update_rejects_input_validation_errors_test() {
+  let create_query =
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Seed\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+    <> valid_selling_plan_input()
+    <> " }] }) { sellingPlanGroup { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  let assert [group] = store.list_effective_selling_plan_groups(proxy.store)
+
+  let update_query =
+    "mutation { sellingPlanGroupUpdate(id: \\\""
+    <> group.id
+    <> "\\\", input: { options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"], sellingPlansToUpdate: [{ name: \\\"Missing id\\\" }] }) { deletedSellingPlanIds sellingPlanGroup { id } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  let serialized = json.to_string(update_body)
+
+  assert update_status == 200
+  assert string.contains(serialized, "\"deletedSellingPlanIds\":null")
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(serialized, "\"code\":\"TOO_LONG\"")
+  assert string.contains(serialized, "\"field\":[\"input\",\"options\"]")
+  assert string.contains(
+    serialized,
+    "\"code\":\"PLAN_ID_MUST_BE_SPECIFIED_TO_UPDATE\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"sellingPlansToUpdate\",\"0\",\"id\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Id must be specificed to update a Selling Plan.\"",
+  )
+  let assert [create_entry, update_entry] = store.get_log(next_proxy.store)
+  assert create_entry.status == store_types.Staged
+  assert update_entry.status == store_types.Failed
+  assert update_entry.staged_resource_ids == []
 }
 
 pub fn product_options_create_stages_default_product_options_test() {
@@ -843,7 +970,7 @@ pub fn product_update_blank_title_returns_existing_product_test() {
     == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productUpdate")
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
 }
 
@@ -862,7 +989,7 @@ pub fn product_update_rejects_product_scalar_validation_errors_test() {
     == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"vendor\":null},\"userErrors\":[{\"field\":[\"vendor\"],\"message\":\"Vendor is too long (maximum is 255 characters)\",\"code\":null}]}}}"
   let assert [vendor_entry] = store.get_log(vendor_proxy.store)
   assert vendor_entry.operation_name == Some("productUpdate")
-  assert vendor_entry.status == store.Failed
+  assert vendor_entry.status == store_types.Failed
   assert vendor_entry.staged_resource_ids == []
 
   let long_description = string.repeat("x", times: 524_288)
@@ -885,7 +1012,7 @@ pub fn product_update_rejects_product_scalar_validation_errors_test() {
     == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"descriptionHtml\":\"\"},\"userErrors\":[{\"field\":[\"bodyHtml\"],\"message\":\"Body (HTML) is too big (maximum is 512 KB)\",\"code\":null}]}}}"
   let assert [description_entry] = store.get_log(description_next_proxy.store)
   assert description_entry.operation_name == Some("productUpdate")
-  assert description_entry.status == store.Failed
+  assert description_entry.status == store_types.Failed
   assert description_entry.staged_resource_ids == []
 }
 
@@ -1017,7 +1144,7 @@ pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
   assert json.to_string(body)
     == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Origin Vendor\",\"vendor\":\"acme\"},\"userErrors\":[]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
-  assert entry.status == store.Staged
+  assert entry.status == store_types.Staged
 }
 
 pub fn product_variant_mutations_recompute_product_derived_fields_test() {
@@ -1231,7 +1358,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
   let assert [blank_entry] = store.get_log(blank_proxy.store)
   assert blank_entry.operation_name == Some("productCreate")
-  assert blank_entry.status == store.Failed
+  assert blank_entry.status == store_types.Failed
   assert blank_entry.staged_resource_ids == []
 
   let missing_title_query =
@@ -1249,7 +1376,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
   let assert [missing_title_entry] = store.get_log(missing_title_proxy.store)
   assert missing_title_entry.operation_name == Some("productCreate")
-  assert missing_title_entry.status == store.Failed
+  assert missing_title_entry.status == store_types.Failed
   assert missing_title_entry.staged_resource_ids == []
 
   let long_handle = string.repeat("a", times: 260)
@@ -1267,7 +1394,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\",\"code\":null}]}}}"
   let assert [handle_entry] = store.get_log(handle_proxy.store)
   assert handle_entry.operation_name == Some("productCreate")
-  assert handle_entry.status == store.Failed
+  assert handle_entry.status == store_types.Failed
   assert handle_entry.staged_resource_ids == []
 
   let long_vendor = string.repeat("v", times: 256)
@@ -1285,7 +1412,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"vendor\"],\"message\":\"Vendor is too long (maximum is 255 characters)\",\"code\":null}]}}}"
   let assert [vendor_entry] = store.get_log(vendor_proxy.store)
   assert vendor_entry.operation_name == Some("productCreate")
-  assert vendor_entry.status == store.Failed
+  assert vendor_entry.status == store_types.Failed
   assert vendor_entry.staged_resource_ids == []
 
   let long_product_type = string.repeat("p", times: 256)
@@ -1306,7 +1433,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"productType\"],\"message\":\"Product type is too long (maximum is 255 characters)\",\"code\":null},{\"field\":[\"customProductType\"],\"message\":\"Custom product type is too long (maximum is 255 characters)\",\"code\":null}]}}}"
   let assert [product_type_entry] = store.get_log(product_type_proxy.store)
   assert product_type_entry.operation_name == Some("productCreate")
-  assert product_type_entry.status == store.Failed
+  assert product_type_entry.status == store_types.Failed
   assert product_type_entry.staged_resource_ids == []
 
   let long_description = string.repeat("x", times: 524_288)
@@ -1327,7 +1454,7 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"bodyHtml\"],\"message\":\"Body (HTML) is too big (maximum is 512 KB)\",\"code\":null}]}}}"
   let assert [description_entry] = store.get_log(description_proxy.store)
   assert description_entry.operation_name == Some("productCreate")
-  assert description_entry.status == store.Failed
+  assert description_entry.status == store_types.Failed
   assert description_entry.staged_resource_ids == []
 
   let variant_query =
@@ -1580,7 +1707,7 @@ pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
     == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"variants\",\"2\"],\"message\":\"The variant 'S / Red' already exists. Please change at least one option value.\"}]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productSet")
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
 }
 
@@ -1594,7 +1721,7 @@ pub fn product_set_requires_variants_when_updating_options_test() {
     == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"variants\"],\"message\":\"Variants input is required when updating product options\"}]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productSet")
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
 }
 
@@ -1622,7 +1749,7 @@ pub fn product_set_rejects_product_scalar_validation_errors_test() {
   let assert [custom_product_type_entry] =
     store.get_log(custom_product_type_proxy.store)
   assert custom_product_type_entry.operation_name == Some("productSet")
-  assert custom_product_type_entry.status == store.Failed
+  assert custom_product_type_entry.status == store_types.Failed
   assert custom_product_type_entry.staged_resource_ids == []
 }
 
@@ -1679,7 +1806,7 @@ pub fn product_set_shape_validator_rejects_collection_limits_test() {
   assert string.contains(shape_json, "\"code\":\"INVALID_INPUT\"")
   let assert [shape_entry] = store.get_log(shape_proxy.store)
   assert shape_entry.operation_name == Some("productSet")
-  assert shape_entry.status == store.Failed
+  assert shape_entry.status == store_types.Failed
   assert shape_entry.staged_resource_ids == []
 
   let too_many_quantities =
@@ -1729,7 +1856,7 @@ pub fn product_set_rejects_missing_and_suspended_product_references_test() {
   assert string.contains(missing_json, "\"code\":\"PRODUCT_DOES_NOT_EXIST\"")
   let assert [missing_entry] = store.get_log(missing_proxy.store)
   assert missing_entry.operation_name == Some("productSet")
-  assert missing_entry.status == store.Failed
+  assert missing_entry.status == store_types.Failed
   assert missing_entry.staged_resource_ids == []
 
   let suspended_query =
@@ -1754,7 +1881,7 @@ pub fn product_set_rejects_missing_and_suspended_product_references_test() {
   assert string.contains(suspended_json, "\"code\":\"INVALID_PRODUCT\"")
   let assert [suspended_entry] = store.get_log(next_proxy.store)
   assert suspended_entry.operation_name == Some("productSet")
-  assert suspended_entry.status == store.Failed
+  assert suspended_entry.status == store_types.Failed
   assert suspended_entry.staged_resource_ids == []
 }
 
@@ -1801,7 +1928,7 @@ pub fn product_create_legacy_input_validation_uses_input_field_path_test() {
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productCreate")
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
 }
 
@@ -1906,7 +2033,7 @@ pub fn product_variants_bulk_create_rejects_invalid_scalar_fields_test() {
     == 1
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productVariantsBulkCreate")
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
 }
 
@@ -1967,7 +2094,7 @@ pub fn product_variants_bulk_update_rejects_invalid_scalar_fields_test() {
   assert variant.price == Some("0.00")
   assert variant.inventory_quantity == Some(0)
   let assert [entry] = store.get_log(next_proxy.store)
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
 }
 
 pub fn product_variant_create_and_update_reject_invalid_scalars_test() {
@@ -1998,8 +2125,8 @@ pub fn product_variant_create_and_update_reject_invalid_scalars_test() {
   assert variant.price == Some("0.00")
   assert variant.compare_at_price == None
   let assert [create_entry, update_entry] = store.get_log(proxy.store)
-  assert create_entry.status == store.Failed
-  assert update_entry.status == store.Failed
+  assert create_entry.status == store_types.Failed
+  assert update_entry.status == store_types.Failed
 }
 
 pub fn product_set_rejects_invalid_variant_scalars_test() {
@@ -2014,7 +2141,7 @@ pub fn product_set_rejects_invalid_variant_scalars_test() {
     == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"INVALID_VARIANT\"}]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productSet")
-  assert entry.status == store.Failed
+  assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
 }
 

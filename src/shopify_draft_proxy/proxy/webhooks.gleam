@@ -31,16 +31,23 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{type Order, Eq}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Argument, type Definition, type Location, type Selection,
+  type VariableDefinition, Argument, Field, OperationDefinition, SelectionSet,
+  VariableDefinition, VariableValue,
+}
 import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/parser as graphql_parser
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SelectedFieldOptions, SerializeConnectionConfig, SrcList, SrcNull, SrcString,
   default_connection_page_info_options, default_connection_window_options,
-  get_document_fragments, get_field_response_key, paginate_connection_items,
-  project_graphql_value, serialize_connection, src_object,
+  field_locations_json, get_document_fragments, get_field_response_key,
+  locations_json, paginate_connection_items, project_graphql_value,
+  serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
@@ -57,6 +64,7 @@ import shopify_draft_proxy/search_query_parser.{
 }
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -957,59 +965,72 @@ fn handle_create(
         Ok(d) -> d
         Error(_) -> dict.new()
       }
-      let topic = case dict.get(args, "topic") {
-        Ok(root_field.StringVal(s)) -> Some(s)
-        _ -> None
-      }
-      let input = read_webhook_subscription_input(args)
-      let user_errors = case input {
-        Some(input_dict) ->
-          validate_webhook_subscription_create_input(
-            input_dict,
-            topic,
-            store,
-            requesting_api_client_id,
-          )
-        None -> []
-      }
-      let #(record_opt, store_after, identity_after, staged_ids) = case
-        input,
-        user_errors
-      {
-        Some(input_dict), [] -> {
-          let #(record, identity_after) =
-            build_webhook_from_create_input(identity, topic, input_dict)
-          let #(_, store_after) =
-            store.upsert_staged_webhook_subscription(store, record)
-          #(Some(record), store_after, identity_after, [record.id])
+      let #(topic, topic_errors) =
+        read_public_webhook_topic(args, field, document, operation_path)
+      case topic_errors {
+        [_, ..] -> {
+          let result =
+            MutationFieldResult(
+              key: key,
+              payload: json.null(),
+              staged_resource_ids: [],
+              top_level_errors: topic_errors,
+              log_drafts: [],
+            )
+          #(result, store, identity)
         }
-        _, _ -> #(None, store, identity, [])
+        [] -> {
+          let input = read_webhook_subscription_input(args)
+          let user_errors = case input {
+            Some(input_dict) ->
+              validate_webhook_subscription_create_input(
+                input_dict,
+                topic,
+                store,
+                requesting_api_client_id,
+              )
+            None -> []
+          }
+          let #(record_opt, store_after, identity_after, staged_ids) = case
+            input,
+            user_errors
+          {
+            Some(input_dict), [] -> {
+              let #(record, identity_after) =
+                build_webhook_from_create_input(identity, topic, input_dict)
+              let #(_, store_after) =
+                store.upsert_staged_webhook_subscription(store, record)
+              #(Some(record), store_after, identity_after, [record.id])
+            }
+            _, _ -> #(None, store, identity, [])
+          }
+          let payload =
+            project_create_payload(record_opt, user_errors, field, fragments)
+          let draft =
+            single_root_log_draft(
+              "webhookSubscriptionCreate",
+              staged_ids,
+              case user_errors {
+                [] -> store_types.Staged
+                _ -> store_types.Failed
+              },
+              "webhooks",
+              "stage-locally",
+              Some(
+                "Locally staged webhookSubscriptionCreate in shopify-draft-proxy.",
+              ),
+            )
+          let result =
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: staged_ids,
+              top_level_errors: [],
+              log_drafts: [draft],
+            )
+          #(result, store_after, identity_after)
+        }
       }
-      let payload =
-        project_create_payload(record_opt, user_errors, field, fragments)
-      let draft =
-        single_root_log_draft(
-          "webhookSubscriptionCreate",
-          staged_ids,
-          case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
-          },
-          "webhooks",
-          "stage-locally",
-          Some(
-            "Locally staged webhookSubscriptionCreate in shopify-draft-proxy.",
-          ),
-        )
-      let result =
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: staged_ids,
-          top_level_errors: [],
-          log_drafts: [draft],
-        )
-      #(result, store_after, identity_after)
     }
   }
 }
@@ -1103,8 +1124,8 @@ fn handle_update(
           "webhookSubscriptionUpdate",
           staged_ids,
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "webhooks",
           "stage-locally",
@@ -1186,8 +1207,8 @@ fn handle_delete(
           "webhookSubscriptionDelete",
           [],
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "webhooks",
           "stage-locally",
@@ -1314,6 +1335,212 @@ fn read_webhook_subscription_input(
     Ok(root_field.ObjectVal(fields)) -> Some(fields)
     _ -> None
   }
+}
+
+fn read_public_webhook_topic(
+  args: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+  operation_path: String,
+) -> #(Option(String), List(Json)) {
+  case dict.get(args, "topic") {
+    Ok(root_field.StringVal(topic)) ->
+      case list.contains(public_webhook_subscription_topics(), topic) {
+        True -> #(Some(topic), [])
+        False -> #(Some(topic), [
+          invalid_webhook_topic_error(topic, field, document, operation_path),
+        ])
+      }
+    Ok(_) -> #(None, [
+      invalid_webhook_topic_error("", field, document, operation_path),
+    ])
+    Error(_) -> #(None, [])
+  }
+}
+
+fn invalid_webhook_topic_error(
+  topic: String,
+  field: Selection,
+  document: String,
+  operation_path: String,
+) -> Json {
+  case topic_argument_variable_name(field) {
+    Some(variable_name) ->
+      invalid_webhook_topic_variable_error(variable_name, topic, document)
+    None ->
+      invalid_webhook_topic_literal_error(
+        topic,
+        field,
+        document,
+        operation_path,
+      )
+  }
+}
+
+fn invalid_webhook_topic_literal_error(
+  topic: String,
+  field: Selection,
+  document: String,
+  operation_path: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value ("
+        <> topic
+        <> "). Expected type 'WebhookSubscriptionTopic!'.",
+      ),
+    ),
+    #("locations", field_locations_json(field, document)),
+    #(
+      "path",
+      json.array(
+        [operation_path, "webhookSubscriptionCreate", "topic"],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("argumentLiteralsIncompatible")),
+        #("typeName", json.string("Field")),
+        #("argumentName", json.string("topic")),
+      ]),
+    ),
+  ])
+}
+
+fn invalid_webhook_topic_variable_error(
+  variable_name: String,
+  topic: String,
+  document: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Variable $"
+        <> variable_name
+        <> " of type WebhookSubscriptionTopic! was provided invalid value",
+      ),
+    ),
+  ]
+  let with_locations = case
+    variable_definition_location(document, variable_name)
+  {
+    Some(loc) ->
+      list.append(base, [#("locations", locations_json(loc, document))])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("INVALID_VARIABLE")),
+          #("value", json.string(topic)),
+          #(
+            "problems",
+            json.preprocessed_array([
+              json.object([
+                #("path", json.preprocessed_array([])),
+                #(
+                  "explanation",
+                  json.string(
+                    "Expected \""
+                    <> topic
+                    <> "\" to be one of: "
+                    <> public_webhook_subscription_topics_message(),
+                  ),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn topic_argument_variable_name(field: Selection) -> Option(String) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      case find_ast_argument(arguments, "topic") {
+        Some(Argument(value: VariableValue(variable: variable), ..)) ->
+          Some(variable.name.value)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn find_ast_argument(
+  arguments: List(Argument),
+  name: String,
+) -> Option(Argument) {
+  case arguments {
+    [] -> None
+    [first, ..rest] -> {
+      let Argument(name: arg_name, ..) = first
+      case arg_name.value == name {
+        True -> Some(first)
+        False -> find_ast_argument(rest, name)
+      }
+    }
+  }
+}
+
+fn variable_definition_location(
+  document: String,
+  variable_name: String,
+) -> Option(Location) {
+  case graphql_parser.parse(graphql_source.new(document)) {
+    Error(_) -> None
+    Ok(doc) ->
+      case find_first_operation(doc.definitions) {
+        Some(OperationDefinition(variable_definitions: definitions, ..)) ->
+          find_variable_definition_location(definitions, variable_name)
+        _ -> None
+      }
+  }
+}
+
+fn find_first_operation(definitions: List(Definition)) -> Option(Definition) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] ->
+      case definition {
+        OperationDefinition(..) -> Some(definition)
+        _ -> find_first_operation(rest)
+      }
+  }
+}
+
+fn find_variable_definition_location(
+  definitions: List(VariableDefinition),
+  variable_name: String,
+) -> Option(Location) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] -> {
+      let VariableDefinition(variable: variable, loc: loc, ..) = definition
+      case variable.name.value == variable_name {
+        True -> loc
+        False -> find_variable_definition_location(rest, variable_name)
+      }
+    }
+  }
+}
+
+fn public_webhook_subscription_topics() -> List(String) {
+  string.split(public_webhook_subscription_topics_message(), ", ")
+}
+
+fn public_webhook_subscription_topics_message() -> String {
+  // Seeded from the captured Shopify Admin GraphQL 2026-04
+  // WebhookSubscriptionTopic introspection fixture.
+  "TAX_SUMMARIES_CREATE, APP_UNINSTALLED, APP_SCOPES_UPDATE, CARTS_CREATE, CARTS_UPDATE, CHANNELS_DELETE, CHECKOUTS_CREATE, CHECKOUTS_DELETE, CHECKOUTS_UPDATE, CUSTOMER_PAYMENT_METHODS_CREATE, CUSTOMER_PAYMENT_METHODS_UPDATE, CUSTOMER_PAYMENT_METHODS_REVOKE, COLLECTION_LISTINGS_ADD, COLLECTION_LISTINGS_REMOVE, COLLECTION_LISTINGS_UPDATE, COLLECTION_PUBLICATIONS_CREATE, COLLECTION_PUBLICATIONS_DELETE, COLLECTION_PUBLICATIONS_UPDATE, COLLECTIONS_CREATE, COLLECTIONS_DELETE, COLLECTIONS_UPDATE, CUSTOMER_GROUPS_CREATE, CUSTOMER_GROUPS_DELETE, CUSTOMER_GROUPS_UPDATE, CUSTOMERS_CREATE, CUSTOMERS_DELETE, CUSTOMERS_DISABLE, CUSTOMERS_ENABLE, CUSTOMERS_UPDATE, CUSTOMERS_PURCHASING_SUMMARY, CUSTOMERS_MARKETING_CONSENT_UPDATE, CUSTOMER_TAGS_ADDED, CUSTOMER_TAGS_REMOVED, CUSTOMERS_EMAIL_MARKETING_CONSENT_UPDATE, DISPUTES_CREATE, DISPUTES_UPDATE, DRAFT_ORDERS_CREATE, DRAFT_ORDERS_DELETE, DRAFT_ORDERS_UPDATE, FULFILLMENT_EVENTS_CREATE, FULFILLMENT_EVENTS_DELETE, FULFILLMENTS_CREATE, FULFILLMENTS_UPDATE, ATTRIBUTED_SESSIONS_FIRST, ATTRIBUTED_SESSIONS_LAST, ORDER_TRANSACTIONS_CREATE, ORDERS_CANCELLED, ORDERS_CREATE, ORDERS_DELETE, ORDERS_EDITED, ORDERS_FULFILLED, ORDERS_PAID, ORDERS_PARTIALLY_FULFILLED, ORDERS_UPDATED, ORDERS_LINK_REQUESTED, FULFILLMENT_ORDERS_MOVED, FULFILLMENT_ORDERS_HOLD_RELEASED, FULFILLMENT_ORDERS_SCHEDULED_FULFILLMENT_ORDER_READY, FULFILLMENT_HOLDS_RELEASED, FULFILLMENT_ORDERS_ORDER_ROUTING_COMPLETE, FULFILLMENT_ORDERS_CANCELLED, FULFILLMENT_ORDERS_FULFILLMENT_SERVICE_FAILED_TO_COMPLETE, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_REJECTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_SUBMITTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_ACCEPTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_REJECTED, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_SUBMITTED, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_ACCEPTED, FULFILLMENT_HOLDS_ADDED, FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_LOCAL_DELIVERY, FULFILLMENT_ORDERS_PLACED_ON_HOLD, FULFILLMENT_ORDERS_MERGED, FULFILLMENT_ORDERS_SPLIT, FULFILLMENT_ORDERS_PROGRESS_REPORTED, FULFILLMENT_ORDERS_MANUALLY_REPORTED_PROGRESS_STOPPED, PRODUCT_LISTINGS_ADD, PRODUCT_LISTINGS_REMOVE, PRODUCT_LISTINGS_UPDATE, SCHEDULED_PRODUCT_LISTINGS_ADD, SCHEDULED_PRODUCT_LISTINGS_UPDATE, SCHEDULED_PRODUCT_LISTINGS_REMOVE, PRODUCT_PUBLICATIONS_CREATE, PRODUCT_PUBLICATIONS_DELETE, PRODUCT_PUBLICATIONS_UPDATE, PRODUCTS_CREATE, PRODUCTS_DELETE, PRODUCTS_UPDATE, REFUNDS_CREATE, SEGMENTS_CREATE, SEGMENTS_DELETE, SEGMENTS_UPDATE, SHIPPING_ADDRESSES_CREATE, SHIPPING_ADDRESSES_UPDATE, SHOP_UPDATE, TAX_PARTNERS_UPDATE, TAX_SERVICES_CREATE, TAX_SERVICES_UPDATE, THEMES_CREATE, THEMES_DELETE, THEMES_PUBLISH, THEMES_UPDATE, VARIANTS_IN_STOCK, VARIANTS_OUT_OF_STOCK, INVENTORY_LEVELS_CONNECT, INVENTORY_LEVELS_UPDATE, INVENTORY_LEVELS_DISCONNECT, INVENTORY_ITEMS_CREATE, INVENTORY_ITEMS_UPDATE, INVENTORY_ITEMS_DELETE, LOCATIONS_ACTIVATE, LOCATIONS_DEACTIVATE, LOCATIONS_CREATE, LOCATIONS_UPDATE, LOCATIONS_DELETE, TENDER_TRANSACTIONS_CREATE, APP_PURCHASES_ONE_TIME_UPDATE, APP_SUBSCRIPTIONS_APPROACHING_CAPPED_AMOUNT, APP_SUBSCRIPTIONS_UPDATE, LOCALES_CREATE, LOCALES_UPDATE, LOCALES_DESTROY, DOMAINS_CREATE, DOMAINS_UPDATE, DOMAINS_DESTROY, SUBSCRIPTION_CONTRACTS_CREATE, SUBSCRIPTION_CONTRACTS_UPDATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_CREATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_UPDATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_DELETE, PROFILES_CREATE, PROFILES_UPDATE, PROFILES_DELETE, SUBSCRIPTION_BILLING_ATTEMPTS_SUCCESS, SUBSCRIPTION_BILLING_ATTEMPTS_FAILURE, SUBSCRIPTION_BILLING_ATTEMPTS_CHALLENGED, RETURNS_CANCEL, RETURNS_CLOSE, RETURNS_REOPEN, RETURNS_REQUEST, RETURNS_APPROVE, RETURNS_UPDATE, RETURNS_PROCESS, RETURNS_DECLINE, REVERSE_DELIVERIES_ATTACH_DELIVERABLE, REVERSE_FULFILLMENT_ORDERS_DISPOSE, PAYMENT_TERMS_CREATE, PAYMENT_TERMS_DELETE, PAYMENT_TERMS_UPDATE, PAYMENT_SCHEDULES_DUE, SELLING_PLAN_GROUPS_CREATE, SELLING_PLAN_GROUPS_UPDATE, SELLING_PLAN_GROUPS_DELETE, BULK_OPERATIONS_FINISH, PRODUCT_FEEDS_CREATE, PRODUCT_FEEDS_UPDATE, PRODUCT_FEEDS_INCREMENTAL_SYNC, PRODUCT_FEEDS_FULL_SYNC, PRODUCT_FEEDS_FULL_SYNC_FINISH, MARKETS_CREATE, MARKETS_UPDATE, MARKETS_DELETE, ORDERS_RISK_ASSESSMENT_CHANGED, ORDERS_SHOPIFY_PROTECT_ELIGIBILITY_CHANGED, FINANCE_KYC_INFORMATION_UPDATE, FULFILLMENT_ORDERS_RESCHEDULED, PUBLICATIONS_DELETE, AUDIT_EVENTS_ADMIN_API_ACTIVITY, FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_PICKUP, COMPANIES_CREATE, COMPANIES_UPDATE, COMPANIES_DELETE, COMPANY_LOCATIONS_CREATE, COMPANY_LOCATIONS_UPDATE, COMPANY_LOCATIONS_DELETE, COMPANY_CONTACTS_CREATE, COMPANY_CONTACTS_UPDATE, COMPANY_CONTACTS_DELETE, CUSTOMERS_MERGE, INVENTORY_TRANSFERS_ADD_ITEMS, INVENTORY_TRANSFERS_UPDATE_ITEM_QUANTITIES, INVENTORY_TRANSFERS_REMOVE_ITEMS, INVENTORY_TRANSFERS_READY_TO_SHIP, INVENTORY_TRANSFERS_CANCEL, INVENTORY_TRANSFERS_COMPLETE, INVENTORY_SHIPMENTS_DELETE, INVENTORY_SHIPMENTS_CREATE, INVENTORY_SHIPMENTS_MARK_IN_TRANSIT, INVENTORY_SHIPMENTS_UPDATE_TRACKING, INVENTORY_SHIPMENTS_ADD_ITEMS, INVENTORY_SHIPMENTS_UPDATE_ITEM_QUANTITIES, INVENTORY_SHIPMENTS_REMOVE_ITEMS, INVENTORY_SHIPMENTS_RECEIVE_ITEMS, CUSTOMER_ACCOUNT_SETTINGS_UPDATE, CUSTOMER_JOINED_SEGMENT, CUSTOMER_LEFT_SEGMENT, COMPANY_CONTACT_ROLES_ASSIGN, COMPANY_CONTACT_ROLES_REVOKE, SUBSCRIPTION_CONTRACTS_ACTIVATE, SUBSCRIPTION_CONTRACTS_PAUSE, SUBSCRIPTION_CONTRACTS_CANCEL, SUBSCRIPTION_CONTRACTS_FAIL, SUBSCRIPTION_CONTRACTS_EXPIRE, SUBSCRIPTION_BILLING_CYCLES_SKIP, SUBSCRIPTION_BILLING_CYCLES_UNSKIP, METAOBJECTS_CREATE, METAOBJECTS_UPDATE, METAOBJECTS_DELETE, FINANCE_APP_STAFF_MEMBER_GRANT, FINANCE_APP_STAFF_MEMBER_REVOKE, FINANCE_APP_STAFF_MEMBER_DELETE, FINANCE_APP_STAFF_MEMBER_UPDATE, DISCOUNTS_CREATE, DISCOUNTS_UPDATE, DISCOUNTS_DELETE, DISCOUNTS_REDEEMCODE_ADDED, DISCOUNTS_REDEEMCODE_REMOVED, METAFIELD_DEFINITIONS_CREATE, METAFIELD_DEFINITIONS_UPDATE, METAFIELD_DEFINITIONS_DELETE, DELIVERY_PROMISE_SETTINGS_UPDATE, MARKETS_BACKUP_REGION_UPDATE, CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE"
 }
 
 // `read_optional_string` and `read_optional_string_array` come from

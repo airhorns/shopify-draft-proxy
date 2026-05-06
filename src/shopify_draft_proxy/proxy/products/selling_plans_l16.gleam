@@ -41,7 +41,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products/selling_plans_l00.{
-  selling_plan_group_staged_ids,
+  find_selling_plan, selling_plan_group_staged_ids,
 }
 import shopify_draft_proxy/proxy/products/selling_plans_l01.{
   selling_plan_group_does_not_exist_error,
@@ -53,11 +53,16 @@ import shopify_draft_proxy/proxy/products/selling_plans_l15.{
   selling_plan_group_mutation_payload,
 }
 import shopify_draft_proxy/proxy/products/shared_l00.{
-  dedupe_preserving_order, read_arg_string_list, read_string_list_field,
+  captured_object_field, dedupe_preserving_order, read_arg_string_list,
+  read_int_field, read_list_field_length, read_object_field,
+  read_object_list_field, read_string_field, read_string_list_field,
 }
-import shopify_draft_proxy/proxy/products/shared_l01.{mutation_result}
+import shopify_draft_proxy/proxy/products/shared_l01.{
+  mutation_rejected_result, mutation_result,
+}
 import shopify_draft_proxy/proxy/products/types.{
-  type MutationFieldResult, MutationFieldResult,
+  type MutationFieldResult, type ProductUserError, MutationFieldResult,
+  ProductUserError,
 } as product_types
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
@@ -123,28 +128,50 @@ pub fn handle_selling_plan_group_mutation(
       let resources =
         graphql_helpers.read_arg_object(args, "resources")
         |> option.unwrap(dict.new())
-      let #(group, next_identity) =
-        make_selling_plan_group_record(identity, input, None, resources)
-      let #(_, next_store) =
-        store.upsert_staged_selling_plan_group(store, group)
-      mutation_result(
-        key,
-        selling_plan_group_mutation_payload(
-          next_store,
-          field,
-          variables,
-          fragments,
-          Some(group),
-          [],
-          None,
-          None,
-          None,
-          None,
-        ),
-        next_store,
-        next_identity,
-        selling_plan_group_staged_ids(group),
-      )
+      case selling_plan_group_input_errors(input, None) {
+        [_, ..] as user_errors ->
+          mutation_rejected_result(
+            key,
+            selling_plan_group_mutation_payload(
+              store,
+              field,
+              variables,
+              fragments,
+              None,
+              user_errors,
+              None,
+              None,
+              None,
+              None,
+            ),
+            store,
+            identity,
+          )
+        [] -> {
+          let #(group, next_identity) =
+            make_selling_plan_group_record(identity, input, None, resources)
+          let #(_, next_store) =
+            store.upsert_staged_selling_plan_group(store, group)
+          mutation_result(
+            key,
+            selling_plan_group_mutation_payload(
+              next_store,
+              field,
+              variables,
+              fragments,
+              Some(group),
+              [],
+              None,
+              None,
+              None,
+              None,
+            ),
+            next_store,
+            next_identity,
+            selling_plan_group_staged_ids(group),
+          )
+        }
+      }
     }
     "sellingPlanGroupUpdate" -> {
       let id = graphql_helpers.read_arg_string(args, "id")
@@ -177,39 +204,63 @@ pub fn handle_selling_plan_group_mutation(
           let input =
             graphql_helpers.read_arg_object(args, "input")
             |> option.unwrap(dict.new())
-          let deleted_plan_ids =
-            read_string_list_field(input, "sellingPlansToDelete")
-            |> option.unwrap([])
-            |> list.filter(fn(plan_id) {
-              list.any(existing.selling_plans, fn(plan) { plan.id == plan_id })
-            })
-          let #(group, next_identity) =
-            make_selling_plan_group_record(
-              identity,
-              input,
-              Some(existing),
-              dict.new(),
-            )
-          let #(_, next_store) =
-            store.upsert_staged_selling_plan_group(store, group)
-          mutation_result(
-            key,
-            selling_plan_group_mutation_payload(
-              next_store,
-              field,
-              variables,
-              fragments,
-              Some(group),
-              [],
-              Some(Some(deleted_plan_ids)),
-              None,
-              None,
-              None,
-            ),
-            next_store,
-            next_identity,
-            selling_plan_group_staged_ids(group),
-          )
+          case selling_plan_group_input_errors(input, Some(existing)) {
+            [_, ..] as user_errors ->
+              mutation_rejected_result(
+                key,
+                selling_plan_group_mutation_payload(
+                  store,
+                  field,
+                  variables,
+                  fragments,
+                  None,
+                  user_errors,
+                  Some(None),
+                  None,
+                  None,
+                  None,
+                ),
+                store,
+                identity,
+              )
+            [] -> {
+              let deleted_plan_ids =
+                read_string_list_field(input, "sellingPlansToDelete")
+                |> option.unwrap([])
+                |> list.filter(fn(plan_id) {
+                  list.any(existing.selling_plans, fn(plan) {
+                    plan.id == plan_id
+                  })
+                })
+              let #(group, next_identity) =
+                make_selling_plan_group_record(
+                  identity,
+                  input,
+                  Some(existing),
+                  dict.new(),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_selling_plan_group(store, group)
+              mutation_result(
+                key,
+                selling_plan_group_mutation_payload(
+                  next_store,
+                  field,
+                  variables,
+                  fragments,
+                  Some(group),
+                  [],
+                  Some(Some(deleted_plan_ids)),
+                  None,
+                  None,
+                  None,
+                ),
+                next_store,
+                next_identity,
+                selling_plan_group_staged_ids(group),
+              )
+            }
+          }
         }
       }
     }
@@ -447,4 +498,263 @@ pub fn handle_selling_plan_group_mutation(
     }
     _ -> mutation_result(key, json.null(), store, identity, [])
   }
+}
+
+fn selling_plan_group_input_errors(
+  input: Dict(String, ResolvedValue),
+  existing: Option(SellingPlanGroupRecord),
+) -> List(ProductUserError) {
+  let existing_plans = case existing {
+    Some(group) -> group.selling_plans
+    None -> []
+  }
+  list.append(
+    selling_plan_group_scalar_errors(input),
+    list.append(
+      selling_plan_input_list_errors(
+        read_object_list_field(input, "sellingPlansToCreate"),
+        ["input", "sellingPlansToCreate"],
+        "create",
+        False,
+        [],
+      ),
+      selling_plan_input_list_errors(
+        read_object_list_field(input, "sellingPlansToUpdate"),
+        ["input", "sellingPlansToUpdate"],
+        "update",
+        True,
+        existing_plans,
+      ),
+    ),
+  )
+}
+
+fn selling_plan_group_scalar_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  let option_errors = case read_list_field_length(input, "options") {
+    Some(count) if count > 3 -> [
+      ProductUserError(
+        ["input", "options"],
+        "Too many selling plan group options (maximum 3 options)",
+        Some("TOO_LONG"),
+      ),
+    ]
+    _ -> []
+  }
+  let position_errors = case read_int_field(input, "position") {
+    Some(position) if position < -2_147_483_648 || position > 2_147_483_647 -> [
+      ProductUserError(
+        ["input", "position"],
+        int32_position_message(),
+        Some("INVALID"),
+      ),
+    ]
+    _ -> []
+  }
+  list.append(option_errors, position_errors)
+}
+
+fn selling_plan_input_list_errors(
+  plans: List(Dict(String, ResolvedValue)),
+  field_prefix: List(String),
+  action: String,
+  require_id: Bool,
+  existing_plans: List(SellingPlanRecord),
+) -> List(ProductUserError) {
+  selling_plan_input_list_errors_loop(
+    plans,
+    field_prefix,
+    action,
+    require_id,
+    existing_plans,
+    0,
+  )
+}
+
+fn selling_plan_input_list_errors_loop(
+  plans: List(Dict(String, ResolvedValue)),
+  field_prefix: List(String),
+  action: String,
+  require_id: Bool,
+  existing_plans: List(SellingPlanRecord),
+  index: Int,
+) -> List(ProductUserError) {
+  case plans {
+    [] -> []
+    [plan, ..rest] -> {
+      let existing_plan = case require_id, read_string_field(plan, "id") {
+        True, Some(plan_id) -> find_selling_plan(existing_plans, plan_id)
+        _, _ -> None
+      }
+      list.append(
+        selling_plan_input_errors(
+          plan,
+          list.append(field_prefix, [int.to_string(index)]),
+          action,
+          require_id,
+          existing_plan,
+        ),
+        selling_plan_input_list_errors_loop(
+          rest,
+          field_prefix,
+          action,
+          require_id,
+          existing_plans,
+          index + 1,
+        ),
+      )
+    }
+  }
+}
+
+fn selling_plan_input_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  action: String,
+  require_id: Bool,
+  existing_plan: Option(SellingPlanRecord),
+) -> List(ProductUserError) {
+  let id_errors = case require_id, read_string_field(input, "id") {
+    True, None -> [
+      ProductUserError(
+        list.append(field_prefix, ["id"]),
+        "Id must be specificed to update a Selling Plan.",
+        Some("PLAN_ID_MUST_BE_SPECIFIED_TO_UPDATE"),
+      ),
+    ]
+    _, _ -> []
+  }
+  let option_errors = case read_list_field_length(input, "options") {
+    Some(count) if count > 3 -> [
+      ProductUserError(
+        list.append(field_prefix, ["options"]),
+        "Too many selling plan options (maximum 3 options)",
+        Some("TOO_LONG"),
+      ),
+    ]
+    _ -> []
+  }
+  let pricing_policy_errors = case
+    read_list_field_length(input, "pricingPolicies")
+  {
+    Some(count) if count > 2 -> [
+      ProductUserError(
+        list.append(field_prefix, ["pricingPolicies"]),
+        "Selling plans to "
+          <> action
+          <> " pricing policies can't have more than 2 pricing policies",
+        Some("SELLING_PLAN_PRICING_POLICIES_LIMIT"),
+      ),
+    ]
+    _ -> []
+  }
+  let position_errors = case read_int_field(input, "position") {
+    Some(position) if position < -2_147_483_648 || position > 2_147_483_647 -> [
+      ProductUserError(
+        list.append(field_prefix, ["position"]),
+        int32_position_message(),
+        Some("INVALID"),
+      ),
+    ]
+    _ -> []
+  }
+  let delivery_policy_errors =
+    delivery_policy_update_union_errors(input, field_prefix, existing_plan)
+  let policy_errors = case delivery_policy_errors {
+    [] ->
+      case
+        input_policy_kind(input, "billingPolicy"),
+        input_policy_kind(input, "deliveryPolicy")
+      {
+        Some(billing_kind), Some(delivery_kind)
+          if billing_kind != delivery_kind
+        -> [
+          ProductUserError(
+            field_prefix,
+            "billing and delivery policy types must be the same.",
+            Some("BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME"),
+          ),
+        ]
+        _, _ -> []
+      }
+    _ -> []
+  }
+  list.append(
+    id_errors,
+    list.append(
+      option_errors,
+      list.append(
+        pricing_policy_errors,
+        list.append(
+          position_errors,
+          list.append(delivery_policy_errors, policy_errors),
+        ),
+      ),
+    ),
+  )
+}
+
+fn delivery_policy_update_union_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  existing_plan: Option(SellingPlanRecord),
+) -> List(ProductUserError) {
+  case
+    input_policy_kind(input, "deliveryPolicy"),
+    existing_plan
+    |> option.then(fn(plan) {
+      captured_policy_kind(plan.data, "deliveryPolicy")
+    })
+  {
+    Some(input_kind), Some(existing_kind) if input_kind != existing_kind -> [
+      ProductUserError(
+        field_prefix,
+        "Only one of fixed or recurring delivery policy is allowed",
+        Some("ONLY_ONE_OF_FIXED_OR_RECURRING_DELIVERY"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn input_policy_kind(
+  input: Dict(String, ResolvedValue),
+  field_name: String,
+) -> Option(String) {
+  case read_object_field(input, field_name) {
+    Some(policy) ->
+      case
+        read_object_field(policy, "fixed"),
+        read_object_field(policy, "recurring")
+      {
+        Some(_), None -> Some("fixed")
+        None, Some(_) -> Some("recurring")
+        _, _ -> None
+      }
+    None -> None
+  }
+}
+
+fn captured_policy_kind(
+  value: CapturedJsonValue,
+  field_name: String,
+) -> Option(String) {
+  case captured_object_field(value, field_name) {
+    Some(policy) ->
+      case captured_object_field(policy, "__typename") {
+        Some(CapturedString("SellingPlanFixedBillingPolicy"))
+        | Some(CapturedString("SellingPlanFixedDeliveryPolicy")) ->
+          Some("fixed")
+        Some(CapturedString("SellingPlanRecurringBillingPolicy"))
+        | Some(CapturedString("SellingPlanRecurringDeliveryPolicy")) ->
+          Some("recurring")
+        _ -> None
+      }
+    None -> None
+  }
+}
+
+fn int32_position_message() -> String {
+  "Position must be within the range of -2,147,483,648 to 2,147,483,647"
 }

@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/list
 import gleam/option.{None, Some}
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppRecord, type Money,
   type WebhookSubscriptionRecord, AccessScopeRecord, AppInstallationRecord,
@@ -84,7 +85,7 @@ pub fn list_returns_ordered_then_unordered_test() {
 
 pub fn get_log_preserves_insertion_order_test() {
   let entry1 =
-    store.MutationLogEntry(
+    store_types.MutationLogEntry(
       id: "log-1",
       received_at: "2024-01-01T00:00:00.000Z",
       operation_name: None,
@@ -92,13 +93,13 @@ pub fn get_log_preserves_insertion_order_test() {
       query: "mutation { ... }",
       variables: dict.new(),
       staged_resource_ids: [],
-      status: store.Staged,
-      interpreted: store.InterpretedMetadata(
-        operation_type: store.Mutation,
+      status: store_types.Staged,
+      interpreted: store_types.InterpretedMetadata(
+        operation_type: store_types.Mutation,
         operation_name: None,
         root_fields: ["x"],
         primary_root_field: Some("x"),
-        capability: store.Capability(
+        capability: store_types.Capability(
           operation_name: Some("x"),
           domain: "saved-searches",
           execution: "stage-locally",
@@ -106,7 +107,7 @@ pub fn get_log_preserves_insertion_order_test() {
       ),
       notes: None,
     )
-  let entry2 = store.MutationLogEntry(..entry1, id: "log-2")
+  let entry2 = store_types.MutationLogEntry(..entry1, id: "log-2")
   let s =
     store.new()
     |> store.record_mutation_log_entry(entry1)

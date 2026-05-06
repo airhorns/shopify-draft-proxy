@@ -12,6 +12,7 @@ import shopify_draft_proxy/graphql/ast.{
   StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/admin_api_versions
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
@@ -32,6 +33,7 @@ import shopify_draft_proxy/proxy/store_properties/serializers.{
 import shopify_draft_proxy/proxy/store_properties/types as store_properties_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -341,7 +343,7 @@ fn stage_location_mutation(
       )
     "locationActivate" | "locationDeactivate" ->
       case
-        admin_api_version_at_least(request_path, "2026-04")
+        admin_api_versions.at_least(request_path, "2026-04")
         && !has_idempotency_key(field, document, variables)
       {
         True -> missing_idempotency_location_result(store, identity, root_name)
@@ -1686,44 +1688,6 @@ fn non_empty_string(value: String) -> Option(String) {
   }
 }
 
-fn admin_api_version_at_least(
-  request_path: String,
-  minimum_version: String,
-) -> Bool {
-  case
-    admin_api_version_from_path(request_path),
-    parse_admin_api_version(minimum_version)
-  {
-    Some(version), Some(minimum) -> compare_admin_api_versions(version, minimum)
-    _, _ -> False
-  }
-}
-
-fn admin_api_version_from_path(path: String) -> Option(#(Int, Int)) {
-  case string.split(path, "/") {
-    ["", "admin", "api", version, "graphql.json"] ->
-      parse_admin_api_version(version)
-    _ -> None
-  }
-}
-
-fn parse_admin_api_version(version: String) -> Option(#(Int, Int)) {
-  case string.split(version, "-") {
-    [year, month] ->
-      case int.parse(year), int.parse(month) {
-        Ok(parsed_year), Ok(parsed_month) -> Some(#(parsed_year, parsed_month))
-        _, _ -> None
-      }
-    _ -> None
-  }
-}
-
-fn compare_admin_api_versions(version: #(Int, Int), minimum: #(Int, Int)) {
-  let #(year, month) = version
-  let #(minimum_year, minimum_month) = minimum
-  year > minimum_year || { year == minimum_year && month >= minimum_month }
-}
-
 fn location_delete_error_result(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2614,7 +2578,7 @@ fn record_mutation_log(
   let #(received_at, identity_final) =
     synthetic_identity.make_synthetic_timestamp(identity_after_log_id)
   let entry =
-    store.MutationLogEntry(
+    store_types.MutationLogEntry(
       id: log_id,
       received_at: received_at,
       operation_name: None,
@@ -2622,13 +2586,13 @@ fn record_mutation_log(
       query: document,
       variables: dict.new(),
       staged_resource_ids: staged_ids,
-      status: store.Staged,
-      interpreted: store.InterpretedMetadata(
-        operation_type: store.Mutation,
+      status: store_types.Staged,
+      interpreted: store_types.InterpretedMetadata(
+        operation_type: store_types.Mutation,
         operation_name: None,
         root_fields: [root_name],
         primary_root_field: Some(root_name),
-        capability: store.Capability(
+        capability: store_types.Capability(
           operation_name: Some(root_name),
           domain: "store-properties",
           execution: "stage-locally",
