@@ -1,0 +1,38 @@
+mutation GiftCardUpdateDeactivatedMultiField($deactivatedId: ID!, $customerId: ID!, $recipientId: ID!) {
+  expiresAndCustomer: giftCardUpdate(id: $deactivatedId, input: { expiresOn: "2099-12-31", customerId: $customerId }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  customerAndRecipient: giftCardUpdate(
+    id: $deactivatedId
+    input: { customerId: $customerId, recipientAttributes: { id: $recipientId } }
+  ) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  customerRecipientAndExpires: giftCardUpdate(
+    id: $deactivatedId
+    input: { customerId: $customerId, recipientAttributes: { id: $recipientId }, expiresOn: "2099-12-31" }
+  ) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

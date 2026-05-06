@@ -629,6 +629,27 @@ pub fn gift_card_update_rejects_deactivated_card_protected_field_test() {
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]}}}"
 }
 
+pub fn gift_card_update_deactivated_multi_field_uses_first_blocked_field_test() {
+  let id = "gid://shopify/GiftCard/update-deactivated-multi-field"
+  let s =
+    store.new() |> seed_card(transaction_card(id, False, None, "50.0", "CAD"))
+  let body =
+    run_mutation(
+      s,
+      "mutation { expiresWins: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: \"2099-12-31\", customerId: \"gid://shopify/Customer/1\" }) { giftCard { id } userErrors { field code message } } customerWins: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { customerId: \"gid://shopify/Customer/1\", recipientAttributes: { id: \"gid://shopify/Customer/2\" } }) { giftCard { id } userErrors { field code message } } expiresBeatsCustomerAndRecipient: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { customerId: \"gid://shopify/Customer/1\", recipientAttributes: { id: \"gid://shopify/Customer/2\" }, expiresOn: \"2099-12-31\" }) { giftCard { id } userErrors { field code message } } allFields: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: \"2099-12-31\", customerId: \"gid://shopify/Customer/1\", recipientAttributes: { id: \"gid://shopify/Customer/2\" }, crossCurrencyRedemptionStrategy: ENABLED }) { giftCard { id } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"expiresWins\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]},\"customerWins\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]},\"expiresBeatsCustomerAndRecipient\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]},\"allFields\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]}}}"
+}
+
 pub fn gift_card_update_rejects_empty_input_test() {
   let id = "gid://shopify/GiftCard/update-empty"
   let s =
