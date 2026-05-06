@@ -1,0 +1,13 @@
+mutation CarrierServiceCallbackUrlValidationUpdateBanned($input: DeliveryCarrierServiceUpdateInput!) {
+  carrierServiceUpdate(input: $input) {
+    carrierService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

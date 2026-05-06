@@ -92,5 +92,5 @@
       }
     ]
   },
-  "notes": "HAR-587 local-runtime parity starts from a cassette-hydrated unapproved comment because the Admin API has moderation roots but no supported local comment-create root. The generic Gleam runner then threads local state through spam, not-spam, approve, delete, removed readback, removed spam/approve INVALID guardrails, and idempotent removed delete without runtime Shopify writes."
+  "notes": "Local-runtime parity starts from a cassette-hydrated unapproved comment because the Admin API has moderation roots but no supported local comment-create root. The generic Gleam runner then threads local state through spam, not-spam, approve, delete, removed readback, removed spam/approve INVALID guardrails, and idempotent removed delete without runtime Shopify writes."
 }

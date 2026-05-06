@@ -1,0 +1,28 @@
+{
+  "scenarioId": "web-presence-create-case-insensitive-locale",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[8].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "lowercase-language-region-locale-has-no-user-errors",
+        "capturePath": "$.cases[8].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "selectedPaths": ["$.userErrors"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture accepts defaultLocale en-us without userErrors while normalizing the returned locale object to en. The runtime test covers the ticket's broader EN-us canonicalization requirement."
+}

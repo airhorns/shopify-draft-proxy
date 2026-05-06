@@ -227,6 +227,44 @@ pub fn quantity_rules_add_still_stages_valid_rules_test() {
     == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[{\"minimum\":2,\"maximum\":10,\"increment\":2,\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/4\"}}],\"userErrors\":[]}}}"
 }
 
+pub fn quantity_rules_add_rejects_maximum_below_existing_price_break_test() {
+  let proxy = product_bulk_fixed_price_proxy_with_quantity_break(10)
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        "gid://shopify/PriceList/test",
+        "gid://shopify/ProductVariant/test",
+        "minimum: 1, maximum: 5, increment: 1",
+      ),
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { priceList(id: \"gid://shopify/PriceList/test\") { quantityRules(first: 10) { edges { node { maximum productVariant { id } } } } } }",
+    )
+
+  assert status == 200
+  assert read_status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[],\"userErrors\":[{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"maximum\"],\"message\":\"Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.\",\"code\":\"MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM\"}]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"priceList\":{\"quantityRules\":null}}}"
+}
+
+pub fn quantity_rules_delete_rejects_variant_without_existing_rule_test() {
+  let proxy = product_bulk_fixed_price_proxy()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { quantityRulesDelete(priceListId: \"gid://shopify/PriceList/test\", variantIds: [\"gid://shopify/ProductVariant/test\"]) { deletedQuantityRulesVariantIds userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesDelete\":{\"deletedQuantityRulesVariantIds\":[],\"userErrors\":[{\"field\":[\"variantIds\",\"0\"],\"message\":\"Quantity rule for variant associated with the price list provided does not exist.\",\"code\":\"VARIANT_QUANTITY_RULE_DOES_NOT_EXIST\"}]}}}"
+}
+
 fn quantity_rules_subject() -> #(DraftProxy, String, String) {
   let #(Response(status: product_status, body: product_body, ..), proxy) =
     graphql(
@@ -606,7 +644,7 @@ pub fn web_presence_create_accepts_shopify_i18n_locale_codes_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
       seeded_proxy(),
-      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"pt-BR\", \"zh-CN\"], subfolderSuffix: \"fr\" }) { webPresence { subfolderSuffix defaultLocale { locale primary } alternateLocales { locale primary } } userErrors { field message code } } }",
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"pt-BR\", \"es-419\", \"zh-Hant-TW\"], subfolderSuffix: \"fr\" }) { webPresence { subfolderSuffix defaultLocale { locale primary } alternateLocales { locale primary } } userErrors { field message code } } }",
     )
   let serialized = json.to_string(body)
 
@@ -618,15 +656,39 @@ pub fn web_presence_create_accepts_shopify_i18n_locale_codes_test() {
   )
   assert string.contains(
     serialized,
-    "\"alternateLocales\":[{\"locale\":\"pt-BR\",\"primary\":false},{\"locale\":\"zh-CN\",\"primary\":false}]",
+    "\"alternateLocales\":[{\"locale\":\"pt-BR\",\"primary\":false},{\"locale\":\"es-419\",\"primary\":false},{\"locale\":\"zh-Hant-TW\",\"primary\":false}]",
   )
 }
 
-pub fn web_presence_create_reports_invalid_alternate_locale_indexes_test() {
+pub fn web_presence_create_normalizes_locale_code_casing_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
       seeded_proxy(),
-      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"fr\", \"bogus\", \"pt-BR\", \"nope\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+      "mutation { webPresenceCreate(input: { defaultLocale: \"EN-us\", alternateLocales: [\"ZH-hant-tw\", \"pt-br\"], subfolderSuffix: \"us\" }) { webPresence { defaultLocale { locale primary } alternateLocales { locale primary } rootUrls { locale url } } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    serialized,
+    "\"defaultLocale\":{\"locale\":\"en-US\",\"primary\":true}",
+  )
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"zh-Hant-TW\",\"primary\":false},{\"locale\":\"pt-BR\",\"primary\":false}]",
+  )
+  assert string.contains(
+    serialized,
+    "\"rootUrls\":[{\"locale\":\"en-US\",\"url\":\"https://acme.myshopify.com/us/\"},{\"locale\":\"zh-Hant-TW\",\"url\":\"https://acme.myshopify.com/us/zh-Hant-TW/\"},{\"locale\":\"pt-BR\",\"url\":\"https://acme.myshopify.com/us/pt-BR/\"}]",
+  )
+}
+
+pub fn web_presence_create_reports_combined_invalid_alternate_locales_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"fr\", \"zz\", \"pt-BR\", \"yy\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
     )
   let serialized = json.to_string(body)
 
@@ -634,14 +696,10 @@ pub fn web_presence_create_reports_invalid_alternate_locale_indexes_test() {
   assert string.contains(serialized, "\"webPresence\":null")
   assert string.contains(
     serialized,
-    "\"field\":[\"input\",\"alternateLocales\",\"1\"],\"message\":\"Invalid locale codes: bogus\",\"code\":\"INVALID\"",
+    "\"field\":[\"input\",\"alternateLocales\"],\"message\":\"Invalid locale codes: zz, and yy\",\"code\":\"INVALID\"",
   )
-  assert string.contains(
-    serialized,
-    "\"field\":[\"input\",\"alternateLocales\",\"3\"],\"message\":\"Invalid locale codes: nope\",\"code\":\"INVALID\"",
-  )
-  assert !string.contains(serialized, "\"alternateLocales\",\"0\"")
-  assert !string.contains(serialized, "\"alternateLocales\",\"2\"")
+  assert !string.contains(serialized, "\"alternateLocales\",\"1\"")
+  assert !string.contains(serialized, "\"alternateLocales\",\"3\"")
 }
 
 pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
@@ -701,6 +759,210 @@ pub fn web_presence_create_reports_unknown_domain_only_when_not_stored_test() {
   assert string.contains(
     serialized,
     "\"field\":[\"input\",\"domainId\"],\"message\":\"Domain does not exist\",\"code\":\"DOMAIN_NOT_FOUND\"",
+  )
+}
+
+pub fn web_presence_update_preserves_absent_locale_fields_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr\", alternateLocales: [\"es\"], subfolderSuffix: \"fr\" }) { webPresence { id defaultLocale { locale } alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { alternateLocales: [\"de\"] }) { webPresence { id defaultLocale { locale } alternateLocales { locale } rootUrls { locale url } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id defaultLocale { locale } alternateLocales { locale } rootUrls { locale url } } } }",
+    )
+  let update_json = json.to_string(update_body)
+  let read_json = json.to_string(read_body)
+
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/1\"",
+  )
+  assert update_status == 200
+  assert read_status == 200
+  assert string.contains(update_json, "\"userErrors\":[]")
+  assert string.contains(update_json, "\"defaultLocale\":{\"locale\":\"fr\"}")
+  assert string.contains(
+    update_json,
+    "\"alternateLocales\":[{\"locale\":\"de\"}]",
+  )
+  assert string.contains(read_json, "\"defaultLocale\":{\"locale\":\"fr\"}")
+  assert string.contains(
+    read_json,
+    "\"alternateLocales\":[{\"locale\":\"de\"}]",
+  )
+}
+
+pub fn web_presence_update_preserves_absent_alternate_locales_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", alternateLocales: [\"es\"], subfolderSuffix: \"intl\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { defaultLocale: \"fr\" }) { webPresence { defaultLocale { locale } alternateLocales { locale } } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(update_body)
+
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/1\"",
+  )
+  assert update_status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"defaultLocale\":{\"locale\":\"fr\"}")
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"es\"}]",
+  )
+}
+
+pub fn web_presence_update_accepts_empty_input_as_noop_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr\", alternateLocales: [\"es\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: {}) { webPresence { defaultLocale { locale } alternateLocales { locale } subfolderSuffix } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(update_body)
+
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/1\"",
+  )
+  assert update_status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"defaultLocale\":{\"locale\":\"fr\"}")
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"es\"}]",
+  )
+  assert string.contains(serialized, "\"subfolderSuffix\":\"fr\"")
+}
+
+pub fn web_presence_update_validates_explicit_default_locale_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"en\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: blank_status, body: blank_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { defaultLocale: \"\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: invalid_status, body: invalid_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { defaultLocale: \"bogus\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/1\"",
+  )
+  assert blank_status == 200
+  assert invalid_status == 200
+  assert string.contains(json.to_string(blank_body), "\"webPresence\":null")
+  assert string.contains(
+    json.to_string(blank_body),
+    "\"field\":[\"input\",\"defaultLocale\"],\"message\":\"Default locale can't be blank\",\"code\":\"CANNOT_SET_DEFAULT_LOCALE_TO_NULL\"",
+  )
+  assert string.contains(json.to_string(invalid_body), "\"webPresence\":null")
+  assert string.contains(
+    json.to_string(invalid_body),
+    "\"field\":[\"input\",\"defaultLocale\"],\"message\":\"Invalid locale codes: bogus\",\"code\":\"INVALID\"",
+  )
+}
+
+pub fn web_presence_update_domain_id_is_not_validated_as_user_error_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"en\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { domainId: \"gid://shopify/Domain/9999\" }) { webPresence { id defaultLocale { locale } } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(update_body)
+
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/1\"",
+  )
+  assert update_status == 200
+  assert string.contains(
+    serialized,
+    "\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/1\",\"defaultLocale\":{\"locale\":\"en\"}}",
+  )
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert !string.contains(serialized, "DOMAIN_NOT_FOUND")
+}
+
+pub fn web_presence_update_subfolder_domain_mutex_uses_existing_domain_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", domainId: \"gid://shopify/Domain/1000\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \""
+        <> web_presence_id
+        <> "\", input: { subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(update_body)
+
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/1\"",
+  )
+  assert update_status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"code\":\"CANNOT_HAVE_SUBFOLDER_AND_DOMAIN\"",
   )
 }
 
@@ -823,6 +1085,22 @@ fn product_bulk_fixed_price_proxy() -> DraftProxy {
   product_bulk_fixed_price_proxy_with_fixed_edges(0)
 }
 
+fn product_bulk_fixed_price_proxy_with_quantity_break(
+  minimum_quantity: Int,
+) -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_products([product_bulk_fixed_price_product()])
+    |> store.upsert_base_product_variants([product_bulk_fixed_price_variant()])
+    |> store.upsert_base_price_lists([
+      product_bulk_fixed_price_list([
+        product_bulk_fixed_price_edge_with_quantity_break(minimum_quantity),
+      ]),
+    ])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
 fn product_bulk_fixed_price_proxy_with_fixed_edges(
   edge_count: Int,
 ) -> DraftProxy {
@@ -943,6 +1221,47 @@ fn product_bulk_fixed_price_edge(index: Int) -> CapturedJsonValue {
         #("__typename", CapturedString("PriceListPrice")),
         #("originType", CapturedString("FIXED")),
         #("variant", CapturedObject([#("id", CapturedString(variant_id))])),
+      ]),
+    ),
+  ])
+}
+
+fn product_bulk_fixed_price_edge_with_quantity_break(
+  minimum_quantity: Int,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("cursor", CapturedString("gid://shopify/ProductVariant/test")),
+    #(
+      "node",
+      CapturedObject([
+        #("__typename", CapturedString("PriceListPrice")),
+        #("originType", CapturedString("FIXED")),
+        #(
+          "variant",
+          CapturedObject([
+            #("id", CapturedString("gid://shopify/ProductVariant/test")),
+          ]),
+        ),
+        #(
+          "quantityPriceBreaks",
+          CapturedObject([
+            #(
+              "edges",
+              CapturedArray([
+                CapturedObject([
+                  #("cursor", CapturedString("break")),
+                  #(
+                    "node",
+                    CapturedObject([
+                      #("__typename", CapturedString("QuantityPriceBreak")),
+                      #("minimumQuantity", CapturedInt(minimum_quantity)),
+                    ]),
+                  ),
+                ]),
+              ]),
+            ),
+          ]),
+        ),
       ]),
     ),
   ])
