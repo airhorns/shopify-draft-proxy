@@ -865,8 +865,15 @@ pub type ShopFeaturesRecord {
   )
 }
 
+pub type PaymentGatewayRecord {
+  PaymentGatewayRecord(id: String, name: String, active: Bool)
+}
+
 pub type PaymentSettingsRecord {
-  PaymentSettingsRecord(supported_digital_wallets: List(String))
+  PaymentSettingsRecord(
+    supported_digital_wallets: List(String),
+    payment_gateways: List(PaymentGatewayRecord),
+  )
 }
 
 pub type ShopPolicyRecord {

@@ -243,6 +243,19 @@ pub fn payment_settings_json(record: types.PaymentSettingsRecord) -> Json {
       "supportedDigitalWallets",
       json.array(record.supported_digital_wallets, json.string),
     ),
+    #(
+      "paymentGateways",
+      json.array(record.payment_gateways, payment_gateway_json),
+    ),
+  ])
+}
+
+@internal
+pub fn payment_gateway_json(record: types.PaymentGatewayRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("name", json.string(record.name)),
+    #("active", json.bool(record.active)),
   ])
 }
 
