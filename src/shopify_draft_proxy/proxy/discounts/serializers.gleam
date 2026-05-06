@@ -129,6 +129,8 @@ pub fn build_discount_record(
     |> option.unwrap(mutation_timestamp)
   let discount_classes = discount_classes_for_input(input, discount_type)
   let discount_class = primary_discount_class(discount_classes)
+  let allocation_method =
+    allocation_method_for_input(input, discount_type, discount_class)
   let discount =
     SrcObject(
       dict.from_list([
@@ -147,6 +149,7 @@ pub fn build_discount_record(
           discount_types.string_list_source(discount_classes),
         ),
         #("discountClass", SrcString(discount_class)),
+        #("allocationMethod", SrcString(allocation_method)),
         #(
           "combinesWith",
           discount_types.object_value_or_default(
@@ -443,6 +446,32 @@ pub fn primary_discount_class(classes: List(String)) -> String {
 }
 
 @internal
+pub fn allocation_method_for_input(
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+  discount_class: String,
+) -> String {
+  case
+    discount_type == "basic"
+    && discount_class == "PRODUCT"
+    && customer_gets_value_has_percentage(input)
+  {
+    True -> "EACH"
+    False -> "ACROSS"
+  }
+}
+
+@internal
+pub fn customer_gets_value_has_percentage(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case customer_gets_value_fields(input) {
+    Some(fields) -> dict.has_key(fields, "percentage")
+    None -> False
+  }
+}
+
+@internal
 pub fn discount_class_for_record(record: DiscountRecord) -> String {
   case discount_types.captured_to_source(record.payload) {
     SrcObject(fields) -> {
@@ -532,6 +561,14 @@ pub fn validate_discount_input(
     "bxgy" -> list.append(errors, validate_bxgy_input(input_name, input))
     _ -> errors
   }
+  let errors = case discount_type {
+    "bxgy" -> errors
+    _ ->
+      list.append(
+        errors,
+        validate_customer_gets_value_bounds(input_name, input),
+      )
+  }
   let errors =
     list.append(
       errors,
@@ -593,6 +630,84 @@ pub fn validate_discount_input(
           discount_type,
         ),
       )
+  }
+}
+
+@internal
+pub fn validate_customer_gets_value_bounds(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_value_fields(input) {
+    Some(fields) -> {
+      let errors = case dict.get(fields, "percentage") {
+        Ok(value) -> validate_percentage_value(input_name, value)
+        Error(_) -> []
+      }
+      case dict.get(fields, "discountAmount") {
+        Ok(root_field.ObjectVal(amount_fields)) ->
+          list.append(
+            errors,
+            validate_discount_amount_value(
+              input_name,
+              discount_types.read_value(amount_fields, "amount"),
+            ),
+          )
+        _ -> errors
+      }
+    }
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_percentage_value(
+  input_name: String,
+  value: root_field.ResolvedValue,
+) -> List(SourceValue) {
+  case resolved_decimal_float(value) {
+    Some(percentage) if percentage <. 0.0 || percentage >. 1.0 -> [
+      discount_types.user_error(
+        [input_name, "customerGets", "value", "percentage"],
+        "Value must be between 0.0 and 1.0",
+        "VALUE_OUTSIDE_RANGE",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_discount_amount_value(
+  input_name: String,
+  value: root_field.ResolvedValue,
+) -> List(SourceValue) {
+  case resolved_decimal_float(value) {
+    Some(amount) if amount <. 0.0 -> [
+      discount_types.user_error(
+        [input_name, "customerGets", "value", "discountAmount", "amount"],
+        "Value must be less than or equal to 0",
+        "LESS_THAN_OR_EQUAL_TO",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn resolved_decimal_float(
+  value: root_field.ResolvedValue,
+) -> Option(Float) {
+  case value {
+    root_field.FloatVal(value) -> Some(value)
+    root_field.IntVal(value) -> Some(int.to_float(value))
+    root_field.StringVal(value) ->
+      case float.parse(value) {
+        Ok(value) -> Some(value)
+        Error(_) ->
+          int.parse(value) |> result.map(int.to_float) |> option.from_result
+      }
+    _ -> None
   }
 }
 

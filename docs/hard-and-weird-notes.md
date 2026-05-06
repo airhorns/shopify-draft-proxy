@@ -2693,11 +2693,21 @@ Captured GraphQL-validation branches:
 
 - omitting required `$input` for `discountCodeBasicCreate` returns a top-level `INVALID_VARIABLE` error before resolver execution
 - inline `discountCodeBasicCreate(basicCodeDiscount: null)` returns top-level `argumentLiteralsIncompatible`, not mutation-scoped `userErrors`
+- non-numeric Decimal variables inside `customerGets.value.discountAmount.amount`
+  return a top-level `INVALID_VARIABLE` error with problem path
+  `['customerGets', 'value', 'discountAmount', 'amount']` before resolver
+  execution
 
 Captured mutation-scoped `DiscountUserError` branches:
 
 - duplicate native code discounts return `field: ['basicCodeDiscount', 'code']`, `code: 'TAKEN'`, and message `Code must be unique. Please try a different code.`
 - invalid automatic basic date ranges return `field: ['automaticBasicDiscount', 'endsAt']` and message `Ends at needs to be after starts_at`
+- basic discount `customerGets.value.percentage` values below `0.0` or above `1.0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'percentage']`, `code: 'VALUE_OUTSIDE_RANGE'`, and message `Value must be between 0.0 and 1.0`
+- basic discount fixed `discountAmount.amount` values below `0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'discountAmount', 'amount']`, `code: 'LESS_THAN_OR_EQUAL_TO'`, and message `Value must be less than or equal to 0`
+- the same 2026-04 value-bounds capture accepted `percentage: 0` and
+  `discountAmount.amount: "0"` by creating native code discounts, so do
+  not reject zero values locally without a newer capture proving Shopify
+  changed that behavior
 - combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
 - BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
 - free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload
