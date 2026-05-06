@@ -438,6 +438,118 @@ pub fn standard_definition_enable_existing_type_is_idempotent_test() {
   assert first.identity == second.identity
 }
 
+pub fn definition_update_rejects_standard_template_definition_test() {
+  let enabled =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query("shopify--qa-pair"),
+    )
+
+  let update =
+    run_mutation(
+      enabled.store,
+      enabled.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Renamed\",
+            fieldDefinitions: [{ delete: { key: \"answer\" } }]
+          }
+        ) {
+          metaobjectDefinition { id name standardTemplate { type name } fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Standard metaobject definitions can't be updated\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { name standardTemplate { type name } fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinition\":{\"name\":\"Question and Answer Pairs\",\"standardTemplate\":{\"type\":\"shopify--qa-pair\",\"name\":\"Question and Answer Pairs\"},\"fieldDefinitions\":[{\"key\":\"question\"},{\"key\":\"answer\"},{\"key\":\"sources\"}]}}}"
+}
+
+pub fn definition_update_rejects_standard_type_even_without_template_metadata_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("shopify--qa-pair"),
+    )
+
+  let update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Renamed\",
+            description: \"Changed\",
+            fieldDefinitions: [{ delete: { key: \"body\" } }]
+          }
+        ) {
+          metaobjectDefinition { id name description fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Standard metaobject definitions can't be updated\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { name description fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinition\":{\"name\":\"Codex Rows\",\"description\":null,\"fieldDefinitions\":[{\"key\":\"title\"},{\"key\":\"body\"}]}}}"
+}
+
+pub fn definition_update_rejects_shopify_reserved_namespace_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("shopify--not-a-standard-template"),
+    )
+
+  let update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Renamed\",
+            fieldDefinitions: [{ delete: { key: \"body\" } }]
+          }
+        ) {
+          metaobjectDefinition { id name fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Standard metaobject definitions can't be updated\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinitionByType(type: \"shopify--not-a-standard-template\") { name fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"name\":\"Codex Rows\",\"fieldDefinitions\":[{\"key\":\"title\"},{\"key\":\"body\"}]}}}"
+}
+
 pub fn definition_create_rejects_invalid_field_key_test() {
   let outcome =
     run_mutation(
