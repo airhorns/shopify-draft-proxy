@@ -161,12 +161,43 @@
         }
       }
     },
+    "deleteWrongGidType": {
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid global id 'gid://shopify/Product/1?shopify-draft-proxy=synthetic'",
+            "locations": [{ "line": 2, "column": 44 }],
+            "path": ["mutation StorefrontAccessTokenDeleteWrongGidType", "storefrontAccessTokenDelete", "input", "id"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "CoercionError"
+            }
+          }
+        ]
+      }
+    },
     "delete": {
       "response": {
         "data": {
           "storefrontAccessTokenDelete": {
             "deletedStorefrontAccessTokenId": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
             "userErrors": []
+          }
+        }
+      }
+    },
+    "deleteMissing": {
+      "response": {
+        "data": {
+          "storefrontAccessTokenDelete": {
+            "deletedStorefrontAccessTokenId": null,
+            "userErrors": [
+              {
+                "code": "NOT_FOUND",
+                "field": ["input", "id"],
+                "message": "Storefront access token does not exist"
+              }
+            ]
           }
         }
       }
@@ -239,7 +270,7 @@
     "notes": [
       "Live 2026-04 safe-read probe confirmed Shopify returns an empty shop.storefrontAccessTokens connection with empty nodes and null cursors when no storefront tokens are visible to the app.",
       "The current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful create/delete cannot be captured without an additional write storefront access token scope.",
-      "The executable proxy parity request proves the local staged lifecycle exposed by HAR-452 and HAR-584: create returns a deterministic shpat_ token once, downstream shop.storefrontAccessTokens exposes the staged token with a redacted value and non-empty storefront scopes, delete returns the deleted ID, and the downstream connection returns empty nodes with null cursors."
+      "The executable proxy parity request proves the local staged lifecycle: create returns a deterministic shpat_ token once, downstream shop.storefrontAccessTokens exposes the staged token with a redacted value and non-empty storefront scopes, wrong-gid delete is rejected before deleting the token, missing-token delete returns NOT_FOUND, successful delete returns the deleted ID, and the downstream connection returns empty nodes with null cursors."
     ]
   },
   "upstreamCalls": []

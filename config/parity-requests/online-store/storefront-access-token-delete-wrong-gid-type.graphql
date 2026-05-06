@@ -1,0 +1,10 @@
+mutation StorefrontAccessTokenDeleteWrongGidType {
+  storefrontAccessTokenDelete(input: { id: "gid://shopify/Product/1?shopify-draft-proxy=synthetic" }) {
+    deletedStorefrontAccessTokenId
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

@@ -748,6 +748,7 @@ fn invalid_variable_gid_error(
             ValueProblem(
               path: path,
               explanation: "Invalid global id '" <> value <> "'",
+              message: None,
             ),
           ],
           loc,
