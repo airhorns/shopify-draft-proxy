@@ -1,0 +1,121 @@
+#graphql
+mutation PaymentCustomizationCreateValidationGaps(
+  $missingMetafields: PaymentCustomizationInput!
+  $bothIdentifiers: PaymentCustomizationInput!
+  $missingIdentifier: PaymentCustomizationInput!
+  $seed1: PaymentCustomizationInput!
+  $seed2: PaymentCustomizationInput!
+  $seed3: PaymentCustomizationInput!
+  $seed4: PaymentCustomizationInput!
+  $seed5: PaymentCustomizationInput!
+  $overflow: PaymentCustomizationInput!
+) {
+  missingMetafields: paymentCustomizationCreate(paymentCustomization: $missingMetafields) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  bothIdentifiers: paymentCustomizationCreate(paymentCustomization: $bothIdentifiers) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  missingIdentifier: paymentCustomizationCreate(paymentCustomization: $missingIdentifier) {
+    paymentCustomization {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  seed1: paymentCustomizationCreate(paymentCustomization: $seed1) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  seed2: paymentCustomizationCreate(paymentCustomization: $seed2) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  seed3: paymentCustomizationCreate(paymentCustomization: $seed3) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  seed4: paymentCustomizationCreate(paymentCustomization: $seed4) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  seed5: paymentCustomizationCreate(paymentCustomization: $seed5) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  overflow: paymentCustomizationCreate(paymentCustomization: $overflow) {
+    paymentCustomization {
+      id
+      title
+      enabled
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

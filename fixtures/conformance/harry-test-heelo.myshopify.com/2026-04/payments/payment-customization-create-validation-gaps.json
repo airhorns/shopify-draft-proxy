@@ -1,0 +1,387 @@
+{
+  "scenarioId": "payment-customization-create-validation-gaps",
+  "capturedAt": "2026-05-06T21:07:20.400Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "functionCatalog": {
+    "data": {
+      "shopifyFunctions": {
+        "nodes": [
+          {
+            "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "title": "conformance-payment-customization",
+            "handle": "conformance-payment-customization",
+            "apiType": "payment_customization"
+          },
+          {
+            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+            "title": "conformance-validation",
+            "handle": "conformance-validation",
+            "apiType": "cart_checkout_validation"
+          },
+          {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "conformance-cart-transform",
+            "handle": "conformance-cart-transform",
+            "apiType": "cart_transform"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 7,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "selectedFunction": {
+    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+    "title": "conformance-payment-customization",
+    "handle": "conformance-payment-customization",
+    "apiType": "payment_customization"
+  },
+  "setup": {
+    "activeBeforeCapture": {
+      "data": {
+        "paymentCustomizations": {
+          "nodes": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "deletedActiveBeforeCapture": []
+  },
+  "query": "#graphql\n  mutation PaymentCustomizationCreateValidationGaps(\n    $missingMetafields: PaymentCustomizationInput!\n    $bothIdentifiers: PaymentCustomizationInput!\n    $missingIdentifier: PaymentCustomizationInput!\n    $seed1: PaymentCustomizationInput!\n    $seed2: PaymentCustomizationInput!\n    $seed3: PaymentCustomizationInput!\n    $seed4: PaymentCustomizationInput!\n    $seed5: PaymentCustomizationInput!\n    $overflow: PaymentCustomizationInput!\n  ) {\n    missingMetafields: paymentCustomizationCreate(paymentCustomization: $missingMetafields) {\n      paymentCustomization { id }\n      userErrors { field code message }\n    }\n    bothIdentifiers: paymentCustomizationCreate(paymentCustomization: $bothIdentifiers) {\n      paymentCustomization { id }\n      userErrors { field code message }\n    }\n    missingIdentifier: paymentCustomizationCreate(paymentCustomization: $missingIdentifier) {\n      paymentCustomization { id }\n      userErrors { field code message }\n    }\n    seed1: paymentCustomizationCreate(paymentCustomization: $seed1) {\n      paymentCustomization { id title enabled functionId }\n      userErrors { field code message }\n    }\n    seed2: paymentCustomizationCreate(paymentCustomization: $seed2) {\n      paymentCustomization { id title enabled functionId }\n      userErrors { field code message }\n    }\n    seed3: paymentCustomizationCreate(paymentCustomization: $seed3) {\n      paymentCustomization { id title enabled functionId }\n      userErrors { field code message }\n    }\n    seed4: paymentCustomizationCreate(paymentCustomization: $seed4) {\n      paymentCustomization { id title enabled functionId }\n      userErrors { field code message }\n    }\n    seed5: paymentCustomizationCreate(paymentCustomization: $seed5) {\n      paymentCustomization { id title enabled functionId }\n      userErrors { field code message }\n    }\n    overflow: paymentCustomizationCreate(paymentCustomization: $overflow) {\n      paymentCustomization { id title enabled functionId }\n      userErrors { field code message }\n    }\n  }\n",
+  "variables": {
+    "missingMetafields": {
+      "title": "Draft proxy payment customization validation 1778101638947 missing metafields",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+    },
+    "bothIdentifiers": {
+      "title": "Draft proxy payment customization validation 1778101638947 both identifiers",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "functionHandle": "conformance-payment-customization",
+      "metafields": []
+    },
+    "missingIdentifier": {
+      "title": "Draft proxy payment customization validation 1778101638947 missing identifier",
+      "enabled": true,
+      "metafields": []
+    },
+    "seed1": {
+      "title": "Draft proxy payment customization validation 1778101638947 seed 1",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "metafields": []
+    },
+    "seed2": {
+      "title": "Draft proxy payment customization validation 1778101638947 seed 2",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "metafields": []
+    },
+    "seed3": {
+      "title": "Draft proxy payment customization validation 1778101638947 seed 3",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "metafields": []
+    },
+    "seed4": {
+      "title": "Draft proxy payment customization validation 1778101638947 seed 4",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "metafields": []
+    },
+    "seed5": {
+      "title": "Draft proxy payment customization validation 1778101638947 seed 5",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "metafields": []
+    },
+    "overflow": {
+      "title": "Draft proxy payment customization validation 1778101638947 overflow",
+      "enabled": true,
+      "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+      "metafields": []
+    }
+  },
+  "response": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "missingMetafields": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165380402"
+          },
+          "userErrors": []
+        },
+        "bothIdentifiers": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": [
+                "paymentCustomization"
+              ],
+              "code": "MULTIPLE_FUNCTION_IDENTIFIERS",
+              "message": "Only one of function_id or function_handle can be provided, not both."
+            }
+          ]
+        },
+        "missingIdentifier": {
+          "paymentCustomization": null,
+          "userErrors": [
+            {
+              "field": [
+                "paymentCustomization",
+                "functionHandle"
+              ],
+              "code": "MISSING_FUNCTION_IDENTIFIER",
+              "message": "Either function_id or function_handle must be provided."
+            }
+          ]
+        },
+        "seed1": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165413170",
+            "title": "Draft proxy payment customization validation 1778101638947 seed 1",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          },
+          "userErrors": []
+        },
+        "seed2": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165445938",
+            "title": "Draft proxy payment customization validation 1778101638947 seed 2",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          },
+          "userErrors": []
+        },
+        "seed3": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165478706",
+            "title": "Draft proxy payment customization validation 1778101638947 seed 3",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          },
+          "userErrors": []
+        },
+        "seed4": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165511474",
+            "title": "Draft proxy payment customization validation 1778101638947 seed 4",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          },
+          "userErrors": []
+        },
+        "seed5": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165544242",
+            "title": "Draft proxy payment customization validation 1778101638947 seed 5",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          },
+          "userErrors": []
+        },
+        "overflow": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/165577010",
+            "title": "Draft proxy payment customization validation 1778101638947 overflow",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 90,
+          "actualQueryCost": 90,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1910,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "id": "gid://shopify/PaymentCustomization/165380402",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165380402",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/165413170",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165413170",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1948,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/165445938",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165445938",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1952,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/165478706",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165478706",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1956,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/165511474",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165511474",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1961,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/165544242",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165544242",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1966,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/165577010",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/165577010",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": "Captured against a disposable shop after deleting active PaymentCustomization rows. Public Shopify 2026-04 accepted the missing-metafields and sixth-active create branches in this test shop; Function identifier validation branches are executable parity targets."
+}
