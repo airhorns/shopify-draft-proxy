@@ -1653,7 +1653,7 @@ pub fn upsert_fixed_price_nodes(
   let retained =
     existing_edges
     |> list.filter(fn(edge) {
-      case fixed_price_edge_variant_id(edge) {
+      case price_edge_variant_id(edge) {
         Some(id) -> !list.contains(input_variant_ids, id)
         None -> True
       }
@@ -1675,7 +1675,7 @@ pub fn upsert_fixed_price_nodes(
         price_list_currency(price_list),
       ))
     })
-  rebuild_price_list_prices(price_list, list.append(retained, new_edges))
+  rebuild_price_list_prices(price_list, list.append(new_edges, retained))
 }
 
 @internal
@@ -2271,7 +2271,7 @@ pub fn upsert_quantity_rule_nodes(
     data: captured_object_upsert(price_list.data, [
       #(
         "quantityRules",
-        price_connection_from_edges(list.append(retained, new_edges)),
+        price_connection_from_edges(list.append(new_edges, retained)),
       ),
     ]),
   )
@@ -2556,6 +2556,17 @@ pub fn captured_connection_edges(
 
 @internal
 pub fn fixed_price_edge_variant_id(edge: CapturedJsonValue) -> Option(String) {
+  case captured_edge_node(edge) {
+    Some(node) ->
+      case captured_field(node, "variant") {
+        Some(variant) -> captured_string_field(variant, "id")
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn price_edge_variant_id(edge: CapturedJsonValue) -> Option(String) {
   case captured_edge_node(edge) {
     Some(node) ->
       case captured_field(node, "variant") {

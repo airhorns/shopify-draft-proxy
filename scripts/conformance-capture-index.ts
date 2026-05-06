@@ -1674,7 +1674,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-capability-invariants.json`,
       'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-capability-invariants.json',
-      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-*.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-read.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-update.graphql',
     ],
     cleanupBehavior:
       'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
@@ -2059,6 +2062,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'markets-legacy-parity-fixtures',
+    scriptPath: 'scripts/capture-market-orphan-fixture-replacements-conformance.mts',
+    purpose:
+      'Markets, market-localization, web-presence, quantity-pricing, and price-list parity fixtures that predate recorder provenance metadata.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-pricing-rules-parity.json`,
+      `${CAPTURE_ROOT}catalog-create-missing-context.json`,
+      `${CAPTURE_ROOT}catalog-lifecycle-validation.json`,
+      `${CAPTURE_ROOT}market-create-status-enabled-mismatch.json`,
+      `${CAPTURE_ROOT}market-localizable-empty-read.json`,
+      `${CAPTURE_ROOT}market-localization-validation.json`,
+      `${CAPTURE_ROOT}market-localizations-register-too-many-keys.json`,
+      `${CAPTURE_ROOT}market-web-presence-delete-parity.json`,
+      `${CAPTURE_ROOT}market-web-presence-validation.json`,
+      `${CAPTURE_ROOT}price-list-create-dkk.json`,
+      `${CAPTURE_ROOT}price-list-fixed-prices-by-product-update-parity.json`,
+      `${CAPTURE_ROOT}price-list-mutation-validation.json`,
+    ],
+    cleanupBehavior:
+      'Records validation-only branches in place, creates and deletes disposable product, web-presence, price-list, and fixed-price state for success-path captures, and removes staged quantity-pricing rows after the 2025-01 quantity capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-lifecycle-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
@@ -2180,7 +2208,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/catalog-context-update-removes-only.json',
       'config/parity-specs/markets/catalog-context-update-market-taken.json',
       'config/parity-specs/markets/catalog-context-update-catalog-not-found.json',
-      'config/parity-requests/markets/catalog-context-update-*.graphql',
+      'config/parity-requests/markets/catalog-context-update-catalog-create.graphql',
+      'config/parity-requests/markets/catalog-context-update-catalog-not-found.graphql',
+      'config/parity-requests/markets/catalog-context-update-market-create.graphql',
+      'config/parity-requests/markets/catalog-context-update-market-taken.graphql',
+      'config/parity-requests/markets/catalog-context-update-no-args.graphql',
+      'config/parity-requests/markets/catalog-context-update-read.graphql',
+      'config/parity-requests/markets/catalog-context-update-removes-only.graphql',
     ],
     cleanupBehavior:
       'Creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order.',
@@ -2527,7 +2561,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}comment-delete-true-destroy.json`,
       'config/parity-specs/online-store/comment-delete-true-destroy.json',
-      'config/parity-requests/online-store/comment-delete-true-destroy-*.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-approve.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-delete.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-read.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable blog/article and one REST article comment, approves and deletes the comment during the scenario, then deletes the article and blog in cleanup.',
@@ -2913,7 +2949,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
       'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
-      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body*.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql',
     ],
     cleanupBehavior:
       'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',

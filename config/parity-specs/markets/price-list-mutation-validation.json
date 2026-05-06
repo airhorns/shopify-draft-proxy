@@ -12,15 +12,20 @@
     "variablesCapturePath": "$.cases[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Safe no-side-effect PriceList mutation validation coverage for Admin GraphQL 2026-04. The checked scenario covers invalid currency userErrors; success-path writes and permission/access-scope branches remain documented endpoint gaps until disposable price-list capture setup exists.",
+  "notes": "Safe no-side-effect PriceList mutation validation coverage for Admin GraphQL 2026-04. Current Shopify rejects variable-bound invalid currency plus missing parent before resolver execution with top-level INVALID_VARIABLE; success-path writes and permission/access-scope branches remain documented endpoint gaps outside this validation scenario.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "invalid-currency-price-list-create-data",
-        "capturePath": "$.cases[0].response.payload.data",
-        "proxyPath": "$.data"
+        "name": "invalid-currency-error-message",
+        "capturePath": "$.cases[0].response.payload.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "invalid-currency-error-extensions",
+        "capturePath": "$.cases[0].response.payload.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
       }
     ]
   }

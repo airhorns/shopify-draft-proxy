@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-04-25T16:34:00.000Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
     {
       "name": "webPresenceCreateInvalidRouting",
-      "query": "#graphql\nmutation WebPresenceCreateInvalidRouting($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence { id }\n    userErrors { field message code }\n  }\n}",
+      "query": "mutation WebPresenceCreateInvalidRouting($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "domainId": "gid://shopify/Domain/93049946345",
@@ -33,13 +33,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "webPresenceUpdateUnknownId",
-      "query": "#graphql\nmutation WebPresenceUpdateUnknownId($id: ID!, $input: WebPresenceUpdateInput!) {\n  webPresenceUpdate(id: $id, input: $input) {\n    webPresence { id }\n    userErrors { field message code }\n  }\n}",
+      "query": "mutation WebPresenceUpdateUnknownId($id: ID!, $input: WebPresenceUpdateInput!) {\n  webPresenceUpdate(id: $id, input: $input) {\n    webPresence {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/MarketWebPresence/999999999999",
         "input": {
@@ -59,6 +70,17 @@
                   "code": "WEB_PRESENCE_NOT_FOUND"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
             }
           }
         }
