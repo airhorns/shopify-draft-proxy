@@ -12,17 +12,17 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
-import shopify_draft_proxy/proxy/products/collections_l09 as collections
+import shopify_draft_proxy/proxy/products/collections_core as collections
 import shopify_draft_proxy/proxy/products/hydration
 import shopify_draft_proxy/proxy/products/mutations
-import shopify_draft_proxy/proxy/products/products_l05 as product_sources
-import shopify_draft_proxy/proxy/products/products_l12 as product_serializers
+import shopify_draft_proxy/proxy/products/products_handlers as product_serializers
+import shopify_draft_proxy/proxy/products/products_records as product_sources
 import shopify_draft_proxy/proxy/products/queries
-import shopify_draft_proxy/proxy/products/selling_plans_l01 as selling_plans
+import shopify_draft_proxy/proxy/products/selling_plans_core as selling_plans
 import shopify_draft_proxy/proxy/products/types as product_types
-import shopify_draft_proxy/proxy/products/variants_l01 as option_values
-import shopify_draft_proxy/proxy/products/variants_l02 as options
-import shopify_draft_proxy/proxy/products/variants_l08 as variants
+import shopify_draft_proxy/proxy/products/variants_options as options
+import shopify_draft_proxy/proxy/products/variants_options_core as option_values
+import shopify_draft_proxy/proxy/products/variants_sources as variants
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }

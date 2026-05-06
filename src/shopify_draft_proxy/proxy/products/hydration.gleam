@@ -40,18 +40,17 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/products/collections_l00.{
+import shopify_draft_proxy/proxy/products/collections_core.{
   collection_rule_set_has_rules,
 }
-import shopify_draft_proxy/proxy/products/products_l00.{
+import shopify_draft_proxy/proxy/products/products_core.{
   existing_group_description, existing_group_merchant_code, existing_group_name,
-  existing_group_position, product_hydrate_nodes_query,
+  existing_group_position, format_price_amount, product_hydrate_nodes_query,
 }
-import shopify_draft_proxy/proxy/products/products_l01.{format_price_amount}
-import shopify_draft_proxy/proxy/products/shared_l00.{
+import shopify_draft_proxy/proxy/products/shared.{
   dedupe_preserving_order, read_object_list_field, read_string_field,
 }
-import shopify_draft_proxy/proxy/products/variants_l00.{
+import shopify_draft_proxy/proxy/products/variants_helpers.{
   existing_group_options, has_only_default_variant, option_to_result,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
