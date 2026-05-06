@@ -1,0 +1,214 @@
+mutation MetafieldDefinitionValidationsInput(
+  $namespace: String!
+  $targetDefinitionId: String!
+  $replacementDefinitionId: String!
+) {
+  unknown: metafieldDefinitionCreate(
+    definition: {
+      name: "Unknown validation option"
+      namespace: $namespace
+      key: "unknown"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      validations: [{ name: "totally_unknown_option", value: "x" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicate: metafieldDefinitionCreate(
+    definition: {
+      name: "Duplicate validation option"
+      namespace: $namespace
+      key: "duplicate"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      validations: [{ name: "min", value: "5" }, { name: "min", value: "10" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  badNumber: metafieldDefinitionCreate(
+    definition: {
+      name: "Invalid number validation"
+      namespace: $namespace
+      key: "bad_number"
+      ownerType: PRODUCT
+      type: "number_integer"
+      validations: [{ name: "min", value: "not-a-number" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  minMax: metafieldDefinitionCreate(
+    definition: {
+      name: "Invalid min max validation"
+      namespace: $namespace
+      key: "min_max"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      validations: [{ name: "min", value: "10" }, { name: "max", value: "5" }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  metaobjectRequired: metafieldDefinitionCreate(
+    definition: {
+      name: "Missing metaobject validation"
+      namespace: $namespace
+      key: "metaobject_required"
+      ownerType: PRODUCT
+      type: "metaobject_reference"
+      validations: []
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  ratingRequired: metafieldDefinitionCreate(
+    definition: {
+      name: "Missing rating validation"
+      namespace: $namespace
+      key: "rating_required"
+      ownerType: PRODUCT
+      type: "rating"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createMetaobjectReference: metafieldDefinitionCreate(
+    definition: {
+      name: "Metaobject reference"
+      namespace: $namespace
+      key: "metaobject_reference"
+      ownerType: PRODUCT
+      type: "metaobject_reference"
+      validations: [{ name: "metaobject_definition_id", value: $targetDefinitionId }]
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateMetaobjectReference: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "metaobject_reference"
+      ownerType: PRODUCT
+      validations: [{ name: "metaobject_definition_id", value: $replacementDefinitionId }]
+    }
+  ) {
+    updatedDefinition {
+      id
+      namespace
+      key
+      validations {
+        name
+        value
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+}

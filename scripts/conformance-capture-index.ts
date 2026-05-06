@@ -1108,6 +1108,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-validations-input',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-validations-input-conformance.ts',
+    purpose:
+      'metafieldDefinitionCreate validations[] option validation and metafieldDefinitionUpdate metaobject_definition_id immutability.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validations-input.json`,
+      'config/parity-specs/metafield-definitions/metafield-definition-validations-input.json',
+      'config/parity-requests/metafield-definitions/metafield-definition-validations-input.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions to supply valid metaobject_definition_id options, records validation branches, deletes the staged metafield definition, then deletes the metaobject definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-pinning',
     scriptPath: 'scripts/capture-metafield-definition-pinning-conformance.mts',
     purpose: 'metafieldDefinitionPin/metafieldDefinitionUnpin behavior.',
