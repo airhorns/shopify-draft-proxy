@@ -6162,10 +6162,13 @@ pub fn orders_order_update_rejects_empty_phone_and_bad_address_test() {
       empty_upstream_context(),
     )
   let empty_json = json.to_string(empty_outcome.data)
-  assert string.contains(empty_json, "\"order\":null")
-  assert string.contains(empty_json, "\"field\":[\"base\"]")
+  assert string.contains(empty_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(empty_json, "\"field\":null")
   assert string.contains(empty_json, "\"code\":\"INVALID\"")
-  assert string.contains(empty_json, "no_fields_to_update")
+  assert string.contains(
+    empty_json,
+    "No valid update parameters have been provided",
+  )
   assert empty_outcome.staged_resource_ids == []
   assert empty_outcome.log_drafts == []
 
@@ -6189,8 +6192,8 @@ pub fn orders_order_update_rejects_empty_phone_and_bad_address_test() {
       empty_upstream_context(),
     )
   let phone_json = json.to_string(phone_outcome.data)
-  assert string.contains(phone_json, "\"order\":null")
-  assert string.contains(phone_json, "\"field\":[\"input\",\"phone\"]")
+  assert string.contains(phone_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(phone_json, "\"field\":[\"phone\"]")
   assert string.contains(phone_json, "\"code\":\"INVALID\"")
   assert phone_outcome.staged_resource_ids == []
   assert phone_outcome.log_drafts == []
@@ -6225,10 +6228,24 @@ pub fn orders_order_update_rejects_empty_phone_and_bad_address_test() {
       empty_upstream_context(),
     )
   let address_json = json.to_string(address_outcome.data)
-  assert string.contains(address_json, "\"order\":null")
+  assert string.contains(address_json, "\"order\":{\"id\":\"" <> order_id)
   assert string.contains(
     address_json,
-    "\"field\":[\"input\",\"shippingAddress\",\"province\"]",
+    "\"field\":[\"shippingAddress\",\"lastName\"]",
+  )
+  assert string.contains(address_json, "Enter a last name")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"zip\"]",
+  )
+  assert string.contains(address_json, "Enter a ZIP code")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"province\"]",
+  )
+  assert string.contains(
+    address_json,
+    "State is not a valid state in United States",
   )
   assert string.contains(address_json, "\"code\":\"INVALID\"")
   assert address_outcome.staged_resource_ids == []

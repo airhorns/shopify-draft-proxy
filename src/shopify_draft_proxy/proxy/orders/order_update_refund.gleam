@@ -43,12 +43,12 @@ import shopify_draft_proxy/proxy/orders/common.{
   captured_object_field, captured_string_field, field_arguments,
   find_order_line_item, float_to_fixed_2, format_decimal_amount,
   money_set_string_with_presentment, mutation_user_error, nonzero_float,
-  optional_captured_string, order_currency_code, order_money_set_from_input,
-  order_money_set_string, order_presentment_currency_code, order_refunds,
-  order_total_price, order_transactions, prepend_captured_replacement, read_bool,
-  read_int, read_number, read_object, read_object_list, read_string,
-  read_string_list, replace_captured_object_fields, replace_if_present,
-  selection_children,
+  nullable_mutation_user_error, optional_captured_string, order_currency_code,
+  order_money_set_from_input, order_money_set_string,
+  order_presentment_currency_code, order_refunds, order_total_price,
+  order_transactions, prepend_captured_replacement, read_bool, read_int,
+  read_number, read_object, read_object_list, read_string, read_string_list,
+  replace_captured_object_fields, replace_if_present, selection_children,
 }
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{
   build_order_update_address, captured_attributes,
@@ -132,39 +132,39 @@ pub fn handle_order_update_mutation(
         Ok(root_field.ObjectVal(input)) ->
           case read_string(input, "id") {
             Some(id) -> {
-              case validate_order_update_business_input(input) {
-                [first, ..rest] -> #(
+              // Pattern 2: orderUpdate merges input into the existing order,
+              // so hydrate the upstream/cassette order before staging locally.
+              let hydrated_store =
+                maybe_hydrate_order_by_id(store, id, upstream)
+              case store.get_order_by_id(hydrated_store, id) {
+                None -> #(
                   key,
-                  serialize_order_mutation_payload(
-                    field,
-                    None,
-                    [first, ..rest],
-                    fragments,
-                  ),
-                  store,
+                  serialize_order_mutation_error_payload(field, [
+                    mutation_user_error(["id"], "Order does not exist"),
+                  ]),
+                  hydrated_store,
                   identity,
                   [],
                   [],
                   [],
                 )
-                [] -> {
-                  // Pattern 2: orderUpdate merges input into the existing order,
-                  // so hydrate the upstream/cassette order before staging locally.
-                  let hydrated_store =
-                    maybe_hydrate_order_by_id(store, id, upstream)
-                  case store.get_order_by_id(hydrated_store, id) {
-                    None -> #(
+                Some(order) -> {
+                  case validate_order_update_business_input(input) {
+                    [first, ..rest] -> #(
                       key,
-                      serialize_order_mutation_error_payload(field, [
-                        mutation_user_error(["id"], "Order does not exist"),
-                      ]),
+                      serialize_order_mutation_payload(
+                        field,
+                        Some(order),
+                        [first, ..rest],
+                        fragments,
+                      ),
                       hydrated_store,
                       identity,
                       [],
                       [],
                       [],
                     )
-                    Some(order) -> {
+                    [] -> {
                       let #(updated_order, next_identity) =
                         build_updated_order(order, input, identity)
                       let next_store =
@@ -1183,7 +1183,12 @@ pub fn validate_order_update_business_input(
 ) -> List(OrderMutationUserError) {
   let empty_errors = case has_order_update_mutable_input(input) {
     True -> []
-    False -> [mutation_user_error(["base"], "no_fields_to_update")]
+    False -> [
+      nullable_mutation_user_error(
+        None,
+        "No valid update parameters have been provided",
+      ),
+    ]
   }
   empty_errors
   |> list.append(validate_order_update_phone(input))
@@ -1222,7 +1227,7 @@ pub fn validate_order_update_phone(
     Some(phone) ->
       case customer_mutations.valid_phone(phone) {
         True -> []
-        False -> [mutation_user_error(["input", "phone"], "Phone is invalid")]
+        False -> [mutation_user_error(["phone"], "Phone is invalid")]
       }
     None -> []
   }
@@ -1234,15 +1239,48 @@ pub fn validate_order_update_shipping_address(
 ) -> List(OrderMutationUserError) {
   case read_object(input, "shippingAddress") {
     Some(address) ->
-      customer_inputs.validate_address_input(address, None, [
-        "input",
-        "shippingAddress",
-      ])
-      |> list.map(fn(error) {
-        let UserError(field: field_path, message: message, ..) = error
-        mutation_user_error(field_path, message)
-      })
+      order_update_required_address_errors(address)
+      |> list.append(
+        customer_inputs.validate_address_input(address, None, [
+          "shippingAddress",
+        ])
+        |> list.map(fn(error) {
+          let UserError(field: field_path, message: message, ..) = error
+          mutation_user_error(
+            field_path,
+            normalize_order_update_address_message(address, field_path, message),
+          )
+        }),
+      )
     None -> []
+  }
+}
+
+fn order_update_required_address_errors(
+  address: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  let last_name_errors = case read_string(address, "lastName") {
+    Some(last_name) if last_name != "" -> []
+    _ -> [
+      mutation_user_error(["shippingAddress", "lastName"], "Enter a last name"),
+    ]
+  }
+  let zip_errors = case read_string(address, "zip") {
+    Some(zip) if zip != "" -> []
+    _ -> [mutation_user_error(["shippingAddress", "zip"], "Enter a ZIP code")]
+  }
+  list.append(last_name_errors, zip_errors)
+}
+
+fn normalize_order_update_address_message(
+  address: Dict(String, root_field.ResolvedValue),
+  field_path: List(String),
+  message: String,
+) -> String {
+  case field_path, read_string(address, "countryCode") {
+    ["shippingAddress", "province"], Some("US") ->
+      "State is not a valid state in United States"
+    _, _ -> message
   }
 }
 
