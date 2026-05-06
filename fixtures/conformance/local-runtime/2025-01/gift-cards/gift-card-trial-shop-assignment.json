@@ -1,0 +1,214 @@
+{
+  "scenarioId": "gift-card-trial-shop-assignment",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T00:12:00.000Z",
+  "notes": [
+    "Synthetic trial-plan fixture because the configured live conformance shop probes successfully but is a Developer Preview shop, not a trial shop.",
+    "The expected payload mirrors the ticket's Shopify/Rails evidence for trial shops: customerId wins over recipient assignment and both create/update return INVALID with input.customerId or input.recipientAttributes.",
+    "State is earned by replay: the proxy hydrates the trial shop and the existing update gift card from the cassette before handling the supported mutations locally."
+  ],
+  "proxyVariables": {
+    "trialAssignment": {
+      "customerId": "gid://shopify/Customer/trial-customer",
+      "recipientId": "gid://shopify/Customer/trial-recipient",
+      "updateGiftCardId": "gid://shopify/GiftCard/trial-update-card"
+    }
+  },
+  "expected": {
+    "data": {
+      "createCustomerAssignment": {
+        "giftCard": null,
+        "giftCardCode": null,
+        "userErrors": [
+          {
+            "field": ["input", "customerId"],
+            "code": "INVALID",
+            "message": "A trial shop cannot assign a customer to a gift card."
+          }
+        ]
+      },
+      "createRecipientAssignment": {
+        "giftCard": null,
+        "giftCardCode": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes"],
+            "code": "INVALID",
+            "message": "A trial shop cannot assign a recipient to a gift card."
+          }
+        ]
+      },
+      "updateCustomerAssignment": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "customerId"],
+            "code": "INVALID",
+            "message": "A trial shop cannot assign a customer to a gift card."
+          }
+        ]
+      },
+      "updateRecipientAssignment": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes"],
+            "code": "INVALID",
+            "message": "A trial shop cannot assign a recipient to a gift card."
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesShopBaselineHydrate",
+      "variables": {},
+      "query": "hand-synthesized synthetic trial shop baseline",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/trial",
+              "name": "Trial Shop",
+              "myshopifyDomain": "trial-shop.myshopify.com",
+              "url": "https://trial-shop.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/trial",
+                "host": "trial-shop.myshopify.com",
+                "url": "https://trial-shop.myshopify.com",
+                "sslEnabled": true
+              },
+              "contactEmail": "shop@example.com",
+              "email": "shop@example.com",
+              "currencyCode": "CAD",
+              "enabledPresentmentCurrencies": ["CAD"],
+              "ianaTimezone": "America/Toronto",
+              "timezoneAbbreviation": "EST",
+              "timezoneOffset": "-0500",
+              "timezoneOffsetMinutes": -300,
+              "taxesIncluded": false,
+              "taxShipping": false,
+              "unitSystem": "METRIC_SYSTEM",
+              "weightUnit": "KILOGRAMS",
+              "shopAddress": {
+                "id": "gid://shopify/MailingAddress/trial",
+                "address1": "150 Elgin St",
+                "address2": null,
+                "city": "Ottawa",
+                "company": null,
+                "coordinatesValidated": true,
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "formatted": ["150 Elgin St", "Ottawa ON K2P 1L4", "Canada"],
+                "formattedArea": "Ottawa ON, Canada",
+                "latitude": null,
+                "longitude": null,
+                "phone": null,
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "K2P 1L4"
+              },
+              "plan": {
+                "partnerDevelopment": false,
+                "publicDisplayName": "Trial",
+                "shopifyPlus": false
+              },
+              "resourceLimits": {
+                "locationLimit": 4,
+                "maxProductOptions": 3,
+                "maxProductVariants": 100,
+                "redirectLimitReached": false
+              },
+              "features": {
+                "avalaraAvatax": false,
+                "branding": "shopify",
+                "bundles": {
+                  "eligibleForBundles": false,
+                  "ineligibilityReason": null,
+                  "sellsBundles": false
+                },
+                "captcha": true,
+                "cartTransform": {
+                  "eligibleOperations": {
+                    "expandOperation": false,
+                    "mergeOperation": false,
+                    "updateOperation": false
+                  }
+                },
+                "dynamicRemarketing": false,
+                "eligibleForSubscriptionMigration": false,
+                "eligibleForSubscriptions": false,
+                "giftCards": true,
+                "harmonizedSystemCode": false,
+                "legacySubscriptionGatewayEnabled": false,
+                "liveView": true,
+                "paypalExpressSubscriptionGatewayStatus": "",
+                "reports": false,
+                "sellsSubscriptions": false,
+                "showMetrics": false,
+                "storefront": true,
+                "unifiedMarkets": false
+              },
+              "paymentSettings": {
+                "supportedDigitalWallets": []
+              },
+              "shopPolicies": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/trial-update-card"
+      },
+      "query": "hand-synthesized existing gift card hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/trial-update-card",
+              "lastCharacters": "card",
+              "maskedCode": "**** **** **** card",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "Trial assignment parity card",
+              "templateSuffix": null,
+              "createdAt": "2026-05-06T00:00:00Z",
+              "updatedAt": "2026-05-06T00:00:00Z",
+              "initialValue": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              },
+              "customer": null,
+              "recipientAttributes": null,
+              "transactions": {
+                "nodes": []
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

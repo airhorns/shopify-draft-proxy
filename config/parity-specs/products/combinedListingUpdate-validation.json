@@ -1,0 +1,421 @@
+{
+  "scenarioId": "combinedListingUpdate-validation",
+  "operationNames": ["productCreate", "combinedListingUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+    "variablesCapturePath": "$.operations.createParentValidation.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-parent-validation",
+        "capturePath": "$.operations.createParentValidation.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.combinedListingRole", "$.productCreate.userErrors"]
+      },
+      {
+        "name": "create-plain-parent",
+        "capturePath": "$.operations.createPlainParent.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.combinedListingRole", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createPlainParent.request.variables"
+        }
+      },
+      {
+        "name": "create-child-validation",
+        "capturePath": "$.operations.createChildValidation.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.combinedListingRole", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createChildValidation.request.variables"
+        }
+      },
+      {
+        "name": "create-parent-already",
+        "capturePath": "$.operations.createParentAlready.requestedRole",
+        "proxyPath": "$.data.productCreate.product.combinedListingRole",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createParentAlready.request.variables"
+        }
+      },
+      {
+        "name": "create-child-already",
+        "capturePath": "$.operations.createChildAlready.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.combinedListingRole", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createChildAlready.request.variables"
+        }
+      },
+      {
+        "name": "create-parent-edit-remove",
+        "capturePath": "$.operations.createParentEditRemove.requestedRole",
+        "proxyPath": "$.data.productCreate.product.combinedListingRole",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createParentEditRemove.request.variables"
+        }
+      },
+      {
+        "name": "create-child-edit-remove",
+        "capturePath": "$.operations.createChildEditRemove.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.combinedListingRole", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createChildEditRemove.request.variables"
+        }
+      },
+      {
+        "name": "non-parent",
+        "capturePath": "$.operations.nonParent.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromProxyResponse": "create-plain-parent",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-options-and-values",
+        "capturePath": "$.operations.missingOptionsAndValues.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-validation",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "parent-as-child",
+        "capturePath": "$.operations.parentAsChild.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "duplicate-products-added",
+        "capturePath": "$.operations.duplicateProductsAdded.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-validation",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              },
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-validation",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "missing-child-product",
+        "capturePath": "$.operations.missingChildProduct.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": "gid://shopify/Product/999999999999999999",
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "empty-selected-parent-option-values",
+        "capturePath": "$.operations.emptySelectedParentOptionValues.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-validation",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": []
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "title-too-long",
+        "capturePath": "$.operations.titleTooLong.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "title": {
+              "fromCapturePath": "$.operations.titleTooLong.request.variables.title"
+            }
+          }
+        }
+      },
+      {
+        "name": "add-already-child-setup",
+        "capturePath": "$.operations.addAlreadyChildSetup.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "selectedPaths": ["$.product.combinedListingRole", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromProxyResponse": "create-parent-already",
+              "path": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-already",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "product-is-already-a-child",
+        "capturePath": "$.operations.productIsAlreadyAChild.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromProxyResponse": "create-parent-already",
+              "path": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-already",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "add-edit-remove-setup",
+        "capturePath": "$.operations.addEditRemoveSetup.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "selectedPaths": ["$.product.combinedListingRole", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromProxyResponse": "create-parent-edit-remove",
+              "path": "$.data.productCreate.product.id"
+            },
+            "productsAdded": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-edit-remove",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "edit-and-remove-on-same-products",
+        "capturePath": "$.operations.editAndRemoveOnSameProducts.response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/combinedListingUpdate-validation.graphql",
+          "variables": {
+            "parentProductId": {
+              "fromProxyResponse": "create-parent-edit-remove",
+              "path": "$.data.productCreate.product.id"
+            },
+            "productsEdited": [
+              {
+                "childProductId": {
+                  "fromProxyResponse": "create-child-edit-remove",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "selectedParentOptionValues": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ]
+              }
+            ],
+            "productsRemovedIds": [
+              {
+                "fromProxyResponse": "create-child-edit-remove",
+                "path": "$.data.productCreate.product.id"
+              }
+            ],
+            "optionsAndValues": [
+              {
+                "name": "Title",
+                "values": ["Default Title"]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture on harry-test-heelo.myshopify.com for combinedListingUpdate validation branches. The scenario creates disposable PARENT/plain/child products through Shopify, replays equivalent setup locally, then compares the validation payloads strictly. Product IDs are not preseeded; local state is earned by replayed productCreate/combinedListingUpdate setup requests. The missing-child branch uses a cassette-backed null Product hydration for the fixed absent product id."
+}

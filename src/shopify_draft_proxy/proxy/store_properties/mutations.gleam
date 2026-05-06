@@ -12,6 +12,7 @@ import shopify_draft_proxy/graphql/ast.{
   StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/admin_api_versions
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
@@ -37,13 +38,14 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type ProductMetafieldRecord, type ShopPolicyRecord,
-  type ShopRecord, type StorePropertyMutationPayloadRecord,
-  type StorePropertyRecord, type StorePropertyValue, CapturedArray,
-  CapturedObject, CapturedString, ProductMetafieldRecord, ShopPolicyRecord,
-  ShopRecord, StorePropertyBool, StorePropertyInt, StorePropertyList,
-  StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString,
+  type CapturedJsonValue, type InventoryTransferLocationSnapshotRecord,
+  type ProductMetafieldRecord, type ShopPolicyRecord, type ShopRecord,
+  type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
+  type StorePropertyValue, CapturedArray, CapturedObject, CapturedString,
+  ProductMetafieldRecord, ShopPolicyRecord, ShopRecord, StorePropertyBool,
+  StorePropertyInt, StorePropertyList, StorePropertyMutationPayloadRecord,
+  StorePropertyNull, StorePropertyObject, StorePropertyRecord,
+  StorePropertyString,
 }
 
 const shop_policy_body_limit_chars = 524_287
@@ -342,7 +344,7 @@ fn stage_location_mutation(
       )
     "locationActivate" | "locationDeactivate" ->
       case
-        admin_api_version_at_least(request_path, "2026-04")
+        admin_api_versions.at_least(request_path, "2026-04")
         && !has_idempotency_key(field, document, variables)
       {
         True -> missing_idempotency_location_result(store, identity, root_name)
@@ -389,6 +391,10 @@ fn stage_location_lifecycle_mutation(
 ) -> store_properties_types.GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
   let store = case read_arg_string(args, "locationId") {
+    Some(id) -> hydrate_location_if_missing(store, upstream, id)
+    None -> store
+  }
+  let store = case read_arg_string(args, "destinationLocationId") {
     Some(id) -> hydrate_location_if_missing(store, upstream, id)
     None -> store
   }
@@ -1353,6 +1359,7 @@ fn stage_location_deactivate(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> store_properties_types.GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
+  let destination_location_id = read_arg_string(args, "destinationLocationId")
   case read_arg_string(args, "locationId") {
     Some(location_id) ->
       case
@@ -1373,8 +1380,61 @@ fn stage_location_deactivate(
                 True,
               )
             True ->
-              case location_bool_field(record, "hasUnfulfilledOrders", False) {
-                True ->
+              case
+                location_deactivation_guard_errors(
+                  store,
+                  record,
+                  location_id,
+                  destination_location_id,
+                )
+              {
+                [] -> {
+                  let #(now, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let next_record =
+                    StorePropertyRecord(
+                      ..record,
+                      data: record.data
+                        |> dict.insert("isActive", StorePropertyBool(False))
+                        |> dict.insert("activatable", StorePropertyBool(True))
+                        |> dict.insert("deactivatable", StorePropertyBool(True))
+                        |> dict.insert(
+                          "deactivatedAt",
+                          StorePropertyString(now),
+                        )
+                        |> dict.insert("deletable", StorePropertyBool(True))
+                        |> dict.insert(
+                          "fulfillsOnlineOrders",
+                          StorePropertyBool(False),
+                        )
+                        |> dict.insert(
+                          "hasActiveInventory",
+                          StorePropertyBool(False),
+                        )
+                        |> dict.insert(
+                          "shipsInventory",
+                          StorePropertyBool(False),
+                        )
+                        |> dict.insert("updatedAt", StorePropertyString(now)),
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_store_property_location(
+                      store,
+                      next_record,
+                    )
+                  location_lifecycle_result(
+                    next_store,
+                    next_identity,
+                    field,
+                    fragments,
+                    "locationDeactivateUserErrors",
+                    Some(next_record),
+                    [],
+                    [location_id],
+                    True,
+                  )
+                }
+                errors ->
                   location_lifecycle_result(
                     store,
                     identity,
@@ -1382,94 +1442,10 @@ fn stage_location_deactivate(
                     fragments,
                     "locationDeactivateUserErrors",
                     Some(record),
-                    [
-                      location_error_source(
-                        "locationId",
-                        "Location could not be deactivated because it has pending orders.",
-                        "HAS_FULFILLMENT_ORDERS_ERROR",
-                      ),
-                    ],
+                    errors,
                     [],
                     False,
                   )
-                False ->
-                  case
-                    is_only_active_online_fulfilling_location(store, record)
-                  {
-                    True ->
-                      location_lifecycle_result(
-                        store,
-                        identity,
-                        field,
-                        fragments,
-                        "locationDeactivateUserErrors",
-                        Some(record),
-                        [
-                          location_error_source(
-                            "locationId",
-                            "Location could not be deactivated because it is the only location that fulfills online orders.",
-                            "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
-                          ),
-                        ],
-                        [],
-                        False,
-                      )
-                    False -> {
-                      let #(now, next_identity) =
-                        synthetic_identity.make_synthetic_timestamp(identity)
-                      let next_record =
-                        StorePropertyRecord(
-                          ..record,
-                          data: record.data
-                            |> dict.insert("isActive", StorePropertyBool(False))
-                            |> dict.insert(
-                              "activatable",
-                              StorePropertyBool(True),
-                            )
-                            |> dict.insert(
-                              "deactivatable",
-                              StorePropertyBool(True),
-                            )
-                            |> dict.insert(
-                              "deactivatedAt",
-                              StorePropertyString(now),
-                            )
-                            |> dict.insert("deletable", StorePropertyBool(True))
-                            |> dict.insert(
-                              "fulfillsOnlineOrders",
-                              StorePropertyBool(False),
-                            )
-                            |> dict.insert(
-                              "hasActiveInventory",
-                              StorePropertyBool(False),
-                            )
-                            |> dict.insert(
-                              "shipsInventory",
-                              StorePropertyBool(False),
-                            )
-                            |> dict.insert(
-                              "updatedAt",
-                              StorePropertyString(now),
-                            ),
-                        )
-                      let #(_, next_store) =
-                        store.upsert_staged_store_property_location(
-                          store,
-                          next_record,
-                        )
-                      location_lifecycle_result(
-                        next_store,
-                        next_identity,
-                        field,
-                        fragments,
-                        "locationDeactivateUserErrors",
-                        Some(next_record),
-                        [],
-                        [location_id],
-                        True,
-                      )
-                    }
-                  }
               }
           }
         None ->
@@ -1492,6 +1468,160 @@ fn stage_location_deactivate(
         "locationId",
       )
   }
+}
+
+fn location_deactivation_guard_errors(
+  store: Store,
+  record: StorePropertyRecord,
+  location_id: String,
+  destination_location_id: Option(String),
+) -> List(SourceValue) {
+  let common_errors =
+    []
+    |> append_location_deactivation_error(
+      is_only_active_online_fulfilling_location(store, record),
+      "locationId",
+      "At least one location must fulfill online orders.",
+      "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
+    )
+    |> append_location_deactivation_error(
+      location_is_permanently_blocked_from_deactivation(record),
+      "locationId",
+      "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address.",
+      "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR",
+    )
+    |> append_location_deactivation_error(
+      location_is_temporarily_blocked_from_deactivation(record),
+      "locationId",
+      "%{location_name} has incoming inventory. You'll be able to deactivate it once the inventory has been received.",
+      "TEMPORARILY_BLOCKED_FROM_DEACTIVATION_ERROR",
+    )
+    |> append_location_deactivation_error(
+      location_has_active_retail_subscription(record),
+      "locationId",
+      "Location could not be deactivated because it has active retail subscriptions.",
+      "HAS_ACTIVE_RETAIL_SUBSCRIPTIONS",
+    )
+    |> append_location_deactivation_error(
+      location_has_incoming_from_external_document_sources(record),
+      "locationId",
+      "Location could not be deactivated because it has incoming inventory from external document sources.",
+      "HAS_INCOMING_FROM_EXTERNAL_DOCUMENT_SOURCES",
+    )
+
+  case common_errors {
+    [_, ..] -> common_errors
+    [] ->
+      case destination_location_id {
+        Some(destination_id) ->
+          location_destination_guard_errors(store, location_id, destination_id)
+        None -> location_deactivation_no_destination_errors(store, record)
+      }
+  }
+}
+
+fn location_destination_guard_errors(
+  store: Store,
+  location_id: String,
+  destination_id: String,
+) -> List(SourceValue) {
+  case destination_id == location_id {
+    True -> [
+      location_deactivation_error(
+        "destinationLocationId",
+        "Location could not be deactivated because the destination location cannot be set to the location to be deactivated.",
+        "DESTINATION_LOCATION_IS_THE_SAME_LOCATION",
+      ),
+    ]
+    False ->
+      case
+        store.get_effective_store_property_location_by_id(store, destination_id)
+      {
+        None -> [
+          destination_location_not_found_or_inactive_error(),
+        ]
+        Some(destination) ->
+          case location_is_merchant_managed(destination) {
+            False -> [
+              location_deactivation_error(
+                "destinationLocationId",
+                "destination location not shopify managed",
+                "DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED",
+              ),
+            ]
+            True ->
+              case location_bool_field(destination, "isActive", True) {
+                False -> [
+                  destination_location_not_found_or_inactive_error(),
+                ]
+                True -> []
+              }
+          }
+      }
+  }
+}
+
+fn destination_location_not_found_or_inactive_error() -> SourceValue {
+  location_deactivation_error(
+    "destinationLocationId",
+    "Location could not be deactivated because the destination location could be not found or is inactive.",
+    "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
+  )
+}
+
+fn location_deactivation_no_destination_errors(
+  store: Store,
+  record: StorePropertyRecord,
+) -> List(SourceValue) {
+  []
+  |> append_location_deactivation_error(
+    location_has_stocked_inventory(record),
+    "locationId",
+    "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+    "HAS_ACTIVE_INVENTORY_ERROR",
+  )
+  |> append_location_deactivation_error(
+    location_has_pending_orders(record),
+    "locationId",
+    "Location could not be deactivated because it has pending orders.",
+    "HAS_FULFILLMENT_ORDERS_ERROR",
+  )
+  |> append_location_deactivation_error(
+    location_has_open_purchase_orders(record),
+    "locationId",
+    "Location could not be deactivated because it has open purchase orders.",
+    "HAS_OPEN_PURCHASE_ORDERS_ERROR",
+  )
+  |> append_location_deactivation_error(
+    location_has_active_transfers(store, record),
+    "locationId",
+    "Location could not be deactivated because it has active transfers.",
+    "HAS_ACTIVE_TRANSFERS_ERROR",
+  )
+}
+
+fn append_location_deactivation_error(
+  errors: List(SourceValue),
+  condition: Bool,
+  field: String,
+  message: String,
+  code: String,
+) -> List(SourceValue) {
+  case condition {
+    True ->
+      list.append(errors, [
+        location_deactivation_error(field, message, code),
+      ])
+    False -> errors
+  }
+}
+
+fn location_deactivation_error(
+  field: String,
+  message: String,
+  code: String,
+) -> SourceValue {
+  location_error_source(field, message, code)
 }
 
 fn stage_location_delete(
@@ -1687,44 +1817,6 @@ fn non_empty_string(value: String) -> Option(String) {
   }
 }
 
-fn admin_api_version_at_least(
-  request_path: String,
-  minimum_version: String,
-) -> Bool {
-  case
-    admin_api_version_from_path(request_path),
-    parse_admin_api_version(minimum_version)
-  {
-    Some(version), Some(minimum) -> compare_admin_api_versions(version, minimum)
-    _, _ -> False
-  }
-}
-
-fn admin_api_version_from_path(path: String) -> Option(#(Int, Int)) {
-  case string.split(path, "/") {
-    ["", "admin", "api", version, "graphql.json"] ->
-      parse_admin_api_version(version)
-    _ -> None
-  }
-}
-
-fn parse_admin_api_version(version: String) -> Option(#(Int, Int)) {
-  case string.split(version, "-") {
-    [year, month] ->
-      case int.parse(year), int.parse(month) {
-        Ok(parsed_year), Ok(parsed_month) -> Some(#(parsed_year, parsed_month))
-        _, _ -> None
-      }
-    _ -> None
-  }
-}
-
-fn compare_admin_api_versions(version: #(Int, Int), minimum: #(Int, Int)) {
-  let #(year, month) = version
-  let #(minimum_year, minimum_month) = minimum
-  year > minimum_year || { year == minimum_year && month >= minimum_month }
-}
-
 fn location_delete_error_result(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1872,6 +1964,94 @@ fn location_has_active_retail_subscription(
     "activeRetailSubscription",
   ])
   |> option.unwrap(False)
+}
+
+fn location_is_permanently_blocked_from_deactivation(
+  record: StorePropertyRecord,
+) -> Bool {
+  first_location_bool_field(record, [
+    "permanentlyBlockedFromDeactivation",
+    "permanently_blocked_from_deactivation",
+    "permanentlyBlockedFromDeactivationError",
+  ])
+  |> option.unwrap(False)
+  || location_is_primary(record)
+}
+
+fn location_is_temporarily_blocked_from_deactivation(
+  record: StorePropertyRecord,
+) -> Bool {
+  first_location_bool_field(record, [
+    "temporarilyBlockedFromDeactivation",
+    "temporarily_blocked_from_deactivation",
+    "temporarilyBlockedFromDeactivationError",
+  ])
+  |> option.unwrap(False)
+}
+
+fn location_has_incoming_from_external_document_sources(
+  record: StorePropertyRecord,
+) -> Bool {
+  first_location_bool_field(record, [
+    "hasIncomingFromExternalDocumentSources",
+    "hasIncomingFromExternalDocumentSource",
+    "incomingFromExternalDocumentSources",
+    "incomingFromExternalDocumentSource",
+  ])
+  |> option.unwrap(False)
+}
+
+fn location_has_open_purchase_orders(record: StorePropertyRecord) -> Bool {
+  first_location_bool_field(record, [
+    "hasOpenPurchaseOrders",
+    "hasOpenPurchaseOrder",
+    "openPurchaseOrders",
+  ])
+  |> option.unwrap(False)
+}
+
+fn location_has_active_transfers(
+  store: Store,
+  record: StorePropertyRecord,
+) -> Bool {
+  first_location_bool_field(record, [
+    "hasActiveTransfers",
+    "hasActiveTransfer",
+    "activeTransfers",
+  ])
+  |> option.unwrap(False)
+  || location_has_effective_active_transfer(store, record.id)
+}
+
+fn location_has_effective_active_transfer(
+  store: Store,
+  location_id: String,
+) -> Bool {
+  store.list_effective_inventory_transfers(store)
+  |> list.any(fn(transfer) {
+    inventory_transfer_is_active_for_deactivation(transfer.status)
+    && {
+      transfer_location_matches(transfer.origin, location_id)
+      || transfer_location_matches(transfer.destination, location_id)
+    }
+  })
+}
+
+fn inventory_transfer_is_active_for_deactivation(status: String) -> Bool {
+  case string.uppercase(status) {
+    "CANCELLED" | "CANCELED" | "CLOSED" | "COMPLETED" | "COMPLETE" -> False
+    _ -> True
+  }
+}
+
+fn transfer_location_matches(
+  location: Option(InventoryTransferLocationSnapshotRecord),
+  location_id: String,
+) -> Bool {
+  case location {
+    Some(snapshot) -> snapshot.id == Some(location_id)
+    None -> False
+  }
 }
 
 fn location_has_stocked_inventory(record: StorePropertyRecord) -> Bool {
@@ -2216,7 +2396,7 @@ fn stage_publishable_mutation(
   )
 }
 
-fn hydrate_shop_baseline_if_needed(
+pub fn hydrate_shop_baseline_if_needed(
   store: Store,
   upstream: UpstreamContext,
 ) -> Store {

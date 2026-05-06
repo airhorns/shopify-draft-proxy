@@ -1,0 +1,161 @@
+{
+  "scenarioId": "customer-set-validation-guardrails",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "top-level-error-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Uses the captured create and phone-upsert branches as local setup for duplicate identifier validations, then compares independent customerSet validation branches from the same live fixture. Validation failures must not stage customers or fall through to runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerSet.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "Setup branches stage local synthetic Customer GIDs."
+      },
+      {
+        "path": "$.customerSet.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "Setup branches stage deterministic local timestamps."
+      },
+      {
+        "path": "$.customerSet.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Setup branches stage deterministic local timestamps."
+      }
+    ],
+    "targets": [
+      {
+        "name": "email-duplicate-setup-create",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "phone-duplicate-setup-create",
+        "capturePath": "$.phoneUpsert.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.phoneUpsert.variables"
+        }
+      },
+      {
+        "name": "duplicate-email",
+        "capturePath": "$.validation.duplicateEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.duplicateEmail.variables"
+        }
+      },
+      {
+        "name": "duplicate-phone",
+        "capturePath": "$.validation.duplicatePhone.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.duplicatePhone.variables"
+        }
+      },
+      {
+        "name": "missing-identifier-email-input",
+        "capturePath": "$.validation.missingIdentifierEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.missingIdentifierEmail.variables"
+        }
+      },
+      {
+        "name": "mismatched-identifier-email-input",
+        "capturePath": "$.validation.mismatchedIdentifierEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.mismatchedIdentifierEmail.variables"
+        }
+      },
+      {
+        "name": "missing-identity",
+        "capturePath": "$.validation.missingIdentity.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.missingIdentity.variables"
+        }
+      },
+      {
+        "name": "nullable-tax-exempt",
+        "capturePath": "$.validation.nullableUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerSet.customer.id"
+              }
+            },
+            "input": {
+              "email": null,
+              "firstName": null,
+              "lastName": null,
+              "locale": null,
+              "note": null,
+              "phone": null,
+              "tags": null,
+              "taxExempt": null,
+              "taxExemptions": null
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-id",
+        "capturePath": "$.validation.unknownId.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.unknownId.variables"
+        }
+      },
+      {
+        "name": "custom-id-missing-definition-errors",
+        "capturePath": "$.validation.customId.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions", "$[0].path"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.customId.variables"
+        }
+      },
+      {
+        "name": "custom-id-missing-definition-data",
+        "capturePath": "$.validation.customId.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.customId.variables"
+        }
+      }
+    ]
+  }
+}

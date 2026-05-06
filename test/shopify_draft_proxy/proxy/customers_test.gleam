@@ -732,7 +732,7 @@ pub fn customer_set_unknown_identifier_id_errors_without_staging_test() {
   assert string.contains(set_json, "\"customer\":null")
   assert string.contains(
     set_json,
-    "\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Customer does not exist\",\"code\":\"INVALID\"}]",
+    "\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Resource matching the identifier was not found.\",\"code\":\"INVALID\"}]",
   )
 
   let #(Response(status: read_status, body: read_body, ..), _) =
@@ -755,7 +755,7 @@ pub fn customer_set_mixed_identifier_unknown_id_wins_test() {
   assert string.contains(set_json, "\"customer\":null")
   assert string.contains(
     set_json,
-    "\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Customer does not exist\",\"code\":\"INVALID\"}]",
+    "\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Resource matching the identifier was not found.\",\"code\":\"INVALID\"}]",
   )
 
   let #(Response(status: read_status, body: read_body, ..), _) =

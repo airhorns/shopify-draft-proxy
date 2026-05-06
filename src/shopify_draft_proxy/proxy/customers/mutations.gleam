@@ -109,39 +109,44 @@ pub fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
-  case
-    first_disallowed_marketing_consent_state_error(fields, variables, document)
-  {
-    Some(#(root_name, error_json, include_null_data)) -> {
-      let entries = case include_null_data {
-        True -> [
-          #("errors", json.array([error_json], fn(x) { x })),
-          #("data", json.object([#(root_name, json.null())])),
-        ]
-        False -> [#("errors", json.array([error_json], fn(x) { x }))]
-      }
+  case first_customer_set_custom_id_error(fields, variables, document) {
+    Some(error_json) ->
       MutationOutcome(
-        data: json.object(entries),
+        data: json.object([
+          #("errors", json.array([error_json], fn(x) { x })),
+          #("data", json.object([#("customerSet", json.null())])),
+        ]),
         store: store,
         identity: identity,
         staged_resource_ids: [],
         log_drafts: [],
       )
-    }
     None ->
-      case first_customer_merge_missing_argument_error(fields, variables) {
-        Some(error_json) ->
-          MutationOutcome(
-            data: json.object([
+      case
+        first_disallowed_marketing_consent_state_error(
+          fields,
+          variables,
+          document,
+        )
+      {
+        Some(#(root_name, error_json, include_null_data)) -> {
+          let entries = case include_null_data {
+            True -> [
               #("errors", json.array([error_json], fn(x) { x })),
-            ]),
+              #("data", json.object([#(root_name, json.null())])),
+            ]
+            False -> [#("errors", json.array([error_json], fn(x) { x }))]
+          }
+          MutationOutcome(
+            data: json.object(entries),
             store: store,
             identity: identity,
             staged_resource_ids: [],
             log_drafts: [],
           )
+        }
         None ->
-          case first_invalid_tax_exemption_error(fields, variables) {
+          case first_customer_merge_missing_argument_error(fields, variables) {
             Some(error_json) ->
               MutationOutcome(
                 data: json.object([
@@ -153,19 +158,76 @@ pub fn handle_mutation_fields(
                 log_drafts: [],
               )
             None ->
-              handle_validated_mutation_fields(
-                store,
-                identity,
-                request_path,
-                document,
-                fields,
-                fragments,
-                variables,
-                upstream,
-              )
+              case first_invalid_tax_exemption_error(fields, variables) {
+                Some(error_json) ->
+                  MutationOutcome(
+                    data: json.object([
+                      #("errors", json.array([error_json], fn(x) { x })),
+                    ]),
+                    store: store,
+                    identity: identity,
+                    staged_resource_ids: [],
+                    log_drafts: [],
+                  )
+                None ->
+                  handle_validated_mutation_fields(
+                    store,
+                    identity,
+                    request_path,
+                    document,
+                    fields,
+                    fragments,
+                    variables,
+                    upstream,
+                  )
+              }
           }
       }
   }
+}
+
+@internal
+pub fn first_customer_set_custom_id_error(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> Option(Json) {
+  case fields {
+    [] -> None
+    [field, ..rest] ->
+      case field {
+        Field(name: name, ..) if name.value == "customerSet" -> {
+          let args = graphql_helpers.field_args(field, variables)
+          let identifier =
+            graphql_helpers.read_arg_object(args, "identifier")
+            |> option.unwrap(dict.new())
+          case dict.has_key(identifier, "customId") {
+            True -> Some(customer_set_custom_id_error(field, document))
+            False ->
+              first_customer_set_custom_id_error(rest, variables, document)
+          }
+        }
+        _ -> first_customer_set_custom_id_error(rest, variables, document)
+      }
+  }
+}
+
+@internal
+pub fn customer_set_custom_id_error(
+  field: Selection,
+  document: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Metafield definition of type 'id' is required when using custom ids.",
+      ),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("NOT_FOUND"))])),
+    #("path", json.array([json.string("customerSet")], fn(x) { x })),
+  ])
 }
 
 @internal

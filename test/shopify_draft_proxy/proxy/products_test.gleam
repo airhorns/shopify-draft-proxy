@@ -136,6 +136,9 @@ pub fn seeded_product_detail_read_test() {
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
+      combined_listing_role: None,
+      combined_listing_parent_id: None,
+      combined_listing_child_ids: [],
     )
   let seeded_store = store.upsert_base_products(store.new(), [product])
   let variables =
@@ -506,6 +509,9 @@ pub fn seeded_products_catalog_read_test() {
       cursor: Some(
         "eyJsYXN0X2lkIjo4OTcxODQyODQ2OTUzLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0xOCAwMDo1ODoyMS4wMDAwMDAifQ==",
       ),
+      combined_listing_role: None,
+      combined_listing_parent_id: None,
+      combined_listing_child_ids: [],
     )
   let seeded_store =
     store.new()
@@ -575,6 +581,9 @@ fn identifier_product() {
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }
 
@@ -642,6 +651,9 @@ fn string_catalog_product(
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }
 
@@ -918,6 +930,9 @@ fn search_product(
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }
 

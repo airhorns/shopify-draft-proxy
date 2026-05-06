@@ -40,18 +40,17 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/products/collections_l00.{
+import shopify_draft_proxy/proxy/products/collections_core.{
   collection_rule_set_has_rules,
 }
-import shopify_draft_proxy/proxy/products/products_l00.{
+import shopify_draft_proxy/proxy/products/products_core.{
   existing_group_description, existing_group_merchant_code, existing_group_name,
-  existing_group_position, product_hydrate_nodes_query,
+  existing_group_position, format_price_amount, product_hydrate_nodes_query,
 }
-import shopify_draft_proxy/proxy/products/products_l01.{format_price_amount}
-import shopify_draft_proxy/proxy/products/shared_l00.{
+import shopify_draft_proxy/proxy/products/shared.{
   dedupe_preserving_order, read_object_list_field, read_string_field,
 }
-import shopify_draft_proxy/proxy/products/variants_l00.{
+import shopify_draft_proxy/proxy/products/variants_helpers.{
   existing_group_options, has_only_default_variant, option_to_result,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -525,6 +524,12 @@ pub fn upsert_hydrated_variant_without_product(
                   publication_ids: [],
                   contextual_pricing: None,
                   cursor: None,
+                  combined_listing_role: json_string_field_at(node, [
+                    "product",
+                    "combinedListingRole",
+                  ]),
+                  combined_listing_parent_id: None,
+                  combined_listing_child_ids: [],
                 )
               store.upsert_base_products(hydrated_store, [product])
             }
@@ -717,6 +722,14 @@ pub fn upsert_hydrated_inventory_level(
           publication_ids: [],
           contextual_pricing: None,
           cursor: None,
+          combined_listing_role: json_string_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "combinedListingRole",
+          ]),
+          combined_listing_parent_id: None,
+          combined_listing_child_ids: [],
         )
       let variant =
         ProductVariantRecord(
@@ -843,6 +856,13 @@ pub fn upsert_hydrated_inventory_item_without_variant(
           publication_ids: [],
           contextual_pricing: None,
           cursor: None,
+          combined_listing_role: json_string_field_at(node, [
+            "variant",
+            "product",
+            "combinedListingRole",
+          ]),
+          combined_listing_parent_id: None,
+          combined_listing_child_ids: [],
         )
       let variant =
         ProductVariantRecord(
@@ -885,51 +905,59 @@ pub fn product_record_from_json(
   case json_string_field(node, "id") {
     None -> None
     Some(id) ->
-      Some(ProductRecord(
-        id: id,
-        legacy_resource_id: json_string_field(node, "legacyResourceId"),
-        title: json_string_field(node, "title") |> option.unwrap(""),
-        handle: json_string_field(node, "handle") |> option.unwrap(id),
-        status: json_string_field(node, "status") |> option.unwrap("ACTIVE"),
-        vendor: json_string_field(node, "vendor"),
-        product_type: json_string_field(node, "productType"),
-        tags: json_string_array_field(node, ["tags"]),
-        price_range_min: json_money_amount_field_at(node, [
-          "priceRangeV2",
-          "minVariantPrice",
-        ]),
-        price_range_max: json_money_amount_field_at(node, [
-          "priceRangeV2",
-          "maxVariantPrice",
-        ]),
-        total_variants: json_int_field(node, "totalVariants"),
-        has_only_default_variant: json_bool_field(node, "hasOnlyDefaultVariant"),
-        has_out_of_stock_variants: json_bool_field(
-          node,
-          "hasOutOfStockVariants",
+      Some(
+        ProductRecord(
+          id: id,
+          legacy_resource_id: json_string_field(node, "legacyResourceId"),
+          title: json_string_field(node, "title") |> option.unwrap(""),
+          handle: json_string_field(node, "handle") |> option.unwrap(id),
+          status: json_string_field(node, "status") |> option.unwrap("ACTIVE"),
+          vendor: json_string_field(node, "vendor"),
+          product_type: json_string_field(node, "productType"),
+          tags: json_string_array_field(node, ["tags"]),
+          price_range_min: json_money_amount_field_at(node, [
+            "priceRangeV2",
+            "minVariantPrice",
+          ]),
+          price_range_max: json_money_amount_field_at(node, [
+            "priceRangeV2",
+            "maxVariantPrice",
+          ]),
+          total_variants: json_int_field(node, "totalVariants"),
+          has_only_default_variant: json_bool_field(
+            node,
+            "hasOnlyDefaultVariant",
+          ),
+          has_out_of_stock_variants: json_bool_field(
+            node,
+            "hasOutOfStockVariants",
+          ),
+          total_inventory: json_int_field(node, "totalInventory"),
+          tracks_inventory: json_bool_field(node, "tracksInventory"),
+          created_at: json_string_field(node, "createdAt"),
+          updated_at: json_string_field(node, "updatedAt"),
+          published_at: json_string_field(node, "publishedAt"),
+          description_html: json_string_field(node, "descriptionHtml")
+            |> option.unwrap(""),
+          online_store_preview_url: json_string_field(
+            node,
+            "onlineStorePreviewUrl",
+          ),
+          template_suffix: json_string_field(node, "templateSuffix"),
+          seo: ProductSeoRecord(
+            title: json_string_field_at(node, ["seo", "title"]),
+            description: json_string_field_at(node, ["seo", "description"]),
+          ),
+          category: None,
+          publication_ids: json_string_array_field(node, ["publicationIds"]),
+          contextual_pricing: json_field(node, ["contextualPricing"])
+            |> option.map(captured_json_from_commit),
+          cursor: None,
+          combined_listing_role: json_string_field(node, "combinedListingRole"),
+          combined_listing_parent_id: None,
+          combined_listing_child_ids: [],
         ),
-        total_inventory: json_int_field(node, "totalInventory"),
-        tracks_inventory: json_bool_field(node, "tracksInventory"),
-        created_at: json_string_field(node, "createdAt"),
-        updated_at: json_string_field(node, "updatedAt"),
-        published_at: json_string_field(node, "publishedAt"),
-        description_html: json_string_field(node, "descriptionHtml")
-          |> option.unwrap(""),
-        online_store_preview_url: json_string_field(
-          node,
-          "onlineStorePreviewUrl",
-        ),
-        template_suffix: json_string_field(node, "templateSuffix"),
-        seo: ProductSeoRecord(
-          title: json_string_field_at(node, ["seo", "title"]),
-          description: json_string_field_at(node, ["seo", "description"]),
-        ),
-        category: None,
-        publication_ids: json_string_array_field(node, ["publicationIds"]),
-        contextual_pricing: json_field(node, ["contextualPricing"])
-          |> option.map(captured_json_from_commit),
-        cursor: None,
-      ))
+      )
   }
 }
 

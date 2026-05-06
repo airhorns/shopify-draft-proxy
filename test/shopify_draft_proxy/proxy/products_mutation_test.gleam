@@ -76,6 +76,39 @@ fn assert_product_option_user_error(
   assert entry.status == store_types.Failed
 }
 
+fn assert_combined_listing_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
+fn assert_selling_plan_group_create_user_error(
+  query: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(serialized, "\"code\":\"" <> code <> "\"")
+  assert string.contains(serialized, "\"field\":" <> field_json)
+  assert string.contains(serialized, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
 fn graphql_document_request(query: String) -> Request {
   Request(
     method: "POST",
@@ -83,6 +116,374 @@ fn graphql_document_request(query: String) -> Request {
     headers: empty_headers(),
     body: json.to_string(json.object([#("query", json.string(query))])),
   )
+}
+
+fn valid_selling_plan_input() -> String {
+  "name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 1, minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 1, cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }]"
+}
+
+pub fn selling_plan_group_create_rejects_group_input_validation_errors_test() {
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many\\\", options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"] }, resources: {}) { sellingPlanGroup { id options } userErrors { field message code } } }",
+    "TOO_LONG",
+    "[\"input\",\"options\"]",
+    "Too many selling plan group options (maximum 3 options)",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Bad position\\\", position: 9999999999 }, resources: {}) { sellingPlanGroup { id position } userErrors { field message code } } }",
+    "INVALID",
+    "[\"input\",\"position\"]",
+    "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+  )
+}
+
+pub fn selling_plan_group_create_rejects_nested_plan_validation_errors_test() {
+  let base_plan = valid_selling_plan_input()
+  let recurring_policy =
+    "{ recurring: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 5 }, afterCycle: 2 } }"
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many plan options\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "TOO_LONG",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"options\"]",
+    "Too many selling plan options (maximum 3 options)",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many pricing policies\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }, "
+      <> recurring_policy
+      <> ", "
+      <> recurring_policy
+      <> "] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "SELLING_PLAN_PRICING_POLICIES_LIMIT",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"pricingPolicies\"]",
+    "Selling plans to create pricing policies can't have more than 2 pricing policies",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Bad plan position\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", position: 9999999999 }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "INVALID",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"position\"]",
+    "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Policy mismatch\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+      <> base_plan
+      <> ", deliveryPolicy: { fixed: { fulfillmentTrigger: ASAP } } }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME",
+    "[\"input\",\"sellingPlansToCreate\",\"0\"]",
+    "billing and delivery policy types must be the same.",
+  )
+}
+
+pub fn selling_plan_group_update_rejects_input_validation_errors_test() {
+  let create_query =
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Seed\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ "
+    <> valid_selling_plan_input()
+    <> " }] }) { sellingPlanGroup { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  let assert [group] = store.list_effective_selling_plan_groups(proxy.store)
+
+  let update_query =
+    "mutation { sellingPlanGroupUpdate(id: \\\""
+    <> group.id
+    <> "\\\", input: { options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"], sellingPlansToUpdate: [{ name: \\\"Missing id\\\" }] }) { deletedSellingPlanIds sellingPlanGroup { id } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  let serialized = json.to_string(update_body)
+
+  assert update_status == 200
+  assert string.contains(serialized, "\"deletedSellingPlanIds\":null")
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(serialized, "\"code\":\"TOO_LONG\"")
+  assert string.contains(serialized, "\"field\":[\"input\",\"options\"]")
+  assert string.contains(
+    serialized,
+    "\"code\":\"PLAN_ID_MUST_BE_SPECIFIED_TO_UPDATE\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"sellingPlansToUpdate\",\"0\",\"id\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Id must be specificed to update a Selling Plan.\"",
+  )
+  let assert [create_entry, update_entry] = store.get_log(next_proxy.store)
+  assert create_entry.status == store_types.Staged
+  assert update_entry.status == store_types.Failed
+  assert update_entry.staged_resource_ids == []
+}
+
+pub fn selling_plan_group_add_products_rejects_unknown_and_duplicate_ids_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: default_option_store()
+        |> store.upsert_base_products([
+          ProductRecord(
+            ..default_product(),
+            id: "gid://shopify/Product/non-member",
+            title: "Non-member Board",
+            handle: "non-member-board",
+          ),
+        ])
+        |> store.upsert_base_product_variants([
+          ProductVariantRecord(
+            ..default_variant(),
+            id: "gid://shopify/ProductVariant/non-member",
+            product_id: "gid://shopify/Product/non-member",
+          ),
+        ]),
+    )
+  let create_query =
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Seed\\\", options: [\\\"Delivery\\\"] }) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  let assert [group] = store.list_effective_selling_plan_groups(proxy.store)
+
+  let unknown_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_query))
+  let unknown_serialized = json.to_string(unknown_body)
+
+  assert unknown_status == 200
+  assert string.contains(unknown_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(unknown_serialized, "\"field\":[\"productIds\"]")
+  assert string.contains(
+    unknown_serialized,
+    "\"message\":\"Product gid://shopify/Product/missing does not exist.\"",
+  )
+  assert string.contains(unknown_serialized, "\"code\":\"NOT_FOUND\"")
+  let assert [unchanged_group] =
+    store.list_effective_selling_plan_groups(proxy.store)
+  assert unchanged_group.product_ids == []
+
+  let add_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert add_status == 200
+  assert string.contains(json.to_string(add_body), "\"userErrors\":[]")
+
+  let duplicate_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_status, body: duplicate_body, ..),
+    duplicate_proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  let duplicate_serialized = json.to_string(duplicate_body)
+
+  assert duplicate_status == 200
+  assert string.contains(duplicate_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(duplicate_serialized, "\"field\":[\"productIds\"]")
+  assert string.contains(
+    duplicate_serialized,
+    "\"message\":\"Resource has already been taken\"",
+  )
+  let assert [duplicate_group] =
+    store.list_effective_selling_plan_groups(duplicate_proxy.store)
+  assert duplicate_group.product_ids == ["gid://shopify/Product/optioned"]
+
+  let unknown_variant_query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/missing\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+  let #(
+    Response(status: unknown_variant_status, body: unknown_variant_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      duplicate_proxy,
+      graphql_request(unknown_variant_query),
+    )
+  let unknown_variant_serialized = json.to_string(unknown_variant_body)
+
+  assert unknown_variant_status == 200
+  assert string.contains(
+    unknown_variant_serialized,
+    "\"sellingPlanGroup\":null",
+  )
+  assert string.contains(
+    unknown_variant_serialized,
+    "\"field\":[\"productVariantIds\"]",
+  )
+  assert string.contains(
+    unknown_variant_serialized,
+    "\"message\":\"Product variant gid://shopify/ProductVariant/missing does not exist.\"",
+  )
+  assert string.contains(unknown_variant_serialized, "\"code\":\"NOT_FOUND\"")
+
+  let add_variant_query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: add_variant_status, body: add_variant_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_variant_query))
+  assert add_variant_status == 200
+  assert string.contains(json.to_string(add_variant_body), "\"userErrors\":[]")
+
+  let duplicate_variant_query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_variant_status, body: duplicate_variant_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_variant_query))
+  let duplicate_variant_serialized = json.to_string(duplicate_variant_body)
+
+  assert duplicate_variant_status == 200
+  assert string.contains(
+    duplicate_variant_serialized,
+    "\"sellingPlanGroup\":null",
+  )
+  assert string.contains(
+    duplicate_variant_serialized,
+    "\"field\":[\"productVariantIds\"]",
+  )
+  assert string.contains(
+    duplicate_variant_serialized,
+    "\"message\":\"Resource has already been taken\"",
+  )
+
+  let remove_non_member_query =
+    "mutation { sellingPlanGroupRemoveProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/non-member\\\", \\\"gid://shopify/Product/unknown\\\"]) { removedProductIds userErrors { field message code } } }"
+  let #(
+    Response(status: remove_non_member_status, body: remove_non_member_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(proxy, graphql_request(remove_non_member_query))
+  assert remove_non_member_status == 200
+  assert json.to_string(remove_non_member_body)
+    == "{\"data\":{\"sellingPlanGroupRemoveProducts\":{\"removedProductIds\":[],\"userErrors\":[]}}}"
+
+  let remove_non_member_variant_query =
+    "mutation { sellingPlanGroupRemoveProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/non-member\\\", \\\"gid://shopify/ProductVariant/unknown\\\"]) { removedProductVariantIds userErrors { field message code } } }"
+  let #(
+    Response(
+      status: remove_non_member_variant_status,
+      body: remove_non_member_variant_body,
+      ..,
+    ),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(remove_non_member_variant_query),
+    )
+  assert remove_non_member_variant_status == 200
+  assert json.to_string(remove_non_member_variant_body)
+    == "{\"data\":{\"sellingPlanGroupRemoveProductVariants\":{\"removedProductVariantIds\":[],\"userErrors\":[]}}}"
+
+  let malformed_remove_query =
+    "mutation RemoveMalformed($id: ID!, $productIds: [ID!]!) { sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) { removedProductIds userErrors { field message code } } }"
+  let malformed_remove_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(malformed_remove_query)),
+        #(
+          "variables",
+          json.object([
+            #("id", json.string(group.id)),
+            #("productIds", json.array(["not-a-product-gid"], json.string)),
+          ]),
+        ),
+      ]),
+    )
+  let #(
+    Response(status: malformed_remove_status, body: malformed_remove_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_body(malformed_remove_body),
+    )
+  let malformed_remove_serialized = json.to_string(malformed_remove_body)
+  assert malformed_remove_status == 200
+  assert string.contains(malformed_remove_serialized, "\"errors\":[")
+  assert string.contains(
+    malformed_remove_serialized,
+    "\"code\":\"INVALID_VARIABLE\"",
+  )
+  assert string.contains(
+    malformed_remove_serialized,
+    "Invalid global id 'not-a-product-gid'",
+  )
+
+  let malformed_remove_variant_query =
+    "mutation RemoveMalformedVariant($id: ID!, $productVariantIds: [ID!]!) { sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) { removedProductVariantIds userErrors { field message code } } }"
+  let malformed_remove_variant_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(malformed_remove_variant_query)),
+        #(
+          "variables",
+          json.object([
+            #("id", json.string(group.id)),
+            #(
+              "productVariantIds",
+              json.array(["not-a-product-variant-gid"], json.string),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let #(
+    Response(
+      status: malformed_remove_variant_status,
+      body: malformed_remove_variant_body,
+      ..,
+    ),
+    final_proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_body(malformed_remove_variant_body),
+    )
+  let malformed_remove_variant_serialized =
+    json.to_string(malformed_remove_variant_body)
+  assert malformed_remove_variant_status == 200
+  assert string.contains(
+    malformed_remove_variant_serialized,
+    "\"code\":\"INVALID_VARIABLE\"",
+  )
+  assert string.contains(
+    malformed_remove_variant_serialized,
+    "Invalid global id 'not-a-product-variant-gid'",
+  )
+
+  let assert [final_group] =
+    store.list_effective_selling_plan_groups(final_proxy.store)
+  assert final_group.product_ids == ["gid://shopify/Product/optioned"]
+  assert final_group.product_variant_ids
+    == [
+      "gid://shopify/ProductVariant/default",
+    ]
 }
 
 pub fn product_options_create_stages_default_product_options_test() {
@@ -327,6 +728,128 @@ pub fn product_user_error_shape_validation_branches_test() {
   assert activate_status == 200
   assert json.to_string(activate_body)
     == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"INVALID_INVENTORY_ITEM\"}]}}}"
+}
+
+pub fn combined_listing_update_rejects_non_parent_product_test() {
+  assert_combined_listing_user_error(
+    default_option_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/optioned\\\") { product { id } userErrors { field message code } } }",
+    "PARENT_PRODUCT_MUST_BE_A_COMBINED_LISTING",
+  )
+}
+
+pub fn combined_listing_update_rejects_parent_as_child_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/parent\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "CANNOT_HAVE_PARENT_AS_CHILD",
+  )
+}
+
+pub fn combined_listing_update_rejects_duplicate_child_inputs_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }, { childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "CANNOT_HAVE_DUPLICATED_PRODUCTS",
+  )
+}
+
+pub fn combined_listing_update_rejects_missing_child_product_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/missing\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "PRODUCT_NOT_FOUND",
+  )
+}
+
+pub fn combined_listing_update_rejects_empty_selected_parent_option_values_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "MUST_HAVE_SELECTED_OPTION_VALUES",
+  )
+}
+
+pub fn combined_listing_update_rejects_overlong_title_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", title: \\\""
+      <> repeated_text("T", 256)
+      <> "\\\") { product { id } userErrors { field message code } } }",
+    "TITLE_TOO_LONG",
+  )
+}
+
+pub fn combined_listing_update_rejects_missing_options_and_values_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "MISSING_OPTION_VALUES",
+  )
+}
+
+pub fn combined_listing_update_rejects_edit_remove_overlap_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsEdited: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], productsRemovedIds: [\\\"gid://shopify/Product/child\\\"], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "EDIT_AND_REMOVE_ON_SAME_PRODUCTS",
+  )
+}
+
+pub fn combined_listing_update_stages_child_membership_locally_test() {
+  let query =
+    "mutation { combinedListingUpdate(parentProductId: \"gid://shopify/Product/parent\", productsAdded: [{ childProductId: \"gid://shopify/Product/child\", selectedParentOptionValues: [{ name: \"Title\", value: \"Default Title\" }] }], optionsAndValues: [{ name: \"Title\", values: [\"Default Title\"] }]) { product { id combinedListingRole } userErrors { field message code } } }"
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: combined_listing_parent_store())
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_document_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"combinedListingUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/parent\",\"combinedListingRole\":\"PARENT\"},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Staged
+  assert entry.query == query
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { parent: product(id: \\\"gid://shopify/Product/parent\\\") { id combinedListingRole } child: product(id: \\\"gid://shopify/Product/child\\\") { id combinedListingRole } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"parent\":{\"id\":\"gid://shopify/Product/parent\",\"combinedListingRole\":\"PARENT\"},\"child\":{\"id\":\"gid://shopify/Product/child\",\"combinedListingRole\":\"CHILD\"}}}"
+}
+
+pub fn combined_listing_update_rejects_staged_child_readdition_test() {
+  let add_query =
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }"
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: combined_listing_parent_store())
+  let #(Response(status: first_status, body: first_body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"combinedListingUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/parent\"},\"userErrors\":[]}}}"
+
+  let #(Response(status: second_status, body: second_body, ..), next_proxy) =
+    draft_proxy.process_request(next_proxy, graphql_request(add_query))
+  assert second_status == 200
+  assert string.contains(
+    json.to_string(second_body),
+    "\"field\":[\"productsAdded\"]",
+  )
+  assert string.contains(
+    json.to_string(second_body),
+    "\"code\":\"PRODUCT_IS_ALREADY_A_CHILD\"",
+  )
+  let assert [first_entry, second_entry] = store.get_log(next_proxy.store)
+  assert first_entry.status == store_types.Staged
+  assert second_entry.status == store_types.Failed
 }
 
 pub fn product_options_reorder_reorders_variants_test() {
@@ -2780,6 +3303,25 @@ fn tracked_inventory_store_with_levels(
   ])
 }
 
+fn combined_listing_parent_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/parent",
+      title: "Combined Parent",
+      handle: "combined-parent",
+      combined_listing_role: Some("PARENT"),
+    ),
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/child",
+      title: "Child Product",
+      handle: "child-product",
+    ),
+  ])
+}
+
 fn option_update_store() -> store.Store {
   store.new()
   |> store.upsert_base_products([default_product()])
@@ -2925,6 +3467,9 @@ fn default_product() -> ProductRecord {
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }
 

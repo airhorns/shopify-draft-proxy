@@ -1,0 +1,16 @@
+query DraftOrderCompleteStagesResultingOrderReadByName {
+  orders(first: 10, query: "name:#1") {
+    nodes {
+      id
+      name
+      sourceName
+      displayFinancialStatus
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
