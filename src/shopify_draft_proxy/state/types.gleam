@@ -1889,7 +1889,12 @@ pub type CustomerDataErasureRequestRecord {
 
 /// Mirrors `CustomerMergeRequestRecord`.
 pub type CustomerMergeErrorRecord {
-  CustomerMergeErrorRecord(error_fields: List(String), message: String)
+  CustomerMergeErrorRecord(
+    error_fields: List(String),
+    message: String,
+    code: Option(String),
+    block_type: Option(String),
+  )
 }
 
 pub type CustomerMergeRequestRecord {
