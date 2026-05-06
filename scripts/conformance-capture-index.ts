@@ -1951,6 +1951,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-localization-money-metafield-remove',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-localization-money-metafield-remove-conformance.mts',
+    purpose:
+      'Definition-backed money metafield marketLocalizationsRegister/remove success, returned deleted rows, and read-after-remove behavior.',
+    requiredAuthScopes: [
+      'read_markets',
+      'write_markets',
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-localization-money-metafield-remove-parity.json`,
+      'config/parity-specs/markets/market-localization-money-metafield-remove.json',
+      'config/parity-requests/markets/market-localization-money-metafield-read.graphql',
+      'config/parity-requests/markets/market-localization-money-metafield-register.graphql',
+      'config/parity-requests/markets/market-localization-money-metafield-remove.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product-owned money metafield definition and product metafield, registers localizations for two markets, removes each tuple, then deletes the product and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-web-presence-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',

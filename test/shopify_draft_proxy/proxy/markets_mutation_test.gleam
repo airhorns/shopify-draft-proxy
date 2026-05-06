@@ -1555,6 +1555,17 @@ pub fn market_localizations_register_returns_translation_error_for_missing_resou
     == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"resourceId\"],\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
 }
 
+pub fn market_localizations_remove_returns_translation_error_for_missing_resource_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/missing\", marketLocalizationKeys: [], marketIds: []) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"resourceId\"],\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
+}
+
 pub fn market_localizations_register_validates_market_key_digest_and_value_test() {
   let proxy = market_localization_proxy()
   let #(Response(status: market_status, body: market_body, ..), _) =
@@ -1609,7 +1620,63 @@ pub fn market_localizations_register_stages_seeded_content_test() {
     == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizableContent\":[{\"key\":\"title\",\"value\":\"Title\",\"digest\":\"digest-title\"}],\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizableContent\":[{\"key\":\"title\",\"value\":\"Title\",\"digest\":\"digest-title\"},{\"key\":\"subtitle\",\"value\":\"Subtitle\",\"digest\":\"digest-subtitle\"}],\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+}
+
+pub fn market_localizations_remove_deletes_matching_staged_records_test() {
+  let #(Response(status: first_status, body: first_body, ..), first_proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }, { marketId: \"gid://shopify/Market/ca\", key: \"subtitle\", value: \"Sous-titre\", marketLocalizableContentDigest: \"digest-subtitle\" }]) { marketLocalizations { key value market { id name } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: remove_status, body: remove_body, ..), removed_proxy) =
+    graphql_with_proxy(
+      first_proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value market { id name } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      removed_proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizations { key value market { id name } } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}},{\"key\":\"subtitle\",\"value\":\"Sous-titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[{\"key\":\"subtitle\",\"value\":\"Sous-titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+}
+
+pub fn market_localizations_remove_returns_null_when_no_staged_records_match_test() {
+  let #(Response(status: register_status, body: register_body, ..), proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: remove_status, body: remove_body, ..), removed_proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"subtitle\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      removed_proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizations { key value } } }",
+    )
+
+  assert register_status == 200
+  assert json.to_string(register_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\"}],\"userErrors\":[]}}}"
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\"}]}}}"
 }
 
 fn too_many_market_localization_inputs() -> String {
@@ -1666,6 +1733,11 @@ fn market_localization_metafield() -> ProductMetafieldRecord {
         key: "title",
         value: "Title",
         digest: "digest-title",
+      ),
+      MarketLocalizableContentRecord(
+        key: "subtitle",
+        value: "Subtitle",
+        digest: "digest-subtitle",
       ),
     ],
   )

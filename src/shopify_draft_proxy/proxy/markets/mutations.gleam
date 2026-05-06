@@ -2375,14 +2375,77 @@ fn handle_market_localizations_remove(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
-  let errors = case resource_id {
+  let market_ids = read_arg_string_array(args, "marketIds") |> option.unwrap([])
+  let localization_keys =
+    read_arg_string_array(args, "marketLocalizationKeys") |> option.unwrap([])
+  case resource_id {
     Some(id) ->
       case store.find_effective_metafield_by_id(store, id) {
-        Some(_) -> []
-        None -> [resource_not_found_error(id)]
+        Some(_) -> {
+          let #(deleted_records, next_store) =
+            store.delete_staged_market_localizations(
+              store,
+              id,
+              market_ids,
+              localization_keys,
+            )
+          let deleted_payload = case deleted_records {
+            [] -> CapturedNull
+            _ ->
+              CapturedArray(
+                list.map(deleted_records, fn(record) {
+                  market_localization_payload(store, record)
+                }),
+              )
+          }
+          let staged_ids = case deleted_records {
+            [] -> []
+            _ -> [id]
+          }
+          mutation_payload_result(
+            key,
+            field,
+            fragments,
+            "marketLocalizationsRemove",
+            CapturedObject([
+              #("marketLocalizations", deleted_payload),
+              #("userErrors", CapturedArray([])),
+            ]),
+            next_store,
+            identity,
+            staged_ids,
+          )
+        }
+        None ->
+          market_localizations_remove_error_result(
+            key,
+            field,
+            fragments,
+            [translation_resource_not_found_error(id)],
+            store,
+            identity,
+          )
       }
-    None -> [resource_not_found_error("")]
+    None ->
+      market_localizations_remove_error_result(
+        key,
+        field,
+        fragments,
+        [translation_resource_not_found_error("")],
+        store,
+        identity,
+      )
   }
+}
+
+fn market_localizations_remove_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(CapturedJsonValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
   mutation_payload_result(
     key,
     field,
@@ -2395,14 +2458,6 @@ fn handle_market_localizations_remove(
     store,
     identity,
     [],
-  )
-}
-
-fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {
-  user_error(
-    ["resourceId"],
-    "Resource " <> resource_id <> " does not exist",
-    "RESOURCE_NOT_FOUND",
   )
 }
 
