@@ -207,6 +207,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-address-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-address-validation-conformance.mts',
+    purpose:
+      'B2B CompanyAddressInput country, zone, zip, HTML, emoji, and name URL validation branches for location create, assign-address, and nested company-create location inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-address-validation.json`,
+      'config/parity-specs/b2b/b2b-address-validation.json',
+      'config/parity-requests/b2b/b2b-address-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with a location for validation targets, records resolver userErrors that do not create additional records, then deletes the setup company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      '`CompanyLocationUpdateInput` does not expose address fields in the public Admin GraphQL schema on the live capture target; update-path address validation remains runtime-test-backed.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-company-update-customer-since',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-update-customer-since-conformance.mts',
