@@ -296,6 +296,109 @@ fn variables_to_json(
   )
 }
 
+const placeholder_preflight_query: String = "query MarketsMutationPreflightHydrate { __typename }"
+
+fn mutation_preflight_request(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json) {
+  case has_root_field(fields, "priceListFixedPricesByProductUpdate") {
+    True -> #(
+      product_fixed_prices_preflight_query,
+      product_fixed_prices_preflight_variables(variables),
+    )
+    False ->
+      case mutation_needs_price_list_preflight(fields) {
+        True -> #(
+          price_list_mutation_preflight_query,
+          variables_to_json(variables),
+        )
+        False -> #(placeholder_preflight_query, variables_to_json(variables))
+      }
+  }
+}
+
+fn product_fixed_prices_preflight_variables(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object([
+    #("priceListId", case string_variable(variables, "priceListId") {
+      Some(value) -> json.string(value)
+      None -> json.null()
+    }),
+    #("priceQuery", case string_variable(variables, "priceQuery") {
+      Some(value) -> json.string(value)
+      None -> json.null()
+    }),
+    #(
+      "productIds",
+      json.array(product_fixed_prices_product_ids(variables), json.string),
+    ),
+  ])
+}
+
+fn product_fixed_prices_product_ids(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  let add_ids = case dict.get(variables, "pricesToAdd") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(input) ->
+            case dict.get(input, "productId") {
+              Ok(root_field.StringVal(id)) -> Ok(id)
+              _ -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  let delete_ids = case dict.get(variables, "pricesToDeleteByProductIds") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.StringVal(id) -> Ok(id)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  dedupe_strings(list.append(add_ids, delete_ids))
+}
+
+fn string_variable(
+  variables: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(variables, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn dedupe_strings(values: List(String)) -> List(String) {
+  values
+  |> list.fold([], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
+fn has_root_field(fields: List(Selection), root_name: String) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) -> name.value == root_name
+      _ -> False
+    }
+  })
+}
+
 fn fetch_error_message(error: upstream_query.FetchError) -> String {
   case error {
     upstream_query.TransportFailed(message) -> message
@@ -318,22 +421,98 @@ pub fn hydrate_mutation_preconditions(
   upstream: UpstreamContext,
 ) -> Store {
   case upstream.transport, mutation_needs_preflight(fields) {
-    Some(_), True ->
+    Some(_), True -> {
+      let #(query, preflight_variables) =
+        mutation_preflight_request(fields, variables)
       case
         upstream_query.fetch_sync(
           upstream.origin,
           upstream.transport,
           upstream.headers,
           "MarketsMutationPreflightHydrate",
-          "query MarketsMutationPreflightHydrate { __typename }",
-          variables_to_json(variables),
+          query,
+          preflight_variables,
         )
       {
         Ok(value) -> hydrate_from_upstream_response(store_in, value)
         Error(_) -> store_in
       }
+    }
     _, _ -> store_in
   }
+}
+
+const product_fixed_prices_preflight_query: String = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }"
+
+const price_list_mutation_preflight_query: String = "
+query MarketsMutationPreflightHydrate($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    quantityRules(first: 20) {
+      edges {
+        cursor
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant { id }
+        }
+      }
+    }
+    prices(first: 20) {
+      edges {
+        cursor
+        node {
+          price { amount currencyCode }
+          compareAtPrice { amount currencyCode }
+          originType
+          variant { id sku product { id title } }
+          quantityPriceBreaks(first: 20) {
+            edges {
+              cursor
+              node {
+                minimumQuantity
+                price { amount currencyCode }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  products(first: 10) {
+    nodes {
+      id
+      title
+      variants(first: 20) {
+        nodes { id title sku }
+      }
+    }
+  }
+}
+"
+
+fn mutation_needs_price_list_preflight(fields: List(Selection)) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) ->
+        case name.value {
+          "priceListFixedPricesByProductUpdate"
+          | "quantityPricingByVariantUpdate"
+          | "quantityRulesAdd"
+          | "quantityRulesDelete" -> True
+          _ -> False
+        }
+      _ -> False
+    }
+  })
 }
 
 fn mutation_needs_preflight(fields: List(Selection)) -> Bool {
@@ -342,7 +521,10 @@ fn mutation_needs_preflight(fields: List(Selection)) -> Bool {
     case selection {
       Field(name: name, ..) ->
         case name.value {
-          "priceListFixedPricesByProductUpdate"
+          "priceListFixedPricesAdd"
+          | "priceListFixedPricesUpdate"
+          | "priceListFixedPricesDelete"
+          | "priceListFixedPricesByProductUpdate"
           | "quantityPricingByVariantUpdate"
           | "quantityRulesAdd"
           | "quantityRulesDelete"
@@ -460,10 +642,13 @@ fn hydrate_product_records(store_in: Store, data: commit.JsonValue) -> Store {
   let product_nodes =
     list.append(
       record_json_nodes_from_field(data, "products"),
-      case json_get(data, "product") {
-        Some(commit.JsonNull) | None -> []
-        Some(value) -> [value]
-      },
+      list.append(
+        json_array_values_from_field(data, "productNodes"),
+        case json_get(data, "product") {
+          Some(commit.JsonNull) | None -> []
+          Some(value) -> [value]
+        },
+      ),
     )
   let products = list.filter_map(product_nodes, product_record_from_json)
   let variants =
@@ -549,6 +734,16 @@ fn record_json_nodes_from_field(
   case json_get(data, key) {
     Some(connection) -> connection_nodes(connection)
     None -> []
+  }
+}
+
+fn json_array_values_from_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(items)) -> non_null_json_values(items)
+    _ -> []
   }
 }
 

@@ -1,0 +1,253 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "sourceCreate": {
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "Async Delete Source 1778096279651",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10178931687730",
+              "title": "Async Delete Source 1778096279651",
+              "handle": "async-delete-source-1778096279651",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "sourceProductId": "gid://shopify/Product/10178931687730",
+    "sourceReadBeforeDelete": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10178931687730",
+          "title": "Async Delete Source 1778096279651",
+          "handle": "async-delete-source-1778096279651",
+          "status": "DRAFT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10178931687730"
+      },
+      "synchronous": false
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": null,
+          "productDeleteOperation": {
+            "id": "gid://shopify/ProductDeleteOperation/80067887410",
+            "status": "CREATED",
+            "deletedProductId": null,
+            "userErrors": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateMutation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10178931687730"
+      },
+      "synchronous": false
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": null,
+          "productDeleteOperation": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Another operation already in progress. Please wait until current one is finished."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Product/10178931687730"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10178931687730",
+          "title": "Async Delete Source 1778096279651",
+          "handle": "async-delete-source-1778096279651",
+          "status": "DRAFT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "operationRead": {
+    "variables": {
+      "id": "gid://shopify/ProductDeleteOperation/80067887410"
+    },
+    "response": {
+      "data": {
+        "productOperation": {
+          "__typename": "ProductDeleteOperation",
+          "id": "gid://shopify/ProductDeleteOperation/80067887410",
+          "status": "ACTIVE",
+          "deletedProductId": "gid://shopify/Product/10178931687730",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nodeRead": {
+    "variables": {
+      "id": "gid://shopify/ProductDeleteOperation/80067887410"
+    },
+    "response": {
+      "data": {
+        "node": {
+          "__typename": "ProductDeleteOperation",
+          "id": "gid://shopify/ProductDeleteOperation/80067887410",
+          "status": "COMPLETE",
+          "deletedProductId": "gid://shopify/Product/10178931687730",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "polls": [
+      {
+        "productRead": {
+          "data": {
+            "product": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "operationRead": {
+          "data": {
+            "productOperation": {
+              "__typename": "ProductDeleteOperation",
+              "id": "gid://shopify/ProductDeleteOperation/80067887410",
+              "status": "COMPLETE",
+              "deletedProductId": "gid://shopify/Product/10178931687730",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "finalProductDeleted": true
+  },
+  "upstreamCalls": []
+}

@@ -16,19 +16,22 @@ import shopify_draft_proxy/proxy/markets/queries
 import shopify_draft_proxy/proxy/markets/serializers.{
   append_unique_strings, assigned_market_country_codes, captured_field,
   captured_json_source, captured_object_upsert, captured_string_field,
-  catalog_create_input_errors, catalog_data, delete_fixed_price_nodes,
-  delete_quantity_rule_nodes, enumerate_dicts, market_connection_from_ids,
+  catalog_create_input_errors, catalog_data, catalog_update_input_errors,
+  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
+  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
   market_data, market_handle_in_use, market_localization_payload,
   market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
-  optional_captured_string, price_list_data, price_list_input_errors,
+  optional_captured_string, price_edges, price_list_currency, price_list_data,
+  price_list_fixed_prices_by_product_user_error, price_list_input_errors,
   product_level_fixed_price_errors, product_payloads, project_record,
   quantity_pricing_input_errors, quantity_rule_delete_errors,
-  quantity_rule_payloads, quantity_rules_input_errors, read_arg_object_array,
-  read_arg_string_allow_empty, read_arg_string_array,
+  quantity_rule_payloads, quantity_rule_user_error, quantity_rules_input_errors,
+  read_arg_object_array, read_arg_string_allow_empty, read_arg_string_array,
   read_explicit_market_handle, read_market_region_inputs, read_price_list_id,
   result_to_option, string_array, translation_user_error,
   upsert_fixed_price_nodes, upsert_quantity_price_break_nodes,
-  upsert_quantity_rule_nodes, user_error, valid_currency, variant_payloads,
+  upsert_quantity_rule_nodes, user_error, user_error_with_typename,
+  valid_currency, variant_payloads,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome,
@@ -40,10 +43,11 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type MarketLocalizableContentRecord,
-  type MarketLocalizationRecord, type ProductMetafieldRecord,
-  type ShopDomainRecord, CapturedArray, CapturedBool, CapturedNull,
-  CapturedObject, CapturedString, CatalogRecord, MarketLocalizationRecord,
-  MarketRecord, PriceListRecord, WebPresenceRecord,
+  type MarketLocalizationRecord, type PriceListRecord,
+  type ProductMetafieldRecord, type ShopDomainRecord, type WebPresenceRecord,
+  CapturedArray, CapturedBool, CapturedNull, CapturedObject, CapturedString,
+  CatalogRecord, MarketLocalizationRecord, MarketRecord, PriceListRecord,
+  ShopDomainRecord, WebPresenceRecord,
 }
 
 @internal
@@ -59,6 +63,9 @@ pub fn is_markets_mutation_root(name: String) -> Bool {
     | "priceListCreate"
     | "priceListUpdate"
     | "priceListDelete"
+    | "priceListFixedPricesAdd"
+    | "priceListFixedPricesUpdate"
+    | "priceListFixedPricesDelete"
     | "priceListFixedPricesByProductUpdate"
     | "quantityPricingByVariantUpdate"
     | "quantityRulesAdd"
@@ -205,6 +212,30 @@ fn handle_market_mutation(
       ))
     "priceListDelete" ->
       Some(handle_price_list_delete(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesAdd" ->
+      Some(handle_price_list_fixed_prices_add(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesUpdate" ->
+      Some(handle_price_list_fixed_prices_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesDelete" ->
+      Some(handle_price_list_fixed_prices_delete(
         store,
         identity,
         field,
@@ -702,24 +733,42 @@ fn handle_catalog_update(
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(existing) -> {
-          let data = catalog_data(store, id, input, Some(existing.data))
-          let #(_, next_store) =
-            store.upsert_staged_catalog(
-              store,
-              CatalogRecord(id, existing.cursor, data),
-            )
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "catalogUpdate",
-            "catalog",
-            data,
-            [],
-            next_store,
-            identity,
-            [id],
-          )
+          let errors = catalog_update_input_errors(store, input, id)
+          case errors {
+            [] -> {
+              let data = catalog_data(store, id, input, Some(existing.data))
+              let #(_, next_store) =
+                store.upsert_staged_catalog(
+                  store,
+                  CatalogRecord(id, existing.cursor, data),
+                )
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogUpdate",
+                "catalog",
+                data,
+                [],
+                next_store,
+                identity,
+                [id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogUpdate",
+                "catalog",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           not_found_mutation_result(
@@ -1065,6 +1114,184 @@ fn handle_price_list_delete(
   }
 }
 
+fn handle_price_list_fixed_prices_add(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let price_inputs = read_arg_object_array(args, "prices")
+  let errors =
+    price_list_fixed_price_target_errors(price_list_id, price_list)
+    |> list.append(case price_list {
+      Some(existing) ->
+        fixed_price_input_errors(store, existing, price_inputs, "prices")
+      None -> []
+    })
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let updated = upsert_fixed_price_nodes(existing, store, price_inputs)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      fixed_prices_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesAdd",
+        updated,
+        mutation_variant_ids(price_inputs),
+        [],
+        next_store,
+        identity,
+      )
+    }
+    _, _ ->
+      fixed_prices_error_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesAdd",
+        errors,
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_fixed_prices_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let #(price_inputs, price_input_field) = read_fixed_price_update_inputs(args)
+  let delete_variant_ids =
+    read_arg_string_array(args, "variantIdsToDelete") |> option.unwrap([])
+  let errors =
+    price_list_fixed_price_target_errors(price_list_id, price_list)
+    |> list.append(case price_list {
+      Some(existing) ->
+        fixed_price_input_errors(
+          store,
+          existing,
+          price_inputs,
+          price_input_field,
+        )
+        |> list.append(fixed_price_not_fixed_errors(
+          existing,
+          price_inputs,
+          price_input_field,
+        ))
+        |> list.append(fixed_price_delete_variant_errors(
+          store,
+          delete_variant_ids,
+          "variantIdsToDelete",
+        ))
+      None -> []
+    })
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let deleted_variant_ids =
+        fixed_price_variant_ids_in_request_order(existing, delete_variant_ids)
+      let updated =
+        existing
+        |> upsert_fixed_price_nodes(store, price_inputs)
+        |> delete_fixed_price_nodes(delete_variant_ids)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      let changed_variant_ids =
+        mutation_variant_ids(price_inputs)
+        |> append_unique_strings(deleted_variant_ids)
+      fixed_prices_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesUpdate",
+        updated,
+        changed_variant_ids,
+        deleted_variant_ids,
+        next_store,
+        identity,
+      )
+    }
+    _, _ ->
+      fixed_prices_error_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesUpdate",
+        errors,
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_fixed_prices_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let variant_ids =
+    read_arg_string_array(args, "variantIds") |> option.unwrap([])
+  let errors =
+    price_list_fixed_price_target_errors(price_list_id, price_list)
+    |> list.append(case price_list {
+      Some(_) ->
+        fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
+      None -> []
+    })
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let deleted_variant_ids =
+        fixed_price_variant_ids_in_request_order(existing, variant_ids)
+      let updated = delete_fixed_price_nodes(existing, variant_ids)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      fixed_prices_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesDelete",
+        updated,
+        [],
+        deleted_variant_ids,
+        next_store,
+        identity,
+      )
+    }
+    _, _ ->
+      fixed_prices_error_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesDelete",
+        errors,
+        store,
+        identity,
+      )
+  }
+}
+
 fn handle_price_list_fixed_prices_by_product_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1085,7 +1312,7 @@ fn handle_price_list_fixed_prices_by_product_update(
     case price_list_id, price_list {
       Some(_), Some(_) -> []
       _, _ -> [
-        user_error(
+        price_list_fixed_prices_by_product_user_error(
           ["priceListId"],
           "Price list does not exist.",
           "PRICE_LIST_DOES_NOT_EXIST",
@@ -1094,6 +1321,7 @@ fn handle_price_list_fixed_prices_by_product_update(
     }
     |> list.append(product_level_fixed_price_errors(
       store,
+      price_list,
       price_inputs,
       delete_product_ids,
     ))
@@ -1171,6 +1399,319 @@ fn handle_price_list_fixed_prices_by_product_update(
         [],
       )
   }
+}
+
+fn read_fixed_price_update_inputs(
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(List(Dict(String, root_field.ResolvedValue)), String) {
+  let prices = read_arg_object_array(args, "prices")
+  case prices {
+    [] -> #(read_arg_object_array(args, "pricesToAdd"), "pricesToAdd")
+    _ -> #(prices, "prices")
+  }
+}
+
+fn price_list_fixed_price_target_errors(
+  price_list_id: Option(String),
+  price_list: Option(PriceListRecord),
+) -> List(CapturedJsonValue) {
+  case price_list_id, price_list {
+    Some(_), Some(_) -> []
+    _, _ -> [
+      price_list_price_user_error(
+        ["priceListId"],
+        "Price list not found.",
+        "PRICE_LIST_NOT_FOUND",
+      ),
+    ]
+  }
+}
+
+fn fixed_price_input_errors(
+  store: Store,
+  price_list: PriceListRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  fixed_price_variant_errors(store, inputs, field_name)
+  |> list.append(fixed_price_currency_errors(price_list, inputs, field_name))
+  |> list.append(fixed_price_duplicate_errors(inputs, field_name))
+}
+
+fn fixed_price_variant_errors(
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    let variant_id =
+      graphql_helpers.read_arg_string_nonempty(input, "variantId")
+      |> option.unwrap("")
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(price_list_price_user_error(
+          [field_name, int.to_string(index), "variantId"],
+          "Variant not found.",
+          "VARIANT_NOT_FOUND",
+        ))
+    }
+  })
+}
+
+fn fixed_price_delete_variant_errors(
+  store: Store,
+  variant_ids: List(String),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  variant_ids
+  |> enumerate_strings
+  |> list.filter_map(fn(entry) {
+    let #(variant_id, index) = entry
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(price_list_price_user_error(
+          [field_name, int.to_string(index)],
+          "Variant not found.",
+          "VARIANT_NOT_FOUND",
+        ))
+    }
+  })
+}
+
+fn fixed_price_currency_errors(
+  price_list: PriceListRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let expected_currency = price_list_currency(price_list)
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    let currency =
+      graphql_helpers.read_arg_object(input, "price")
+      |> option.then(graphql_helpers.read_arg_string_nonempty(_, "currencyCode"))
+    case currency {
+      Some(actual) ->
+        case actual == expected_currency {
+          True -> Error(Nil)
+          False ->
+            Ok(price_list_price_user_error(
+              [field_name, int.to_string(index), "price", "currencyCode"],
+              "Currency must match price list currency.",
+              "PRICES_TO_ADD_CURRENCY_MISMATCH",
+            ))
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn fixed_price_duplicate_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let #(_, errors) =
+    inputs
+    |> enumerate_dicts
+    |> list.fold(#([], []), fn(acc, entry) {
+      let #(seen_ids, current_errors) = acc
+      let #(input, index) = entry
+      case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
+        Some(variant_id) ->
+          case list.contains(seen_ids, variant_id) {
+            True -> #(
+              seen_ids,
+              list.append(current_errors, [
+                price_list_price_user_error(
+                  [field_name, int.to_string(index), "variantId"],
+                  "Duplicate variant ID in input.",
+                  "DUPLICATE_ID_IN_INPUT",
+                ),
+              ]),
+            )
+            False -> #(list.append(seen_ids, [variant_id]), current_errors)
+          }
+        None -> #(seen_ids, current_errors)
+      }
+    })
+  errors
+}
+
+fn fixed_price_not_fixed_errors(
+  price_list: PriceListRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let fixed_variant_ids = fixed_price_variant_ids(price_list)
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
+      Some(variant_id) ->
+        case list.contains(fixed_variant_ids, variant_id) {
+          True -> Error(Nil)
+          False ->
+            Ok(price_list_price_user_error(
+              [field_name, int.to_string(index), "variantId"],
+              "Price is not fixed.",
+              "PRICE_NOT_FIXED",
+            ))
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn fixed_price_variant_ids(price_list: PriceListRecord) -> List(String) {
+  price_edges(price_list.data)
+  |> list.filter_map(fn(edge) {
+    fixed_price_edge_variant_id(edge) |> option_to_result
+  })
+}
+
+fn fixed_price_variant_ids_in_request_order(
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+) -> List(String) {
+  let fixed_variant_ids = fixed_price_variant_ids(price_list)
+  variant_ids
+  |> list.filter(fn(variant_id) { list.contains(fixed_variant_ids, variant_id) })
+}
+
+fn fixed_prices_payload_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  price_list: PriceListRecord,
+  fixed_variant_ids: List(String),
+  deleted_variant_ids: List(String),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  let payload = case root_name {
+    "priceListFixedPricesAdd" ->
+      CapturedObject([
+        #(
+          "prices",
+          fixed_price_nodes_for_variant_ids(price_list, fixed_variant_ids),
+        ),
+        #("userErrors", CapturedArray([])),
+      ])
+    "priceListFixedPricesUpdate" ->
+      CapturedObject([
+        #("priceList", price_list.data),
+        #(
+          "pricesAdded",
+          fixed_price_nodes_for_variant_ids(price_list, fixed_variant_ids),
+        ),
+        #("deletedFixedPriceVariantIds", string_array(deleted_variant_ids)),
+        #("userErrors", CapturedArray([])),
+      ])
+    "priceListFixedPricesDelete" ->
+      CapturedObject([
+        #("deletedFixedPriceVariantIds", string_array(deleted_variant_ids)),
+        #("userErrors", CapturedArray([])),
+      ])
+    _ ->
+      CapturedObject([
+        #("priceList", price_list.data),
+        #("userErrors", CapturedArray([])),
+      ])
+  }
+  MutationFieldResult(
+    key: key,
+    payload: project_record(field, fragments, captured_json_source(payload)),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [price_list.id],
+    log_drafts: [markets_log_draft(root_name, [price_list.id])],
+  )
+}
+
+fn fixed_price_nodes_for_variant_ids(
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    price_edges(price_list.data)
+    |> list.filter_map(fn(edge) {
+      use variant_id <- result.try(
+        fixed_price_edge_variant_id(edge) |> option_to_result,
+      )
+      case list.contains(variant_ids, variant_id) {
+        True -> captured_field(edge, "node") |> option_to_result
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn fixed_prices_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  errors: List(CapturedJsonValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    fixed_prices_error_payload(root_name, errors),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn fixed_prices_error_payload(
+  root_name: String,
+  errors: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case root_name {
+    "priceListFixedPricesAdd" ->
+      CapturedObject([
+        #("prices", CapturedNull),
+        #("userErrors", CapturedArray(errors)),
+      ])
+    "priceListFixedPricesUpdate" ->
+      CapturedObject([
+        #("priceList", CapturedNull),
+        #("pricesAdded", CapturedNull),
+        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("userErrors", CapturedArray(errors)),
+      ])
+    "priceListFixedPricesDelete" ->
+      CapturedObject([
+        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("userErrors", CapturedArray(errors)),
+      ])
+    _ -> CapturedObject([#("userErrors", CapturedArray(errors))])
+  }
+}
+
+fn price_list_price_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(
+    field,
+    message,
+    code,
+    Some("PriceListPriceUserError"),
+  )
 }
 
 fn handle_quantity_pricing_by_variant_update(
@@ -1276,9 +1817,9 @@ fn handle_quantity_rules_add(
     ))
   let inputs = read_arg_object_array(args, "quantityRules")
   let errors = case price_list {
-    Some(_) -> quantity_rules_input_errors(store, inputs)
+    Some(existing) -> quantity_rules_input_errors(store, existing, inputs)
     None -> [
-      user_error(
+      quantity_rule_user_error(
         ["priceListId"],
         "Price list does not exist.",
         "PRICE_LIST_DOES_NOT_EXIST",
@@ -1339,7 +1880,7 @@ fn handle_quantity_rules_delete(
   let variant_ids =
     read_arg_string_array(args, "variantIds") |> option.unwrap([])
   let errors = case price_list {
-    Some(_) -> quantity_rule_delete_errors(store, variant_ids)
+    Some(existing) -> quantity_rule_delete_errors(store, existing, variant_ids)
     None -> [
       user_error(
         ["priceListId"],
@@ -1808,11 +2349,11 @@ fn handle_web_presence_update(
   case id {
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
-        Some(_) -> {
-          let errors = web_presence_update_errors(store, input)
+        Some(existing) -> {
+          let errors = web_presence_update_errors(existing, input)
           case errors {
             [] -> {
-              let data = web_presence_data(store, id_value, input)
+              let data = web_presence_update_data(store, existing, input)
               let record =
                 WebPresenceRecord(id: id_value, cursor: None, data: data)
               let #(_, next_store) =
@@ -2114,10 +2655,27 @@ fn web_presence_create_errors(
 }
 
 fn web_presence_update_errors(
-  store: Store,
+  existing: WebPresenceRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  web_presence_input_errors(store, input, False)
+  let default_locale_errors = case dict.has_key(input, "defaultLocale") {
+    True -> web_presence_default_locale_errors(input)
+    False -> []
+  }
+  let route_and_suffix_errors = case default_locale_errors {
+    [] ->
+      list.append(
+        web_presence_update_route_errors(existing, input),
+        web_presence_subfolder_suffix_errors(input),
+      )
+    _ -> []
+  }
+  [
+    default_locale_errors,
+    web_presence_alternate_locale_errors(input),
+    route_and_suffix_errors,
+  ]
+  |> list.flatten
 }
 
 fn web_presence_input_errors(
@@ -2189,6 +2747,24 @@ fn web_presence_route_errors(
   }
 }
 
+fn web_presence_update_route_errors(
+  existing: WebPresenceRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let suffix =
+    graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  case suffix, web_presence_record_has_domain(existing) {
+    Some(_), True -> [
+      user_error(
+        ["input"],
+        "Cannot have both subfolder suffix and domain",
+        "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
 fn web_presence_default_locale_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
@@ -2201,9 +2777,9 @@ fn web_presence_default_locale_errors(
       ),
     ]
     Some(locale) ->
-      case valid_web_presence_locale(locale) {
-        True -> []
-        False -> [
+      case canonical_web_presence_locale(locale) {
+        Some(_) -> []
+        None -> [
           user_error(
             ["input", "defaultLocale"],
             "Invalid locale codes: " <> locale,
@@ -2224,21 +2800,26 @@ fn web_presence_default_locale_errors(
 fn web_presence_alternate_locale_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  read_arg_string_array(input, "alternateLocales")
-  |> option.unwrap([])
-  |> list.index_fold([], fn(errors, locale, index) {
-    case valid_web_presence_locale(locale) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          user_error(
-            ["input", "alternateLocales", int.to_string(index)],
-            "Invalid locale codes: " <> locale,
-            "INVALID",
-          ),
-        ])
-    }
-  })
+  let invalid_locales =
+    read_arg_string_array(input, "alternateLocales")
+    |> option.unwrap([])
+    |> list.filter(fn(locale) {
+      case canonical_web_presence_locale(locale) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+
+  case invalid_locales {
+    [] -> []
+    _ -> [
+      user_error(
+        ["input", "alternateLocales"],
+        "Invalid locale codes: " <> to_sentence(invalid_locales),
+        "INVALID",
+      ),
+    ]
+  }
 }
 
 fn web_presence_subfolder_suffix_errors(
@@ -2272,11 +2853,66 @@ fn web_presence_subfolder_suffix_errors(
   }
 }
 
-fn valid_web_presence_locale(locale: String) -> Bool {
-  list.contains(shopify_i18n_language_codes(), locale)
+fn canonical_web_presence_locale(locale: String) -> Option(String) {
+  let canonical = normalize_bcp47_locale(locale)
+  case list.contains(shopify_i18n_language_codes(), canonical) {
+    True -> Some(canonical)
+    False -> None
+  }
+}
+
+fn canonical_web_presence_locale_result(locale: String) -> Result(String, Nil) {
+  case canonical_web_presence_locale(locale) {
+    Some(canonical) -> Ok(canonical)
+    None -> Error(Nil)
+  }
+}
+
+fn normalize_bcp47_locale(locale: String) -> String {
+  case string.split(locale, on: "-") {
+    [] -> ""
+    [language, ..subtags] -> {
+      let canonical_parts = [
+        string.lowercase(language),
+        ..list.map(subtags, canonical_locale_subtag)
+      ]
+      string.join(canonical_parts, "-")
+    }
+  }
+}
+
+fn canonical_locale_subtag(subtag: String) -> String {
+  case string.length(subtag) {
+    4 -> titlecase_ascii_subtag(subtag)
+    2 -> string.uppercase(subtag)
+    3 -> string.uppercase(subtag)
+    _ -> string.lowercase(subtag)
+  }
+}
+
+fn titlecase_ascii_subtag(subtag: String) -> String {
+  case string.to_graphemes(subtag) {
+    [] -> ""
+    [first, ..rest] ->
+      string.uppercase(first)
+      <> string.join(list.map(rest, string.lowercase), "")
+  }
+}
+
+fn to_sentence(values: List(String)) -> String {
+  case list.reverse(values) {
+    [] -> ""
+    [only] -> only
+    [last, ..prefix_reversed] ->
+      string.join(list.reverse(prefix_reversed), ", ") <> ", and " <> last
+  }
 }
 
 fn shopify_i18n_language_codes() -> List(String) {
+  list.append(shopify_i18n_base_language_codes(), shopify_i18n_bcp47_variants())
+}
+
+fn shopify_i18n_base_language_codes() -> List(String) {
   [
     "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs",
     "br", "bg", "my", "ca", "ckb", "ce", "zh-CN", "zh-TW", "kw", "hr", "cs",
@@ -2289,6 +2925,39 @@ fn shopify_i18n_language_codes() -> List(String) {
     "sg", "sa", "sc", "gd", "sr", "sn", "ii", "sd", "si", "sk", "sl", "so", "es",
     "su", "sw", "sv", "tg", "ta", "tt", "te", "th", "bo", "ti", "to", "tr", "tk",
     "uk", "ur", "ug", "uz", "vi", "cy", "fy", "wo", "xh", "yi", "yo", "zu",
+  ]
+}
+
+fn shopify_i18n_bcp47_variants() -> List(String) {
+  [
+    "ar-AE", "ar-BH", "ar-DZ", "ar-EG", "ar-IQ", "ar-JO", "ar-KW", "ar-LB",
+    "ar-LY", "ar-MA", "ar-OM", "ar-QA", "ar-SA", "ar-SD", "ar-SY", "ar-TN",
+    "ar-YE", "az-Cyrl", "az-Cyrl-AZ", "az-Latn", "az-Latn-AZ", "bn-BD", "bn-IN",
+    "bs-Cyrl", "bs-Cyrl-BA", "bs-Latn", "bs-Latn-BA", "ca-AD", "ca-ES", "ca-FR",
+    "ca-IT", "de-AT", "de-BE", "de-CH", "de-DE", "de-IT", "de-LI", "de-LU",
+    "en-AE", "en-AU", "en-CA", "en-GB", "en-HK", "en-IE", "en-IN", "en-MY",
+    "en-NG", "en-NZ", "en-PH", "en-PK", "en-SG", "en-US", "en-ZA", "es-419",
+    "es-AR", "es-BO", "es-BR", "es-BZ", "es-CL", "es-CO", "es-CR", "es-CU",
+    "es-DO", "es-EC", "es-ES", "es-GQ", "es-GT", "es-HN", "es-MX", "es-NI",
+    "es-PA", "es-PE", "es-PR", "es-PY", "es-SV", "es-US", "es-UY", "es-VE",
+    "fa-AF", "fa-IR", "fr-BE", "fr-BF", "fr-BI", "fr-BJ", "fr-BL", "fr-CD",
+    "fr-CF", "fr-CG", "fr-CH", "fr-CI", "fr-CM", "fr-DJ", "fr-DZ", "fr-FR",
+    "fr-GA", "fr-GF", "fr-GN", "fr-GP", "fr-GQ", "fr-HT", "fr-KM", "fr-LU",
+    "fr-MA", "fr-MC", "fr-MF", "fr-MG", "fr-ML", "fr-MQ", "fr-MR", "fr-MU",
+    "fr-NC", "fr-NE", "fr-PF", "fr-PM", "fr-RE", "fr-RW", "fr-SC", "fr-SN",
+    "fr-SY", "fr-TD", "fr-TG", "fr-TN", "fr-VU", "fr-WF", "fr-YT", "hi-IN",
+    "it-CH", "it-IT", "it-SM", "it-VA", "kk-Cyrl", "kk-Cyrl-KZ", "ko-KP",
+    "ko-KR", "ku-Arab", "ku-Arab-IQ", "ku-Latn", "ku-Latn-TR", "ms-BN", "ms-ID",
+    "ms-MY", "ms-SG", "nl-AW", "nl-BE", "nl-BQ", "nl-CW", "nl-NL", "nl-SR",
+    "nl-SX", "no-NO", "pa-Arab", "pa-Arab-PK", "pa-Guru", "pa-Guru-IN", "pt-AO",
+    "pt-BR", "pt-CH", "pt-CV", "pt-GQ", "pt-GW", "pt-LU", "pt-MO", "pt-MZ",
+    "pt-PT", "pt-ST", "pt-TL", "ro-MD", "ro-RO", "ru-BY", "ru-KG", "ru-KZ",
+    "ru-MD", "ru-RU", "ru-UA", "sr-Cyrl", "sr-Cyrl-BA", "sr-Cyrl-ME",
+    "sr-Cyrl-RS", "sr-Latn", "sr-Latn-BA", "sr-Latn-ME", "sr-Latn-RS", "sv-AX",
+    "sv-FI", "sv-SE", "tg-Cyrl", "tg-Cyrl-TJ", "uz-Arab", "uz-Arab-AF",
+    "uz-Cyrl", "uz-Cyrl-UZ", "uz-Latn", "uz-Latn-UZ", "zh-CN", "zh-Hans",
+    "zh-Hans-CN", "zh-Hans-HK", "zh-Hans-MO", "zh-Hans-SG", "zh-Hant",
+    "zh-Hant-HK", "zh-Hant-MO", "zh-Hant-TW", "zh-TW",
   ]
 }
 
@@ -2326,9 +2995,12 @@ fn web_presence_data(
 ) -> CapturedJsonValue {
   let default_locale =
     graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+    |> option.then(canonical_web_presence_locale)
     |> option.unwrap("en")
   let alternate_locales =
-    read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
+    read_arg_string_array(input, "alternateLocales")
+    |> option.unwrap([])
+    |> list.filter_map(canonical_web_presence_locale_result)
   let suffix =
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   let domain =
@@ -2379,6 +3051,147 @@ fn web_presence_data(
       ]),
     ),
   ])
+}
+
+fn web_presence_update_data(
+  store: Store,
+  existing: WebPresenceRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  let default_locale = case dict.has_key(input, "defaultLocale") {
+    True ->
+      graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+      |> option.unwrap(existing_web_presence_default_locale(existing))
+    False -> existing_web_presence_default_locale(existing)
+  }
+  let alternate_locales = case dict.has_key(input, "alternateLocales") {
+    True ->
+      read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
+    False -> existing_web_presence_alternate_locales(existing)
+  }
+  let suffix = case dict.has_key(input, "subfolderSuffix") {
+    True -> graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+    False -> existing_web_presence_subfolder_suffix(existing)
+  }
+  let domain = existing_web_presence_domain(existing)
+  web_presence_payload(
+    store,
+    existing.id,
+    default_locale,
+    alternate_locales,
+    suffix,
+    domain,
+  )
+}
+
+fn web_presence_payload(
+  store: Store,
+  id: String,
+  default_locale: String,
+  alternate_locales: List(String),
+  suffix: Option(String),
+  domain: Option(ShopDomainRecord),
+) -> CapturedJsonValue {
+  let has_alternate_locales = !list.is_empty(alternate_locales)
+  let locales = [default_locale, ..alternate_locales]
+  CapturedObject([
+    #("__typename", CapturedString("MarketWebPresence")),
+    #("id", CapturedString(id)),
+    #("subfolderSuffix", optional_captured_string(suffix)),
+    #("domain", optional_web_presence_domain(domain)),
+    #(
+      "rootUrls",
+      CapturedArray(
+        list.map(locales, fn(locale) {
+          CapturedObject([
+            #("locale", CapturedString(locale)),
+            #(
+              "url",
+              CapturedString(web_presence_root_url(
+                store,
+                locale,
+                default_locale,
+                suffix,
+                domain,
+                has_alternate_locales,
+              )),
+            ),
+          ])
+        }),
+      ),
+    ),
+    #("defaultLocale", locale_payload(default_locale, True)),
+    #(
+      "alternateLocales",
+      CapturedArray(
+        list.map(alternate_locales, fn(locale) { locale_payload(locale, False) }),
+      ),
+    ),
+    #(
+      "markets",
+      CapturedObject([
+        #("nodes", CapturedArray([])),
+        #("edges", CapturedArray([])),
+      ]),
+    ),
+  ])
+}
+
+fn existing_web_presence_default_locale(record: WebPresenceRecord) -> String {
+  case captured_field(record.data, "defaultLocale") {
+    Some(locale) ->
+      captured_string_field(locale, "locale") |> option.unwrap("en")
+    None -> "en"
+  }
+}
+
+fn existing_web_presence_alternate_locales(
+  record: WebPresenceRecord,
+) -> List(String) {
+  case captured_field(record.data, "alternateLocales") {
+    Some(CapturedArray(locales)) ->
+      locales
+      |> list.filter_map(fn(locale) {
+        captured_string_field(locale, "locale") |> option_to_result
+      })
+    _ -> []
+  }
+}
+
+fn existing_web_presence_subfolder_suffix(
+  record: WebPresenceRecord,
+) -> Option(String) {
+  captured_string_field(record.data, "subfolderSuffix")
+}
+
+fn existing_web_presence_domain(
+  record: WebPresenceRecord,
+) -> Option(ShopDomainRecord) {
+  case captured_field(record.data, "domain") {
+    Some(domain) -> {
+      use id <- option.then(captured_string_field(domain, "id"))
+      use host <- option.then(captured_string_field(domain, "host"))
+      let url = captured_string_field(domain, "url") |> option.unwrap("")
+      let ssl_enabled = case captured_field(domain, "sslEnabled") {
+        Some(CapturedBool(value)) -> value
+        _ -> False
+      }
+      Some(ShopDomainRecord(
+        id: id,
+        host: host,
+        url: url,
+        ssl_enabled: ssl_enabled,
+      ))
+    }
+    _ -> None
+  }
+}
+
+fn web_presence_record_has_domain(record: WebPresenceRecord) -> Bool {
+  case captured_field(record.data, "domain") {
+    Some(CapturedObject(_)) -> True
+    _ -> False
+  }
 }
 
 fn web_presence_root_url(

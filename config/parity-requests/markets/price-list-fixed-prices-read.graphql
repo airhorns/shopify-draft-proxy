@@ -1,0 +1,38 @@
+query PriceListFixedPricesRead($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    id
+    name
+    currency
+    fixedPricesCount
+    prices(first: 10, originType: FIXED) {
+      edges {
+        cursor
+        node {
+          price {
+            amount
+            currencyCode
+          }
+          compareAtPrice {
+            amount
+            currencyCode
+          }
+          originType
+          variant {
+            id
+            sku
+            product {
+              id
+              title
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

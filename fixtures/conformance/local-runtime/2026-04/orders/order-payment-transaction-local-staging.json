@@ -147,7 +147,7 @@
             },
             "userErrors": [
               {
-                "field": ["input", "amount"],
+                "field": ["amount"],
                 "message": "Amount exceeds capturable amount"
               }
             ]

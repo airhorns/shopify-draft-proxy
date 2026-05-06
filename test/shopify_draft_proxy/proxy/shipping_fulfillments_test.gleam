@@ -738,6 +738,119 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\",\"code\":\"CARRIER_SERVICE_DELETE_FAILED\"}]}}}"
 }
 
+pub fn carrier_service_create_callback_url_user_errors_reject_without_staging_test() {
+  let http_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes HTTP Carrier")),
+        #("callbackUrl", root_field.StringVal("http://example.com/rates")),
+        #("active", root_field.BoolVal(False)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let http_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", http_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(http_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider callback url must use HTTPS\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
+  assert http_outcome.staged_resource_ids == []
+  assert store.list_effective_carrier_services(http_outcome.store) == []
+
+  let banned_host_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Banned Carrier")),
+        #("callbackUrl", root_field.StringVal("https://shopify.com/rates")),
+        #("active", root_field.BoolVal(False)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let banned_host_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", banned_host_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(banned_host_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider callback url invalid host\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
+  assert banned_host_outcome.staged_resource_ids == []
+  assert store.list_effective_carrier_services(banned_host_outcome.store) == []
+}
+
+pub fn carrier_service_update_callback_url_user_errors_reject_without_staging_test() {
+  let existing =
+    CarrierServiceRecord(
+      id: "gid://shopify/DeliveryCarrierService/1",
+      name: Some("Hermes Carrier"),
+      formatted_name: Some("Hermes Carrier (Rates provided by app)"),
+      callback_url: Some("https://mock.shop/carrier-service-rates"),
+      active: False,
+      supports_service_discovery: False,
+      created_at: "2026-04-27T00:00:00.000Z",
+      updated_at: "2026-04-27T00:00:00.000Z",
+    )
+  let draft_store = store.upsert_base_carrier_services(store.new(), [existing])
+  let update_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("id", root_field.StringVal(existing.id)),
+        #("callbackUrl", root_field.StringVal("http://example.com/rates")),
+      ]),
+    )
+  let update_outcome =
+    shipping_fulfillments.process_mutation(
+      draft_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", update_input)]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider callback url must use HTTPS\",\"code\":\"CARRIER_SERVICE_UPDATE_FAILED\"}]}}}"
+  assert update_outcome.staged_resource_ids == []
+  let assert Some(after_reject) =
+    store.get_effective_carrier_service_by_id(update_outcome.store, existing.id)
+  assert after_reject.callback_url
+    == Some("https://mock.shop/carrier-service-rates")
+
+  let normalized_http =
+    CarrierServiceRecord(
+      ..existing,
+      callback_url: Some("http://example.com:80/rates"),
+    )
+  let normalized_store =
+    store.upsert_base_carrier_services(store.new(), [normalized_http])
+  let normalized_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("id", root_field.StringVal(existing.id)),
+        #("callbackUrl", root_field.StringVal("http://example.com/rates")),
+      ]),
+    )
+  let normalized_outcome =
+    shipping_fulfillments.process_mutation(
+      normalized_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation NormalizedCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", normalized_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(normalized_outcome.data)
+    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":{\"id\":\"gid://shopify/DeliveryCarrierService/1\",\"callbackUrl\":\"http://example.com/rates\"},\"userErrors\":[]}}}"
+}
+
 pub fn shipping_settings_availability_filters_active_services_and_locations_test() {
   let assert Ok(response) =
     shipping_fulfillments.process(
@@ -2862,6 +2975,72 @@ fn split_mutation() -> String {
   "
 }
 
+fn merge_input(
+  intents: List(#(String, List(#(String, root_field.ResolvedValue)))),
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #(
+        "mergeIntents",
+        root_field.ListVal(
+          list.map(intents, fn(intent) {
+            let #(fulfillment_order_id, line_items) = intent
+            root_field.ObjectVal(
+              dict.from_list([
+                #(
+                  "fulfillmentOrderId",
+                  root_field.StringVal(fulfillment_order_id),
+                ),
+                #(
+                  "fulfillmentOrderLineItems",
+                  root_field.ListVal(
+                    list.map(line_items, fn(line_item) {
+                      let #(line_item_id, quantity) = line_item
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("id", root_field.StringVal(line_item_id)),
+                          #("quantity", quantity),
+                        ]),
+                      )
+                    }),
+                  ),
+                ),
+              ]),
+            )
+          }),
+        ),
+      ),
+    ]),
+  )
+}
+
+fn merge_mutation() -> String {
+  "
+    mutation Merge($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+      fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+        fulfillmentOrderMerges {
+          fulfillmentOrder {
+            id
+            status
+            lineItems(first: 10) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
 pub fn fulfillment_order_split_processes_all_inputs_and_line_items_test() {
   let order_a_id = "gid://shopify/FulfillmentOrder/har-559-a"
   let order_b_id = "gid://shopify/FulfillmentOrder/har-559-b"
@@ -2985,6 +3164,198 @@ pub fn fulfillment_order_split_validates_indexed_inputs_test() {
     )
   assert json.to_string(unknown_order.data)
     == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
+}
+
+pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
+  let order_a_id = "gid://shopify/FulfillmentOrder/har-874-a"
+  let order_b_id = "gid://shopify/FulfillmentOrder/har-874-b"
+  let closed_order_id = "gid://shopify/FulfillmentOrder/har-874-closed"
+  let missing_order_id = "gid://shopify/FulfillmentOrder/har-874-missing"
+  let line_a = "gid://shopify/FulfillmentOrderLineItem/har-874-a"
+  let line_b = "gid://shopify/FulfillmentOrderLineItem/har-874-b"
+  let closed_line = "gid://shopify/FulfillmentOrderLineItem/har-874-closed"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(order_a_id, [
+        #(line_a, "gid://shopify/LineItem/har-874-a", 2),
+      ]),
+      split_fulfillment_order_record(order_b_id, [
+        #(line_b, "gid://shopify/LineItem/har-874-b", 1),
+      ]),
+      FulfillmentOrderRecord(
+        ..split_fulfillment_order_record(closed_order_id, [
+          #(closed_line, "gid://shopify/LineItem/har-874-closed", 1),
+        ]),
+        status: "CLOSED",
+        data: CapturedObject([
+          #("id", CapturedString(closed_order_id)),
+          #("status", CapturedString("CLOSED")),
+          #("requestStatus", CapturedString("UNSUBMITTED")),
+          #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+          #("fulfillmentHolds", CapturedArray([])),
+        ]),
+      ),
+    ])
+
+  let missing_order =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, []),
+              #(missing_order_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_order.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
+
+  let zero_quantity =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, [#(line_a, root_field.IntVal(0))]),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(zero_quantity.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderMergeInputs\",\"0\",\"mergeIntents\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"You must select at least one item to merge into a new fulfillment order.\",\"code\":\"GREATER_THAN\"}]}}}"
+
+  let invalid_quantity =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, [#(line_a, root_field.StringVal("one"))]),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_quantity.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderMergeInputs\",\"0\",\"mergeIntents\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"Line item quantity is invalid.\",\"code\":\"INVALID_LINE_ITEM_QUANTITY\"}]}}}"
+
+  let invalid_line_item_id =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, [
+                #(
+                  "gid://shopify/FulfillmentOrderLineItem/har-874-missing",
+                  root_field.IntVal(1),
+                ),
+              ]),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_line_item_id.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order line item does not exist.\",\"code\":null}]}}}"
+
+  let excessive_quantity =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, [#(line_a, root_field.IntVal(999))]),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(excessive_quantity.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Invalid fulfillment order line item quantity requested.\",\"code\":null}]}}}"
+
+  let closed_order =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, []),
+              #(closed_order_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(closed_order.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order: har-874-closed is currently not in a mergeable state.\",\"code\":null}]}}}"
+
+  let success =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, []),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(success.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":[{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/har-874-a\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-874-a\",\"totalQuantity\":3,\"remainingQuantity\":3}]}}}],\"userErrors\":[]}}}"
 }
 
 pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {

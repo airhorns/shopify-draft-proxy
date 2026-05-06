@@ -402,6 +402,30 @@ reported only `TOO_LONG` for HTML-plus-too-long notes. Those internal-source
 HTML/title branches remain covered by runtime tests rather than a misleading
 parity spec.
 
+B2B address handling now adds reusable `CompanyAddressInput` validation for
+address-bearing mutation paths before local staging.
+`companyCreate(input.companyLocation.{billing,shipping}Address)`,
+`companyLocationCreate` billing/shipping addresses, the proxy's local
+`companyLocationUpdate` address path, and
+`companyLocationAssignAddress(address:)` reject invalid address input with
+`INVALID` `BusinessCustomerUserError`s and no staged company/location/address
+records. Country codes must resolve through the proxy's Atlas country dataset
+(`CA`, `US`, and `SG` in the current generated slice); `ZZ` and any code outside
+that dataset return `Country code is invalid`. Countries with zones reject
+unknown `zoneCode` values, and postal codes are checked for the current
+country/zone slice before write staging. Address free-text fields `recipient`,
+`address1`, `address2`, `city`, `firstName`, and `lastName` reject HTML and
+emoji; name fields also reject URL substrings.
+
+The 2026-04 `b2b-address-validation` parity capture records executable public
+Admin behavior for invalid country, invalid zone, invalid zip, HTML address
+fields, emoji fields, name URL fields, assign-address country validation, and
+nested company-create address validation. Public Admin GraphQL does not expose
+`billingAddress` or `shippingAddress` on `CompanyLocationUpdateInput` in the
+checked schema or the live 2026-04 target, so the update-address local path is
+runtime-test-backed rather than represented as fabricated public parity
+evidence.
+
 HAR-608 adds local `externalId` guardrails for company and company-location
 create/update mutations. The proxy enforces Shopify's 64-character maximum,
 rejects characters outside the captured `ExternalIdValidator` allow-list with

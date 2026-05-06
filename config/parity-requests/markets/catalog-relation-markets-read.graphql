@@ -1,0 +1,12 @@
+#graphql
+query CatalogRelationMarketsRead($first: Int!) {
+  markets(first: $first) {
+    nodes {
+      id
+      name
+      handle
+      status
+      enabled
+    }
+  }
+}

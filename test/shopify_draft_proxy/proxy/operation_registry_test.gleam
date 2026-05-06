@@ -206,8 +206,24 @@ pub fn default_registry_marks_only_ported_roots_as_locally_dispatched_test() {
     operation_registry.find_entry(entries, Mutation, [
       Some("priceListFixedPricesAdd"),
     ])
-  assert !draft_proxy.registry_entry_has_local_dispatch(
+  assert draft_proxy.registry_entry_has_local_dispatch(
     price_list_fixed_prices_add,
+  )
+
+  let assert Some(price_list_fixed_prices_update) =
+    operation_registry.find_entry(entries, Mutation, [
+      Some("priceListFixedPricesUpdate"),
+    ])
+  assert draft_proxy.registry_entry_has_local_dispatch(
+    price_list_fixed_prices_update,
+  )
+
+  let assert Some(price_list_fixed_prices_delete) =
+    operation_registry.find_entry(entries, Mutation, [
+      Some("priceListFixedPricesDelete"),
+    ])
+  assert draft_proxy.registry_entry_has_local_dispatch(
+    price_list_fixed_prices_delete,
   )
 
   let assert Some(product_create) =

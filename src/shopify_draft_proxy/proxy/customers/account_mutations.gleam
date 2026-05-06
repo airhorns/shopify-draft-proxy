@@ -24,8 +24,9 @@ import shopify_draft_proxy/proxy/customers/inputs.{
   read_obj_string,
 }
 import shopify_draft_proxy/proxy/customers/serializers.{
-  customer_payload_json, merge_error_payload, merge_payload_json,
-  order_customer_payload_json, store_credit_payload_json, user_error_source,
+  customer_payload_json, merge_error_payload, merge_errors_payload,
+  merge_payload_json, order_customer_payload_json, store_credit_payload_json,
+  user_error_source,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcList, SrcNull, SrcObject, SrcString, get_field_response_key,
@@ -43,12 +44,13 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type CustomerAddressRecord,
-  type CustomerOrderSummaryRecord, type CustomerRecord, type Money,
-  type OrderRecord, CapturedNull, CapturedObject, CapturedString,
-  CustomerAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerMergeRequestRecord,
-  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord, Money,
-  OrderRecord, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
+  type CustomerMergeErrorRecord, type CustomerOrderSummaryRecord,
+  type CustomerRecord, type Money, type OrderRecord, CapturedNull,
+  CapturedObject, CapturedString, CustomerAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerMergeErrorRecord, CustomerMergeRequestRecord, CustomerMetafieldRecord,
+  CustomerOrderSummaryRecord, CustomerRecord, Money, OrderRecord,
+  StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
 }
 
 @internal
@@ -1751,47 +1753,78 @@ pub fn handle_customer_merge(store, identity, field, fragments, variables) {
             store.get_effective_customer_by_id(store, two_id)
           {
             Some(c1), Some(c2) -> {
-              let #(job_id, after_id) =
-                synthetic_identity.make_synthetic_gid(identity, "Job")
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(after_id)
-              let merged = build_merged_customer(c1, c2, override, timestamp)
-              let request =
-                CustomerMergeRequestRecord(
-                  job_id: job_id,
-                  resulting_customer_id: merged.id,
-                  status: "COMPLETED",
-                  customer_merge_errors: [],
-                )
-              let payload_request =
-                CustomerMergeRequestRecord(
-                  job_id: job_id,
-                  resulting_customer_id: merged.id,
-                  status: "IN_PROGRESS",
-                  customer_merge_errors: [],
-                )
-              let source_addresses =
-                store.list_effective_customer_addresses(store, c1.id)
-              let next_store =
-                store.stage_merge_customers(store, c1.id, merged, request)
-                |> stage_customer_merge_attached_resources(
-                  c1,
-                  c2,
-                  merged,
-                  source_addresses,
-                )
-              let payload =
-                merge_payload_json(payload_request, field, fragments)
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [c1.id, c2.id, job_id],
-                  "customerMerge",
-                ),
-                next_store,
-                after_ts,
-              )
+              let blockers = customer_merge_blockers(store, c1, c2, override)
+              case blockers {
+                [] -> {
+                  let #(job_id, after_id) =
+                    synthetic_identity.make_synthetic_gid(identity, "Job")
+                  let #(timestamp, after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(after_id)
+                  let merged =
+                    build_merged_customer(c1, c2, override, timestamp)
+                  let request =
+                    CustomerMergeRequestRecord(
+                      job_id: job_id,
+                      resulting_customer_id: merged.id,
+                      status: "COMPLETED",
+                      customer_merge_errors: [],
+                    )
+                  let payload_request =
+                    CustomerMergeRequestRecord(
+                      job_id: job_id,
+                      resulting_customer_id: merged.id,
+                      status: "IN_PROGRESS",
+                      customer_merge_errors: [],
+                    )
+                  let source_addresses =
+                    store.list_effective_customer_addresses(store, c1.id)
+                  let next_store =
+                    store.stage_merge_customers(store, c1.id, merged, request)
+                    |> stage_customer_merge_attached_resources(
+                      c1,
+                      c2,
+                      merged,
+                      source_addresses,
+                    )
+                  let payload =
+                    merge_payload_json(payload_request, field, fragments)
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [c1.id, c2.id, job_id],
+                      "customerMerge",
+                    ),
+                    next_store,
+                    after_ts,
+                  )
+                }
+                [_, ..] -> {
+                  let payload =
+                    merge_errors_payload(
+                      field,
+                      fragments,
+                      list.map(blockers, fn(blocker) {
+                        UserError(
+                          blocker.error_fields,
+                          blocker.message,
+                          blocker.code,
+                        )
+                      }),
+                      blockers,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      "customerMerge",
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+              }
             }
             None, _ -> {
               let payload =
@@ -1858,6 +1891,181 @@ pub fn handle_customer_merge(store, identity, field, fragments, variables) {
       )
     }
   }
+}
+
+const customer_merge_max_note_length = 5000
+
+const customer_merge_max_tags = 250
+
+fn customer_merge_blockers(
+  store: Store,
+  one: CustomerRecord,
+  two: CustomerRecord,
+  override: Dict(String, root_field.ResolvedValue),
+) -> List(CustomerMergeErrorRecord) {
+  list.append(
+    list.append(
+      customer_merge_note_blockers(one, two, override),
+      customer_merge_tags_blockers(one, two, override),
+    ),
+    list.append(
+      customer_merge_subscription_blockers(store, one, two),
+      customer_merge_gift_card_blockers(store, one, two),
+    ),
+  )
+}
+
+fn customer_merge_note_blockers(
+  one: CustomerRecord,
+  two: CustomerRecord,
+  override: Dict(String, root_field.ResolvedValue),
+) -> List(CustomerMergeErrorRecord) {
+  let note = case read_obj_string(override, "note") {
+    Some(note) -> note
+    None ->
+      string.join(
+        list.filter_map([one.note, two.note], fn(note) {
+          case note {
+            Some(value) if value != "" -> Ok(value)
+            _ -> Error(Nil)
+          }
+        }),
+        " ",
+      )
+  }
+  case string.length(note) > customer_merge_max_note_length {
+    True -> [
+      hard_merge_blocker(
+        ["customerOneId"],
+        "Customer notes must be 5,000 characters or less.",
+      ),
+      hard_merge_blocker(
+        ["customerTwoId"],
+        "Customer notes must be 5,000 characters or less.",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn customer_merge_tags_blockers(
+  one: CustomerRecord,
+  two: CustomerRecord,
+  override: Dict(String, root_field.ResolvedValue),
+) -> List(CustomerMergeErrorRecord) {
+  let tags = case read_obj_array_strings(override, "tags") {
+    [] -> list.append(one.tags, two.tags)
+    values -> values
+  }
+  let unique_tags =
+    tags
+    |> list.map(string.trim)
+    |> list.filter(fn(tag) { tag != "" })
+    |> list.fold([], fn(acc, tag) {
+      let normalized = string.lowercase(tag)
+      case list.contains(acc, normalized) {
+        True -> acc
+        False -> [normalized, ..acc]
+      }
+    })
+  case list.length(unique_tags) > customer_merge_max_tags {
+    True -> [
+      hard_merge_blocker(
+        ["customerOneId"],
+        "Customers must have 250 tags or less.",
+      ),
+      hard_merge_blocker(
+        ["customerTwoId"],
+        "Customers must have 250 tags or less.",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn customer_merge_subscription_blockers(
+  store: Store,
+  one: CustomerRecord,
+  two: CustomerRecord,
+) -> List(CustomerMergeErrorRecord) {
+  [
+    #(one, "customerOneId"),
+    #(two, "customerTwoId"),
+  ]
+  |> list.filter_map(fn(pair) {
+    let #(customer, field) = pair
+    case customer_has_subscription_contracts(store, customer.id) {
+      True ->
+        Ok(hard_merge_blocker(
+          [field],
+          customer_merge_customer_subject(customer)
+            <> " has subscription contracts and can’t be merged.",
+        ))
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn customer_merge_gift_card_blockers(
+  store: Store,
+  one: CustomerRecord,
+  two: CustomerRecord,
+) -> List(CustomerMergeErrorRecord) {
+  [
+    #(one, "customerOneId"),
+    #(two, "customerTwoId"),
+  ]
+  |> list.filter_map(fn(pair) {
+    let #(customer, field) = pair
+    case customer_has_enabled_gift_card(store, customer.id) {
+      True ->
+        Ok(hard_merge_blocker(
+          [field],
+          customer_merge_customer_subject(customer)
+            <> " has gift cards and can’t be merged.",
+        ))
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn customer_has_subscription_contracts(
+  store: Store,
+  customer_id: String,
+) -> Bool {
+  store.list_effective_customer_payment_methods(store, customer_id, False)
+  |> list.any(fn(method) { !list.is_empty(method.subscription_contracts) })
+}
+
+fn customer_has_enabled_gift_card(store: Store, customer_id: String) -> Bool {
+  store.list_effective_gift_cards(store)
+  |> list.any(fn(card) { card.customer_id == Some(customer_id) && card.enabled })
+}
+
+fn customer_merge_customer_subject(customer: CustomerRecord) -> String {
+  let email = option.unwrap(customer.email, "")
+  case customer.display_name {
+    Some(name) if name != "" && name != email -> name
+    _ ->
+      "Customer with email "
+      <> {
+        customer.email
+        |> option.or(case customer.default_email_address {
+          Some(email) -> email.email_address
+          None -> None
+        })
+        |> option.unwrap(customer.id)
+      }
+  }
+}
+
+fn hard_merge_blocker(field: List(String), message: String) {
+  CustomerMergeErrorRecord(
+    error_fields: field,
+    message: message,
+    code: Some("INVALID_CUSTOMER"),
+    block_type: Some("HARD"),
+  )
 }
 
 @internal

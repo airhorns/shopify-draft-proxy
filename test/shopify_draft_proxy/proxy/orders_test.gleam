@@ -3,6 +3,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
@@ -861,6 +862,269 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_order_edit_add_custom_item_validation_payloads_test() {
+  let calculated_order_id = "gid://shopify/CalculatedOrder/928"
+  let order_id = "gid://shopify/Order/928"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order_with_currency(
+        order_id,
+        "PAID",
+        None,
+        [order_edit_test_session(order_id, calculated_order_id)],
+        "CAD",
+      ),
+    ])
+  let identity = synthetic_identity.new()
+  let mutation = order_edit_add_custom_item_validation_mutation()
+
+  let blank_title =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        "",
+        1,
+        "-1.00",
+        "CAD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(blank_title.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"can't be blank\"},{\"field\":[\"price\",\"amount\"],\"message\":\"must be greater than or equal to 0\"}]}}}"
+  assert blank_title.store == seeded
+  assert blank_title.identity == identity
+
+  let oversized_title =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        string.repeat("x", times: 256),
+        1,
+        "1.00",
+        "CAD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(oversized_title.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"is too long (maximum is 255 characters)\"}]}}}"
+  assert oversized_title.store == seeded
+  assert oversized_title.identity == identity
+
+  let zero_quantity =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        "Validation item",
+        0,
+        "1.00",
+        "CAD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(zero_quantity.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"quantity\"],\"message\":\"must be greater than 0\"}]}}}"
+  assert zero_quantity.store == seeded
+  assert zero_quantity.identity == identity
+
+  let negative_price =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        "Validation item",
+        1,
+        "-5.00",
+        "CAD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(negative_price.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"price\",\"amount\"],\"message\":\"must be greater than or equal to 0\"}]}}}"
+  assert negative_price.store == seeded
+  assert negative_price.identity == identity
+
+  let currency_mismatch =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        "Validation item",
+        1,
+        "1.00",
+        "USD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(currency_mismatch.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"price\",\"amount\"],\"message\":\"Currency must be CAD.\"}]}}}"
+  assert currency_mismatch.store == seeded
+  assert currency_mismatch.identity == identity
+}
+
+pub fn orders_order_edit_add_custom_item_uses_order_currency_when_price_currency_missing_test() {
+  let calculated_order_id = "gid://shopify/CalculatedOrder/929"
+  let order_id = "gid://shopify/Order/929"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order_with_currency(
+        order_id,
+        "PAID",
+        None,
+        [order_edit_test_session(order_id, calculated_order_id)],
+        "EUR",
+      ),
+    ])
+  let mutation =
+    "
+    mutation AddCustomItemWithoutCurrency($id: ID!, $price: MoneyInput!) {
+      orderEditAddCustomItem(
+        id: $id
+        title: \"EUR custom item\"
+        quantity: 2
+        price: $price
+      ) {
+        calculatedLineItem {
+          id
+          title
+          quantity
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #("id", root_field.StringVal(calculated_order_id)),
+      #(
+        "price",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("amount", root_field.StringVal("4.00")),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedLineItem\":{\"id\":\"gid://shopify/CalculatedLineItem/1\",\"title\":\"EUR custom item\",\"quantity\":2,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"4.0\",\"currencyCode\":\"EUR\"}}},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_edit_add_custom_item_line_item_count_limit_test() {
+  let calculated_order_id = "gid://shopify/CalculatedOrder/930"
+  let order_id = "gid://shopify/Order/930"
+  let session =
+    order_edit_test_session_with_line_items(
+      order_id,
+      calculated_order_id,
+      order_edit_test_line_items(250, "CAD"),
+    )
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order_with_currency(
+        order_id,
+        "PAID",
+        None,
+        [session],
+        "CAD",
+      ),
+    ])
+  let identity = synthetic_identity.new()
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      order_edit_add_custom_item_validation_mutation(),
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        "Limit item",
+        1,
+        "1.00",
+        "CAD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[],\"message\":\"line_items_limit_exceeded\"}]}}}"
+  assert outcome.store == seeded
+  assert outcome.identity == identity
+}
+
+pub fn orders_order_edit_add_custom_item_channel_policy_guard_test() {
+  let calculated_order_id = "gid://shopify/CalculatedOrder/931"
+  let order_id = "gid://shopify/Order/931"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order_with_custom_item_policy(
+        order_id,
+        "PAID",
+        None,
+        [order_edit_test_session(order_id, calculated_order_id)],
+        "CAD",
+        False,
+      ),
+    ])
+  let identity = synthetic_identity.new()
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      identity,
+      "/admin/api/2026-04/graphql.json",
+      order_edit_add_custom_item_validation_mutation(),
+      order_edit_add_custom_item_variables(
+        calculated_order_id,
+        "Policy disallowed item",
+        1,
+        "1.00",
+        "CAD",
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderEditAddCustomItem\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"customItem\"],\"message\":\"not_supported\"}]}}}"
+  assert outcome.store == seeded
+  assert outcome.identity == identity
+}
+
 pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
   let begin =
     "
@@ -1140,26 +1404,97 @@ fn order_edit_test_order(
   cancelled_at: Option(String),
   order_edit_sessions: List(types.CapturedJsonValue),
 ) -> types.OrderRecord {
+  order_edit_test_order_with_optional_currency(
+    id,
+    display_financial_status,
+    cancelled_at,
+    order_edit_sessions,
+    None,
+    None,
+  )
+}
+
+fn order_edit_test_order_with_currency(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  order_edit_sessions: List(types.CapturedJsonValue),
+  currency_code: String,
+) -> types.OrderRecord {
+  order_edit_test_order_with_optional_currency(
+    id,
+    display_financial_status,
+    cancelled_at,
+    order_edit_sessions,
+    Some(currency_code),
+    None,
+  )
+}
+
+fn order_edit_test_order_with_custom_item_policy(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  order_edit_sessions: List(types.CapturedJsonValue),
+  currency_code: String,
+  add_custom_item_allowed: Bool,
+) -> types.OrderRecord {
+  order_edit_test_order_with_optional_currency(
+    id,
+    display_financial_status,
+    cancelled_at,
+    order_edit_sessions,
+    Some(currency_code),
+    Some(add_custom_item_allowed),
+  )
+}
+
+fn order_edit_test_order_with_optional_currency(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  order_edit_sessions: List(types.CapturedJsonValue),
+  currency_code: Option(String),
+  add_custom_item_allowed: Option(Bool),
+) -> types.OrderRecord {
+  let currency_fields = case currency_code {
+    Some(code) -> [
+      #("currentTotalPriceSet", order_edit_test_money_set("1.00", code)),
+    ]
+    None -> []
+  }
+  let policy_fields = case add_custom_item_allowed {
+    Some(allowed) -> [
+      #("__draftProxyAddCustomItemAllowed", types.CapturedBool(allowed)),
+    ]
+    None -> []
+  }
   types.OrderRecord(
     id: id,
     cursor: None,
-    data: types.CapturedObject([
-      #("id", types.CapturedString(id)),
-      #("name", types.CapturedString("#7001")),
-      #(
-        "displayFinancialStatus",
-        types.CapturedString(display_financial_status),
+    data: types.CapturedObject(list.append(
+      list.append(
+        [
+          #("id", types.CapturedString(id)),
+          #("name", types.CapturedString("#7001")),
+          #(
+            "displayFinancialStatus",
+            types.CapturedString(display_financial_status),
+          ),
+          #("cancelledAt", case cancelled_at {
+            Some(timestamp) -> types.CapturedString(timestamp)
+            None -> types.CapturedNull
+          }),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+          #("orderEditSessions", types.CapturedArray(order_edit_sessions)),
+        ],
+        currency_fields,
       ),
-      #("cancelledAt", case cancelled_at {
-        Some(timestamp) -> types.CapturedString(timestamp)
-        None -> types.CapturedNull
-      }),
-      #(
-        "lineItems",
-        types.CapturedObject([#("nodes", types.CapturedArray([]))]),
-      ),
-      #("orderEditSessions", types.CapturedArray(order_edit_sessions)),
-    ]),
+      policy_fields,
+    )),
   )
 }
 
@@ -1167,15 +1502,141 @@ fn order_edit_test_session(
   order_id: String,
   calculated_order_id: String,
 ) -> types.CapturedJsonValue {
+  order_edit_test_session_with_line_items(order_id, calculated_order_id, [])
+}
+
+fn order_edit_test_session_with_line_items(
+  order_id: String,
+  calculated_order_id: String,
+  line_items: List(types.CapturedJsonValue),
+) -> types.CapturedJsonValue {
   types.CapturedObject([
     #("id", types.CapturedString(calculated_order_id)),
     #("originalOrderId", types.CapturedString(order_id)),
-    #("lineItems", types.CapturedObject([#("nodes", types.CapturedArray([]))])),
+    #(
+      "lineItems",
+      types.CapturedObject([#("nodes", types.CapturedArray(line_items))]),
+    ),
     #(
       "addedLineItems",
       types.CapturedObject([#("nodes", types.CapturedArray([]))]),
     ),
     #("shippingLines", types.CapturedArray([])),
+  ])
+}
+
+fn order_edit_test_money_set(
+  amount: String,
+  currency_code: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #(
+      "shopMoney",
+      types.CapturedObject([
+        #("amount", types.CapturedString(amount)),
+        #("currencyCode", types.CapturedString(currency_code)),
+      ]),
+    ),
+  ])
+}
+
+fn order_edit_add_custom_item_validation_mutation() -> String {
+  "
+    mutation OrderEditAddCustomItemValidation(
+      $id: ID!
+      $title: String!
+      $quantity: Int!
+      $price: MoneyInput!
+    ) {
+      orderEditAddCustomItem(
+        id: $id
+        title: $title
+        quantity: $quantity
+        price: $price
+      ) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+}
+
+fn order_edit_add_custom_item_variables(
+  calculated_order_id: String,
+  title: String,
+  quantity: Int,
+  amount: String,
+  currency_code: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #("id", root_field.StringVal(calculated_order_id)),
+    #("title", root_field.StringVal(title)),
+    #("quantity", root_field.IntVal(quantity)),
+    #(
+      "price",
+      root_field.ObjectVal(
+        dict.from_list([
+          #("amount", root_field.StringVal(amount)),
+          #("currencyCode", root_field.StringVal(currency_code)),
+        ]),
+      ),
+    ),
+  ])
+}
+
+fn order_edit_test_line_items(
+  count: Int,
+  currency_code: String,
+) -> List(types.CapturedJsonValue) {
+  order_edit_test_line_items_loop(count, currency_code, [])
+}
+
+fn order_edit_test_line_items_loop(
+  remaining: Int,
+  currency_code: String,
+  acc: List(types.CapturedJsonValue),
+) -> List(types.CapturedJsonValue) {
+  case remaining <= 0 {
+    True -> acc
+    False ->
+      order_edit_test_line_items_loop(
+        remaining - 1,
+        currency_code,
+        list.append(acc, [
+          order_edit_test_line_item(remaining, currency_code),
+        ]),
+      )
+  }
+}
+
+fn order_edit_test_line_item(
+  index: Int,
+  currency_code: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #(
+      "id",
+      types.CapturedString(
+        "gid://shopify/CalculatedLineItem/" <> int.to_string(index),
+      ),
+    ),
+    #("title", types.CapturedString("Existing item")),
+    #("quantity", types.CapturedInt(1)),
+    #("currentQuantity", types.CapturedInt(1)),
+    #("sku", types.CapturedNull),
+    #("variant", types.CapturedNull),
+    #("originalUnitPriceSet", order_edit_test_money_set("1.00", currency_code)),
   ])
 }
 
@@ -6351,7 +6812,7 @@ fn order_payment_transaction(
 
 fn order_payment_order(transaction: root_field.ResolvedValue) {
   order_create_test_order([
-    #("currency", root_field.StringVal("CAD")),
+    #("currency", root_field.StringVal("USD")),
     #("transactions", root_field.ListVal([transaction])),
     #(
       "lineItems",
@@ -6405,7 +6866,7 @@ fn capture_payment_order(
             #("id", root_field.StringVal(order_id)),
             #("parentTransactionId", root_field.StringVal(auth_id)),
             #("amount", root_field.FloatVal(25.0)),
-            #("currency", root_field.StringVal("CAD")),
+            #("currency", root_field.StringVal("USD")),
             #("finalCapture", root_field.BoolVal(True)),
           ]),
         ),
@@ -8277,6 +8738,115 @@ pub fn orders_order_cancel_unknown_order_uses_not_found_code_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_return_close_rejects_declined_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("DECLINED", 0),
+      root_name: "returnClose",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnClose\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return status is invalid.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "DECLINED", None)
+}
+
+pub fn orders_return_close_on_closed_return_is_idempotent_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store_with_closed_at(
+        "CLOSED",
+        0,
+        "2026-05-01T01:00:00.000Z",
+      ),
+      root_name: "returnClose",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt order { updatedAt } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnClose\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"CLOSED\",\"closedAt\":\"2026-05-01T01:00:00.000Z\",\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_return_reopen_rejects_requested_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("REQUESTED", 0),
+      root_name: "returnReopen",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnReopen\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return status is invalid.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "REQUESTED", None)
+}
+
+pub fn orders_return_reopen_on_open_return_is_idempotent_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("OPEN", 0),
+      root_name: "returnReopen",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt order { updatedAt } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnReopen\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"OPEN\",\"closedAt\":null,\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_return_cancel_rejects_processed_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("OPEN", 1),
+      root_name: "returnCancel",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCancel\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return is not cancelable.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "OPEN", None)
+}
+
+pub fn orders_return_cancel_rejects_refunded_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store_with_quantities("OPEN", 0, 1, ""),
+      root_name: "returnCancel",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCancel\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return is not cancelable.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "OPEN", None)
+}
+
+pub fn orders_return_cancel_on_canceled_return_is_idempotent_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("CANCELED", 0),
+      root_name: "returnCancel",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status order { updatedAt } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCancel\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"CANCELED\",\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 fn order_cancel_test_order(
   id: String,
   display_financial_status: String,
@@ -8349,6 +8919,142 @@ fn run_order_cancel_with_extra_args(
     dict.new(),
     empty_upstream_context(),
   )
+}
+
+fn return_status_test_store(
+  status: String,
+  processed_quantity: Int,
+) -> store.Store {
+  return_status_test_store_with_quantities(status, processed_quantity, 0, "")
+}
+
+fn return_status_test_store_with_closed_at(
+  status: String,
+  processed_quantity: Int,
+  closed_at: String,
+) -> store.Store {
+  return_status_test_store_with_quantities(
+    status,
+    processed_quantity,
+    0,
+    closed_at,
+  )
+}
+
+fn return_status_test_store_with_quantities(
+  status: String,
+  processed_quantity: Int,
+  refunded_quantity: Int,
+  closed_at: String,
+) -> store.Store {
+  let order_id = "gid://shopify/Order/status-guard"
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#STATUS-GUARD")),
+        #("updatedAt", types.CapturedString("2026-05-01T00:00:00.000Z")),
+        #(
+          "returns",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString("gid://shopify/Return/status-guard")),
+              #("name", types.CapturedString("#STATUS-GUARD-R1")),
+              #("status", types.CapturedString(status)),
+              #("closedAt", case closed_at {
+                "" -> types.CapturedNull
+                value -> types.CapturedString(value)
+              }),
+              #("totalQuantity", types.CapturedInt(1)),
+              #(
+                "returnLineItems",
+                types.CapturedObject([
+                  #(
+                    "nodes",
+                    types.CapturedArray([
+                      types.CapturedObject([
+                        #(
+                          "id",
+                          types.CapturedString(
+                            "gid://shopify/ReturnLineItem/status-guard",
+                          ),
+                        ),
+                        #("quantity", types.CapturedInt(1)),
+                        #(
+                          "processedQuantity",
+                          types.CapturedInt(processed_quantity),
+                        ),
+                        #(
+                          "refundedQuantity",
+                          types.CapturedInt(refunded_quantity),
+                        ),
+                      ]),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn run_return_status_mutation(
+  seed seed: store.Store,
+  root_name root_name: String,
+  return_id return_id: String,
+  selection selection: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2025-01/graphql.json",
+    "mutation {
+      " <> root_name <> "(id: \"" <> return_id <> "\") {
+        " <> selection <> "
+        userErrors { field message code }
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn assert_return_status_read(
+  seed: store.Store,
+  status: String,
+  closed_at: Option(String),
+) {
+  let assert Ok(result) =
+    orders.process(
+      seed,
+      "
+        query {
+          return(id: \"gid://shopify/Return/status-guard\") {
+            id
+            status
+            closedAt
+            order { updatedAt }
+          }
+        }
+      ",
+      dict.new(),
+    )
+  let closed_at_json = case closed_at {
+    Some(value) -> "\"" <> value <> "\""
+    None -> "null"
+  }
+  assert json.to_string(result)
+    == "{\"data\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\""
+    <> status
+    <> "\",\"closedAt\":"
+    <> closed_at_json
+    <> ",\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}}}}"
 }
 
 pub fn orders_order_invoice_send_payload_test() {
@@ -8774,6 +9480,415 @@ pub fn orders_order_mark_as_paid_multi_currency_uses_presentment_currency_test()
     == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/mark-as-paid-multi-currency\",\"presentmentCurrencyCode\":\"CAD\",\"displayFinancialStatus\":\"PAID\",\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"amountSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == [order_id]
   assert list.length(outcome.log_drafts) == 1
+}
+
+pub fn orders_order_capture_currency_validation_uses_presentment_currency_test() {
+  let order_id = "gid://shopify/Order/capture-multi-currency"
+  let authorization_id =
+    "gid://shopify/OrderTransaction/capture-multi-currency-auth"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_capture_test_order(
+        order_id,
+        authorization_id,
+        "AUTHORIZATION",
+        "SUCCESS",
+        "CAD",
+        "USD",
+      ),
+    ])
+
+  let missing_currency =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(order_id, authorization_id, "10.00", None, None),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_currency.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"currency\"],\"message\":\"Currency must be provided for multi-currency orders.\",\"code\":\"CURRENCY_REQUIRED\"}]}}}"
+  assert missing_currency.staged_resource_ids == []
+  assert list.length(missing_currency.log_drafts) == 1
+
+  let mismatch =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "10.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(mismatch.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"currency\"],\"message\":\"Currency must match the order presentment currency.\",\"code\":\"CURRENCY_MISMATCH\"}]}}}"
+  assert mismatch.staged_resource_ids == []
+  assert list.length(mismatch.log_drafts) == 1
+}
+
+pub fn orders_order_capture_parent_and_amount_errors_have_codes_test() {
+  let order_id = "gid://shopify/Order/capture-error-codes"
+  let authorization_id = "gid://shopify/OrderTransaction/capture-error-auth"
+  let settled_id = "gid://shopify/OrderTransaction/capture-error-settled"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_capture_test_order(
+        order_id,
+        authorization_id,
+        "AUTHORIZATION",
+        "SUCCESS",
+        "CAD",
+        "CAD",
+      )
+      |> order_capture_append_transaction(
+        settled_id,
+        "CAPTURE",
+        "SUCCESS",
+        "5.0",
+        "CAD",
+        "CAD",
+      ),
+    ])
+
+  let missing_parent =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        "gid://shopify/OrderTransaction/missing",
+        "10.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_parent.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"parent_transaction_id\"],\"message\":\"Transaction does not exist\",\"code\":\"TRANSACTION_NOT_FOUND\"}]}}}"
+
+  let invalid_parent_state =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(order_id, settled_id, "1.00", Some("CAD"), None),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_parent_state.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"parent_transaction_id\"],\"message\":\"Transaction is not capturable\",\"code\":\"INVALID_TRANSACTION_STATE\"}]}}}"
+
+  let invalid_amount =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "0.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_amount.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"amount\"],\"message\":\"Amount must be greater than zero\",\"code\":\"INVALID_AMOUNT\"}]}}}"
+
+  let over_capture =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "30.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(over_capture.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"amount\"],\"message\":\"Amount exceeds capturable amount\",\"code\":\"OVER_CAPTURE\"}]}}}"
+}
+
+pub fn orders_order_capture_final_capture_closes_authorization_test() {
+  let order_id = "gid://shopify/Order/capture-final"
+  let authorization_id = "gid://shopify/OrderTransaction/capture-final-auth"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_capture_test_order(
+        order_id,
+        authorization_id,
+        "AUTHORIZATION",
+        "SUCCESS",
+        "CAD",
+        "CAD",
+      ),
+    ])
+  let first_capture =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "10.00",
+        Some("CAD"),
+        Some(True),
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_capture.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[]}}}"
+  assert first_capture.staged_resource_ids == [order_id]
+  assert list.length(first_capture.log_drafts) == 1
+
+  let second_capture =
+    orders.process_mutation(
+      first_capture.store,
+      first_capture.identity,
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "1.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_capture.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"parent_transaction_id\"],\"message\":\"Transaction is not capturable\",\"code\":\"INVALID_TRANSACTION_STATE\"}]}}}"
+  assert second_capture.staged_resource_ids == []
+}
+
+fn order_capture_validation_mutation() {
+  "
+  mutation Capture($input: OrderCaptureInput!) {
+    orderCapture(input: $input) {
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+  "
+}
+
+fn order_capture_variables(
+  order_id: String,
+  authorization_id: String,
+  amount: String,
+  currency: Option(String),
+  final_capture: Option(Bool),
+) -> Dict(String, root_field.ResolvedValue) {
+  let currency_fields = case currency {
+    Some(value) -> [#("currency", root_field.StringVal(value))]
+    None -> []
+  }
+  let final_capture_fields = case final_capture {
+    Some(value) -> [#("finalCapture", root_field.BoolVal(value))]
+    None -> []
+  }
+  dict.from_list([
+    #(
+      "input",
+      root_field.ObjectVal(
+        dict.from_list(list.append(
+          [
+            #("id", root_field.StringVal(order_id)),
+            #("parentTransactionId", root_field.StringVal(authorization_id)),
+            #("amount", root_field.StringVal(amount)),
+          ],
+          list.append(currency_fields, final_capture_fields),
+        )),
+      ),
+    ),
+  ])
+}
+
+fn order_capture_test_order(
+  order_id: String,
+  authorization_id: String,
+  authorization_kind: String,
+  authorization_status: String,
+  shop_currency: String,
+  presentment_currency: String,
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(order_id)),
+      #("presentmentCurrencyCode", types.CapturedString(presentment_currency)),
+      #("displayFinancialStatus", types.CapturedString("AUTHORIZED")),
+      #(
+        "paymentGatewayNames",
+        types.CapturedArray([types.CapturedString("manual")]),
+      ),
+      #(
+        "currentTotalPriceSet",
+        order_capture_money_set(
+          "25.0",
+          shop_currency,
+          "25.0",
+          presentment_currency,
+        ),
+      ),
+      #(
+        "totalPriceSet",
+        order_capture_money_set(
+          "25.0",
+          shop_currency,
+          "25.0",
+          presentment_currency,
+        ),
+      ),
+      #(
+        "totalOutstandingSet",
+        order_capture_money_set(
+          "25.0",
+          shop_currency,
+          "25.0",
+          presentment_currency,
+        ),
+      ),
+      #(
+        "transactions",
+        types.CapturedArray([
+          order_capture_transaction(
+            authorization_id,
+            authorization_kind,
+            authorization_status,
+            "25.0",
+            shop_currency,
+            presentment_currency,
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn order_capture_append_transaction(
+  order: types.OrderRecord,
+  transaction_id: String,
+  kind: String,
+  status: String,
+  amount: String,
+  shop_currency: String,
+  presentment_currency: String,
+) -> types.OrderRecord {
+  let transactions = case order.data {
+    types.CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(field) {
+        case field {
+          #("transactions", types.CapturedArray(values)) -> Ok(values)
+          _ -> Error(Nil)
+        }
+      })
+      |> result.unwrap([])
+    _ -> []
+  }
+  let updated_data = case order.data {
+    types.CapturedObject(fields) ->
+      types.CapturedObject(
+        list.map(fields, fn(field) {
+          case field {
+            #("transactions", types.CapturedArray(_)) -> #(
+              "transactions",
+              types.CapturedArray(
+                list.append(transactions, [
+                  order_capture_transaction(
+                    transaction_id,
+                    kind,
+                    status,
+                    amount,
+                    shop_currency,
+                    presentment_currency,
+                  ),
+                ]),
+              ),
+            )
+            other -> other
+          }
+        }),
+      )
+    other -> other
+  }
+  types.OrderRecord(..order, data: updated_data)
+}
+
+fn order_capture_transaction(
+  transaction_id: String,
+  kind: String,
+  status: String,
+  amount: String,
+  shop_currency: String,
+  presentment_currency: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #("id", types.CapturedString(transaction_id)),
+    #("kind", types.CapturedString(kind)),
+    #("status", types.CapturedString(status)),
+    #("gateway", types.CapturedString("manual")),
+    #(
+      "amountSet",
+      order_capture_money_set(
+        amount,
+        shop_currency,
+        amount,
+        presentment_currency,
+      ),
+    ),
+    #("parentTransactionId", types.CapturedNull),
+    #("parentTransaction", types.CapturedNull),
+  ])
+}
+
+fn order_capture_money_set(
+  amount: String,
+  shop_currency: String,
+  presentment_amount: String,
+  presentment_currency: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #(
+      "shopMoney",
+      types.CapturedObject([
+        #("amount", types.CapturedString(amount)),
+        #("currencyCode", types.CapturedString(shop_currency)),
+      ]),
+    ),
+    #(
+      "presentmentMoney",
+      types.CapturedObject([
+        #("amount", types.CapturedString(presentment_amount)),
+        #("currencyCode", types.CapturedString(presentment_currency)),
+      ]),
+    ),
+  ])
 }
 
 fn mark_as_paid_order_record(

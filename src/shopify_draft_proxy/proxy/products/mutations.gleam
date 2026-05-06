@@ -244,6 +244,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream,
       )
     }
   }
@@ -277,6 +278,7 @@ pub fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let uses_inventory_quantity_202604_contract =
     admin_api_version_at_least(request_path, "2026-04")
@@ -1424,18 +1426,26 @@ pub fn handle_mutation_fields(
                   current_store,
                   current_identity,
                   "ProductPublishPayload",
+                  True,
                   field,
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(store_types.Staged, "Staged productPublish locally.")
+                True -> #(
+                  store_types.Failed,
+                  "Rejected productPublish locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged productPublish locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -1452,18 +1462,29 @@ pub fn handle_mutation_fields(
                   current_store,
                   current_identity,
                   "ProductUnpublishPayload",
+                  False,
                   field,
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store_types.Staged,
+                  "Staged productUnpublish locally.",
+                )
+                True -> #(
+                  store_types.Failed,
+                  "Rejected productUnpublish locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged productUnpublish locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -2273,6 +2294,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let draft =
                 single_root_log_draft(
@@ -2314,6 +2336,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let draft =
                 single_root_log_draft(
