@@ -1652,6 +1652,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-create-external-validation',
+    scriptPath: 'scripts/capture-marketing-activity-create-external-validation-conformance.mts',
+    purpose:
+      'External marketing activity create validation for unknown channel handles, budget/adSpend currency mismatch, and uniqueness userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-create-external-validation.json`,
+      'config/parity-specs/marketing/marketing-activity-create-external-validation.json',
+      'config/parity-requests/marketing/marketing-activity-create-external-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable external marketing activities needed for uniqueness probes, captures rejected validation branches, then deletes every disposable remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-engagement-currency-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-engagement-currency-validation-conformance.mts',
