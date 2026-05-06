@@ -1,0 +1,54 @@
+{
+  "scenarioId": "location-activate-limit-and-relocation",
+  "operationNames": ["locationActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "user-errors-parity",
+    "validation-parity",
+    "runtime-staging",
+    "local-runtime-backed",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/store-properties/location-activate-limit-and-relocation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-relocation.graphql",
+    "variablesCapturePath": "$.proxyVariables.limit"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-limit-guard",
+        "capturePath": "$.expected.limit.data.locationActivate",
+        "proxyPath": "$.data.locationActivate"
+      },
+      {
+        "name": "ongoing-relocation-guard",
+        "capturePath": "$.expected.relocation.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-relocation.graphql",
+          "variablesCapturePath": "$.proxyVariables.relocation"
+        }
+      },
+      {
+        "name": "control-activation",
+        "capturePath": "$.expected.control.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-relocation.graphql",
+          "variablesCapturePath": "$.proxyVariables.control"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for the Core locationActivate LOCATION_LIMIT and HAS_ONGOING_RELOCATION validation branches. The live conformance credential probes successfully, but the public disposable shop is far below its location limit and public Admin GraphQL does not expose a way to create an incomplete mass-relocation job deterministically. The scenario therefore earns state through cassette-backed StorePropertiesLocationHydrate calls whose local-runtime Location payloads include the Core-only guard fields, then compares both rejection branches plus a successful control activation."
+}

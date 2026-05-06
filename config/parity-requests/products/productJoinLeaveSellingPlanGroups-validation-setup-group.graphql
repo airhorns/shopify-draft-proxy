@@ -1,0 +1,12 @@
+mutation ProductJoinLeaveSellingPlanGroupsValidationSetupGroup($input: SellingPlanGroupInput!) {
+  sellingPlanGroupCreate(input: $input) {
+    sellingPlanGroup {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
