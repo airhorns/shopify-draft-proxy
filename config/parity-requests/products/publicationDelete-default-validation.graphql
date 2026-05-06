@@ -1,0 +1,11 @@
+#graphql
+mutation PublicationDeleteDefaultValidation($id: ID!) {
+  publicationDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,42 @@
+mutation DiscountActivationFailureFieldBaseUnknown {
+  codeActivate: discountCodeActivate(id: "gid://shopify/DiscountCodeNode/0") {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  codeDeactivate: discountCodeDeactivate(id: "gid://shopify/DiscountCodeNode/0") {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  automaticActivate: discountAutomaticActivate(id: "gid://shopify/DiscountAutomaticNode/0") {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  automaticDeactivate: discountAutomaticDeactivate(id: "gid://shopify/DiscountAutomaticNode/0") {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -30,14 +30,23 @@ import shopify_draft_proxy/proxy/products/inventory_handlers.{
 import shopify_draft_proxy/proxy/products/inventory_shipments_helpers.{
   apply_inventory_shipment_quantity_updates,
   apply_inventory_shipment_receive_inputs, find_inventory_shipment_line_item,
-  inventory_shipment_delete_payload, inventory_shipment_not_found_error,
-  inventory_shipment_status_after_receive,
+  inventory_shipment_delete_payload, inventory_shipment_invalid_state_error,
+  inventory_shipment_not_found_error, inventory_shipment_status_after_receive,
   inventory_shipment_tracking_from_argument,
   inventory_shipment_tracking_from_input, inventory_shipment_tracking_source,
-  make_inventory_shipment_line_items, shipment_has_unreceived_incoming,
+  inventory_shipment_transfer_allows_shipping,
+  inventory_shipment_transfer_invalid_state_error,
+  inventory_shipment_transfer_not_found_error,
+  make_inventory_shipment_line_items,
+  read_inventory_shipment_explicit_transfer_id,
+  read_inventory_shipment_transfer_id, shipment_has_unreceived_incoming,
   shipment_line_item_total, shipment_line_item_unreceived,
   shipment_total_accepted, shipment_total_received, shipment_total_rejected,
   validate_inventory_shipment_line_item_inputs,
+  validate_inventory_shipment_quantity_updates_against_transfer,
+  validate_inventory_shipment_tracking_from_argument,
+  validate_inventory_shipment_tracking_from_input,
+  validate_inventory_shipment_transfer_line_item_inputs,
 }
 import shopify_draft_proxy/proxy/products/inventory_validation.{
   inventory_levels_connection_source, optional_measurement_source,
@@ -48,9 +57,9 @@ import shopify_draft_proxy/proxy/products/product_types.{
 }
 import shopify_draft_proxy/proxy/products/products_core.{enumerate_items}
 import shopify_draft_proxy/proxy/products/shared.{
-  connection_page_info_source, count_source, mutation_result,
-  read_arg_object_list, read_arg_string_list, read_object_list_field,
-  read_string_argument, read_string_field, user_errors_source,
+  connection_page_info_source, count_source, mutation_rejected_result,
+  mutation_result, read_arg_object_list, read_arg_string_list,
+  read_object_list_field, read_string_argument, user_errors_source,
 }
 
 import shopify_draft_proxy/state/store.{type Store}
@@ -99,7 +108,7 @@ pub fn handle_inventory_shipment_delete(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_delete_payload(
           None,
@@ -115,15 +124,13 @@ pub fn handle_inventory_shipment_delete(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) -> {
       let user_errors = case shipment.status == "RECEIVED" {
         True -> [
-          ProductUserError(
+          inventory_shipment_invalid_state_error(
             ["id"],
             "Received shipments cannot be deleted.",
-            Some("INVALID_STATUS"),
           ),
         ]
         False -> []
@@ -157,7 +164,7 @@ pub fn handle_inventory_shipment_delete(
           )
         }
         _ ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_delete_payload(
               None,
@@ -167,7 +174,6 @@ pub fn handle_inventory_shipment_delete(
             ),
             store,
             identity,
-            [],
           )
       }
     }
@@ -514,13 +520,18 @@ pub fn handle_inventory_shipment_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let movement_id = read_string_field(input, "movementId")
+  let movement_id = read_inventory_shipment_transfer_id(input)
   let line_item_inputs = read_object_list_field(input, "lineItems")
   let user_errors =
     validate_inventory_shipment_line_item_inputs(store, line_item_inputs, [
       "input",
       "lineItems",
     ])
+  let user_errors =
+    list.append(
+      user_errors,
+      validate_inventory_shipment_tracking_from_input(input),
+    )
   let user_errors = case movement_id {
     Some(_) -> user_errors
     None ->
@@ -531,6 +542,33 @@ pub fn handle_inventory_shipment_create(
           Some("BLANK"),
         ),
       ])
+  }
+  let transfer =
+    option.then(movement_id, fn(id) {
+      store.get_effective_inventory_transfer_by_id(store, id)
+    })
+  let explicit_transfer_id = read_inventory_shipment_explicit_transfer_id(input)
+  let user_errors = case explicit_transfer_id, transfer {
+    Some(_), None ->
+      list.append(user_errors, [inventory_shipment_transfer_not_found_error()])
+    _, Some(transfer) ->
+      case inventory_shipment_transfer_allows_shipping(transfer) {
+        True ->
+          list.append(
+            user_errors,
+            validate_inventory_shipment_transfer_line_item_inputs(
+              store,
+              transfer,
+              line_item_inputs,
+              ["lineItems"],
+            ),
+          )
+        False ->
+          list.append(user_errors, [
+            inventory_shipment_transfer_invalid_state_error(),
+          ])
+      }
+    _, _ -> user_errors
   }
   case user_errors, movement_id {
     [], Some(movement_id) -> {
@@ -589,7 +627,7 @@ pub fn handle_inventory_shipment_create(
       )
     }
     _, _ ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_create_payload(
           store,
@@ -601,7 +639,6 @@ pub fn handle_inventory_shipment_create(
         ),
         store,
         identity,
-        [],
       )
   }
 }
@@ -623,7 +660,7 @@ pub fn handle_inventory_shipment_set_tracking(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_payload(
           store,
@@ -635,18 +672,16 @@ pub fn handle_inventory_shipment_set_tracking(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) -> {
       let user_errors = case shipment.status == "RECEIVED" {
         True -> [
-          ProductUserError(
+          inventory_shipment_invalid_state_error(
             ["id"],
             "Received shipments cannot be updated.",
-            Some("INVALID_STATUS"),
           ),
         ]
-        False -> []
+        False -> validate_inventory_shipment_tracking_from_argument(args)
       }
       case user_errors {
         [] -> {
@@ -676,7 +711,7 @@ pub fn handle_inventory_shipment_set_tracking(
           )
         }
         _ ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_payload(
               store,
@@ -688,7 +723,6 @@ pub fn handle_inventory_shipment_set_tracking(
             ),
             store,
             identity,
-            [],
           )
       }
     }
@@ -712,7 +746,7 @@ pub fn handle_inventory_shipment_mark_in_transit(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_payload(
           store,
@@ -724,22 +758,20 @@ pub fn handle_inventory_shipment_mark_in_transit(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) ->
       case shipment.status == "DRAFT" {
         False ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_payload(
               store,
               "InventoryShipmentMarkInTransitPayload",
               None,
               [
-                ProductUserError(
+                inventory_shipment_invalid_state_error(
                   ["id"],
                   "Only draft shipments can be marked in transit.",
-                  Some("INVALID_STATUS"),
                 ),
               ],
               field,
@@ -747,7 +779,6 @@ pub fn handle_inventory_shipment_mark_in_transit(
             ),
             store,
             identity,
-            [],
           )
         True -> {
           let #(now, identity_after_timestamp) =
@@ -800,7 +831,7 @@ pub fn handle_inventory_shipment_add_items(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_add_items_payload(
           store,
@@ -812,22 +843,51 @@ pub fn handle_inventory_shipment_add_items(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) -> {
       let line_item_inputs = read_arg_object_list(args, "lineItems")
-      let user_errors = case shipment.status == "RECEIVED" {
-        True -> [
-          ProductUserError(
+      let transfer =
+        store.get_effective_inventory_transfer_by_id(
+          store,
+          shipment.movement_id,
+        )
+      let user_errors = case shipment.status == "RECEIVED", transfer {
+        True, _ -> [
+          inventory_shipment_invalid_state_error(
             ["id"],
             "Received shipments cannot be updated.",
-            Some("INVALID_STATUS"),
           ),
         ]
-        False ->
+        _, None ->
           validate_inventory_shipment_line_item_inputs(store, line_item_inputs, [
             "lineItems",
           ])
+        _, Some(transfer) -> {
+          let errors =
+            validate_inventory_shipment_line_item_inputs(
+              store,
+              line_item_inputs,
+              [
+                "lineItems",
+              ],
+            )
+          case inventory_shipment_transfer_allows_shipping(transfer) {
+            True ->
+              list.append(
+                errors,
+                validate_inventory_shipment_transfer_line_item_inputs(
+                  store,
+                  transfer,
+                  line_item_inputs,
+                  ["lineItems"],
+                ),
+              )
+            False ->
+              list.append(errors, [
+                inventory_shipment_transfer_invalid_state_error(),
+              ])
+          }
+        }
       }
       case user_errors {
         [] -> {
@@ -876,7 +936,7 @@ pub fn handle_inventory_shipment_add_items(
           )
         }
         _ ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_add_items_payload(
               store,
@@ -888,7 +948,6 @@ pub fn handle_inventory_shipment_add_items(
             ),
             store,
             identity,
-            [],
           )
       }
     }
@@ -912,7 +971,7 @@ pub fn handle_inventory_shipment_remove_items(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_payload(
           store,
@@ -924,7 +983,6 @@ pub fn handle_inventory_shipment_remove_items(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) -> {
       let ids = read_arg_string_list(args, "lineItems")
@@ -941,10 +999,9 @@ pub fn handle_inventory_shipment_remove_items(
           ),
         ]
         _, True -> [
-          ProductUserError(
+          inventory_shipment_invalid_state_error(
             ["id"],
             "Received shipments cannot be updated.",
-            Some("INVALID_STATUS"),
           ),
         ]
         _, _ -> []
@@ -1001,7 +1058,7 @@ pub fn handle_inventory_shipment_remove_items(
           )
         }
         _ ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_payload(
               store,
@@ -1013,7 +1070,6 @@ pub fn handle_inventory_shipment_remove_items(
             ),
             store,
             identity,
-            [],
           )
       }
     }
@@ -1037,7 +1093,7 @@ pub fn handle_inventory_shipment_receive(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_receive_payload(
           store,
@@ -1054,12 +1110,26 @@ pub fn handle_inventory_shipment_receive(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) -> {
       let receive_inputs = read_arg_object_list(args, "lineItems")
-      let #(next_line_items, user_errors, inventory_deltas) =
-        apply_inventory_shipment_receive_inputs(shipment, receive_inputs)
+      let #(next_line_items, user_errors, inventory_deltas) = case
+        shipment.status == "IN_TRANSIT"
+        || shipment.status == "PARTIALLY_RECEIVED"
+      {
+        True ->
+          apply_inventory_shipment_receive_inputs(shipment, receive_inputs)
+        False -> #(
+          shipment.line_items,
+          [
+            inventory_shipment_invalid_state_error(
+              ["id"],
+              "Only in-transit shipments can be received.",
+            ),
+          ],
+          [],
+        )
+      }
       case user_errors {
         [] -> {
           let #(now, identity_after_timestamp) =
@@ -1094,7 +1164,7 @@ pub fn handle_inventory_shipment_receive(
           )
         }
         _ ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_receive_payload(
               store,
@@ -1105,7 +1175,6 @@ pub fn handle_inventory_shipment_receive(
             ),
             store,
             identity,
-            [],
           )
       }
     }
@@ -1129,7 +1198,7 @@ pub fn handle_inventory_shipment_update_item_quantities(
     })
   case existing {
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_shipment_update_item_quantities_payload(
           store,
@@ -1147,12 +1216,40 @@ pub fn handle_inventory_shipment_update_item_quantities(
         ),
         store,
         identity,
-        [],
       )
     Some(shipment) -> {
       let updates = read_arg_object_list(args, "items")
-      let #(next_line_items, updated_line_items, user_errors, deltas) =
-        apply_inventory_shipment_quantity_updates(shipment, updates)
+      let transfer =
+        store.get_effective_inventory_transfer_by_id(
+          store,
+          shipment.movement_id,
+        )
+      let preflight_errors = case shipment.status == "RECEIVED", transfer {
+        True, _ -> [
+          inventory_shipment_invalid_state_error(
+            ["id"],
+            "Received shipments cannot be updated.",
+          ),
+        ]
+        _, None -> []
+        _, Some(transfer) ->
+          case inventory_shipment_transfer_allows_shipping(transfer) {
+            True ->
+              validate_inventory_shipment_quantity_updates_against_transfer(
+                store,
+                transfer,
+                shipment,
+                updates,
+              )
+            False -> [inventory_shipment_transfer_invalid_state_error()]
+          }
+      }
+      let #(next_line_items, updated_line_items, user_errors, deltas) = case
+        preflight_errors
+      {
+        [] -> apply_inventory_shipment_quantity_updates(shipment, updates)
+        _ -> #(shipment.line_items, [], preflight_errors, [])
+      }
       case user_errors {
         [] -> {
           let #(now, identity_after_timestamp) =
@@ -1187,7 +1284,7 @@ pub fn handle_inventory_shipment_update_item_quantities(
           )
         }
         _ ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_shipment_update_item_quantities_payload(
               store,
@@ -1199,7 +1296,6 @@ pub fn handle_inventory_shipment_update_item_quantities(
             ),
             store,
             identity,
-            [],
           )
       }
     }

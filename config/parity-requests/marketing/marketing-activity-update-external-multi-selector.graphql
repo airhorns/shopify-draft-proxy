@@ -1,0 +1,51 @@
+mutation MarketingActivityUpdateExternalMultiSelector(
+  $activityA: MarketingActivityCreateExternalInput!
+  $activityB: MarketingActivityCreateExternalInput!
+  $conflictRemoteId: String
+  $conflictUtm: UTMInput
+  $updateInput: MarketingActivityUpdateExternalInput!
+) {
+  createA: marketingActivityCreateExternal(input: $activityA) {
+    marketingActivity {
+      id
+      title
+      utmParameters {
+        campaign
+        source
+        medium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createB: marketingActivityCreateExternal(input: $activityB) {
+    marketingActivity {
+      id
+      title
+      utmParameters {
+        campaign
+        source
+        medium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  conflictUpdate: marketingActivityUpdateExternal(remoteId: $conflictRemoteId, utm: $conflictUtm, input: $updateInput) {
+    marketingActivity {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

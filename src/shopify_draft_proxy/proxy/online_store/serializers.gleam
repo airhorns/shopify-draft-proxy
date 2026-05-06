@@ -176,13 +176,14 @@ pub fn make_content(
       input_bool(input, "isPublished"),
       source_bool_field(prior, "isPublished", True),
     )
-  let published_at = case is_published {
-    True ->
+  let input_publish_date = input_string(input, "publishDate")
+  let published_at = case input_publish_date {
+    Some(value) -> value
+    None ->
       option_string(
         source_optional_string_field(prior, "publishedAt"),
         timestamp,
       )
-    False -> ""
   }
   let source =
     base_source(prior, [
@@ -226,7 +227,11 @@ pub fn make_content(
       #("isPublished", SrcBool(is_published)),
       #("publishedAt", case is_published {
         True -> SrcString(published_at)
-        False -> SrcNull
+        False ->
+          case input_publish_date {
+            Some(_) -> SrcString(published_at)
+            None -> SrcNull
+          }
       }),
       #("templateSuffix", source_field(prior, "templateSuffix", SrcNull)),
       #("createdAt", source_field(prior, "createdAt", SrcString(timestamp))),
@@ -698,6 +703,7 @@ pub fn integration_projection_source(
             )),
           ),
         ),
+        #("event", SrcString(source_string_field(source, "event", "onload"))),
       ])
     "webPixel" ->
       base_source(without_source_field(source, "webhookEndpointAddress"), [
@@ -1298,6 +1304,7 @@ pub fn integration_user_error(
 pub fn integration_user_error_typename(kind: String) -> Option(String) {
   case kind {
     "webPixel" -> Some("WebPixelUserError")
+    "serverPixel" -> Some("ServerPixelUserError")
     "scriptTag" -> Some("ScriptTagUserError")
     "theme" -> Some("ThemeUserError")
     _ -> None

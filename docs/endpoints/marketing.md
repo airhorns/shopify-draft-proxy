@@ -49,8 +49,9 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 - createExternal happy path with remote ID, UTM, selected activity fields, and nested marketing event attribution
 - updateExternal by `remoteId` for title, status, and remote URL changes
 - local integration coverage also exercises Shopify's documented `marketingActivityUpdateExternal(utm:)` selector path; the proxy resolves that selector against the staged/effective activity `utmParameters` and keeps the update local
+- when updateExternal receives multiple selectors, every supplied selector must resolve to the same effective activity before local validation or staging runs; conflicting selector matches return `MARKETING_ACTIVITY_DOES_NOT_EXIST` with `marketingActivity: null`
 - upsertExternal create and update behavior keyed by `remoteId`
-- deleteExternal by activity ID and remote ID, including missing-activity userErrors
+- deleteExternal by activity ID and remote ID, including missing-activity userErrors; if both selectors are supplied, they must resolve to the same effective activity before the local delete is staged
 - deleteAllExternal asynchronous `Job` payload with `done: false`
 - userErrors for missing non-hierarchical attribution and immutable UTM changes
 
@@ -78,6 +79,18 @@ External activity create and upsert-create validation now mirrors Shopify's guar
 The HAR-213 parity spec replays the external lifecycle through the local proxy parity harness. It compares stable selected mutation/read fields and captured userErrors against the live fixture; synthetic IDs and timestamps remain covered by runtime integration tests because local staging intentionally does not reuse live Shopify identifiers.
 
 Local staging intentionally uses stable synthetic IDs and timestamps instead of replaying live Shopify IDs. The raw original mutation body is retained in the meta log for successful staged lifecycle mutations so commit replay can preserve request order.
+
+### App ownership
+
+Marketing activity, event, and engagement records staged by local mutations carry the requesting app identity from the `x-shopify-draft-proxy-api-client-id` header when it is present. External selector resolution by `remoteId`, `marketingActivityId`, and UTM, downstream marketing activity/event reads, engagement creation, and engagement/delete helpers only see records owned by that same app. Legacy unowned fixture records remain visible to all callers so existing snapshot captures that do not model app identity keep their Shopify-like behavior.
+
+External activity uniqueness checks for `remoteId`, UTM triplets, and `urlParameterValue` are scoped to the requesting app. Two apps can stage the same external `remoteId` independently, while duplicates within one app still return Shopify's existing duplicate validation message.
+
+`marketingActivitiesDeleteAllExternal` deletes only the calling app's external activities and records the delete-all job as in flight for that app. While the app-scoped in-flight flag is present, only that app's external create/update/upsert calls return `DELETE_JOB_ENQUEUED`; other apps can continue staging their own external activities. App-scoped delete-all does not remove another app's staged activities, events, or engagements.
+
+`marketingEngagementCreate` resolves activity-level identifiers through the same app-scoped activity lookup before checking currency compatibility. If App B references App A's external activity by remote ID or activity ID, the proxy returns `MARKETING_ACTIVITY_DOES_NOT_EXIST` instead of leaking the foreign activity into later validation.
+
+Native/deprecated `marketingActivityUpdate` checks the staged activity owner before applying local updates. A caller whose API client ID does not match the staged native activity receives Shopify's top-level `ACCESS_DENIED` error shape with `data.marketingActivityUpdate: null`, and the activity remains unchanged for its owner.
 
 HAR-214 captures marketing engagement write evidence with `write_marketing_events`:
 
@@ -125,5 +138,6 @@ Unsupported marketing reads outside these registered roots continue through the 
 - HAR-463 adds the `marketing-engagement` aggregate capture path and refreshes `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-lifecycle.json` with setup/cleanup evidence for disposable external activity-level engagement writes. The fixture backs `primaryConversions` and `allConversions` through executable parity rather than runtime tests alone.
 - HAR-684 adds `marketing-engagement-currency-validation` live parity for `marketingEngagementCreate` currency guardrails. Shopify returns `field: ["marketingEngagement"]` for the captured currency userErrors; an unrecognized `channelHandle` returns `INVALID_CHANNEL_HANDLE` before currency validation, so recognized channel-handle currency behavior remains runtime-test-backed until the conformance shop exposes a valid handle.
 - HAR-687 adds `marketing-activity-delete-external-guards` live parity for the no-selector delete guard and delete-all in-flight write rejection. The fixture records the blocked parent/child and native setup probes; local runtime tests cover those no-state-change guards until the conformance shop exposes a recognized channel handle and a non-external activity.
+- `marketing-activity-per-app-scoping` is executable local-runtime parity because the current conformance shop has only one installed app. It stages App A's external activity locally, then uses request-owned API client headers to prove App B's update/delete/engagement selectors cannot see it, App B delete-all skips it, and App A can still read the activity afterward.
 - HAR-463 did not find a live evidence path for native/deprecated activity success or recognized channel-handle engagement success in the current disposable shop. Native success remains blocked on installing or discovering a deprecated `MarketingActivityExtension`; channel-level engagement success remains blocked because the live marketing event catalog has no non-null `channelHandle`, and probes for the conformance app handle plus common channel handles all returned `INVALID_CHANNEL_HANDLE`.
 - HAR-453 added focused local coverage that `marketingActivitiesDeleteAllExternal` removes staged external activities and events without deleting staged native activities. The operation still returns Shopify's captured asynchronous `Job` shape (`done: false`), and downstream local reads reflect the delete-all effect immediately so tests can observe deterministic draft state.

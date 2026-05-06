@@ -1,0 +1,25 @@
+mutation TransactionVoidCodesOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      name
+      transactions {
+        id
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
