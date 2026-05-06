@@ -1,0 +1,141 @@
+{
+  "scenarioId": "productJoinLeaveSellingPlanGroups-validation",
+  "operationNames": [
+    "productCreate",
+    "sellingPlanGroupCreate",
+    "productJoinSellingPlanGroups",
+    "productLeaveSellingPlanGroups",
+    "productVariantJoinSellingPlanGroups",
+    "productVariantLeaveSellingPlanGroups"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/productJoinLeaveSellingPlanGroups-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-setup-product.graphql",
+    "variablesCapturePath": "$.setupProduct.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-user-errors",
+        "capturePath": "$.setupProduct.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "setup-selling-plan-group-user-errors",
+        "capturePath": "$.setupGroup.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-setup-group.graphql",
+          "variablesCapturePath": "$.setupGroup.variables"
+        }
+      },
+      {
+        "name": "blank-product-join-user-errors",
+        "capturePath": "$.blankProductJoin.response.data.productJoinSellingPlanGroups.userErrors",
+        "proxyPath": "$.data.productJoinSellingPlanGroups.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-product-join.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": []
+          }
+        }
+      },
+      {
+        "name": "duplicate-product-join-user-errors",
+        "capturePath": "$.duplicateProductJoin.response.data.productJoinSellingPlanGroups.userErrors",
+        "proxyPath": "$.data.productJoinSellingPlanGroups.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-product-join.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "setup-selling-plan-group-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "duplicate-variant-join-user-errors",
+        "capturePath": "$.duplicateVariantJoin.response.data.productVariantJoinSellingPlanGroups.userErrors",
+        "proxyPath": "$.data.productVariantJoinSellingPlanGroups.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-variant-join.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              },
+              {
+                "fromProxyResponse": "setup-selling-plan-group-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "product-leave-non-member-user-errors",
+        "capturePath": "$.productLeaveNonMember.response.data.productLeaveSellingPlanGroups.userErrors",
+        "proxyPath": "$.data.productLeaveSellingPlanGroups.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-product-leave.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "variant-leave-non-member-user-errors",
+        "capturePath": "$.variantLeaveNonMember.response.data.productVariantLeaveSellingPlanGroups.userErrors",
+        "proxyPath": "$.data.productVariantLeaveSellingPlanGroups.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-variant-leave.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+            },
+            "sellingPlanGroupIds": [
+              {
+                "fromProxyResponse": "setup-selling-plan-group-user-errors",
+                "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Local-runtime executable parity for selling-plan group membership validation. Live public Admin API probes on harry-test-heelo.myshopify.com returned empty userErrors for duplicate joins, leave-non-member, and 32-group joins, so this spec records the ticket-requested local contract rather than public-store behavior for those branches. The 31-group cap is covered by focused Gleam tests because building that many groups in a replayed parity scenario would add large setup noise."
+}

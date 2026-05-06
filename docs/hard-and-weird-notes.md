@@ -136,6 +136,25 @@ request guard contract and avoid adding a checked-in parity spec for the public
 2026-04 probe until a future live target reproduces the intended branch across
 the affected roots.
 
+## Current: Selling-plan product membership guardrails can diverge from public Admin probes
+
+Internal source notes for product and variant selling-plan group join/leave roots
+require validation before staging: blank group ID lists, duplicate IDs within one
+request, too many post-join memberships, and leave requests for groups that are
+not direct members should all return payload `userErrors` without changing local
+membership state. The local runtime models that guard contract and covers it with
+`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
+plus focused product mutation tests.
+
+A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
+2026-04, and `unstable` did not expose the same branches: duplicate joins,
+leave-non-member requests, and 32-group joins returned empty `userErrors`, and
+the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
+`NOT_A_MEMBER`, and `TOO_MANY_SELLING_PLAN_GROUPS`. Treat the checked-in
+local-runtime parity fixture as the current internal guardrail contract, and
+re-capture against a target that reproduces the internal package behavior before
+changing those codes/messages or replacing the fixture with live evidence.
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:

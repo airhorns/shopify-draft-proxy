@@ -1,0 +1,25 @@
+query MetafieldDefinitionAppNamespaceRead($canonicalNamespace: String!, $appNamespace: String!, $key: String!) {
+  canonical: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $canonicalNamespace, key: $key }) {
+    id
+    name
+    namespace
+    key
+    ownerType
+  }
+  appPrefix: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $appNamespace, key: $key }) {
+    id
+    name
+    namespace
+    key
+    ownerType
+  }
+  catalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $appNamespace, first: 5) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      ownerType
+    }
+  }
+}

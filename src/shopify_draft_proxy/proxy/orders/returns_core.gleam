@@ -6,41 +6,29 @@
 //// effects are modeled together.
 
 import gleam/dict.{type Dict}
-import gleam/float
+
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
-import gleam/string
-import shopify_draft_proxy/graphql/ast.{
-  type ObjectField, type Selection, Field, NullValue, ObjectField, ObjectValue,
-  SelectionSet, VariableValue,
-}
-import shopify_draft_proxy/graphql/parse_operation
+
+import shopify_draft_proxy/graphql/ast.{type Selection}
+
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/commit
+
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SelectedFieldOptions, SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt,
-  SrcList, SrcNull, SrcObject, SrcString, default_connection_window_options,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  get_selected_child_fields, paginate_connection_items,
-  project_graphql_field_value, project_graphql_value, resolved_value_to_source,
-  serialize_connection, source_to_json, src_object,
+  type FragmentMap, get_field_response_key,
 }
-import shopify_draft_proxy/proxy/metafields
-import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
-  find_argument, single_root_log_draft, validate_required_field_arguments,
-}
+
+import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft}
+
 import shopify_draft_proxy/proxy/orders/common.{
   captured_field_or_null, captured_int_field, captured_string_field,
   field_arguments, inferred_user_error, optional_captured_string, read_int,
   read_object, read_object_list, read_string, read_string_argument,
   replace_captured_object_fields, user_error,
 }
-import shopify_draft_proxy/proxy/orders/draft_order_builders.{total_quantity}
+
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
 import shopify_draft_proxy/proxy/orders/order_types.{
   type DisposeMutationResult, type ReturnMutationResult,
@@ -63,27 +51,17 @@ import shopify_draft_proxy/proxy/orders/serializers.{
   stage_order_with_returns, stage_reverse_delivery_update,
   sync_reverse_fulfillment_line_items, total_return_quantity,
 }
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
+
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/user_error_codes
-import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/state/iso_timestamp
+
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
-  type CustomerRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type OrderRecord,
-  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
-  AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CustomerOrderSummaryRecord, CustomerRecord, DraftOrderRecord,
-  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
+  type CapturedJsonValue, CapturedArray, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, OrderRecord,
 }
 
 @internal
