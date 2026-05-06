@@ -641,15 +641,7 @@ fn update_content(
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
         Some(existing) -> {
-          case
-            serializers.resolve_content_handle(
-              outcome.store,
-              kind,
-              input,
-              existing.parent_id,
-              Some(existing),
-            )
-          {
+          case normalize_blog_commentable(input, kind, payload_key) {
             Error(error) ->
               serializers.content_validation_error_payload(
                 outcome,
@@ -659,40 +651,70 @@ fn update_content(
                 payload_key,
                 error,
               )
-            Ok(handle) -> {
-              let #(record, identity) =
-                serializers.make_content(
-                  outcome.identity,
+            Ok(input) -> {
+              case
+                serializers.resolve_content_handle(
+                  outcome.store,
                   kind,
                   input,
                   existing.parent_id,
                   Some(existing),
-                  handle,
                 )
-              let #(_, store) =
-                store.upsert_staged_online_store_content(outcome.store, record)
-              let payload =
-                serializers.mutation_payload(
-                  field,
-                  fragments,
-                  payload_key,
-                  serializers.project_content_payload(
-                    store,
-                    record,
+              {
+                Error(error) ->
+                  serializers.content_validation_error_payload(
+                    outcome,
                     field,
                     fragments,
-                    variables,
+                    root,
                     payload_key,
-                  ),
-                  [],
-                )
-              #(
-                key,
-                payload,
-                serializers.mutation_outcome(outcome, store, identity, root, [
-                  id,
-                ]),
-              )
+                    error,
+                  )
+                Ok(handle) -> {
+                  let #(record, identity) =
+                    serializers.make_content(
+                      outcome.identity,
+                      kind,
+                      input,
+                      existing.parent_id,
+                      Some(existing),
+                      handle,
+                    )
+                  let #(_, store) =
+                    store.upsert_staged_online_store_content(
+                      outcome.store,
+                      record,
+                    )
+                  let payload =
+                    serializers.mutation_payload(
+                      field,
+                      fragments,
+                      payload_key,
+                      serializers.project_content_payload(
+                        store,
+                        record,
+                        field,
+                        fragments,
+                        variables,
+                        payload_key,
+                      ),
+                      [],
+                    )
+                  #(
+                    key,
+                    payload,
+                    serializers.mutation_outcome(
+                      outcome,
+                      store,
+                      identity,
+                      root,
+                      [
+                        id,
+                      ],
+                    ),
+                  )
+                }
+              }
             }
           }
         }
@@ -713,6 +735,40 @@ fn update_content(
         payload_key,
         "Content does not exist",
       )
+  }
+}
+
+fn normalize_blog_commentable(
+  input: Dict(String, root_field.ResolvedValue),
+  kind: String,
+  payload_key: String,
+) -> Result(Dict(String, root_field.ResolvedValue), graphql_helpers.SourceValue) {
+  case kind, serializers.input_string(input, "commentable") {
+    "blog", Some(value) ->
+      case blog_commentable_to_comment_policy(value) {
+        Some(comment_policy) ->
+          Ok(dict.insert(
+            input,
+            "commentPolicy",
+            root_field.StringVal(comment_policy),
+          ))
+        None ->
+          Error(serializers.user_error_with_code(
+            [payload_key, "commentable"],
+            "Commentable is not included in the list",
+            "INCLUSION",
+          ))
+      }
+    _, _ -> Ok(input)
+  }
+}
+
+fn blog_commentable_to_comment_policy(value: String) -> Option(String) {
+  case value {
+    "MODERATE" | "MODERATED" -> Some("MODERATED")
+    "AUTO_PUBLISHED" -> Some("AUTO_PUBLISHED")
+    "CLOSED" -> Some("CLOSED")
+    _ -> None
   }
 }
 

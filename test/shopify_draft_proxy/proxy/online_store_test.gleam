@@ -684,6 +684,60 @@ pub fn blog_handles_slugify_dedupe_and_reject_taken_updates_test() {
     == 2
 }
 
+pub fn blog_update_commentable_maps_to_comment_policy_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { blogCreate(blog: { title: \"Commentable Blog\", commentPolicy: CLOSED }) { blog { id title commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Commentable Blog\",\"commentPolicy\":\"CLOSED\"},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { commentable: MODERATE }) { blog { id commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"blogUpdate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"MODERATED\"},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id commentPolicy } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"MODERATED\"}}}"
+}
+
+pub fn blog_update_invalid_commentable_reports_commentable_field_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { blogCreate(blog: { title: \"Invalid Commentable Blog\", commentPolicy: CLOSED }) { blog { id commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"CLOSED\"},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { commentable: INVALID_VALUE }) { blog { id commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"blogUpdate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"commentable\"],\"message\":\"Commentable is not included in the list\",\"code\":\"INCLUSION\"}]}}}"
+
+  let read_query =
+    "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id commentPolicy } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"CLOSED\"}}}"
+}
+
 pub fn article_handles_dedupe_per_blog_and_reject_taken_updates_test() {
   let proxy = draft_proxy.new()
   let create_blog =
