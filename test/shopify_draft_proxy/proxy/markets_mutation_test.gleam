@@ -1813,6 +1813,160 @@ pub fn catalog_create_stages_market_context_test() {
   )
 }
 
+pub fn market_update_adds_and_removes_catalog_links_test() {
+  let #(Response(status: first_market_status, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Primary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_market_status, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Secondary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Linked Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/3\"] } }) { catalog { id markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: noop_status, body: noop_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToDelete: [\"gid://shopify/MarketCatalog/5\"] }) { market { id catalogs(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToAdd: [\"gid://shopify/MarketCatalog/5\"] }) { market { id catalogs(first: 5) { nodes { id ... on MarketCatalog { markets(first: 5) { nodes { id } } } } } } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: catalog_read_status, body: catalog_read_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/5\") { id ... on MarketCatalog { markets(first: 5) { nodes { id } } } } }",
+    )
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToDelete: [\"gid://shopify/MarketCatalog/5\"] }) { market { id catalogs(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: deleted_catalog_status, body: deleted_catalog_body, ..),
+    _,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/5\") { id ... on MarketCatalog { markets(first: 5) { nodes { id } } } } }",
+    )
+
+  assert first_market_status == 200
+  assert second_market_status == 200
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/5\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}},\"userErrors\":[]}}}"
+  assert noop_status == 200
+  assert json.to_string(noop_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"catalogs\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+  assert add_status == 200
+  assert string.contains(
+    json.to_string(add_body),
+    "\"catalogs\":{\"nodes\":[{\"id\":\"gid://shopify/MarketCatalog/5\"",
+  )
+  assert string.contains(
+    json.to_string(add_body),
+    "\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"},{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert catalog_read_status == 200
+  assert string.contains(
+    json.to_string(catalog_read_body),
+    "\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"},{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"catalogs\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+  assert deleted_catalog_status == 200
+  assert json.to_string(deleted_catalog_body)
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/5\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}}}}"
+}
+
+pub fn market_update_adds_and_removes_web_presence_links_test() {
+  let #(Response(status: market_status, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { marketCreate(input: { name: \"Primary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: web_presence_status, body: web_presence_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"intl\" }) { webPresence { id markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { webPresencesToAdd: [\"gid://shopify/MarketWebPresence/3\"] }) { market { id webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } } } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: web_presence_read_status, body: web_presence_read_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "query { webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } } }",
+    )
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { webPresencesToDelete: [\"gid://shopify/MarketWebPresence/3\"] }) { market { id webPresences(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert web_presence_status == 200
+  assert json.to_string(web_presence_body)
+    == "{\"data\":{\"webPresenceCreate\":{\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/3\",\"markets\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+  assert add_status == 200
+  assert string.contains(
+    json.to_string(add_body),
+    "\"webPresences\":{\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/3\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert web_presence_read_status == 200
+  assert string.contains(
+    json.to_string(web_presence_read_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/3\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"webPresences\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+}
+
+pub fn market_update_rejects_unknown_link_add_ids_test() {
+  let #(Response(status: market_status, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Primary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToAdd: [\"gid://shopify/MarketCatalog/9999999999\"] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: web_presence_status, body: web_presence_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { webPresencesToAdd: [\"gid://shopify/MarketWebPresence/9999999999\"] }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"catalogsToAdd\"],\"message\":\"The following customization IDs were not found: 9999999999\",\"code\":\"CUSTOMIZATIONS_NOT_FOUND\"}]}}}"
+  assert web_presence_status == 200
+  assert json.to_string(web_presence_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"webPresencesToAdd\"],\"message\":\"The following customization IDs were not found: 9999999999\",\"code\":\"CUSTOMIZATIONS_NOT_FOUND\"}]}}}"
+}
+
 pub fn catalog_create_rejects_unknown_price_list_id_test() {
   let #(Response(status: market_status, body: market_body, ..), proxy) =
     graphql(

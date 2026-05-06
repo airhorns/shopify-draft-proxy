@@ -1154,6 +1154,80 @@ pub fn market_connection_from_ids(
 }
 
 @internal
+pub fn catalog_connection_from_ids(
+  store: Store,
+  catalog_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(catalog_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", catalog_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(list.map(catalog_ids, catalog_node_for_id(store, _))),
+    ),
+    #("pageInfo", page_info_for_cursors(catalog_ids)),
+  ])
+}
+
+fn catalog_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_catalog_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketCatalog")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
+pub fn web_presence_connection_from_ids(
+  store: Store,
+  web_presence_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(web_presence_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", web_presence_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(
+        list.map(web_presence_ids, web_presence_node_for_id(store, _)),
+      ),
+    ),
+    #("pageInfo", page_info_for_cursors(web_presence_ids)),
+  ])
+}
+
+fn web_presence_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_web_presence_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketWebPresence")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
 pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
   case store.get_effective_market_by_id(store, id) {
     Some(record) -> record.data
