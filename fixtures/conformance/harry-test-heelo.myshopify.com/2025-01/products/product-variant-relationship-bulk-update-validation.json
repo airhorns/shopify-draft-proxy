@@ -1,0 +1,452 @@
+{
+  "capturedAt": "2026-05-06T01:39:08.853Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Validation branches for productVariantRelationshipBulkUpdate against disposable parent/child products.",
+    "The parent variant is set to requiresComponents before validation probes; products are deleted during cleanup."
+  ],
+  "setup": {
+    "parentProductCreate": {
+      "variables": {
+        "product": {
+          "title": "Variant relationship validation parent mote2pd4",
+          "status": "ACTIVE"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177906573618",
+              "title": "Variant relationship validation parent mote2pd4",
+              "handle": "variant-relationship-validation-parent-mote2pd4",
+              "status": "ACTIVE",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51129172394290",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "childProductCreate": {
+      "variables": {
+        "product": {
+          "title": "Variant relationship validation child mote2pd4",
+          "status": "ACTIVE"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177906606386",
+              "title": "Variant relationship validation child mote2pd4",
+              "handle": "variant-relationship-validation-child-mote2pd4",
+              "status": "ACTIVE",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51129172427058",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "parentRequiresComponentsUpdate": {
+      "variables": {
+        "productId": "gid://shopify/Product/10177906573618",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51129172394290",
+            "requiresComponents": true
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10177906573618"
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172394290"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "parentAsChild": {
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172394290",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "A parent product variant cannot contain itself as a component.",
+                "code": "CIRCULAR_REFERENCE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "quantityZero": {
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 0
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 1ee4703c-14a0-49ce-9ea6-db018ee690a7-1778031547 (include this in support requests).",
+            "extensions": {
+              "requestId": "1ee4703c-14a0-49ce-9ea6-db018ee690a7-1778031547",
+              "code": "INTERNAL_SERVER_ERROR"
+            }
+          }
+        ],
+        "data": null
+      }
+    },
+    "quantityTooHigh": {
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 1000000000
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Unable to create Parent product variant with ID gid://shopify/ProductVariant/51129172394290.",
+                "code": "FAILED_TO_CREATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "bothParentIds": {
+      "variables": {
+        "input": [
+          {
+            "parentProductId": "gid://shopify/Product/10177906573618",
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172394290"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "duplicateChild": {
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 2
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172394290"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "duplicateParent": {
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 1
+              }
+            ]
+          },
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172394290"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateNotChild": {
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/51129172394290",
+            "productVariantRelationshipsToUpdate": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172427058",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51129172394290"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup productDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177906606386",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup productDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177906573618",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
