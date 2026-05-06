@@ -1,0 +1,394 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T08:36:20.220Z",
+  "startedAt": "2026-05-06T08:36:17.323Z",
+  "notes": [
+    "fulfillmentServiceDelete inventoryAction validation capture for KEEP and DELETE with destinationLocationId.",
+    "The active app schema exposes fulfillmentServiceDelete.userErrors as UserError without a selectable code field, so code parity is covered by local runtime tests rather than this live capture."
+  ],
+  "captures": {
+    "existingLocations": {
+      "query": "query FulfillmentServiceDeleteInventoryActionValidationLocations($first: Int!) {\n    locations(first: $first) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
+      "variables": {
+        "first": 20
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112833069362",
+                  "name": "HAR-654 Sub 20260505044352",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112831103282",
+                  "name": "HAR-658 lifecycle 20260505013332",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112850207026",
+                  "name": "location-lifecycle-deprecated-user-errors candidate 20260506025819",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/112850174258",
+                  "name": "location-lifecycle-deprecated-user-errors duplicate 20260506025819",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "destinationCreate": {
+      "query": "mutation FulfillmentServiceDeleteInventoryActionValidationLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "FS delete action destination 20260506083617",
+          "address": {
+            "countryCode": "US",
+            "address1": "123 Broadway",
+            "city": "New York",
+            "provinceCode": "NY",
+            "zip": "10006"
+          },
+          "fulfillsOnlineOrders": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112853549362",
+                "name": "FS delete action destination 20260506083617",
+                "isActive": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceCreate": {
+      "query": "mutation FulfillmentServiceDeleteInventoryActionValidationCreate($name: String!) {\n    fulfillmentServiceCreate(\n      name: $name\n      trackingSupport: true\n      inventoryManagement: true\n      requiresShippingMethod: true\n    ) {\n      fulfillmentService {\n        id\n        handle\n        serviceName\n        location {\n          id\n          name\n          isFulfillmentService\n          fulfillsOnlineOrders\n          shipsInventory\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "name": "FS delete action service 20260506083617"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71922483506?id=true",
+                "handle": "fs-delete-action-service-20260506083617",
+                "serviceName": "FS delete action service 20260506083617",
+                "location": {
+                  "id": "gid://shopify/Location/112853582130",
+                  "name": "FS delete action service 20260506083617",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidKeep": {
+      "query": "mutation FulfillmentServiceDeleteInventoryActionValidationWithDestination(\n    $id: ID!\n    $destinationLocationId: ID!\n    $inventoryAction: FulfillmentServiceDeleteInventoryAction!\n  ) {\n    fulfillmentServiceDelete(\n      id: $id\n      destinationLocationId: $destinationLocationId\n      inventoryAction: $inventoryAction\n    ) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71922483506?id=true",
+        "destinationLocationId": "gid://shopify/Location/112853549362",
+        "inventoryAction": "KEEP"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["inventoryAction"],
+                  "message": "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidDelete": {
+      "query": "mutation FulfillmentServiceDeleteInventoryActionValidationWithDestination(\n    $id: ID!\n    $destinationLocationId: ID!\n    $inventoryAction: FulfillmentServiceDeleteInventoryAction!\n  ) {\n    fulfillmentServiceDelete(\n      id: $id\n      destinationLocationId: $destinationLocationId\n      inventoryAction: $inventoryAction\n    ) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71922483506?id=true",
+        "destinationLocationId": "gid://shopify/Location/112853549362",
+        "inventoryAction": "DELETE"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["inventoryAction"],
+                  "message": "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "validKeep": {
+      "query": "mutation FulfillmentServiceDeleteInventoryActionValidationKeep($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: KEEP) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71922483506?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71922483506",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "serviceLocationDeactivate": {
+        "query": "mutation FulfillmentServiceDeleteInventoryActionValidationCleanupDeactivate(\n    $locationId: ID!\n    $destinationLocationId: ID!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"fs-delete-action-cleanup-serviceLocation-20260506083617\") {\n      location {\n        id\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "locationId": "gid://shopify/Location/112853582130",
+          "destinationLocationId": "gid://shopify/Location/112829759794"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationDeactivate": {
+                "location": {
+                  "id": "gid://shopify/Location/112853582130"
+                },
+                "locationDeactivateUserErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "serviceLocationDelete": {
+        "query": "mutation FulfillmentServiceDeleteInventoryActionValidationCleanupDeleteLocation($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "locationId": "gid://shopify/Location/112853582130"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationDelete": {
+                "deletedLocationId": "gid://shopify/Location/112853582130",
+                "locationDeleteUserErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "destinationDeactivate": {
+        "query": "mutation FulfillmentServiceDeleteInventoryActionValidationCleanupDeactivate(\n    $locationId: ID!\n    $destinationLocationId: ID!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"fs-delete-action-cleanup-destination-20260506083617\") {\n      location {\n        id\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "locationId": "gid://shopify/Location/112853549362",
+          "destinationLocationId": "gid://shopify/Location/112829759794"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationDeactivate": {
+                "location": {
+                  "id": "gid://shopify/Location/112853549362"
+                },
+                "locationDeactivateUserErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "destinationDelete": {
+        "query": "mutation FulfillmentServiceDeleteInventoryActionValidationCleanupDeleteLocation($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "locationId": "gid://shopify/Location/112853549362"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationDelete": {
+                "deletedLocationId": "gid://shopify/Location/112853549362",
+                "locationDeleteUserErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

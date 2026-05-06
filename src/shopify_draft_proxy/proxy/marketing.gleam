@@ -5,9 +5,11 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import gleam/option.{type Option, None}
 import gleam/result
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{type SourceValue}
 import shopify_draft_proxy/proxy/marketing/mutations
 import shopify_draft_proxy/proxy/marketing/queries
@@ -46,7 +48,23 @@ pub fn handle_marketing_query(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MarketingError) {
-  case queries.handle_marketing_query(store, document, variables) {
+  handle_marketing_query_for_app(store, document, variables, None)
+}
+
+pub fn handle_marketing_query_for_app(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Result(Json, MarketingError) {
+  case
+    queries.handle_marketing_query_for_app(
+      store,
+      document,
+      variables,
+      requesting_api_client_id,
+    )
+  {
     Ok(data) -> Ok(data)
     Error(err) -> Error(ParseFailed(err))
   }
@@ -64,7 +82,7 @@ pub fn process(
 /// Uniform query entrypoint matching the dispatcher's signature.
 pub fn handle_query_request(
   proxy: DraftProxy,
-  _request: Request,
+  request: Request,
   _parsed: parse_operation.ParsedOperation,
   _primary_root_field: String,
   document: String,
@@ -72,7 +90,14 @@ pub fn handle_query_request(
 ) -> #(Response, DraftProxy) {
   respond_to_query(
     proxy,
-    process(proxy.store, document, variables),
+    queries.handle_marketing_query_for_app(
+      proxy.store,
+      document,
+      variables,
+      app_identity.read_requesting_api_client_id(request.headers),
+    )
+      |> result.map(graphql_helpers.wrap_data)
+      |> result.map_error(ParseFailed),
     "Failed to handle marketing query",
   )
 }
