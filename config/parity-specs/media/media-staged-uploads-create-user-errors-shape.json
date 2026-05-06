@@ -1,0 +1,40 @@
+{
+  "scenarioId": "media-staged-uploads-create-user-errors-shape",
+  "operationNames": ["stagedUploadsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-staged-uploads-create-user-errors-shape.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/media/media-staged-uploads-create-user-errors-shape.graphql",
+    "documentCapturePath": "$.cases[0].request.document",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify Admin GraphQL 2026-04 stagedUploadsCreate userErrors shape. The payload's userErrors expose field/message as base UserError; selecting code is rejected at GraphQL schema validation before resolver execution.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "video-missing-file-size-field-message-user-error",
+        "capturePath": "$.cases[0].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate"
+      },
+      {
+        "name": "video-missing-file-size-code-selection-schema-error",
+        "capturePath": "$.cases[1].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-user-errors-shape-code.graphql",
+          "documentCapturePath": "$.cases[1].request.document",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        }
+      }
+    ]
+  }
+}

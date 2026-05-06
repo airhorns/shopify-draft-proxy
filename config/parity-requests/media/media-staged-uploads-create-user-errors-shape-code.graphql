@@ -1,0 +1,9 @@
+mutation StagedUploadUserErrorsShapeCode($input: [StagedUploadInput!]!) {
+  stagedUploadsCreate(input: $input) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
