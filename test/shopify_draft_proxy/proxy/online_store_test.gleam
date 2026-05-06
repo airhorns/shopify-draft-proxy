@@ -396,6 +396,22 @@ pub fn comment_moderation_enforces_state_machine_preconditions_test() {
   assert spam_log.staged_resource_ids == []
 }
 
+pub fn comment_moderation_unknown_ids_return_not_found_codes_test() {
+  let #(body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { approve: commentApprove(id: \"gid://shopify/Comment/404\") { comment { id } userErrors { field message code } } spam: commentSpam(id: \"gid://shopify/Comment/404\") { comment { id } userErrors { field message code } } notSpam: commentNotSpam(id: \"gid://shopify/Comment/404\") { comment { id } userErrors { field message code } } delete: commentDelete(id: \"gid://shopify/Comment/404\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment does not exist\",\"code\":\"NOT_FOUND\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment does not exist\",\"code\":\"NOT_FOUND\"}]},\"notSpam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment does not exist\",\"code\":\"NOT_FOUND\"}]},\"delete\":{\"deletedCommentId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [approve_log, spam_log, not_spam_log, delete_log] =
+    store.get_log(proxy.store)
+  assert approve_log.staged_resource_ids == []
+  assert spam_log.staged_resource_ids == []
+  assert not_spam_log.staged_resource_ids == []
+  assert delete_log.staged_resource_ids == []
+}
+
 pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test() {
   let #(body, proxy) =
     run_graphql(

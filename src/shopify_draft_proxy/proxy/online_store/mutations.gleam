@@ -1685,7 +1685,11 @@ fn comment_data_with_status(
 }
 
 fn comment_not_found_user_error() -> graphql_helpers.SourceValue {
-  serializers.user_error(["id"], "Comment does not exist")
+  serializers.user_error_with_code(
+    ["id"],
+    "Comment does not exist",
+    "NOT_FOUND",
+  )
 }
 
 fn comment_invalid_transition_user_error(
