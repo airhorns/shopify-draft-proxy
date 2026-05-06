@@ -985,6 +985,37 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-transfers',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-transfer-conformance.ts',
+    purpose:
+      'inventoryTransferCreate validation and inventory transfer draft-to-ready-to-canceled lifecycle behavior with downstream inventory reservation readback.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-transfer-create-validation.json`,
+      `${CAPTURE_ROOT}inventory-transfer-lifecycle-local-staging.json`,
+      'config/parity-specs/products/inventory_transfer_create_validation.json',
+      'config/parity-specs/products/inventory-transfer-lifecycle-local-staging.json',
+      'config/parity-requests/products/inventory-transfer-create-validation.graphql',
+      'config/parity-requests/products/inventory-transfer-create.graphql',
+      'config/parity-requests/products/inventory-transfer-mark-ready.graphql',
+      'config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql',
+      'config/parity-requests/products/inventory-transfer-cancel.graphql',
+      'config/parity-requests/products/inventory-transfer-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations and one disposable tracked product, activates inventory at both locations, records validation and lifecycle branches, cancels the ready transfer, attempts the captured non-draft delete guardrail, then deletes the product and locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
