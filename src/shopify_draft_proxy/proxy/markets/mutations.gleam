@@ -16,14 +16,15 @@ import shopify_draft_proxy/proxy/markets/queries
 import shopify_draft_proxy/proxy/markets/serializers.{
   append_unique_strings, assigned_market_country_codes, captured_field,
   captured_json_source, captured_object_upsert, captured_string_field,
-  catalog_create_input_errors, catalog_data, delete_fixed_price_nodes,
-  delete_quantity_rule_nodes, enumerate_dicts, market_connection_from_ids,
-  market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
-  optional_captured_string, price_list_data, price_list_input_errors,
-  product_level_fixed_price_errors, product_payloads, project_record,
-  quantity_pricing_input_errors, quantity_rule_delete_errors,
-  quantity_rule_payloads, quantity_rules_input_errors, read_arg_object_array,
+  catalog_create_input_errors, catalog_data, catalog_update_input_errors,
+  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
+  market_connection_from_ids, market_data, market_handle_in_use,
+  market_localization_payload, market_name_in_use, markets_log_draft,
+  mutation_variant_ids, option_to_result, optional_captured_string,
+  price_list_data, price_list_input_errors, product_level_fixed_price_errors,
+  product_payloads, project_record, quantity_pricing_input_errors,
+  quantity_rule_delete_errors, quantity_rule_payloads,
+  quantity_rules_input_errors, read_arg_object_array,
   read_arg_string_allow_empty, read_arg_string_array,
   read_explicit_market_handle, read_market_region_inputs, read_price_list_id,
   result_to_option, string_array, translation_user_error,
@@ -702,24 +703,42 @@ fn handle_catalog_update(
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(existing) -> {
-          let data = catalog_data(store, id, input, Some(existing.data))
-          let #(_, next_store) =
-            store.upsert_staged_catalog(
-              store,
-              CatalogRecord(id, existing.cursor, data),
-            )
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "catalogUpdate",
-            "catalog",
-            data,
-            [],
-            next_store,
-            identity,
-            [id],
-          )
+          let errors = catalog_update_input_errors(store, input, id)
+          case errors {
+            [] -> {
+              let data = catalog_data(store, id, input, Some(existing.data))
+              let #(_, next_store) =
+                store.upsert_staged_catalog(
+                  store,
+                  CatalogRecord(id, existing.cursor, data),
+                )
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogUpdate",
+                "catalog",
+                data,
+                [],
+                next_store,
+                identity,
+                [id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogUpdate",
+                "catalog",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           not_found_mutation_result(
