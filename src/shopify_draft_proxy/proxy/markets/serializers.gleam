@@ -31,9 +31,9 @@ import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CatalogRecord,
   type MarketLocalizableContentRecord, type MarketLocalizationRecord,
   type MarketRecord, type PriceListRecord, type ProductRecord,
-  type ProductVariantRecord, type WebPresenceRecord, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  PriceListRecord,
+  type ProductVariantRecord, type PublicationRecord, type WebPresenceRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, PriceListRecord,
 }
 
 @internal
@@ -609,12 +609,176 @@ pub fn catalog_create_input_errors(
     [] -> {
       let status_errors = catalog_status_errors(input)
       case status_errors {
-        [] -> catalog_context_errors(store, input)
+        [] -> {
+          let context_errors = catalog_context_errors(store, input)
+          case context_errors {
+            [] -> catalog_relation_errors(store, input, None)
+            _ -> context_errors
+          }
+        }
         _ -> status_errors
       }
     }
     _ -> title_errors
   }
+}
+
+@internal
+pub fn catalog_update_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  catalog_id: String,
+) -> List(CapturedJsonValue) {
+  catalog_relation_errors(store, input, Some(catalog_id))
+}
+
+fn catalog_relation_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  current_catalog_id: Option(String),
+) -> List(CapturedJsonValue) {
+  let price_list_errors = case
+    graphql_helpers.read_arg_string_nonempty(input, "priceListId")
+  {
+    Some(id) -> catalog_price_list_errors(store, id, current_catalog_id)
+    None -> []
+  }
+  let publication_errors = case
+    graphql_helpers.read_arg_string_nonempty(input, "publicationId")
+  {
+    Some(id) -> catalog_publication_errors(store, id, current_catalog_id)
+    None -> []
+  }
+  list.append(price_list_errors, publication_errors)
+}
+
+fn catalog_price_list_errors(
+  store: Store,
+  price_list_id: String,
+  current_catalog_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case store.get_effective_price_list_by_id(store, price_list_id) {
+    None -> [
+      user_error(
+        ["input", "priceListId"],
+        "Price list not found.",
+        "PRICE_LIST_NOT_FOUND",
+      ),
+    ]
+    Some(_) ->
+      case
+        catalog_referencing_price_list(store, price_list_id, current_catalog_id)
+      {
+        Some(_) -> [
+          user_error(
+            ["input", "priceListId"],
+            "Price list has already been taken",
+            "TAKEN",
+          ),
+        ]
+        None -> []
+      }
+  }
+}
+
+fn catalog_publication_errors(
+  store: Store,
+  publication_id: String,
+  current_catalog_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case store.get_effective_publication_by_id(store, publication_id) {
+    None -> [
+      user_error(
+        ["input", "publicationId"],
+        "Publication not found.",
+        "PUBLICATION_NOT_FOUND",
+      ),
+    ]
+    Some(publication) ->
+      case publication.catalog_id {
+        Some(catalog_id) ->
+          case same_optional_catalog(current_catalog_id, catalog_id) {
+            True -> []
+            False -> [
+              user_error(
+                ["input", "publicationId"],
+                "Publication is already attached to another catalog",
+                "PUBLICATION_TAKEN",
+              ),
+            ]
+          }
+        None ->
+          case
+            catalog_referencing_publication(
+              store,
+              publication_id,
+              current_catalog_id,
+            )
+          {
+            Some(_) -> [
+              user_error(
+                ["input", "publicationId"],
+                "Publication is already attached to another catalog",
+                "PUBLICATION_TAKEN",
+              ),
+            ]
+            None -> []
+          }
+      }
+  }
+}
+
+fn same_optional_catalog(
+  current_catalog_id: Option(String),
+  catalog_id: String,
+) {
+  case current_catalog_id {
+    Some(current) -> current == catalog_id
+    None -> False
+  }
+}
+
+fn catalog_referencing_price_list(
+  store: Store,
+  price_list_id: String,
+  current_catalog_id: Option(String),
+) -> Option(CatalogRecord) {
+  store.list_effective_catalogs(store)
+  |> list.find(fn(catalog) {
+    !is_current_catalog(catalog.id, current_catalog_id)
+    && catalog_price_list_id(catalog.data) == Some(price_list_id)
+  })
+  |> result_to_option
+}
+
+fn catalog_referencing_publication(
+  store: Store,
+  publication_id: String,
+  current_catalog_id: Option(String),
+) -> Option(CatalogRecord) {
+  store.list_effective_catalogs(store)
+  |> list.find(fn(catalog) {
+    !is_current_catalog(catalog.id, current_catalog_id)
+    && catalog_publication_id(catalog.data) == Some(publication_id)
+  })
+  |> result_to_option
+}
+
+fn is_current_catalog(id: String, current_catalog_id: Option(String)) -> Bool {
+  case current_catalog_id {
+    Some(current) -> current == id
+    None -> False
+  }
+}
+
+fn catalog_price_list_id(data: CapturedJsonValue) -> Option(String) {
+  captured_field(data, "priceList")
+  |> option.then(captured_string_field(_, "id"))
+}
+
+fn catalog_publication_id(data: CapturedJsonValue) -> Option(String) {
+  captured_field(data, "publication")
+  |> option.then(captured_string_field(_, "id"))
 }
 
 @internal
@@ -672,13 +836,7 @@ pub fn catalog_context_object_errors(
   context: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_string_nonempty(context, "driverType") {
-    None -> [
-      user_error(
-        ["input", "context", "driverType"],
-        "Driver type is required",
-        "INVALID",
-      ),
-    ]
+    None -> catalog_context_object_errors_without_driver_type(store, context)
     Some(driver_type) ->
       case driver_type {
         "MARKET" -> {
@@ -730,6 +888,33 @@ pub fn catalog_context_object_errors(
           ),
         ]
       }
+  }
+}
+
+fn catalog_context_object_errors_without_driver_type(
+  store: Store,
+  context: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case read_arg_string_array(context, "marketIds") {
+    Some(_) -> {
+      case
+        require_catalog_context_ids(
+          context,
+          "marketIds",
+          "Market ids can't be blank",
+        )
+      {
+        Ok(ids) -> missing_market_context_errors(store, ids)
+        Error(errors) -> errors
+      }
+    }
+    None -> [
+      user_error(
+        ["input", "context", "driverType"],
+        "Driver type is required",
+        "INVALID",
+      ),
+    ]
   }
 }
 
@@ -829,29 +1014,73 @@ pub fn catalog_data(
     graphql_helpers.read_arg_string_nonempty(input, "status")
     |> option.or(captured_string_field(existing_value, "status"))
     |> option.unwrap("ACTIVE")
-  let market_ids =
-    graphql_helpers.read_arg_object(input, "context")
-    |> option.then(read_arg_string_array(_, "marketIds"))
-    |> option.unwrap([])
+  let markets = case graphql_helpers.read_arg_object(input, "context") {
+    Some(context) ->
+      read_arg_string_array(context, "marketIds")
+      |> option.unwrap([])
+      |> market_connection_from_ids(store, _)
+    None ->
+      captured_field(existing_value, "markets")
+      |> option.unwrap(market_connection_from_ids(store, []))
+  }
   captured_object_upsert(existing_value, [
     #("__typename", CapturedString("MarketCatalog")),
     #("id", CapturedString(id)),
     #("title", CapturedString(title)),
     #("status", CapturedString(status)),
-    #("markets", market_connection_from_ids(store, market_ids)),
+    #("markets", markets),
     #(
       "operations",
       captured_field(existing_value, "operations")
         |> option.unwrap(CapturedArray([])),
     ),
-    #(
-      "priceList",
-      captured_field(existing_value, "priceList") |> option.unwrap(CapturedNull),
-    ),
-    #(
-      "publication",
+    #("priceList", catalog_price_list_payload(store, input, existing_value)),
+    #("publication", catalog_publication_payload(store, input, existing_value)),
+  ])
+}
+
+fn catalog_price_list_payload(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case graphql_helpers.read_arg_string_nonempty(input, "priceListId") {
+    Some(id) ->
+      case store.get_effective_price_list_by_id(store, id) {
+        Some(record) -> record.data
+        None -> CapturedObject([#("id", CapturedString(id))])
+      }
+    None ->
+      captured_field(existing_value, "priceList") |> option.unwrap(CapturedNull)
+  }
+}
+
+fn catalog_publication_payload(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case graphql_helpers.read_arg_string_nonempty(input, "publicationId") {
+    Some(id) ->
+      case store.get_effective_publication_by_id(store, id) {
+        Some(record) -> publication_record_payload(record)
+        None -> CapturedObject([#("id", CapturedString(id))])
+      }
+    None ->
       captured_field(existing_value, "publication")
-        |> option.unwrap(CapturedNull),
+      |> option.unwrap(CapturedNull)
+  }
+}
+
+fn publication_record_payload(record: PublicationRecord) -> CapturedJsonValue {
+  CapturedObject([
+    #("__typename", CapturedString("Publication")),
+    #("id", CapturedString(record.id)),
+    #("name", optional_captured_string(record.name)),
+    #("autoPublish", optional_captured_bool(record.auto_publish)),
+    #(
+      "supportsFuturePublishing",
+      optional_captured_bool(record.supports_future_publishing),
     ),
   ])
 }
@@ -1942,6 +2171,14 @@ pub fn string_array(values: List(String)) -> CapturedJsonValue {
 pub fn optional_captured_int(value: Option(Int)) -> CapturedJsonValue {
   case value {
     Some(i) -> CapturedInt(i)
+    None -> CapturedNull
+  }
+}
+
+@internal
+pub fn optional_captured_bool(value: Option(Bool)) -> CapturedJsonValue {
+  case value {
+    Some(b) -> CapturedBool(b)
     None -> CapturedNull
   }
 }
