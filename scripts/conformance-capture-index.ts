@@ -1929,6 +1929,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'markets',
+    captureId: 'markets-delete-cascades',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-delete-cascades-conformance.mts',
+    purpose:
+      'marketDelete, catalogDelete, and priceListDelete downstream cascade behavior for web presences, catalog contexts, catalog/price-list detachment, and fixed price cleanup.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delete-cascades-parity.json`,
+      'config/parity-specs/markets/market-delete-cascades-web-presence.json',
+      'config/parity-specs/markets/catalog-delete-detaches-price-list.json',
+      'config/parity-specs/markets/price-list-delete-clears-fixed-prices.json',
+      'config/parity-requests/markets/market-delete-cascade-*.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-*.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable web presence, markets, catalogs, price lists, and one fixed variant price; the live delete scenarios remove the targeted records, and cleanup deletes any surviving setup records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'marketing',
     captureId: 'marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',
