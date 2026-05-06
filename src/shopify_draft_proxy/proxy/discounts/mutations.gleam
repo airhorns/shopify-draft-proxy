@@ -1076,42 +1076,66 @@ pub fn discount_app_function_reference(
 pub fn delete_discount(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _root: String,
+  root: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let id =
     discount_types.read_string_arg(field, variables, "id") |> option.unwrap("")
-  let #(next_store, next_identity) = case
+  let #(deleted_id, user_errors, next_store, next_identity, staged_ids) = case
     store.get_effective_discount_by_id(store, id)
   {
     Some(_) -> {
+      // Shopify can return INTERNAL_ERROR if its backend destroy call fails.
+      // Local staged deletion has no equivalent backend failure mode, so once
+      // the effective discount resolves the proxy keeps deterministic success.
       let #(_, next_identity) =
         synthetic_identity.make_synthetic_timestamp(identity)
-      #(store.delete_staged_discount(store, id), next_identity)
+      #(
+        SrcString(id),
+        [],
+        store.delete_staged_discount(store, id),
+        next_identity,
+        [
+          id,
+        ],
+      )
     }
-    None -> #(store.delete_staged_discount(store, id), identity)
+    None -> #(
+      SrcNull,
+      [
+        discount_types.user_error(
+          ["id"],
+          delete_missing_discount_message(root),
+          "INVALID",
+        ),
+      ],
+      store,
+      identity,
+      [],
+    )
   }
   let payload =
-    json.object(
-      list.map(child_fields(field), fn(child) {
-        let child_key = get_field_response_key(child)
-        case child {
-          Field(name: name, ..) ->
-            case name.value {
-              "deletedCodeDiscountId" | "deletedAutomaticDiscountId" -> #(
-                child_key,
-                json.string(id),
-              )
-              "userErrors" -> #(child_key, json.array([], fn(x) { x }))
-              _ -> #(child_key, json.null())
-            }
-          _ -> #(child_key, json.null())
-        }
-      }),
+    project_graphql_value(
+      SrcObject(
+        dict.from_list([
+          #("deletedCodeDiscountId", deleted_id),
+          #("deletedAutomaticDiscountId", deleted_id),
+          #("userErrors", SrcList(user_errors)),
+        ]),
+      ),
+      child_fields(field),
+      dict.new(),
     )
-  MutationResult(key, payload, next_store, next_identity, [id], [])
+  MutationResult(key, payload, next_store, next_identity, staged_ids, [])
+}
+
+fn delete_missing_discount_message(root: String) -> String {
+  case root {
+    "discountAutomaticDelete" -> "Automatic discount does not exist."
+    _ -> "Code discount does not exist."
+  }
 }
 
 @internal

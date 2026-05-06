@@ -630,6 +630,50 @@ pub fn automatic_discount_creates_do_not_require_codes_test() {
   assert string.contains(body, "\"userErrors\":[]")
 }
 
+pub fn delete_unknown_discounts_returns_invalid_user_error_test() {
+  let code =
+    run_mutation(
+      "mutation { discountCodeDelete(id: \"gid://shopify/DiscountCodeNode/0\") { deletedCodeDiscountId userErrors { field message code } } }",
+    )
+  let automatic =
+    run_mutation(
+      "mutation { discountAutomaticDelete(id: \"gid://shopify/DiscountAutomaticNode/0\") { deletedAutomaticDiscountId userErrors { field message code } } }",
+    )
+
+  assert json.to_string(code.data)
+    == "{\"data\":{\"discountCodeDelete\":{\"deletedCodeDiscountId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Code discount does not exist.\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(automatic.data)
+    == "{\"data\":{\"discountAutomaticDelete\":{\"deletedAutomaticDiscountId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Automatic discount does not exist.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn delete_existing_discounts_still_returns_deleted_id_test() {
+  let code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Delete me\", code: \"DELETE-ME\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let code_delete =
+    run_mutation_from(
+      code_create.store,
+      code_create.identity,
+      "mutation { discountCodeDelete(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { deletedCodeDiscountId userErrors { field message code } } }",
+    )
+  let automatic_create =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Delete automatic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+    )
+  let automatic_delete =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { discountAutomaticDelete(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\") { deletedAutomaticDiscountId userErrors { field message code } } }",
+    )
+
+  assert json.to_string(code_delete.data)
+    == "{\"data\":{\"discountCodeDelete\":{\"deletedCodeDiscountId\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+  assert json.to_string(automatic_delete.data)
+    == "{\"data\":{\"discountAutomaticDelete\":{\"deletedAutomaticDiscountId\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+}
+
 pub fn create_discount_inputs_reject_context_customer_selection_conflicts_test() {
   let cases = [
     #(
