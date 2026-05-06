@@ -1,0 +1,365 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "namespace": "create_pin_guard_motdsuni",
+    "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
+    "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/10004"
+  },
+  "baselinePinnedDefinitions": [
+    {
+      "id": "gid://shopify/MetafieldDefinition/98376220978",
+      "key": "binding_mount",
+      "namespace": "test_data",
+      "pinnedPosition": 2
+    },
+    {
+      "id": "gid://shopify/MetafieldDefinition/98376188210",
+      "key": "snowboard_length",
+      "namespace": "test_data",
+      "pinnedPosition": 1
+    }
+  ],
+  "primary": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-create-with-pin-guards.graphql",
+      "variables": {
+        "namespace": "create_pin_guard_motdsuni",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
+        "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/10004"
+      }
+    },
+    "response": {
+      "data": {
+        "create01": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206790820146",
+            "key": "pin_01",
+            "pinnedPosition": 1
+          },
+          "userErrors": []
+        },
+        "create02": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206790852914",
+            "key": "pin_02",
+            "pinnedPosition": 2
+          },
+          "userErrors": []
+        },
+        "create03": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206790885682",
+            "key": "pin_03",
+            "pinnedPosition": 3
+          },
+          "userErrors": []
+        },
+        "create04": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206790918450",
+            "key": "pin_04",
+            "pinnedPosition": 4
+          },
+          "userErrors": []
+        },
+        "create05": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206790951218",
+            "key": "pin_05",
+            "pinnedPosition": 5
+          },
+          "userErrors": []
+        },
+        "create06": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206790983986",
+            "key": "pin_06",
+            "pinnedPosition": 6
+          },
+          "userErrors": []
+        },
+        "create07": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791016754",
+            "key": "pin_07",
+            "pinnedPosition": 7
+          },
+          "userErrors": []
+        },
+        "create08": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791049522",
+            "key": "pin_08",
+            "pinnedPosition": 8
+          },
+          "userErrors": []
+        },
+        "create09": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791082290",
+            "key": "pin_09",
+            "pinnedPosition": 9
+          },
+          "userErrors": []
+        },
+        "create10": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791115058",
+            "key": "pin_10",
+            "pinnedPosition": 10
+          },
+          "userErrors": []
+        },
+        "create11": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791147826",
+            "key": "pin_11",
+            "pinnedPosition": 11
+          },
+          "userErrors": []
+        },
+        "create12": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791180594",
+            "key": "pin_12",
+            "pinnedPosition": 12
+          },
+          "userErrors": []
+        },
+        "create13": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791213362",
+            "key": "pin_13",
+            "pinnedPosition": 13
+          },
+          "userErrors": []
+        },
+        "create14": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791246130",
+            "key": "pin_14",
+            "pinnedPosition": 14
+          },
+          "userErrors": []
+        },
+        "create15": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791278898",
+            "key": "pin_15",
+            "pinnedPosition": 15
+          },
+          "userErrors": []
+        },
+        "create16": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791311666",
+            "key": "pin_16",
+            "pinnedPosition": 16
+          },
+          "userErrors": []
+        },
+        "create17": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791344434",
+            "key": "pin_17",
+            "pinnedPosition": 17
+          },
+          "userErrors": []
+        },
+        "create18": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791377202",
+            "key": "pin_18",
+            "pinnedPosition": 18
+          },
+          "userErrors": []
+        },
+        "create19": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791409970",
+            "key": "pin_19",
+            "pinnedPosition": 19
+          },
+          "userErrors": []
+        },
+        "create20": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791442738",
+            "key": "pin_20",
+            "pinnedPosition": 20
+          },
+          "userErrors": []
+        },
+        "overCapCreate": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Limit of 20 pinned definitions.",
+              "code": "PINNED_LIMIT_REACHED"
+            }
+          ]
+        },
+        "constrainedCreate": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Constrained metafield definitions do not support pinning.",
+              "code": "UNSUPPORTED_PINNING"
+            }
+          ]
+        },
+        "standardConstrainedEnable": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Constrained metafield definitions do not support pinning.",
+              "code": "UNSUPPORTED_PINNING"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 231,
+          "actualQueryCost": 230,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1770,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfter": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-create-with-pin-guards-read.graphql",
+      "variables": {
+        "namespace": "create_pin_guard_motdsuni",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
+        "standardTemplateId": "gid://shopify/StandardMetafieldDefinitionTemplate/10004"
+      }
+    },
+    "response": {
+      "data": {
+        "overCapDefinition": null,
+        "constrainedDefinition": null,
+        "standardMaterialDefinition": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1886,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "deletedDefinitions": [
+      {
+        "id": "gid://shopify/MetafieldDefinition/206790820146",
+        "key": "pin_01"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206790852914",
+        "key": "pin_02"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206790885682",
+        "key": "pin_03"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206790918450",
+        "key": "pin_04"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206790951218",
+        "key": "pin_05"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206790983986",
+        "key": "pin_06"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791016754",
+        "key": "pin_07"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791049522",
+        "key": "pin_08"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791082290",
+        "key": "pin_09"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791115058",
+        "key": "pin_10"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791147826",
+        "key": "pin_11"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791180594",
+        "key": "pin_12"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791213362",
+        "key": "pin_13"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791246130",
+        "key": "pin_14"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791278898",
+        "key": "pin_15"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791311666",
+        "key": "pin_16"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791344434",
+        "key": "pin_17"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791377202",
+        "key": "pin_18"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791409970",
+        "key": "pin_19"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206791442738",
+        "key": "pin_20"
+      }
+    ],
+    "restoredPinnedDefinitions": [
+      {
+        "id": "gid://shopify/MetafieldDefinition/98376220978",
+        "key": "binding_mount",
+        "namespace": "test_data",
+        "pinnedPosition": 2
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/98376188210",
+        "key": "snowboard_length",
+        "namespace": "test_data",
+        "pinnedPosition": 1
+      }
+    ]
+  },
+  "upstreamCalls": []
+}

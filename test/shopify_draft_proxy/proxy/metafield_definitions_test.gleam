@@ -112,6 +112,18 @@ fn unpin_definition_query(key: String) -> String {
   }"
 }
 
+fn standard_enable_query(template_id: String, extra: String) -> String {
+  "mutation {
+    standardMetafieldDefinitionEnable(
+      ownerType: PRODUCT,
+      id: \"" <> template_id <> "\"" <> extra <> "
+    ) {
+      createdDefinition { id namespace key ownerType pinnedPosition }
+      userErrors { field message code }
+    }
+  }"
+}
+
 pub fn metafield_definition_create_rejects_namespace_and_key_length_test() {
   let result =
     run_mutation(
@@ -346,6 +358,102 @@ pub fn metafield_definition_unpin_compacts_pinned_positions_test() {
     )
   assert listing
     == "{\"data\":{\"metafieldDefinitions\":{\"nodes\":[{\"key\":\"pin_3\",\"pinnedPosition\":2},{\"key\":\"pin_1\",\"pinnedPosition\":1}]}}}"
+}
+
+pub fn metafield_definition_create_with_pin_rejects_owner_type_cap_test() {
+  let #(pinned_store, pinned_identity, _) =
+    list.fold(
+      int_range(from: 1, to: 20),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_and_pin,
+    )
+
+  let limit_result =
+    run_mutation(
+      pinned_store,
+      pinned_identity,
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Pinned over cap\",
+          namespace: \"pin_guard\",
+          key: \"over_cap\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\",
+          pin: true
+        }) {
+          createdDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert limit_result.staged_resource_ids == []
+  assert json.to_string(limit_result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Limit of 20 pinned definitions.\",\"code\":\"PINNED_LIMIT_REACHED\"}]}}}"
+}
+
+pub fn metafield_definition_create_with_pin_rejects_constraints_test() {
+  let constrained_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Pinned constrained\",
+          namespace: \"pin_guard\",
+          key: \"constrained\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\",
+          constraints: { key: \"category\", values: [\"gid://shopify/TaxonomyCategory/ap-2\"] },
+          pin: true
+        }) {
+          createdDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert constrained_result.staged_resource_ids == []
+  assert json.to_string(constrained_result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_with_pin_rejects_owner_type_cap_test() {
+  let #(pinned_store, pinned_identity, _) =
+    list.fold(
+      int_range(from: 1, to: 20),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_and_pin,
+    )
+  let result =
+    run_mutation(
+      pinned_store,
+      pinned_identity,
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        ", pin: true",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Limit of 20 pinned definitions.\",\"code\":\"PINNED_LIMIT_REACHED\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_with_pin_rejects_constrained_template_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
+        ", pin: true",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
 }
 
 pub fn non_product_owner_definition_lifecycle_test() {

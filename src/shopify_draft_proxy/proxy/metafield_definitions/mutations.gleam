@@ -297,6 +297,7 @@ pub fn standard_templates() -> List(
       validations: [
         MetafieldDefinitionValidationRecord(name: "max", value: Some("70")),
       ],
+      constraints: empty_definition_constraints(),
       visible_to_storefront_api: True,
     ),
     definition_types.StandardMetafieldDefinitionTemplate(
@@ -313,6 +314,7 @@ pub fn standard_templates() -> List(
       validations: [
         MetafieldDefinitionValidationRecord(name: "max", value: Some("500")),
       ],
+      constraints: empty_definition_constraints(),
       visible_to_storefront_api: True,
     ),
     definition_types.StandardMetafieldDefinitionTemplate(
@@ -334,9 +336,59 @@ pub fn standard_templates() -> List(
           ),
         ),
       ],
+      constraints: empty_definition_constraints(),
+      visible_to_storefront_api: True,
+    ),
+    definition_types.StandardMetafieldDefinitionTemplate(
+      id: "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
+      namespace: "shopify",
+      key: "color-pattern",
+      name: "Color",
+      description: Some(
+        "Defines the primary color or pattern, such as blue or striped",
+      ),
+      owner_types: ["PRODUCT"],
+      type_: MetafieldDefinitionTypeRecord(
+        name: "list.metaobject_reference",
+        category: Some("REFERENCE"),
+      ),
+      validations: [],
+      constraints: MetafieldDefinitionConstraintsRecord(
+        key: Some("category"),
+        values: [
+          MetafieldDefinitionConstraintValueRecord(value: "ap-2-1-1"),
+        ],
+      ),
+      visible_to_storefront_api: True,
+    ),
+    definition_types.StandardMetafieldDefinitionTemplate(
+      id: "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
+      namespace: "shopify",
+      key: "material",
+      name: "Material",
+      description: Some(
+        "Defines a product's primary material, such as cotton or wool",
+      ),
+      owner_types: ["PRODUCT"],
+      type_: MetafieldDefinitionTypeRecord(
+        name: "list.metaobject_reference",
+        category: Some("REFERENCE"),
+      ),
+      validations: [],
+      constraints: MetafieldDefinitionConstraintsRecord(
+        key: Some("category"),
+        values: [
+          MetafieldDefinitionConstraintValueRecord(value: "ap-2-1-1"),
+        ],
+      ),
       visible_to_storefront_api: True,
     ),
   ]
+}
+
+@internal
+pub fn empty_definition_constraints() -> MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(key: None, values: [])
 }
 
 @internal
@@ -430,20 +482,42 @@ pub fn serialize_standard_metafield_definition_enable_mutation(
           args,
           template_record,
         )
-      let next_store =
-        store.upsert_staged_metafield_definitions(store_in, [definition])
-      #(
-        serializers.serialize_standard_enable_payload(
+      case
+        validate_and_maybe_pin_definition(
           store_in,
-          field,
-          variables,
-          Some(definition),
+          definition,
+          definition_types.read_optional_bool(args, "pin"),
+        )
+      {
+        Error(user_errors) -> #(
+          serializers.serialize_standard_enable_payload(
+            store_in,
+            field,
+            variables,
+            None,
+            user_errors,
+          ),
+          store_in,
+          identity,
           [],
-        ),
-        next_store,
-        next_identity,
-        [definition.id],
-      )
+        )
+        Ok(definition) -> {
+          let next_store =
+            store.upsert_staged_metafield_definitions(store_in, [definition])
+          #(
+            serializers.serialize_standard_enable_payload(
+              store_in,
+              field,
+              variables,
+              Some(definition),
+              [],
+            ),
+            next_store,
+            next_identity,
+            [definition.id],
+          )
+        }
+      }
     }
   }
 }
@@ -472,11 +546,6 @@ pub fn build_enabled_standard_definition(
     None ->
       synthetic_identity.make_synthetic_gid(identity, "MetafieldDefinition")
   }
-  let pinned_position = case definition_types.read_optional_bool(args, "pin") {
-    Some(True) ->
-      Some(definition_types.next_pinned_position(store_in, owner_type, existing))
-    _ -> None
-  }
   #(
     MetafieldDefinitionRecord(
       id: id,
@@ -492,10 +561,8 @@ pub fn build_enabled_standard_definition(
         args,
         "capabilities",
       )),
-      constraints: Some(
-        MetafieldDefinitionConstraintsRecord(key: None, values: []),
-      ),
-      pinned_position: pinned_position,
+      constraints: Some(template.constraints),
+      pinned_position: None,
       validation_status: "ALL_VALID",
     ),
     next_identity,
@@ -667,25 +734,78 @@ pub fn serialize_definition_create_root(
         None -> {
           let #(definition, next_identity) =
             build_definition_from_input(store_in, identity, input)
-          let next_store =
-            store.upsert_staged_metafield_definitions(store_in, [definition])
-          #(
-            serializers.serialize_definition_mutation_payload(
+          case
+            validate_and_maybe_pin_definition(
               store_in,
-              "createdDefinition",
-              Some(definition),
+              definition,
+              definition_types.read_optional_bool(input, "pin"),
+            )
+          {
+            Error(user_errors) -> #(
+              serializers.serialize_definition_mutation_payload(
+                store_in,
+                "createdDefinition",
+                None,
+                definition_input_user_errors(user_errors),
+                field,
+                variables,
+              ),
+              store_in,
+              identity,
               [],
-              field,
-              variables,
-            ),
-            next_store,
-            next_identity,
-            [definition.id],
-          )
+            )
+            Ok(definition) -> {
+              let next_store =
+                store.upsert_staged_metafield_definitions(store_in, [
+                  definition,
+                ])
+              #(
+                serializers.serialize_definition_mutation_payload(
+                  store_in,
+                  "createdDefinition",
+                  Some(definition),
+                  [],
+                  field,
+                  variables,
+                ),
+                next_store,
+                next_identity,
+                [definition.id],
+              )
+            }
+          }
         }
       }
     }
   }
+}
+
+@internal
+pub fn validate_and_maybe_pin_definition(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+  pin: Option(Bool),
+) -> Result(MetafieldDefinitionRecord, List(definition_types.UserError)) {
+  case pin {
+    Some(True) ->
+      case definition_types.validate_definition_pin(store_in, definition) {
+        [_, ..] as user_errors -> Error(user_errors)
+        [] -> Ok(definition_types.pin_definition(store_in, definition))
+      }
+    _ -> Ok(definition)
+  }
+}
+
+fn definition_input_user_errors(
+  user_errors: List(definition_types.UserError),
+) -> List(definition_types.UserError) {
+  list.map(user_errors, fn(user_error) {
+    definition_types.UserError(
+      field: Some(["definition"]),
+      message: user_error.message,
+      code: user_error.code,
+    )
+  })
 }
 
 @internal
@@ -1321,7 +1441,7 @@ pub fn valid_definition_type_names() -> List(String) {
 
 @internal
 pub fn build_definition_from_input(
-  store_in: Store,
+  _store_in: Store,
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
 ) -> #(MetafieldDefinitionRecord, SyntheticIdentityRegistry) {
@@ -1355,11 +1475,7 @@ pub fn build_definition_from_input(
         "capabilities",
       )),
       constraints: read_definition_constraints(input),
-      pinned_position: case definition_types.read_optional_bool(input, "pin") {
-        Some(True) ->
-          Some(definition_types.next_pinned_position(store_in, owner_type, None))
-        _ -> None
-      },
+      pinned_position: None,
       validation_status: "ALL_VALID",
     ),
     next_identity,
