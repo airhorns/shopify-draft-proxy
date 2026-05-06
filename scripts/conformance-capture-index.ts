@@ -419,6 +419,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-bundle-create-validation',
+    scriptPath: 'scripts/capture-product-bundle-create-validation-conformance.ts',
+    purpose:
+      'productBundleCreate component product lookup, option mapping, quantity maximum, quantityOption, consolidatedOptions, and ProductBundleOperation readback behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productBundleCreate-validation.json`,
+      'config/parity-specs/products/productBundleCreate-validation.json',
+      'config/parity-requests/products/productBundleCreate-validation.graphql',
+      'config/parity-requests/products/productBundleOperation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable component product with product options; bundle validation branches create no products and the setup product is deleted in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-handle-dedup',
     scriptPath: 'scripts/capture-product-handle-dedup-conformance.mts',
     purpose:

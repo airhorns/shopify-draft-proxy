@@ -1,0 +1,511 @@
+{
+  "scenarioId": "productBundleCreate-validation",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "productBundleCreate validation and async operation-shape capture.",
+    "The setup product is disposable and supplies real component product/option IDs. The local parity spec substitutes the proxy-created product and option IDs into the same captured validation requests.",
+    "Admin GraphQL 2025-01 accepts component quantity 0 and a blank quantityOption name when the quantity option has at least two values; this fixture records that behavior instead of the stale ticket expectation.",
+    "The configured Admin GraphQL 2025-01 schema rejects top-level ProductBundleCreateInput.consolidatedOptions as an undefined field before resolver validation, so consolidated option resolver guardrails are covered by local runtime tests rather than this live parity fixture."
+  ],
+  "run": {
+    "runId": "bundle-validation-1778031388626",
+    "componentProductId": "gid://shopify/Product/10177905983794",
+    "optionIds": [
+      "gid://shopify/ProductOption/12725565096242",
+      "gid://shopify/ProductOption/12725565129010",
+      "gid://shopify/ProductOption/12725565161778"
+    ]
+  },
+  "captures": {
+    "productCreate": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidationSetupProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        options {\n          id\n          name\n          position\n          values\n          optionValues {\n            id\n            name\n            hasVariants\n          }\n        }\n        variants(first: 10) {\n          nodes {\n            id\n            title\n            selectedOptions {\n              name\n              value\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "bundle-validation-1778031388626 Bundle Component",
+          "status": "DRAFT",
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Red"
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": [
+                {
+                  "name": "Small"
+                }
+              ]
+            },
+            {
+              "name": "Material",
+              "values": [
+                {
+                  "name": "Cotton"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177905983794",
+              "title": "bundle-validation-1778031388626 Bundle Component",
+              "handle": "bundle-validation-1778031388626-bundle-component",
+              "status": "DRAFT",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12725565096242",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Red"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8010096378162",
+                      "name": "Red",
+                      "hasVariants": true
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductOption/12725565129010",
+                  "name": "Size",
+                  "position": 2,
+                  "values": ["Small"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8010096410930",
+                      "name": "Small",
+                      "hasVariants": true
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductOption/12725565161778",
+                  "name": "Material",
+                  "position": 3,
+                  "values": ["Cotton"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8010096443698",
+                      "name": "Cotton",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51129171771698",
+                    "title": "Red / Small / Cotton",
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Red"
+                      },
+                      {
+                        "name": "Size",
+                        "value": "Small"
+                      },
+                      {
+                        "name": "Material",
+                        "value": "Cotton"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingComponentProduct": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {\n    productBundleCreate(input: $input) {\n      productBundleOperation {\n        __typename\n        id\n        status\n        product {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "bundle-validation-1778031388626 Missing Component Product",
+          "components": [
+            {
+              "productId": "gid://shopify/Product/0",
+              "quantity": 1,
+              "optionSelections": []
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Failed to locate the following products: [0]"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "optionSelectionsOverLimit": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {\n    productBundleCreate(input: $input) {\n      productBundleOperation {\n        __typename\n        id\n        status\n        product {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "bundle-validation-1778031388626 Option Mapping Invalid",
+          "components": [
+            {
+              "productId": "gid://shopify/Product/10177905983794",
+              "optionSelections": [
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565096242",
+                  "name": "Color",
+                  "values": ["Red"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565129010",
+                  "name": "Size",
+                  "values": ["Small"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565161778",
+                  "name": "Material",
+                  "values": ["Cotton"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/0",
+                  "name": "Finish",
+                  "values": ["Matte"]
+                }
+              ],
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids [10177905983794]."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "quantityOverMaximum": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {\n    productBundleCreate(input: $input) {\n      productBundleOperation {\n        __typename\n        id\n        status\n        product {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "bundle-validation-1778031388626 Quantity Over Maximum",
+          "components": [
+            {
+              "productId": "gid://shopify/Product/10177905983794",
+              "optionSelections": [
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565096242",
+                  "name": "Color",
+                  "values": ["Red"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565129010",
+                  "name": "Size",
+                  "values": ["Small"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565161778",
+                  "name": "Material",
+                  "values": ["Cotton"]
+                }
+              ],
+              "quantity": 2001
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Quantity cannot be greater than 2000. The following products have a quantity that exceeds the maximum: [10177905983794]"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "oneValueQuantityOption": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {\n    productBundleCreate(input: $input) {\n      productBundleOperation {\n        __typename\n        id\n        status\n        product {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "bundle-validation-1778031388626 One Value Quantity Option",
+          "components": [
+            {
+              "productId": "gid://shopify/Product/10177905983794",
+              "optionSelections": [
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565096242",
+                  "name": "Color",
+                  "values": ["Red"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565129010",
+                  "name": "Size",
+                  "values": ["Small"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565161778",
+                  "name": "Material",
+                  "values": ["Cotton"]
+                }
+              ],
+              "quantityOption": {
+                "name": "Pack",
+                "values": [
+                  {
+                    "name": "Single",
+                    "quantity": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids [10177905983794]."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "quantityZeroSuccess": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {\n    productBundleCreate(input: $input) {\n      productBundleOperation {\n        __typename\n        id\n        status\n        product {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "bundle-validation-1778031388626 Quantity Zero Success",
+          "components": [
+            {
+              "productId": "gid://shopify/Product/10177905983794",
+              "optionSelections": [
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565096242",
+                  "name": "Color",
+                  "values": ["Red"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565129010",
+                  "name": "Size",
+                  "values": ["Small"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565161778",
+                  "name": "Material",
+                  "values": ["Cotton"]
+                }
+              ],
+              "quantity": 0
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": {
+              "__typename": "ProductBundleOperation",
+              "id": "gid://shopify/ProductBundleOperation/79885304114",
+              "status": "CREATED",
+              "product": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "operationRead": {
+      "document": "#graphql\n  query ProductBundleOperationRead($id: ID!) {\n    productOperation(id: $id) {\n      __typename\n      status\n      product {\n        id\n      }\n      ... on ProductBundleOperation {\n        id\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ProductBundleOperation/79885304114"
+      },
+      "result": {
+        "data": {
+          "productOperation": {
+            "__typename": "ProductBundleOperation",
+            "status": "ACTIVE",
+            "product": null,
+            "id": "gid://shopify/ProductBundleOperation/79885304114"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blankQuantityOptionNameSuccess": {
+      "document": "#graphql\n  mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {\n    productBundleCreate(input: $input) {\n      productBundleOperation {\n        __typename\n        id\n        status\n        product {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "bundle-validation-1778031388626 Blank Quantity Option Name Success",
+          "components": [
+            {
+              "productId": "gid://shopify/Product/10177905983794",
+              "optionSelections": [
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565096242",
+                  "name": "Color",
+                  "values": ["Red"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565129010",
+                  "name": "Size",
+                  "values": ["Small"]
+                },
+                {
+                  "componentOptionId": "gid://shopify/ProductOption/12725565161778",
+                  "name": "Material",
+                  "values": ["Cotton"]
+                }
+              ],
+              "quantityOption": {
+                "name": "",
+                "values": [
+                  {
+                    "name": "One",
+                    "quantity": 0
+                  },
+                  {
+                    "name": "Two",
+                    "quantity": 2
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "result": {
+        "data": {
+          "productBundleCreate": {
+            "productBundleOperation": {
+              "__typename": "ProductBundleOperation",
+              "id": "gid://shopify/ProductBundleOperation/79885336882",
+              "status": "CREATED",
+              "product": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
