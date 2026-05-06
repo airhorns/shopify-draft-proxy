@@ -644,7 +644,7 @@ pub fn fulfillment_order_move_block_user_error(
                 SrcNull,
               ))
             False ->
-              case fulfillment_order_move_blocked_request_status(order) {
+              case fulfillment_order_move_blocked_by_request_status(order) {
                 True ->
                   Some(fulfillment_order_move_user_error(
                     SrcNull,
@@ -659,7 +659,7 @@ pub fn fulfillment_order_move_block_user_error(
 }
 
 @internal
-pub fn fulfillment_order_move_blocked_request_status(
+pub fn fulfillment_order_move_blocked_by_request_status(
   order: FulfillmentOrderRecord,
 ) -> Bool {
   list.contains(
@@ -670,10 +670,6 @@ pub fn fulfillment_order_move_blocked_request_status(
       "CANCELLATION_REJECTED",
     ],
     order.request_status,
-  )
-  || list.contains(
-    ["CANCELLATION_REQUESTED", "CANCELLATION_REJECTED"],
-    order.assignment_status |> option.unwrap(""),
   )
 }
 
