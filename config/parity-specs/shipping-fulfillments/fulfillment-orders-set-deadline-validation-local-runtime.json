@@ -1,0 +1,104 @@
+{
+  "scenarioId": "fulfillment-orders-set-deadline-validation-local-runtime",
+  "operationNames": ["fulfillmentOrdersSetFulfillmentDeadline"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "local-state-parity",
+    "user-errors-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/shipping-fulfillments/fulfillment-orders-set-deadline-validation-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation-order-read.graphql",
+    "variablesCapturePath": "$.initialOrder.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local-runtime parity for fulfillmentOrdersSetFulfillmentDeadline validation and atomicity. The scenario earns fulfillment order state through a cassette-backed order read, uses a cassette-backed null hydrate for an unknown fulfillment order, then verifies unknown, mixed valid/unknown, closed, cancelled, and successful deadline branches plus downstream fulfillBy reads. Public 2026-04 disposable-store behavior does not expose these internal failure branches deterministically, so this fixture records the modeled Core resolver contract locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "initial-order-read",
+        "capturePath": "$.initialOrder.response.payload.data.order",
+        "proxyPath": "$.data.order"
+      },
+      {
+        "name": "unknown-fulfillment-order-rejected",
+        "capturePath": "$.expected.unknownOnly.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation.graphql",
+          "variablesCapturePath": "$.unknownOnly.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mixed-valid-and-unknown-rejected",
+        "capturePath": "$.expected.mixedValidUnknown.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation.graphql",
+          "variablesCapturePath": "$.mixedValidUnknown.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "after-mixed-order-read",
+        "capturePath": "$.expected.afterMixedOrderRead.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation-order-read.graphql",
+          "variablesCapturePath": "$.initialOrder.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "closed-fulfillment-order-rejected",
+        "capturePath": "$.expected.closed.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation.graphql",
+          "variablesCapturePath": "$.closed.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cancelled-fulfillment-order-rejected",
+        "capturePath": "$.expected.cancelled.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation.graphql",
+          "variablesCapturePath": "$.cancelled.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "valid-open-fulfillment-orders-succeed",
+        "capturePath": "$.expected.happyPath.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation.graphql",
+          "variablesCapturePath": "$.happyPath.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "after-happy-order-read",
+        "capturePath": "$.expected.afterHappyOrderRead.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-orders-set-deadline-validation-order-read.graphql",
+          "variablesCapturePath": "$.initialOrder.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
