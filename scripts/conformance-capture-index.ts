@@ -550,6 +550,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-publish-input-validation',
+    scriptPath: 'scripts/capture-product-publish-input-validation-conformance.ts',
+    purpose:
+      'productPublish ProductPublicationInput validation for omitted lists, empty lists, and unknown publication/channel targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productPublish-input-validation.json`,
+      'config/parity-specs/products/productPublish-input-validation.json',
+      'config/parity-requests/products/productPublish-input-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, records validation branches, captures a hydration cassette while the product exists, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-media-mutations',
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',
     purpose: 'Product media create/update/delete validation and downstream read branches.',
@@ -1748,6 +1764,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Validation-only mutations reject before changing market state; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'price-list-fixed-prices-by-product-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-fixed-prices-by-product-update-validation-conformance.ts',
+    purpose:
+      'priceListFixedPricesByProductUpdate validation branches for no-op input, currency mismatch, duplicate product IDs, and add/delete mutual exclusivity.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-fixed-prices-by-product-update-validation.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-by-product-update-validation.json',
+      'config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only mutations reject before changing price-list fixed prices; no setup or cleanup records are created.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
