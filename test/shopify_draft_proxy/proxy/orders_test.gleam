@@ -4,10 +4,13 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
-import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry,
+}
 import shopify_draft_proxy/state/types
 
 pub fn orders_abandoned_checkout_empty_read_test() {
@@ -9977,4 +9980,165 @@ pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"emptyLineItems\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"invalidEmail\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]},\"availableShippingRatesEmpty\":{\"calculatedDraftOrder\":{\"availableShippingRates\":[]},\"userErrors\":[]},\"paymentTermsTemplateId\":{\"calculatedDraftOrder\":{\"currencyCode\":\"CAD\"},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_mandate_payment_uses_composite_reference_and_sale_test() {
+  let create_outcome = create_mandate_payment_test_order()
+  let order_id = "gid://shopify/Order/1"
+
+  let outcome =
+    create_mandate_payment_for_order(
+      create_outcome.store,
+      create_outcome.identity,
+      order_id,
+      "abc123",
+      None,
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreateMandatePayment\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":true},\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\",\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"capturable\":false,\"totalCapturable\":\"0.0\",\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"mandate\",\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_mandate_payment_repeat_is_idempotent_test() {
+  let create_outcome = create_mandate_payment_test_order()
+  let order_id = "gid://shopify/Order/1"
+
+  let first =
+    create_mandate_payment_for_order(
+      create_outcome.store,
+      create_outcome.identity,
+      order_id,
+      "abc123",
+      None,
+    )
+  let repeat =
+    create_mandate_payment_for_order(
+      first.store,
+      first.identity,
+      order_id,
+      "abc123",
+      None,
+    )
+
+  assert json.to_string(repeat.data)
+    == "{\"data\":{\"orderCreateMandatePayment\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":true},\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\",\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"capturable\":false,\"totalCapturable\":\"0.0\",\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"mandate\",\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_mandate_payment_auto_capture_false_authorizes_test() {
+  let create_outcome = create_mandate_payment_test_order()
+  let order_id = "gid://shopify/Order/1"
+
+  let outcome =
+    create_mandate_payment_for_order(
+      create_outcome.store,
+      create_outcome.identity,
+      order_id,
+      "auth-only",
+      Some(False),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreateMandatePayment\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":true},\"paymentReferenceId\":\"gid://shopify/Order/1/auth-only\",\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"AUTHORIZED\",\"capturable\":true,\"totalCapturable\":\"25.0\",\"transactions\":[{\"kind\":\"AUTHORIZATION\",\"status\":\"SUCCESS\",\"gateway\":\"mandate\",\"paymentReferenceId\":\"gid://shopify/Order/1/auth-only\"}]},\"userErrors\":[]}}}"
+}
+
+fn create_mandate_payment_test_order() -> MutationOutcome {
+  orders.process_mutation(
+    store.new(),
+    synthetic_identity.new(),
+    "/admin/api/2025-01/graphql.json",
+    "
+      mutation Create($order: OrderCreateOrderInput!) {
+        orderCreate(order: $order) {
+          order { id }
+          userErrors { field message }
+        }
+      }
+    ",
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("currency", root_field.StringVal("CAD")),
+            #("transactions", root_field.ListVal([])),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("Mandate item")),
+                    #("quantity", root_field.IntVal(1)),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("25.00")),
+                                #("currencyCode", root_field.StringVal("CAD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
+fn create_mandate_payment_for_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order_id: String,
+  idempotency_key: String,
+  auto_capture: Option(Bool),
+) -> MutationOutcome {
+  let variables =
+    dict.from_list([
+      #("id", root_field.StringVal(order_id)),
+      #("mandateId", root_field.StringVal("gid://shopify/PaymentMandate/test")),
+      #("idempotencyKey", root_field.StringVal(idempotency_key)),
+      #("autoCapture", case auto_capture {
+        Some(value) -> root_field.BoolVal(value)
+        None -> root_field.NullVal
+      }),
+    ])
+  orders.process_mutation(
+    store,
+    identity,
+    "/admin/api/2025-01/graphql.json",
+    "
+      mutation Mandate($id: ID!, $mandateId: ID!, $idempotencyKey: String!, $autoCapture: Boolean) {
+        orderCreateMandatePayment(id: $id, mandateId: $mandateId, idempotencyKey: $idempotencyKey, autoCapture: $autoCapture) {
+          job { id done }
+          paymentReferenceId
+          order {
+            id
+            displayFinancialStatus
+            capturable
+            totalCapturable
+            transactions {
+              kind
+              status
+              gateway
+              paymentReferenceId
+            }
+          }
+          userErrors { field message }
+        }
+      }
+    ",
+    variables,
+    empty_upstream_context(),
+  )
 }

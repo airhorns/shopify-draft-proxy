@@ -14,7 +14,9 @@ payments endpoint group. `orderCapture`, `transactionVoid`,
 owned by the order graph because their observable effects are order financial
 status, capturable balance, received/outstanding/net payment totals, payment
 gateway names, transactions, and mutation-log replay. The current executable
-evidence is local runtime coverage plus order parity specs, not real gateway or
+evidence is local runtime coverage plus order/payment parity specs, including
+the mandate payment composite reference, idempotency, missing-`mandateId`, and
+`autoCapture: false` authorization branches; it is not real gateway or
 mandate-service execution.
 
 The review also kept `paymentReminderSend` in the sensitive side-effect bucket:

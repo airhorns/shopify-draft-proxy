@@ -1,7 +1,7 @@
 mutation OrderPaymentMandate(
   $id: ID!
   $mandateId: ID!
-  $idempotencyKey: String
+  $idempotencyKey: String!
   $amount: MoneyInput
   $autoCapture: Boolean
 ) {

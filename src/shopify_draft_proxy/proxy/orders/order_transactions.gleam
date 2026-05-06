@@ -1483,12 +1483,15 @@ pub fn create_mandate_payment(
       ])
     }
     False -> {
-      let #(payment_reference_id, identity_after_reference) =
-        synthetic_identity.make_synthetic_gid(identity, "PaymentReference")
+      let payment_reference_id = order.id <> "/" <> idempotency_key
+      let transaction_kind = case read_bool(input, "autoCapture", True) {
+        True -> "SALE"
+        False -> "AUTHORIZATION"
+      }
       let #(transaction, identity_after_transaction) =
         build_payment_transaction(
-          identity_after_reference,
-          "MANDATE_PAYMENT",
+          identity,
+          transaction_kind,
           payment_input_money_set(input, order, amount),
           Some("mandate"),
           None,
