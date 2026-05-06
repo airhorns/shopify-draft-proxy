@@ -1,0 +1,8 @@
+#graphql
+query BulkOperationsInvalidOperationTypeValidation {
+  bulkOperations(first: 1, query: "operation_type:EXPORT") {
+    nodes {
+      id
+    }
+  }
+}
