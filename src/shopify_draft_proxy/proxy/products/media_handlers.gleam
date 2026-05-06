@@ -71,6 +71,7 @@ pub fn product_create_media_payload(
     src_object([
       #("__typename", SrcString("ProductCreateMediaPayload")),
       #("media", SrcList(list.map(media, product_media_source))),
+      #("userErrors", user_errors_source(user_errors)),
       #("mediaUserErrors", user_errors_source(user_errors)),
       #("product", product_value),
     ]),
@@ -98,6 +99,7 @@ pub fn product_delete_media_payload(
       #("__typename", SrcString("ProductDeleteMediaPayload")),
       #("deletedMediaIds", deleted_media_ids),
       #("deletedProductImageIds", deleted_product_image_ids),
+      #("userErrors", user_errors_source(user_errors)),
       #("mediaUserErrors", user_errors_source(user_errors)),
       #("product", product_value),
     ]),
