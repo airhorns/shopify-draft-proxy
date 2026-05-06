@@ -304,10 +304,13 @@ pub fn build_address(
   fallback_last_name: Option(String),
 ) -> CustomerAddressRecord {
   let first_name =
-    read_obj_string(input, "firstName") |> option.or(fallback_first_name)
+    read_normalized_optional_string(input, "firstName")
+    |> option.or(fallback_first_name)
   let last_name =
-    read_obj_string(input, "lastName") |> option.or(fallback_last_name)
+    read_normalized_optional_string(input, "lastName")
+    |> option.or(fallback_last_name)
   let #(zone, _) = resolve_address_zone(input, None, [])
+  let city = read_normalized_optional_string(input, "city")
   CustomerAddressRecord(
     id: id,
     customer_id: customer_id,
@@ -315,22 +318,18 @@ pub fn build_address(
     position: position,
     first_name: first_name,
     last_name: last_name,
-    address1: read_obj_string(input, "address1"),
-    address2: read_obj_string(input, "address2"),
-    city: read_obj_string(input, "city"),
-    company: read_obj_string(input, "company"),
+    address1: read_normalized_optional_string(input, "address1"),
+    address2: read_normalized_optional_string(input, "address2"),
+    city: city,
+    company: read_normalized_optional_string(input, "company"),
     province: zone.province,
     province_code: zone.province_code,
     country: zone.country,
     country_code_v2: zone.country_code,
-    zip: read_obj_string(input, "zip"),
-    phone: read_obj_string(input, "phone"),
+    zip: read_normalized_optional_string(input, "zip"),
+    phone: read_normalized_optional_string(input, "phone"),
     name: build_display_name(first_name, last_name, None),
-    formatted_area: formatted_area(
-      read_obj_string(input, "city"),
-      zone.province_code,
-      zone.country,
-    ),
+    formatted_area: formatted_area(city, zone.province_code, zone.country),
   )
 }
 
@@ -340,30 +339,35 @@ pub fn merge_address(
   input: Dict(String, root_field.ResolvedValue),
 ) -> CustomerAddressRecord {
   let first_name =
-    read_obj_string(input, "firstName") |> option.or(existing.first_name)
+    update_trimmed_nullable_string(existing.first_name, input, "firstName")
   let last_name =
-    read_obj_string(input, "lastName") |> option.or(existing.last_name)
+    update_trimmed_nullable_string(existing.last_name, input, "lastName")
   let #(zone, _) = resolve_address_zone(input, Some(existing), [])
+  let city = update_trimmed_nullable_string(existing.city, input, "city")
   CustomerAddressRecord(
     ..existing,
     first_name: first_name,
     last_name: last_name,
-    address1: read_obj_string(input, "address1") |> option.or(existing.address1),
-    address2: read_obj_string(input, "address2") |> option.or(existing.address2),
-    city: read_obj_string(input, "city") |> option.or(existing.city),
-    company: read_obj_string(input, "company") |> option.or(existing.company),
+    address1: update_trimmed_nullable_string(
+      existing.address1,
+      input,
+      "address1",
+    ),
+    address2: update_trimmed_nullable_string(
+      existing.address2,
+      input,
+      "address2",
+    ),
+    city: city,
+    company: update_trimmed_nullable_string(existing.company, input, "company"),
     province: zone.province,
     province_code: zone.province_code,
     country: zone.country,
     country_code_v2: zone.country_code,
-    zip: read_obj_string(input, "zip") |> option.or(existing.zip),
-    phone: read_obj_string(input, "phone") |> option.or(existing.phone),
+    zip: update_trimmed_nullable_string(existing.zip, input, "zip"),
+    phone: update_trimmed_nullable_string(existing.phone, input, "phone"),
     name: build_display_name(first_name, last_name, None),
-    formatted_area: formatted_area(
-      read_obj_string(input, "city") |> option.or(existing.city),
-      zone.province_code,
-      zone.country,
-    ),
+    formatted_area: formatted_area(city, zone.province_code, zone.country),
   )
 }
 
@@ -686,7 +690,256 @@ pub fn validate_address_input(
   field_prefix: List(String),
 ) -> List(UserError) {
   let #(_, errors) = resolve_address_zone(input, existing, field_prefix)
-  errors
+  list.flatten([
+    address_blank_errors(input, field_prefix),
+    address_length_errors(input, field_prefix),
+    address_html_errors(input, field_prefix),
+    address_url_errors(input, field_prefix),
+    address_emoji_errors(input, field_prefix),
+    errors,
+  ])
+}
+
+@internal
+pub fn address_blank_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> List(UserError) {
+  case field_prefix, address_has_content(input) {
+    ["addresses", _], False -> [
+      UserError(
+        field_prefix,
+        "Customer address cannot be blank.",
+        Some("INVALID"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+@internal
+pub fn address_has_content(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  ["address1", "address2", "city", "company", "zip", "phone"]
+  |> list.any(fn(field) {
+    read_normalized_optional_string(input, field) != None
+  })
+  || first_non_empty_string([
+    read_obj_string(input, "country"),
+    read_obj_string(input, "countryCode"),
+    read_obj_string(input, "countryCodeV2"),
+    read_obj_string(input, "province"),
+    read_obj_string(input, "provinceCode"),
+  ])
+  != None
+}
+
+@internal
+pub fn address_length_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> List(UserError) {
+  [
+    #("address1", "Address1"),
+    #("address2", "Address2"),
+    #("city", "City"),
+    #("company", "Company"),
+    #("zip", "Zip"),
+  ]
+  |> list.flat_map(fn(field) {
+    let #(name, label) = field
+    address_max_length_error(input, name, label, field_prefix)
+  })
+}
+
+@internal
+pub fn address_max_length_error(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  label: String,
+  field_prefix: List(String),
+) -> List(UserError) {
+  case read_normalized_optional_string(input, field) {
+    Some(value) -> {
+      case string.length(value) > 255 {
+        True -> [
+          UserError(
+            list.append(field_prefix, [field]),
+            label <> " is too long (maximum is 255 characters)",
+            Some("TOO_LONG"),
+          ),
+        ]
+        False -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+@internal
+pub fn address_html_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> List(UserError) {
+  [
+    #("address1", "Address1"),
+    #("address2", "Address2"),
+    #("city", "City"),
+    #("company", "Company"),
+    #("zip", "Zip"),
+    #("phone", "Phone"),
+  ]
+  |> list.flat_map(fn(field) {
+    let #(name, label) = field
+    address_invalid_substring_error(
+      input,
+      name,
+      label,
+      field_prefix,
+      contains_html_tags,
+      " cannot contain HTML tags",
+    )
+  })
+}
+
+@internal
+pub fn address_url_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> List(UserError) {
+  [#("city", "City"), #("zip", "Zip"), #("phone", "Phone")]
+  |> list.flat_map(fn(field) {
+    let #(name, label) = field
+    address_invalid_substring_error(
+      input,
+      name,
+      label,
+      field_prefix,
+      contains_url_substring,
+      " cannot contain URL",
+    )
+  })
+}
+
+@internal
+pub fn address_emoji_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> List(UserError) {
+  [
+    #("address1", "Address1"),
+    #("address2", "Address2"),
+    #("city", "City"),
+    #("company", "Company"),
+    #("zip", "Zip"),
+    #("phone", "Phone"),
+  ]
+  |> list.flat_map(fn(field) {
+    let #(name, label) = field
+    address_invalid_substring_error(
+      input,
+      name,
+      label,
+      field_prefix,
+      contains_emoji,
+      " cannot contain emojis",
+    )
+  })
+}
+
+@internal
+pub fn address_invalid_substring_error(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  label: String,
+  field_prefix: List(String),
+  predicate: fn(String) -> Bool,
+  message_suffix: String,
+) -> List(UserError) {
+  case read_normalized_optional_string(input, field) {
+    Some(value) ->
+      case predicate(value) {
+        True -> [
+          UserError(
+            list.append(field_prefix, [field]),
+            label <> message_suffix,
+            Some("INVALID"),
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn contains_url_substring(value: String) -> Bool {
+  let lowered = string.lowercase(value)
+  string.contains(lowered, "http://")
+  || string.contains(lowered, "https://")
+  || string.contains(lowered, "www.")
+}
+
+@internal
+pub fn contains_emoji(value: String) -> Bool {
+  value
+  |> string.to_utf_codepoints
+  |> list.any(fn(codepoint) {
+    codepoint
+    |> string.utf_codepoint_to_int
+    |> is_emoji_codepoint
+  })
+}
+
+@internal
+pub fn is_emoji_codepoint(code: Int) -> Bool {
+  code >= 0x1f000
+  && code <= 0x1faff
+  || code >= 0x2600
+  && code <= 0x27bf
+  || code >= 0xfe00
+  && code <= 0xfe0f
+  || code == 0x200d
+}
+
+@internal
+pub fn contains_html_tags(value: String) -> Bool {
+  contains_html_tag_loop(string.to_graphemes(value))
+}
+
+@internal
+pub fn contains_html_tag_loop(graphemes: List(String)) -> Bool {
+  case graphemes {
+    [] -> False
+    ["<", next, ..rest] ->
+      case is_html_tag_start(next) && contains_tag_close(rest) {
+        True -> True
+        False -> contains_html_tag_loop([next, ..rest])
+      }
+    [_, ..rest] -> contains_html_tag_loop(rest)
+  }
+}
+
+@internal
+pub fn contains_tag_close(graphemes: List(String)) -> Bool {
+  case graphemes {
+    [] -> False
+    ["<", ..] -> False
+    [">", ..] -> True
+    [_, ..rest] -> contains_tag_close(rest)
+  }
+}
+
+@internal
+pub fn is_html_tag_start(value: String) -> Bool {
+  value == "/"
+  || value == "!"
+  || value == "?"
+  || string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    value,
+  )
 }
 
 @internal

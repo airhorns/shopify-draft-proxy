@@ -1,0 +1,621 @@
+{
+  "capturedAt": "2026-05-06T21:23:46.948Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setupCustomer": {
+    "variables": {
+      "input": {
+        "email": "address-validation-1778102625085@example.com",
+        "firstName": "Address",
+        "lastName": "Validation"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10586121699634",
+            "firstName": "Address",
+            "lastName": "Validation",
+            "displayName": "Address Validation",
+            "email": "address-validation-1778102625085@example.com",
+            "locale": "en",
+            "note": null,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "tags": [],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "address-validation-1778102625085@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "createdAt": "2026-05-06T21:23:45Z",
+            "updatedAt": "2026-05-06T21:23:45Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateTrimmedSuccess": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "firstName": "  Trim  ",
+        "lastName": "  Create  ",
+        "address1": " 100 Main ",
+        "address2": " Suite 4 ",
+        "city": " Ottawa ",
+        "company": " Acme ",
+        "countryCode": "CA",
+        "provinceCode": "ON",
+        "zip": " K1A 0B1 ",
+        "phone": " +14155550123 "
+      },
+      "setAsDefault": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12058083033394?model_name=CustomerAddress",
+            "firstName": "Trim",
+            "lastName": "Create",
+            "address1": "100 Main",
+            "address2": "Suite 4",
+            "city": "Ottawa",
+            "company": "Acme",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "K1A 0B1",
+            "phone": "+14155550123",
+            "name": "Trim Create",
+            "formattedArea": "Ottawa ON, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateTrimmedSuccess": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "addressId": "<trimmed-address-id>",
+      "address": {
+        "address1": " 200 Side ",
+        "city": " Toronto ",
+        "countryCode": "CA",
+        "provinceCode": "ON",
+        "zip": " M5H 2N2 ",
+        "phone": " +14155550124 "
+      },
+      "setAsDefault": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressUpdate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12058083033394?model_name=CustomerAddress",
+            "firstName": "Trim",
+            "lastName": "Create",
+            "address1": "200 Side",
+            "address2": "Suite 4",
+            "city": "Toronto",
+            "company": "Acme",
+            "country": "Canada",
+            "countryCodeV2": "CA",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "zip": "M5H 2N2",
+            "phone": "+14155550124",
+            "name": "Trim Create",
+            "formattedArea": "Toronto ON, Canada"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateTooLong": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "address1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "countryCode": "CA",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "address1"],
+              "message": "Address1 is too long (maximum is 255 characters)"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateCityHtml": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "city": "<script>",
+        "countryCode": "CA",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "city"],
+              "message": "City cannot contain HTML tags"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateCityUrl": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "city": "https://evil.example",
+        "countryCode": "CA",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "city"],
+              "message": "City cannot contain URL"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateZipUrl": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "zip": "H0H 0H0 https://x",
+        "countryCode": "CA",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "zip"],
+              "message": "Zip cannot contain URL"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreatePhoneHtml": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "phone": "<a>+1 613",
+        "countryCode": "CA",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "phone"],
+              "message": "Phone cannot contain HTML tags"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateAddressEmoji": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "address1": "100 Main 😀",
+        "countryCode": "CA",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "address1"],
+              "message": "Address1 cannot contain emojis"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateBlankAccepted": {
+    "variables": {
+      "customerId": "<setup-customer-id>",
+      "address": {
+        "address1": " ",
+        "address2": " ",
+        "city": " ",
+        "company": " ",
+        "zip": " ",
+        "phone": " "
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": {
+            "id": "gid://shopify/MailingAddress/12058083131698?model_name=CustomerAddress",
+            "firstName": "Address",
+            "lastName": "Validation",
+            "address1": null,
+            "address2": null,
+            "city": null,
+            "company": null,
+            "country": null,
+            "countryCodeV2": null,
+            "province": null,
+            "provinceCode": null,
+            "zip": null,
+            "phone": null,
+            "name": "Address Validation",
+            "formattedArea": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerCreateNestedTooLong": {
+    "variables": {
+      "input": {
+        "email": "address-validation-too-long-1778102625085@example.com",
+        "addresses": [
+          {
+            "address1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "countryCode": "CA",
+            "provinceCode": "ON"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["addresses", "0", "address1"],
+              "message": "Address1 is too long (maximum is 255 characters)"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerCreateNestedBlank": {
+    "variables": {
+      "input": {
+        "email": "address-validation-blank-1778102625085@example.com",
+        "addresses": [
+          {
+            "address1": " ",
+            "address2": " ",
+            "city": " ",
+            "company": " ",
+            "zip": " ",
+            "phone": " "
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["addresses", "0"],
+              "message": "Customer address cannot be blank."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerSetNestedBlank": {
+    "variables": {
+      "identifier": {
+        "id": "<setup-customer-id>"
+      },
+      "input": {
+        "email": "address-validation-1778102625085@example.com",
+        "addresses": [
+          {
+            "address1": " ",
+            "address2": " ",
+            "city": " ",
+            "company": " ",
+            "zip": " ",
+            "phone": " "
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": {
+            "id": "gid://shopify/Customer/10586121699634",
+            "firstName": "Address",
+            "lastName": "Validation",
+            "displayName": "Address Validation",
+            "email": "address-validation-1778102625085@example.com",
+            "locale": "en",
+            "note": null,
+            "verifiedEmail": true,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "tags": [],
+            "state": "DISABLED",
+            "canDelete": true,
+            "defaultEmailAddress": {
+              "emailAddress": "address-validation-1778102625085@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "defaultAddress": {
+              "address1": null,
+              "city": null,
+              "province": null,
+              "country": null,
+              "zip": null,
+              "formattedArea": null
+            },
+            "addressesV2": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MailingAddress/12058083197234?model_name=CustomerAddress",
+                  "address1": null,
+                  "city": null,
+                  "province": null,
+                  "country": null,
+                  "zip": null,
+                  "formattedArea": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMjA1ODA4MzE5NzIzNCwibGFzdF92YWx1ZSI6IjEyMDU4MDgzMTk3MjM0In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjA1ODA4MzE5NzIzNCwibGFzdF92YWx1ZSI6IjEyMDU4MDgzMTk3MjM0In0="
+              }
+            },
+            "createdAt": "2026-05-06T21:23:45Z",
+            "updatedAt": "2026-05-06T21:23:46Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "id": "gid://shopify/Customer/10586121699634",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10586121699634",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": "Captured Admin GraphQL evidence for customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior."
+}
