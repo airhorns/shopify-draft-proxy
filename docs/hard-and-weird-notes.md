@@ -116,25 +116,40 @@ Two nearby 2026-04 traps from the same capture:
 
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 
-HAR-755 is implemented from the Business Customers package guardrail that caps
-bulk action inputs at 50 entries before per-entry processing. A live feasibility
-probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04 did not
-produce one clean parity fixture for that contract:
+The local runtime has focused tests for the Business Customers package guardrail
+that caps selected B2B bulk action inputs at 50 entries before per-entry
+processing. Live probes against `harry-test-heelo.myshopify.com` show the public
+Admin API does not expose one uniform version of that contract. Admin GraphQL
+2025-01 and 2026-04 behaved the same in the latest probes:
 
-- `companiesDelete(companyIds: <51 missing-style gids>)` returned
-  `LIMIT_REACHED`, but with message
+- `companiesDelete(companyIds: <51 ids>)` returned request-level
+  `LIMIT_REACHED` at `["companyIds"]`, but with message
   `Exceeded max input size of 50. Consider using BulkOperation.` and
   `deletedCompanyIds: null`.
-- `companyContactAssignRoles(rolesToAssign: <51 valid role specs>)` accepted
-  the request and created 51 role assignments on a disposable company.
+- `companyContactsDelete(companyContactIds: <51 valid ids>)` and
+  `companyLocationsDelete(companyLocationIds: <51 valid ids>)` accepted all 51
+  deletes. With 51 missing IDs, both roots processed every input and returned
+  51 indexed `RESOURCE_NOT_FOUND` errors instead of a request-size limit.
+- `companyContactAssignRoles(rolesToAssign: <51 valid location-role specs>)`
+  accepted the request and returned 51 role assignments.
+- `companyContactRevokeRoles(roleAssignmentIds: <51 valid ids>)` returned
+  request-level `LIMIT_REACHED` at `["roleAssignmentIds"]`, with the public
+  max-input message and `revokedRoleAssignmentIds: null`.
+- `companyLocationAssignRoles(rolesToAssign: <51 valid contact-role specs>)`
+  returned request-level `LIMIT_REACHED` at `["rolesToAssign"]`, with the public
+  max-input message and `roleAssignments: null`; at 50 valid specs the same
+  store hit the location customer-assignment cap after 49 successes, returning
+  indexed `LIMIT_REACHED` at `["rolesToAssign", "49"]`.
 - `currentStaffMember` and `staffMembers` remain access denied for the current
-  conformance token, so valid staff-assignment bulk limit evidence cannot be
-  captured on this host.
+  conformance token. Missing staff-member and staff-assignment IDs are processed
+  per entry, so valid staff-assignment bulk-limit evidence is still blocked by
+  staff catalog access on this host.
 
-Practical rule: keep HAR-755 runtime coverage focused on the internal B2B
-request guard contract and avoid adding a checked-in parity spec for the public
-2026-04 probe until a future live target reproduces the intended branch across
-the affected roots.
+Practical rule: treat the internal package guard and the public Admin behavior
+as root-specific evidence surfaces. Do not add a broad parity fixture for the
+internal guard. Add checked-in parity only when a specific root is deliberately
+aligned to a captured public branch with matching message, payload nullability,
+and mutation/no-mutation behavior.
 
 ## Current: Selling-plan product membership guardrails can diverge from public Admin probes
 
