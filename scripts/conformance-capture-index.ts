@@ -1264,6 +1264,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-handle-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-handle-validation-conformance.ts',
+    purpose:
+      'metaobjectCreate, metaobjectUpdate, and metaobjectUpsert explicit handle format, length, and blank validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject_handle_validation.json`,
+      'config/parity-specs/metaobjects/metaobject_handle_validation.json',
+      'config/parity-requests/metaobjects/metaobject_handle_validation_*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one valid row; rejected validation branches create no rows, then cleanup deletes the row and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-upsert-recovery-and-prefixes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-upsert-recovery-and-prefixes-conformance.ts',

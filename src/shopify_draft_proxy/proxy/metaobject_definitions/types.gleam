@@ -53,6 +53,8 @@ const domain_name = "metaobjects"
 
 const execution_name = "stage-locally"
 
+const metaobject_handle_max_length = 255
+
 @internal
 pub type UserError {
   UserError(
@@ -966,6 +968,25 @@ pub fn build_metaobject_from_create_input(
   input: Dict(String, root_field.ResolvedValue),
   definition: MetaobjectDefinitionRecord,
 ) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
+  let handle_errors = explicit_metaobject_create_handle_validation_errors(input)
+  case handle_errors {
+    [_, ..] -> #(None, identity, handle_errors)
+    [] ->
+      build_metaobject_from_valid_create_input(
+        store,
+        identity,
+        input,
+        definition,
+      )
+  }
+}
+
+fn build_metaobject_from_valid_create_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
   let #(fields, errors) =
     build_metaobject_fields_from_input(
       store,
@@ -1010,6 +1031,27 @@ pub fn build_metaobject_from_create_input(
 
 @internal
 pub fn apply_metaobject_update_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  existing: MetaobjectRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
+  let handle_errors = explicit_metaobject_update_handle_validation_errors(input)
+  case handle_errors {
+    [_, ..] -> #(None, identity, handle_errors)
+    [] ->
+      apply_valid_metaobject_update_input(
+        store,
+        identity,
+        existing,
+        input,
+        definition,
+      )
+  }
+}
+
+fn apply_valid_metaobject_update_input(
   store: Store,
   identity: SyntheticIdentityRegistry,
   existing: MetaobjectRecord,
@@ -1090,6 +1132,107 @@ pub fn apply_metaobject_update_input(
       }
     }
   }
+}
+
+@internal
+pub fn explicit_metaobject_create_handle_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "handle") {
+    Ok(root_field.StringVal(value)) ->
+      validate_explicit_metaobject_create_handle(value)
+    _ -> []
+  }
+}
+
+@internal
+pub fn explicit_metaobject_update_handle_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "handle") {
+    Ok(root_field.StringVal(value)) ->
+      validate_explicit_metaobject_update_handle(value)
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_explicit_metaobject_create_handle(
+  handle: String,
+) -> List(UserError) {
+  case string.trim(handle) {
+    "" -> []
+    _ ->
+      validate_explicit_metaobject_handle_with_field(
+        handle,
+        ["metaobject", "handle"],
+        False,
+      )
+  }
+}
+
+@internal
+pub fn validate_explicit_metaobject_update_handle(
+  handle: String,
+) -> List(UserError) {
+  validate_explicit_metaobject_handle_with_field(
+    handle,
+    ["metaobject", "handle"],
+    True,
+  )
+}
+
+@internal
+pub fn validate_explicit_metaobject_handle_with_field(
+  handle: String,
+  field: List(String),
+  reject_blank: Bool,
+) -> List(UserError) {
+  let trimmed = string.trim(handle)
+  case trimmed == "" && reject_blank {
+    True -> [
+      metaobject_handle_user_error(field, "Handle can't be blank", "BLANK"),
+      metaobject_handle_user_error(field, "Handle is invalid", "INVALID"),
+    ]
+    False ->
+      case string.length(handle) > metaobject_handle_max_length {
+        True -> [
+          metaobject_handle_user_error(
+            field,
+            "Handle is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False ->
+          case is_valid_metaobject_handle(handle) {
+            True -> []
+            False -> [
+              metaobject_handle_user_error(
+                field,
+                "Handle contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+                "INVALID",
+              ),
+            ]
+          }
+      }
+  }
+}
+
+fn metaobject_handle_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> UserError {
+  UserError(Some(field), message, code, None, None)
+}
+
+@internal
+pub fn is_valid_metaobject_handle(handle: String) -> Bool {
+  handle != ""
+  && list.all(string.to_utf_codepoints(handle), fn(char) {
+    let codepoint = string.utf_codepoint_to_int(char)
+    is_definition_type_codepoint(codepoint)
+  })
 }
 
 @internal
@@ -1522,10 +1665,21 @@ pub fn unique_handle_loop(
         store,
         type_,
         base,
-        base <> "-" <> int.to_string(suffix + 1),
+        append_metaobject_handle_suffix(base, suffix),
         suffix + 1,
       )
   }
+}
+
+fn append_metaobject_handle_suffix(base: String, suffix: Int) -> String {
+  let suffix_text = "-" <> int.to_string(suffix)
+  let max_base_length =
+    metaobject_handle_max_length - string.length(suffix_text)
+  let base = case string.length(base) > max_base_length {
+    True -> string.slice(base, 0, max_base_length)
+    False -> base
+  }
+  base <> suffix_text
 }
 
 @internal
@@ -1535,6 +1689,32 @@ pub fn normalize_metaobject_handle(value: String) -> String {
   |> string.lowercase
   |> string.replace(" ", "-")
   |> string.replace("_", "-")
+  |> strip_invalid_metaobject_handle_characters
+  |> cap_metaobject_handle
+}
+
+fn strip_invalid_metaobject_handle_characters(value: String) -> String {
+  value
+  |> string.to_utf_codepoints
+  |> list.filter(fn(char) {
+    is_valid_normalized_metaobject_handle_codepoint(string.utf_codepoint_to_int(
+      char,
+    ))
+  })
+  |> string.from_utf_codepoints
+}
+
+fn is_valid_normalized_metaobject_handle_codepoint(codepoint: Int) -> Bool {
+  is_ascii_lowercase_letter(codepoint)
+  || is_ascii_digit(codepoint)
+  || codepoint == 45
+}
+
+fn cap_metaobject_handle(value: String) -> String {
+  case string.length(value) > metaobject_handle_max_length {
+    True -> string.slice(value, 0, metaobject_handle_max_length)
+    False -> value
+  }
 }
 
 @internal

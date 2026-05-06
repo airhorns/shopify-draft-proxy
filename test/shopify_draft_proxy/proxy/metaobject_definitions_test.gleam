@@ -172,6 +172,20 @@ fn create_definition_with_access_query(type_: String) -> String {
   }"
 }
 
+fn assert_metaobject_handle_user_error(
+  serialized: String,
+  root: String,
+  field: String,
+  code: String,
+) {
+  assert string.contains(
+    serialized,
+    "\"" <> root <> "\":{\"metaobject\":null,\"userErrors\":[",
+  )
+  assert string.contains(serialized, "\"field\":" <> field)
+  assert string.contains(serialized, "\"code\":\"" <> code <> "\"")
+}
+
 fn int_range(from from: Int, to to: Int) -> List(Int) {
   case from > to {
     True -> []
@@ -557,6 +571,202 @@ pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
     )
   assert read_back
     == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
+}
+
+pub fn metaobject_mutations_validate_explicit_handle_format_length_and_blank_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_handle_validation"),
+    )
+  let valid_entry =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_handle_validation\", handle: \"valid\", fields: [{ key: \"title\", value: \"Valid\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  let too_long_handle = string.repeat("x", times: 256)
+
+  let create_invalid =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_handle_validation\", handle: \"hello world!\", fields: [{ key: \"title\", value: \"Invalid\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(create_invalid.data),
+    "metaobjectCreate",
+    "[\"metaobject\",\"handle\"]",
+    "INVALID",
+  )
+  assert create_invalid.staged_resource_ids == []
+  assert create_invalid.log_drafts == []
+
+  let create_too_long =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_handle_validation\", handle: \""
+        <> too_long_handle
+        <> "\", fields: [{ key: \"title\", value: \"Too long\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(create_too_long.data),
+    "metaobjectCreate",
+    "[\"metaobject\",\"handle\"]",
+    "TOO_LONG",
+  )
+  assert create_too_long.staged_resource_ids == []
+  assert create_too_long.log_drafts == []
+
+  let create_blank =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_handle_validation\", handle: \"\", fields: [{ key: \"title\", value: \"Blank\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert json.to_string(create_blank.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/3?shopify-draft-proxy=synthetic\",\"handle\":\"blank\"},\"userErrors\":[]}}}"
+
+  let update_invalid =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\", metaobject: { handle: \"hello world!\", fields: [{ key: \"title\", value: \"Invalid\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(update_invalid.data),
+    "metaobjectUpdate",
+    "[\"metaobject\",\"handle\"]",
+    "INVALID",
+  )
+  assert update_invalid.staged_resource_ids == []
+  assert update_invalid.log_drafts == []
+
+  let update_too_long =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\", metaobject: { handle: \""
+        <> too_long_handle
+        <> "\", fields: [{ key: \"title\", value: \"Too long\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(update_too_long.data),
+    "metaobjectUpdate",
+    "[\"metaobject\",\"handle\"]",
+    "TOO_LONG",
+  )
+  assert update_too_long.staged_resource_ids == []
+  assert update_too_long.log_drafts == []
+
+  let update_blank =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\", metaobject: { handle: \"\", fields: [{ key: \"title\", value: \"Blank\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(update_blank.data),
+    "metaobjectUpdate",
+    "[\"metaobject\",\"handle\"]",
+    "BLANK",
+  )
+  assert string.contains(
+    json.to_string(update_blank.data),
+    "\"code\":\"INVALID\"",
+  )
+  assert update_blank.staged_resource_ids == []
+  assert update_blank.log_drafts == []
+
+  let upsert_invalid =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_handle_validation\", handle: \"hello world!\" }, metaobject: { fields: [{ key: \"title\", value: \"Invalid\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(upsert_invalid.data),
+    "metaobjectUpsert",
+    "[\"handle\",\"handle\"]",
+    "INVALID",
+  )
+  assert upsert_invalid.staged_resource_ids == []
+  assert upsert_invalid.log_drafts == []
+
+  let upsert_too_long =
+    run_mutation(
+      valid_entry.store,
+      valid_entry.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_handle_validation\", handle: \""
+        <> too_long_handle
+        <> "\" }, metaobject: { fields: [{ key: \"title\", value: \"Too long\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert_metaobject_handle_user_error(
+    json.to_string(upsert_too_long.data),
+    "metaobjectUpsert",
+    "[\"handle\",\"handle\"]",
+    "TOO_LONG",
+  )
+  assert upsert_too_long.staged_resource_ids == []
+  assert upsert_too_long.log_drafts == []
+
+  let upsert_blank =
+    run_mutation(
+      create_blank.store,
+      create_blank.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_handle_validation\", handle: \"\" }, metaobject: { fields: [{ key: \"title\", value: \"Blank\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  assert string.contains(
+    json.to_string(upsert_blank.data),
+    "\"handle\":\"blank-1\"",
+  )
+  assert string.contains(json.to_string(upsert_blank.data), "\"userErrors\":[]")
+
+  let read_back =
+    run_query(
+      valid_entry.store,
+      "{ valid: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id handle displayName } byHandle: metaobjectByHandle(handle: { type: \"codex_handle_validation\", handle: \"valid\" }) { id handle displayName } }",
+    )
+  assert read_back
+    == "{\"data\":{\"valid\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"valid\",\"displayName\":\"Valid\"},\"byHandle\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"valid\",\"displayName\":\"Valid\"}}}"
+}
+
+pub fn metaobject_create_omitted_handle_generates_valid_capped_handle_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_auto_handle"),
+    )
+  let capped = string.repeat("a", times: 255)
+  let create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_auto_handle\", fields: [{ key: \"title\", value: \""
+        <> string.repeat("A", times: 260)
+        <> " ! héllo/world\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(create.data)
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"handle\":\"" <> capped <> "\"")
+
+  let duplicate =
+    run_mutation(
+      create.store,
+      create.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_auto_handle\", fields: [{ key: \"title\", value: \""
+        <> string.repeat("A", times: 260)
+        <> " ! héllo/world\" }] }) { metaobject { id handle } userErrors { field message code } } }",
+    )
+  let duplicate_handle = string.repeat("a", times: 253) <> "-1"
+  assert string.contains(json.to_string(duplicate.data), "\"userErrors\":[]")
+  assert string.contains(
+    json.to_string(duplicate.data),
+    "\"handle\":\"" <> duplicate_handle <> "\"",
+  )
 }
 
 pub fn metaobject_upsert_exact_match_preserves_updated_at_and_skips_log_test() {
