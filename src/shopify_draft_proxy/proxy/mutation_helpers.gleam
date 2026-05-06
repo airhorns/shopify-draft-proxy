@@ -1523,6 +1523,12 @@ fn collect_unknown_variable_fields(
           explanation: "Field is not defined on " <> io.name,
           message: None,
         ))
+      "DiscountCustomerSelectionInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
       _, None -> Error(Nil)
     }
   })

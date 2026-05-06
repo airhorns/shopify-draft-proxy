@@ -2848,6 +2848,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-customer-selection-internal-conflicts',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-customer-selection-internal-conflicts-conformance.ts',
+    purpose:
+      'Discount customerSelection all/customers and all/customerSegments BadRequest parity plus public-schema saved-search coercion for basic code create inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-customer-selection-internal-conflicts.json`,
+      'config/parity-specs/discounts/discount-customer-selection-internal-conflicts.json',
+      'config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer, one disposable customer segment, and one valid disposable code discount for the happy path; deletes all created resources after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-minimum-requirement-exclusivity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-minimum-requirement-exclusivity-conformance.ts',
