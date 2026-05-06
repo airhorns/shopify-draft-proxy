@@ -574,6 +574,123 @@ pub fn definition_and_entry_lifecycle_stages_locally_test() {
     == "{\"data\":{\"detail\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"byHandle\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"catalog\":{\"nodes\":[{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"}]},\"definition\":{\"metaobjectsCount\":1}}}"
 }
 
+pub fn metaobject_capabilities_require_enabled_definition_capability_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_key_query("codex_capability_guards", "title"),
+    )
+
+  let rejected_create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_capability_guards\",
+          handle: \"rejected-publishable\",
+          capabilities: { publishable: { status: \"ACTIVE\" } },
+          fields: [{ key: \"title\", value: \"Rejected\" }]
+        }) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(rejected_create.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"capabilities\",\"publishable\"],\"message\":\"Capability is not enabled on this definition\",\"code\":\"CAPABILITY_NOT_ENABLED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert rejected_create.log_drafts == []
+  assert rejected_create.staged_resource_ids == []
+
+  let after_rejected_create =
+    run_query(
+      rejected_create.store,
+      "{ metaobjects(type: \"codex_capability_guards\", first: 5) { nodes { handle } } definition: metaobjectDefinitionByType(type: \"codex_capability_guards\") { metaobjectsCount } }",
+    )
+  assert after_rejected_create
+    == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
+
+  let create_existing =
+    run_mutation(
+      rejected_create.store,
+      rejected_create.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_capability_guards\",
+          handle: \"existing\",
+          fields: [{ key: \"title\", value: \"Original\" }]
+        }) {
+          metaobject { id handle displayName }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert json.to_string(create_existing.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"existing\",\"displayName\":\"Original\"},\"userErrors\":[]}}}"
+
+  let rejected_update =
+    run_mutation(
+      create_existing.store,
+      create_existing.identity,
+      "mutation {
+        metaobjectUpdate(
+          id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",
+          metaobject: {
+            handle: \"changed\",
+            capabilities: { onlineStore: { templateSuffix: \"landing\" } },
+            fields: [{ key: \"title\", value: \"Changed\" }]
+          }
+        ) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(rejected_update.data)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"capabilities\",\"onlineStore\"],\"message\":\"Capability is not enabled on this definition\",\"code\":\"CAPABILITY_NOT_ENABLED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert rejected_update.log_drafts == []
+  assert rejected_update.staged_resource_ids == []
+
+  let after_rejected_update =
+    run_query(
+      rejected_update.store,
+      "{ detail: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id handle displayName fields { key value } } byChanged: metaobjectByHandle(handle: { type: \"codex_capability_guards\", handle: \"changed\" }) { id } }",
+    )
+  assert after_rejected_update
+    == "{\"data\":{\"detail\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"existing\",\"displayName\":\"Original\",\"fields\":[{\"key\":\"title\",\"value\":\"Original\"}]},\"byChanged\":null}}"
+
+  let rejected_upsert =
+    run_mutation(
+      rejected_update.store,
+      rejected_update.identity,
+      "mutation {
+        metaobjectUpsert(
+          handle: { type: \"codex_capability_guards\", handle: \"upserted\" },
+          metaobject: {
+            capabilities: { publishable: { status: \"ACTIVE\" }, onlineStore: { templateSuffix: \"landing\" } },
+            fields: [{ key: \"title\", value: \"Upserted\" }]
+          }
+        ) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(rejected_upsert.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"capabilities\",\"publishable\"],\"message\":\"Capability is not enabled on this definition\",\"code\":\"CAPABILITY_NOT_ENABLED\",\"elementKey\":null,\"elementIndex\":null},{\"field\":[\"capabilities\",\"onlineStore\"],\"message\":\"Capability is not enabled on this definition\",\"code\":\"CAPABILITY_NOT_ENABLED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert rejected_upsert.log_drafts == []
+  assert rejected_upsert.staged_resource_ids == []
+
+  let after_rejected_upsert =
+    run_query(
+      rejected_upsert.store,
+      "{ existing: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { handle } upserted: metaobjectByHandle(handle: { type: \"codex_capability_guards\", handle: \"upserted\" }) { id } definition: metaobjectDefinitionByType(type: \"codex_capability_guards\") { metaobjectsCount } }",
+    )
+  assert after_rejected_upsert
+    == "{\"data\":{\"existing\":{\"handle\":\"existing\"},\"upserted\":null,\"definition\":{\"metaobjectsCount\":1}}}"
+}
+
 pub fn metaobject_update_missing_id_returns_record_not_found_test() {
   let outcome =
     run_mutation(
