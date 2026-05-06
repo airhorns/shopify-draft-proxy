@@ -1770,7 +1770,7 @@ pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
     == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":\"2024-01-01T00:00:00.000Z\",\"status\":\"EXPIRED\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
 }
 
-pub fn activate_missing_app_function_returns_internal_error_test() {
+pub fn activate_missing_app_function_returns_base_internal_error_test() {
   let id = "gid://shopify/DiscountCodeNode/app-missing"
   let function_id = "gid://shopify/ShopifyFunction/missing"
   let record =
@@ -1791,17 +1791,58 @@ pub fn activate_missing_app_function_returns_internal_error_test() {
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
 }
 
-pub fn activate_unknown_discount_uses_invalid_error_code_test() {
+pub fn automatic_activate_missing_app_function_returns_base_internal_error_test() {
+  let id = "gid://shopify/DiscountAutomaticNode/app-missing"
+  let function_id = "gid://shopify/ShopifyFunction/missing"
+  let record =
+    automatic_app_discount_record(
+      id,
+      "EXPIRED",
+      "2023-01-01T00:00:00Z",
+      Some("2023-02-01T00:00:00Z"),
+      Some(function_id),
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
   let outcome =
-    run_mutation(
-      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountAutomaticActivate(id: \"gid://shopify/DiscountAutomaticNode/app-missing\") { automaticDiscountNode { id } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountAutomaticActivate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
+}
+
+pub fn activate_deactivate_unknown_discounts_keep_id_invalid_error_test() {
+  let code_activate =
+    run_mutation(
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let code_deactivate =
+    run_mutation(
+      "mutation { discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let automatic_activate =
+    run_mutation(
+      "mutation { discountAutomaticActivate(id: \"gid://shopify/DiscountAutomaticNode/0\") { automaticDiscountNode { id } userErrors { field message code } } }",
+    )
+  let automatic_deactivate =
+    run_mutation(
+      "mutation { discountAutomaticDeactivate(id: \"gid://shopify/DiscountAutomaticNode/0\") { automaticDiscountNode { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(code_activate.data)
     == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(code_deactivate.data)
+    == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(automatic_activate.data)
+    == "{\"data\":{\"discountAutomaticActivate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(automatic_deactivate.data)
+    == "{\"data\":{\"discountAutomaticDeactivate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
 }
 
 fn code_discount_record(
@@ -1830,6 +1871,43 @@ fn code_discount_record(
           [
             #("__typename", CapturedString(typename)),
             #("title", CapturedString("Test discount")),
+            #("status", CapturedString(status)),
+            #("startsAt", CapturedString(starts_at)),
+            #("endsAt", case ends_at {
+              Some(value) -> CapturedString(value)
+              None -> CapturedNull
+            }),
+          ]
+          |> with_app_discount_type(function_id),
+        ),
+      ),
+    ]),
+    cursor: None,
+  )
+}
+
+fn automatic_app_discount_record(
+  id: String,
+  status: String,
+  starts_at: String,
+  ends_at: Option(String),
+  function_id: Option(String),
+) -> DiscountRecord {
+  DiscountRecord(
+    id: id,
+    owner_kind: "automatic",
+    discount_type: "app",
+    title: Some("Test automatic discount"),
+    status: status,
+    code: None,
+    payload: CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "automaticDiscount",
+        CapturedObject(
+          [
+            #("__typename", CapturedString("DiscountAutomaticApp")),
+            #("title", CapturedString("Test automatic discount")),
             #("status", CapturedString(status)),
             #("startsAt", CapturedString(starts_at)),
             #("endsAt", case ends_at {
