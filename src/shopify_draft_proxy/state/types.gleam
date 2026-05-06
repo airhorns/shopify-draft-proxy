@@ -244,7 +244,12 @@ pub type InventoryLocationRecord {
 }
 
 pub type LocationRecord {
-  LocationRecord(id: String, name: String, cursor: Option(String))
+  LocationRecord(
+    id: String,
+    name: String,
+    is_active: Option(Bool),
+    cursor: Option(String),
+  )
 }
 
 pub type PublicationRecord {
