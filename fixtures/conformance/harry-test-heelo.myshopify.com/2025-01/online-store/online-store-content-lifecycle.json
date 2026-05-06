@@ -1,18 +1,20 @@
 {
-  "capturedAt": "2026-04-26T01:51:09.438Z",
+  "scenarioId": "online-store-content-lifecycle",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T22:15:51.452Z",
   "interactions": [
     {
       "name": "baseline-catalog-detail-empty",
       "request": {
-        "query": "query OnlineStoreContentBaseline($missingArticle: ID!, $missingBlog: ID!, $missingPage: ID!) {\n    article(id: $missingArticle) { id title }\n    blog(id: $missingBlog) { id title }\n    page(id: $missingPage) { id title }\n    articles(first: 5) { edges { cursor node { id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix blog { id title handle } author { name } commentsCount { count precision } comments(first: 5) { nodes { id body status } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    articleAuthors(first: 5) { edges { cursor node { name } } nodes { name } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    articleTags(limit: 20)\n    blogs(first: 5) { edges { cursor node { id title handle commentPolicy tags templateSuffix createdAt updatedAt articlesCount { count precision } articles(first: 5) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    blogsCount { count precision }\n    pages(first: 5) { edges { cursor node { id title handle body bodySummary isPublished publishedAt createdAt updatedAt templateSuffix } } nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    pagesCount { count precision }\n    comments(first: 5) { edges { cursor node { id body bodyHtml status isPublished publishedAt createdAt updatedAt ip userAgent article { id title } author { name } } } nodes { id body status } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  }",
+        "query": "#graphql\n  query OnlineStoreContentBaseline($missingArticle: ID!, $missingBlog: ID!, $missingPage: ID!) {\n    article(id: $missingArticle) { id title }\n    blog(id: $missingBlog) { id title }\n    page(id: $missingPage) { id title }\n    articles(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          body\n          summary\n          tags\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          templateSuffix\n          blog { id title handle }\n          author { name }\n          commentsCount { count precision }\n          comments(first: 5) {\n            nodes { id body status }\n            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n          }\n        }\n      }\n      nodes { id title handle }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articleAuthors(first: 5) {\n      edges { cursor node { name } }\n      nodes { name }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    articleTags(limit: 20)\n    blogs(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          commentPolicy\n          tags\n          templateSuffix\n          createdAt\n          updatedAt\n          articlesCount { count precision }\n          articles(first: 5) {\n            nodes { id title handle }\n            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n          }\n        }\n      }\n      nodes { id title handle }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    blogsCount { count precision }\n    pages(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          body\n          bodySummary\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          templateSuffix\n        }\n      }\n      nodes { id title handle }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    pagesCount { count precision }\n    comments(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          body\n          bodyHtml\n          status\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          ip\n          userAgent\n          article { id title }\n          author { name }\n        }\n      }\n      nodes { id body status }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
         "variables": {
           "missingArticle": "gid://shopify/Article/999999999999",
           "missingBlog": "gid://shopify/Blog/999999999999",
           "missingPage": "gid://shopify/Page/999999999999"
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "article": null,
@@ -102,6 +104,21 @@
                   "updatedAt": "2025-03-26T19:50:42Z",
                   "templateSuffix": "contact"
                 }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoxNTkzOTkzMTM3MTQsImxhc3RfdmFsdWUiOiIxNTkzOTkzMTM3MTQifQ==",
+                "node": {
+                  "id": "gid://shopify/Page/159399313714",
+                  "title": "Your Privacy Choices",
+                  "handle": "data-sharing-opt-out",
+                  "body": "<link rel=\"stylesheet\" type=\"text/css\" href=\"https://cdn.shopify.com/shopifycloud/privacy-banner/data-sale-opt-out.css\">\n<meta charset=\"utf-8\"> <p>As described in our Privacy Policy, we collect personal information from your interactions with us and our website, including through cookies and similar technologies. We may also share this personal information with third parties, including advertising partners. We do this in order to show you ads on other websites that are more relevant to your interests and for other reasons outlined in our privacy policy.</p> <p>Sharing of personal information for targeted advertising based on your interaction on different websites may be considered \"sales\", \"sharing\", or \"targeted advertising\" under certain U.S. state privacy laws. Depending on where you live, you may have the right to opt out of these activities. If you would like to exercise this opt-out right, please follow the instructions below.</p> <p>If you visit our website with the Global Privacy Control opt-out preference signal enabled, depending on where you are, we will treat this as a request to opt-out of activity that may be considered a “sale” or “sharing” of personal information or other uses that may be considered targeted advertising for the device and browser you used to visit our website.</p>\n<div id=\"pc--optOutFormContainer\" data-not-applicable='To opt out of the \"sale\" or \"sharing\" of your personal information collected using cookies and other device-based identifiers as described above, you must be browsing from one of the applicable US states referred to above.' data-description='If you would like to opt out of activity that may be considered a \"sale\" or \"share,\" or \"targeted advertising\", please submit your email.' data-email-label='Email' data-success='Opted-out successfully' data-error='A problem occurred, try submitting your email again' data-form-description='By clicking “opt out“, the browser on this device will be opted out of sharing personal data. If you select the checkbox and enter an email, the related customer account will also be opted out.' data-form-email-label='Email' data-form-opt-out-account-label=\"Don't share data from my account (optional)\" data-form-button-text='Opt out' data-form-opted-out='The browser on this device is opted out' data-form-success='You have successfully opted out' data-form-error='A problem occurred, please try again' ></div>\n<script src=\"https://cdn.shopify.com/shopifycloud/privacy-banner/data-sale-opt-out.js\" defer></script> <script src=\"https://js.hcaptcha.com/1/api.js?onload=optOutOnLoad\" defer></script>",
+                  "bodySummary": "As described in our Privacy Policy, we collect personal information from your interactions with us and our website, including through cookies and s...",
+                  "isPublished": false,
+                  "publishedAt": null,
+                  "createdAt": "2026-04-28T01:47:43Z",
+                  "updatedAt": "2026-05-05T09:22:50Z",
+                  "templateSuffix": null
+                }
               }
             ],
             "nodes": [
@@ -109,17 +126,22 @@
                 "id": "gid://shopify/Page/148098187570",
                 "title": "Contact",
                 "handle": "contact"
+              },
+              {
+                "id": "gid://shopify/Page/159399313714",
+                "title": "Your Privacy Choices",
+                "handle": "data-sharing-opt-out"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
               "startCursor": "eyJsYXN0X2lkIjoxNDgwOTgxODc1NzAsImxhc3RfdmFsdWUiOiIxNDgwOTgxODc1NzAifQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxNDgwOTgxODc1NzAsImxhc3RfdmFsdWUiOiIxNDgwOTgxODc1NzAifQ=="
+              "endCursor": "eyJsYXN0X2lkIjoxNTkzOTkzMTM3MTQsImxhc3RfdmFsdWUiOiIxNTkzOTkzMTM3MTQifQ=="
             }
           },
           "pagesCount": {
-            "count": 1,
+            "count": 2,
             "precision": "EXACT"
           },
           "comments": {
@@ -147,25 +169,29 @@
       }
     },
     {
-      "name": "blogCreate-success",
+      "name": "content-create-success",
       "request": {
-        "query": "mutation BlogCreate($blog: BlogCreateInput!) { blogCreate(blog: $blog) { blog { id title handle createdAt updatedAt commentPolicy templateSuffix tags articlesCount { count precision } } userErrors { field message } } }",
+        "query": "mutation OnlineStoreContentCreate($blog: BlogCreateInput!, $page: PageCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      templateSuffix\n      tags\n      articlesCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n      templateSuffix\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "blog": {
-            "title": "HAR 303 Blog 20260426015107",
+            "title": "Online Store Content Lifecycle 20260506221549 Blog",
             "commentPolicy": "MODERATED"
+          },
+          "page": {
+            "title": "Online Store Content Lifecycle 20260506221549 Page",
+            "body": "<p>Online store content lifecycle page body</p>",
+            "isPublished": true
           }
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "blogCreate": {
             "blog": {
-              "id": "gid://shopify/Blog/120846418226",
-              "title": "HAR 303 Blog 20260426015107",
-              "handle": "har-303-blog-20260426015107",
-              "createdAt": "2026-04-26T01:51:07Z",
-              "updatedAt": "2026-04-26T01:51:07Z",
+              "id": "gid://shopify/Blog/120991973682",
+              "title": "Online Store Content Lifecycle 20260506221549 Blog",
+              "handle": "online-store-content-lifecycle-20260506221549-blog",
               "commentPolicy": "MODERATED",
               "templateSuffix": null,
               "tags": [],
@@ -175,85 +201,15 @@
               }
             },
             "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 20,
-            "actualQueryCost": 20,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1935,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "blogUpdate-success",
-      "request": {
-        "query": "mutation BlogUpdate($id: ID!, $blog: BlogUpdateInput!) { blogUpdate(id: $id, blog: $blog) { blog { id title handle createdAt updatedAt commentPolicy } userErrors { field message } } }",
-        "variables": {
-          "id": "gid://shopify/Blog/120846418226",
-          "blog": {
-            "title": "HAR 303 Blog Updated 20260426015107",
-            "commentPolicy": "CLOSED"
-          }
-        }
-      },
-      "response": {
-        "data": {
-          "blogUpdate": {
-            "blog": {
-              "id": "gid://shopify/Blog/120846418226",
-              "title": "HAR 303 Blog Updated 20260426015107",
-              "handle": "har-303-blog-20260426015107",
-              "createdAt": "2026-04-26T01:51:07Z",
-              "updatedAt": "2026-04-26T01:51:07Z",
-              "commentPolicy": "CLOSED"
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1941,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "pageCreate-success",
-      "request": {
-        "query": "mutation PageCreate($page: PageCreateInput!) { pageCreate(page: $page) { page { id title handle createdAt updatedAt body bodySummary isPublished publishedAt templateSuffix } userErrors { field message } } }",
-        "variables": {
-          "page": {
-            "title": "HAR 303 Page 20260426015107",
-            "body": "<p>HAR 303 page body</p>",
-            "isPublished": true
-          }
-        }
-      },
-      "response": {
-        "data": {
+          },
           "pageCreate": {
             "page": {
-              "id": "gid://shopify/Page/159358845234",
-              "title": "HAR 303 Page 20260426015107",
-              "handle": "har-303-page-20260426015107",
-              "createdAt": "2026-04-26T01:51:07Z",
-              "updatedAt": "2026-04-26T01:51:07Z",
-              "body": "<p>HAR 303 page body</p>",
-              "bodySummary": "HAR 303 page body",
+              "id": "gid://shopify/Page/159639044402",
+              "title": "Online Store Content Lifecycle 20260506221549 Page",
+              "handle": "online-store-content-lifecycle-20260506221549-page",
+              "body": "<p>Online store content lifecycle page body</p>",
+              "bodySummary": "Online store content lifecycle page body",
               "isPublished": true,
-              "publishedAt": "2026-04-26T01:51:07Z",
               "templateSuffix": null
             },
             "userErrors": []
@@ -261,11 +217,11 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1945,
+              "currentlyAvailable": 1926,
               "restoreRate": 100
             }
           }
@@ -273,88 +229,43 @@
       }
     },
     {
-      "name": "pageUpdate-success",
+      "name": "article-create-success",
       "request": {
-        "query": "mutation PageUpdate($id: ID!, $page: PageUpdateInput!) { pageUpdate(id: $id, page: $page) { page { id title handle createdAt updatedAt body bodySummary isPublished publishedAt } userErrors { field message } } }",
-        "variables": {
-          "id": "gid://shopify/Page/159358845234",
-          "page": {
-            "title": "HAR 303 Page Updated 20260426015107",
-            "body": "<p>Updated page body</p>",
-            "isPublished": false
-          }
-        }
-      },
-      "response": {
-        "data": {
-          "pageUpdate": {
-            "page": {
-              "id": "gid://shopify/Page/159358845234",
-              "title": "HAR 303 Page Updated 20260426015107",
-              "handle": "har-303-page-20260426015107",
-              "createdAt": "2026-04-26T01:51:07Z",
-              "updatedAt": "2026-04-26T01:51:07Z",
-              "body": "<p>Updated page body</p>",
-              "bodySummary": "Updated page body",
-              "isPublished": false,
-              "publishedAt": null
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1961,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "articleCreate-success",
-      "request": {
-        "query": "mutation ArticleCreate($article: ArticleCreateInput!) { articleCreate(article: $article) { article { id title handle createdAt updatedAt body summary tags isPublished publishedAt templateSuffix author { name } blog { id title handle } commentsCount { count precision } } userErrors { field message } } }",
+        "query": "mutation OnlineStoreContentArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      templateSuffix\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n      commentsCount {\n        count\n        precision\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "article": {
-            "blogId": "gid://shopify/Blog/120846418226",
-            "title": "HAR 303 Article 20260426015107",
-            "body": "<p>HAR 303 article body</p>",
-            "summary": "<p>Summary</p>",
+            "blogId": "gid://shopify/Blog/120991973682",
+            "title": "Online Store Content Lifecycle 20260506221549 Article",
+            "body": "<p>Online store content lifecycle article body</p>",
+            "summary": "<p>Lifecycle summary</p>",
             "isPublished": true,
-            "tags": ["har-303", "online-store"],
+            "tags": ["content-lifecycle-20260506221549", "online-store"],
             "author": {
-              "name": "HAR 303 Author"
+              "name": "Online Store Lifecycle Author"
             }
           }
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "articleCreate": {
             "article": {
-              "id": "gid://shopify/Article/683099521330",
-              "title": "HAR 303 Article 20260426015107",
-              "handle": "har-303-article-20260426015107",
-              "createdAt": "2026-04-26T01:51:08Z",
-              "updatedAt": "2026-04-26T01:51:08Z",
-              "body": "<p>HAR 303 article body</p>",
-              "summary": "<p>Summary</p>",
-              "tags": ["har-303", "online-store"],
+              "id": "gid://shopify/Article/683156111666",
+              "title": "Online Store Content Lifecycle 20260506221549 Article",
+              "handle": "online-store-content-lifecycle-20260506221549-article",
+              "body": "<p>Online store content lifecycle article body</p>",
+              "summary": "<p>Lifecycle summary</p>",
+              "tags": ["content-lifecycle-20260506221549", "online-store"],
               "isPublished": true,
-              "publishedAt": "2026-04-26T01:51:08Z",
               "templateSuffix": null,
               "author": {
-                "name": "HAR 303 Author"
+                "name": "Online Store Lifecycle Author"
               },
               "blog": {
-                "id": "gid://shopify/Blog/120846418226",
-                "title": "HAR 303 Blog Updated 20260426015107",
-                "handle": "har-303-blog-20260426015107"
+                "id": "gid://shopify/Blog/120991973682",
+                "title": "Online Store Content Lifecycle 20260506221549 Blog",
+                "handle": "online-store-content-lifecycle-20260506221549-blog"
               },
               "commentsCount": {
                 "count": 0,
@@ -370,7 +281,7 @@
             "actualQueryCost": 22,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1954,
+              "currentlyAvailable": 1925,
               "restoreRate": 100
             }
           }
@@ -378,36 +289,67 @@
       }
     },
     {
-      "name": "articleUpdate-success",
+      "name": "content-update-success",
       "request": {
-        "query": "mutation ArticleUpdate($id: ID!, $article: ArticleUpdateInput!) { articleUpdate(id: $id, article: $article) { article { id title handle createdAt updatedAt body summary tags isPublished publishedAt author { name } } userErrors { field message } } }",
+        "query": "mutation OnlineStoreContentUpdate(\n  $blogId: ID!\n  $blog: BlogUpdateInput!\n  $pageId: ID!\n  $page: PageUpdateInput!\n  $articleId: ID!\n  $article: ArticleUpdateInput!\n) {\n  blogUpdate(id: $blogId, blog: $blog) {\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  pageUpdate(id: $pageId, page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n      publishedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  articleUpdate(id: $articleId, article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      publishedAt\n      author {\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Article/683099521330",
+          "blogId": "gid://shopify/Blog/120991973682",
+          "blog": {
+            "title": "Online Store Content Lifecycle 20260506221549 Blog Updated",
+            "commentPolicy": "CLOSED"
+          },
+          "pageId": "gid://shopify/Page/159639044402",
+          "page": {
+            "title": "Online Store Content Lifecycle 20260506221549 Page Updated",
+            "body": "<p>Updated online store content lifecycle page body</p>",
+            "isPublished": false
+          },
+          "articleId": "gid://shopify/Article/683156111666",
           "article": {
-            "title": "HAR 303 Article Updated 20260426015107",
+            "title": "Online Store Content Lifecycle 20260506221549 Article Updated",
             "isPublished": false,
             "author": {
-              "name": "HAR 303 Updated Author"
+              "name": "Online Store Lifecycle Author Updated"
             }
           }
         }
       },
+      "status": 200,
       "response": {
         "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120991973682",
+              "title": "Online Store Content Lifecycle 20260506221549 Blog Updated",
+              "handle": "online-store-content-lifecycle-20260506221549-blog",
+              "commentPolicy": "CLOSED"
+            },
+            "userErrors": []
+          },
+          "pageUpdate": {
+            "page": {
+              "id": "gid://shopify/Page/159639044402",
+              "title": "Online Store Content Lifecycle 20260506221549 Page Updated",
+              "handle": "online-store-content-lifecycle-20260506221549-page",
+              "body": "<p>Updated online store content lifecycle page body</p>",
+              "bodySummary": "Updated online store content lifecycle page body",
+              "isPublished": false,
+              "publishedAt": null
+            },
+            "userErrors": []
+          },
           "articleUpdate": {
             "article": {
-              "id": "gid://shopify/Article/683099521330",
-              "title": "HAR 303 Article Updated 20260426015107",
-              "handle": "har-303-article-20260426015107",
-              "createdAt": "2026-04-26T01:51:08Z",
-              "updatedAt": "2026-04-26T01:51:08Z",
-              "body": "<p>HAR 303 article body</p>",
-              "summary": "<p>Summary</p>",
-              "tags": ["har-303", "online-store"],
+              "id": "gid://shopify/Article/683156111666",
+              "title": "Online Store Content Lifecycle 20260506221549 Article Updated",
+              "handle": "online-store-content-lifecycle-20260506221549-article",
+              "body": "<p>Online store content lifecycle article body</p>",
+              "summary": "<p>Lifecycle summary</p>",
+              "tags": ["content-lifecycle-20260506221549", "online-store"],
               "isPublished": false,
               "publishedAt": null,
               "author": {
-                "name": "HAR 303 Updated Author"
+                "name": "Online Store Lifecycle Author Updated"
               }
             },
             "userErrors": []
@@ -415,11 +357,11 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 11,
-            "actualQueryCost": 11,
+            "requestedQueryCost": 31,
+            "actualQueryCost": 31,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1970,
+              "currentlyAvailable": 1913,
               "restoreRate": 100
             }
           }
@@ -429,18 +371,20 @@
     {
       "name": "downstream-read-after-writes",
       "request": {
-        "query": "query Downstream($blogId: ID!, $pageId: ID!, $articleId: ID!) { blog(id: $blogId) { id title articlesCount { count precision } articles(first: 5) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } page(id: $pageId) { id title isPublished } article(id: $articleId) { id title isPublished blog { id title } } articles(first: 5, query: \"har-303\") { nodes { id title tags } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } articleAuthors(first: 10) { nodes { name } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } articleTags(limit: 20) blogsCount { count precision } pagesCount { count precision } }",
+        "query": "query OnlineStoreContentReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: ID!, $articleQuery: String!) {\n  blog(id: $blogId) {\n    id\n    title\n    articlesCount {\n      count\n      precision\n    }\n    articles(first: 5) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  page(id: $pageId) {\n    id\n    title\n    isPublished\n  }\n  article(id: $articleId) {\n    id\n    title\n    isPublished\n    blog {\n      id\n      title\n    }\n  }\n  articles(first: 5, query: $articleQuery) {\n    nodes {\n      id\n      title\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  articleAuthors(first: 10) {\n    nodes {\n      name\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  articleTags(limit: 20)\n  blogsCount {\n    count\n    precision\n  }\n  pagesCount {\n    count\n    precision\n  }\n}\n",
         "variables": {
-          "blogId": "gid://shopify/Blog/120846418226",
-          "pageId": "gid://shopify/Page/159358845234",
-          "articleId": "gid://shopify/Article/683099521330"
+          "blogId": "gid://shopify/Blog/120991973682",
+          "pageId": "gid://shopify/Page/159639044402",
+          "articleId": "gid://shopify/Article/683156111666",
+          "articleQuery": "content-lifecycle-20260506221549"
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "blog": {
-            "id": "gid://shopify/Blog/120846418226",
-            "title": "HAR 303 Blog Updated 20260426015107",
+            "id": "gid://shopify/Blog/120991973682",
+            "title": "Online Store Content Lifecycle 20260506221549 Blog Updated",
             "articlesCount": {
               "count": 1,
               "precision": "EXACT"
@@ -448,31 +392,31 @@
             "articles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Article/683099521330",
-                  "title": "HAR 303 Article Updated 20260426015107",
-                  "handle": "har-303-article-20260426015107"
+                  "id": "gid://shopify/Article/683156111666",
+                  "title": "Online Store Content Lifecycle 20260506221549 Article Updated",
+                  "handle": "online-store-content-lifecycle-20260506221549-article"
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo2ODMwOTk1MjEzMzAsImxhc3RfdmFsdWUiOiI2ODMwOTk1MjEzMzAifQ==",
-                "endCursor": "eyJsYXN0X2lkIjo2ODMwOTk1MjEzMzAsImxhc3RfdmFsdWUiOiI2ODMwOTk1MjEzMzAifQ=="
+                "startCursor": "eyJsYXN0X2lkIjo2ODMxNTYxMTE2NjYsImxhc3RfdmFsdWUiOiI2ODMxNTYxMTE2NjYifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODMxNTYxMTE2NjYsImxhc3RfdmFsdWUiOiI2ODMxNTYxMTE2NjYifQ=="
               }
             }
           },
           "page": {
-            "id": "gid://shopify/Page/159358845234",
-            "title": "HAR 303 Page Updated 20260426015107",
+            "id": "gid://shopify/Page/159639044402",
+            "title": "Online Store Content Lifecycle 20260506221549 Page Updated",
             "isPublished": false
           },
           "article": {
-            "id": "gid://shopify/Article/683099521330",
-            "title": "HAR 303 Article Updated 20260426015107",
+            "id": "gid://shopify/Article/683156111666",
+            "title": "Online Store Content Lifecycle 20260506221549 Article Updated",
             "isPublished": false,
             "blog": {
-              "id": "gid://shopify/Blog/120846418226",
-              "title": "HAR 303 Blog Updated 20260426015107"
+              "id": "gid://shopify/Blog/120991973682",
+              "title": "Online Store Content Lifecycle 20260506221549 Blog Updated"
             }
           },
           "articles": {
@@ -487,23 +431,23 @@
           "articleAuthors": {
             "nodes": [
               {
-                "name": "HAR 303 Updated Author"
+                "name": "Online Store Lifecycle Author Updated"
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoiSEFSIDMwMyBVcGRhdGVkIEF1dGhvciIsImxhc3RfdmFsdWUiOiJIQVIgMzAzIFVwZGF0ZWQgQXV0aG9yIn0=",
-              "endCursor": "eyJsYXN0X2lkIjoiSEFSIDMwMyBVcGRhdGVkIEF1dGhvciIsImxhc3RfdmFsdWUiOiJIQVIgMzAzIFVwZGF0ZWQgQXV0aG9yIn0="
+              "startCursor": "eyJsYXN0X2lkIjoiT25saW5lIFN0b3JlIExpZmVjeWNsZSBBdXRob3IgVXBkYXRlZCIsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgTGlmZWN5Y2xlIEF1dGhvciBVcGRhdGVkIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoiT25saW5lIFN0b3JlIExpZmVjeWNsZSBBdXRob3IgVXBkYXRlZCIsImxhc3RfdmFsdWUiOiJPbmxpbmUgU3RvcmUgTGlmZWN5Y2xlIEF1dGhvciBVcGRhdGVkIn0="
             }
           },
-          "articleTags": ["har-303", "online-store"],
+          "articleTags": ["content-lifecycle-20260506221549", "online-store"],
           "blogsCount": {
             "count": 2,
             "precision": "EXACT"
           },
           "pagesCount": {
-            "count": 2,
+            "count": 3,
             "precision": "EXACT"
           }
         },
@@ -513,7 +457,7 @@
             "actualQueryCost": 46,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1942,
+              "currentlyAvailable": 1898,
               "restoreRate": 100
             }
           }
@@ -523,11 +467,12 @@
     {
       "name": "comment-moderation-unknown-id",
       "request": {
-        "query": "mutation CommentUnknown($id: ID!) { commentApprove(id: $id) { comment { id status } userErrors { field message } } commentSpam(id: $id) { comment { id status } userErrors { field message } } commentNotSpam(id: $id) { comment { id status } userErrors { field message } } commentDelete(id: $id) { deletedCommentId userErrors { field message } } }",
+        "query": "mutation OnlineStoreContentCommentUnknown($id: ID!) {\n  commentApprove(id: $id) {\n    comment {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  commentSpam(id: $id) {\n    comment {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  commentNotSpam(id: $id) {\n    comment {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  commentDelete(id: $id) {\n    deletedCommentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "id": "gid://shopify/Comment/999999999999"
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "commentApprove": {
@@ -573,7 +518,7 @@
             "actualQueryCost": 40,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1925,
+              "currentlyAvailable": 1877,
               "restoreRate": 100
             }
           }
@@ -581,83 +526,38 @@
       }
     },
     {
-      "name": "articleDelete-success",
+      "name": "content-delete-success",
       "request": {
-        "query": "mutation ArticleDelete($id: ID!) { articleDelete(id: $id) { deletedArticleId userErrors { field message } } }",
+        "query": "mutation OnlineStoreContentDelete($articleId: ID!, $pageId: ID!, $blogId: ID!) {\n  articleDelete(id: $articleId) {\n    deletedArticleId\n    userErrors {\n      field\n      message\n    }\n  }\n  pageDelete(id: $pageId) {\n    deletedPageId\n    userErrors {\n      field\n      message\n    }\n  }\n  blogDelete(id: $blogId) {\n    deletedBlogId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Article/683099521330"
+          "articleId": "gid://shopify/Article/683156111666",
+          "pageId": "gid://shopify/Page/159639044402",
+          "blogId": "gid://shopify/Blog/120991973682"
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "articleDelete": {
-            "deletedArticleId": "gid://shopify/Article/683099521330",
+            "deletedArticleId": "gid://shopify/Article/683156111666",
             "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1924,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "pageDelete-success",
-      "request": {
-        "query": "mutation PageDelete($id: ID!) { pageDelete(id: $id) { deletedPageId userErrors { field message } } }",
-        "variables": {
-          "id": "gid://shopify/Page/159358845234"
-        }
-      },
-      "response": {
-        "data": {
+          },
           "pageDelete": {
-            "deletedPageId": "gid://shopify/Page/159358845234",
+            "deletedPageId": "gid://shopify/Page/159639044402",
             "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1930,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "blogDelete-success",
-      "request": {
-        "query": "mutation BlogDelete($id: ID!) { blogDelete(id: $id) { deletedBlogId userErrors { field message } } }",
-        "variables": {
-          "id": "gid://shopify/Blog/120846418226"
-        }
-      },
-      "response": {
-        "data": {
+          },
           "blogDelete": {
-            "deletedBlogId": "gid://shopify/Blog/120846418226",
+            "deletedBlogId": "gid://shopify/Blog/120991973682",
             "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1933,
+              "currentlyAvailable": 1861,
               "restoreRate": 100
             }
           }
@@ -665,11 +565,12 @@
       }
     }
   ],
+  "cleanup": [],
   "upstreamCalls": [
     {
       "operationName": "OnlineStoreBlogsCountHydrate",
       "variables": {},
-      "query": "hand-synthesized from captured baseline blogsCount",
+      "query": "query OnlineStoreBlogsCountHydrate { blogsCount { count precision } }",
       "response": {
         "status": 200,
         "body": {
@@ -685,13 +586,13 @@
     {
       "operationName": "OnlineStorePagesCountHydrate",
       "variables": {},
-      "query": "hand-synthesized from captured baseline pagesCount",
+      "query": "query OnlineStorePagesCountHydrate { pagesCount { count precision } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "pagesCount": {
-              "count": 1,
+              "count": 2,
               "precision": "EXACT"
             }
           }

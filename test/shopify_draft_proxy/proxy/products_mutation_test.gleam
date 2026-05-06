@@ -4236,7 +4236,7 @@ pub fn inventory_shipment_extended_roots_stage_locally_test() {
     )
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"incoming\",\"quantity\":3},{\"name\":\"reserved\",\"quantity\":0}]}]}}}}"
+    == "{\"data\":{\"inventoryItem\":{\"variant\":{\"inventoryQuantity\":1},\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"incoming\",\"quantity\":3}]}]}}}}"
   let assert [
     create_entry,
     transit_entry,
