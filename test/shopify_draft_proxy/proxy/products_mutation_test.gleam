@@ -109,6 +109,25 @@ fn assert_selling_plan_group_create_user_error(
   assert entry.staged_resource_ids == []
 }
 
+fn assert_variant_relationship_user_error(
+  query: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) =
+    run_product_mutation(variant_relationship_store(), query)
+
+  assert status == 200
+  assert string.contains(body, "\"parentProductVariants\":null")
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
 fn graphql_document_request(query: String) -> Request {
   Request(
     method: "POST",
@@ -222,6 +241,57 @@ pub fn selling_plan_group_update_rejects_input_validation_errors_test() {
   assert create_entry.status == store_types.Staged
   assert update_entry.status == store_types.Failed
   assert update_entry.staged_resource_ids == []
+}
+
+pub fn product_variant_relationship_bulk_update_rejects_parent_child_validation_errors_test() {
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/default\\\", quantity: 1 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "CIRCULAR_REFERENCE",
+    "[\"input\"]",
+    "A parent product variant cannot contain itself as a component.",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 0 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "INVALID",
+    "[\"input\",\"0\",\"productVariantRelationshipsToCreate\",\"0\",\"quantity\"]",
+    "Quantity must be greater than or equal to 1",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 10000 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "INVALID",
+    "[\"input\",\"0\",\"productVariantRelationshipsToCreate\",\"0\",\"quantity\"]",
+    "Quantity must be less than or equal to 9999",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductId: \\\"gid://shopify/Product/optioned\\\", parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 1 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "INVALID_INPUT",
+    "[\"input\",\"0\"]",
+    "Only one of parentProductId or parentProductVariantId can be specified.",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 1 }, { id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 2 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "CANNOT_HAVE_DUPLICATED_PRODUCTS",
+    "[\"input\",\"0\",\"productVariantRelationshipsToCreate\",\"1\",\"id\"]",
+    "cannot_have_duplicated_products",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 1 }] }, { parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToCreate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 1 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "CANNOT_HAVE_DUPLICATED_PRODUCTS",
+    "[\"input\",\"1\"]",
+    "cannot_have_duplicated_products",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToUpdate: [{ id: \\\"gid://shopify/ProductVariant/child\\\", quantity: 1 }] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "NOT_A_CHILD",
+    "[\"input\",\"0\",\"productVariantRelationshipsToUpdate\",\"0\",\"id\"]",
+    "not_a_child",
+  )
+  assert_variant_relationship_user_error(
+    "mutation { productVariantRelationshipBulkUpdate(input: [{ parentProductVariantId: \\\"gid://shopify/ProductVariant/default\\\", productVariantRelationshipsToRemove: [\\\"gid://shopify/ProductVariant/child\\\"] }]) { parentProductVariants { id } userErrors { field message code } } }",
+    "NOT_A_CHILD",
+    "[\"input\",\"0\",\"productVariantRelationshipsToRemove\",\"0\"]",
+    "not_a_child",
+  )
 }
 
 pub fn product_join_selling_plan_groups_rejects_empty_ids_test() {
@@ -3301,6 +3371,12 @@ fn default_option_store() -> store.Store {
   ])
 }
 
+fn variant_relationship_store() -> store.Store {
+  default_option_store()
+  |> store.upsert_base_products([child_product()])
+  |> store.upsert_base_product_variants([child_variant()])
+}
+
 fn selling_plan_membership_store(
   groups: List(SellingPlanGroupRecord),
 ) -> store.Store {
@@ -3868,6 +3944,15 @@ fn default_product() -> ProductRecord {
   )
 }
 
+fn child_product() -> ProductRecord {
+  ProductRecord(
+    ..default_product(),
+    id: "gid://shopify/Product/child",
+    title: "Child Component",
+    handle: "child-component",
+  )
+}
+
 fn option_update_variant() -> ProductVariantRecord {
   ProductVariantRecord(
     id: "gid://shopify/ProductVariant/optioned",
@@ -3899,6 +3984,27 @@ fn option_update_variant() -> ProductVariantRecord {
     ),
     contextual_pricing: None,
     cursor: None,
+  )
+}
+
+fn child_variant() -> ProductVariantRecord {
+  ProductVariantRecord(
+    ..default_variant(),
+    id: "gid://shopify/ProductVariant/child",
+    product_id: "gid://shopify/Product/child",
+    title: "Child Variant",
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: "gid://shopify/InventoryItem/child",
+        tracked: Some(False),
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [],
+      ),
+    ),
   )
 }
 

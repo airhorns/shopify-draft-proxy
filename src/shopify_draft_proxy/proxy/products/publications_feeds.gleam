@@ -242,15 +242,19 @@ pub fn make_shop_resource_feedback_record(
 
 @internal
 pub fn product_feed_create_payload(
-  feed: ProductFeedRecord,
+  feed: Option(ProductFeedRecord),
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
+  let feed_source = case feed {
+    Some(record) -> product_feed_source(record)
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductFeedCreatePayload")),
-      #("productFeed", product_feed_source(feed)),
+      #("productFeed", feed_source),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -453,31 +457,139 @@ pub fn handle_product_feed_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  // The captured local-runtime fixture comes from the TS path where the
-  // mutation-log entry consumes the first synthetic id before the feed is
-  // minted, so preserve that observable id sequence for this staged root.
-  let #(_, identity_after_log_slot) =
-    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
-  let #(feed_id, next_identity) =
-    synthetic_identity.make_synthetic_gid(
-      identity_after_log_slot,
-      "ProductFeed",
-    )
-  let feed =
-    ProductFeedRecord(
-      id: feed_id,
-      country: read_string_field(input, "country"),
-      language: read_string_field(input, "language"),
-      status: "ACTIVE",
-    )
-  let #(staged_feed, next_store) = store.upsert_staged_product_feed(store, feed)
-  mutation_result(
-    key,
-    product_feed_create_payload(staged_feed, [], field, fragments),
-    next_store,
-    next_identity,
-    [staged_feed.id],
-  )
+  let country = read_string_field(input, "country")
+  let language = read_string_field(input, "language")
+  let validation_errors =
+    product_feed_input_validation_errors(country, language)
+  case validation_errors, country, language {
+    [_, ..] as errors, _, _ ->
+      mutation_result(
+        key,
+        product_feed_create_payload(None, errors, field, fragments),
+        store,
+        identity,
+        [],
+      )
+    [], Some(country), Some(language) ->
+      case product_feed_pair_exists(store, country, language) {
+        True ->
+          mutation_result(
+            key,
+            product_feed_create_payload(
+              None,
+              [
+                ProductUserError(
+                  ["country"],
+                  "Product feed already exists for this country/language pair",
+                  Some("TAKEN"),
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        False -> {
+          let feed =
+            ProductFeedRecord(
+              id: product_feed_id(country, language),
+              country: Some(country),
+              language: Some(language),
+              status: "ACTIVE",
+            )
+          let #(staged_feed, next_store) =
+            store.upsert_staged_product_feed(store, feed)
+          mutation_result(
+            key,
+            product_feed_create_payload(Some(staged_feed), [], field, fragments),
+            next_store,
+            identity,
+            [staged_feed.id],
+          )
+        }
+      }
+    [], _, _ ->
+      mutation_result(
+        key,
+        product_feed_create_payload(
+          None,
+          product_feed_input_validation_errors(country, language),
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn product_feed_input_validation_errors(
+  country: Option(String),
+  language: Option(String),
+) -> List(ProductUserError) {
+  let country_errors = case country {
+    Some(value) ->
+      case is_product_feed_country_code(value) {
+        True -> []
+        False -> [
+          ProductUserError(["country"], "Country is invalid", Some("INVALID")),
+        ]
+      }
+    None -> [
+      ProductUserError(["country"], "Country is invalid", Some("INVALID")),
+    ]
+  }
+  let language_errors = case language {
+    Some(value) ->
+      case is_product_feed_language_code(value) {
+        True -> []
+        False -> [
+          ProductUserError(["language"], "Language is invalid", Some("INVALID")),
+        ]
+      }
+    None -> [
+      ProductUserError(["language"], "Language is invalid", Some("INVALID")),
+    ]
+  }
+  list.append(country_errors, language_errors)
+}
+
+fn product_feed_pair_exists(
+  store: Store,
+  country: String,
+  language: String,
+) -> Bool {
+  store.list_effective_product_feeds(store)
+  |> list.any(fn(feed) {
+    feed.country == Some(country) && feed.language == Some(language)
+  })
+}
+
+fn product_feed_id(country: String, language: String) -> String {
+  "gid://shopify/ProductFeed/" <> country <> "-" <> language
+}
+
+fn is_product_feed_country_code(value: String) -> Bool {
+  product_feed_country_code_values()
+  |> list.contains(value)
+}
+
+fn is_product_feed_language_code(value: String) -> Bool {
+  product_feed_language_code_values()
+  |> list.contains(value)
+}
+
+fn product_feed_country_code_values() -> List(String) {
+  "AC, AD, AE, AF, AG, AI, AL, AM, AN, AO, AR, AT, AU, AW, AX, AZ, BA, BB, BD, BE, BF, BG, BH, BI, BJ, BL, BM, BN, BO, BQ, BR, BS, BT, BV, BW, BY, BZ, CA, CC, CD, CF, CG, CH, CI, CK, CL, CM, CN, CO, CR, CU, CV, CW, CX, CY, CZ, DE, DJ, DK, DM, DO, DZ, EC, EE, EG, EH, ER, ES, ET, FI, FJ, FK, FO, FR, GA, GB, GD, GE, GF, GG, GH, GI, GL, GM, GN, GP, GQ, GR, GS, GT, GW, GY, HK, HM, HN, HR, HT, HU, ID, IE, IL, IM, IN, IO, IQ, IR, IS, IT, JE, JM, JO, JP, KE, KG, KH, KI, KM, KN, KP, KR, KW, KY, KZ, LA, LB, LC, LI, LK, LR, LS, LT, LU, LV, LY, MA, MC, MD, ME, MF, MG, MK, ML, MM, MN, MO, MQ, MR, MS, MT, MU, MV, MW, MX, MY, MZ, NA, NC, NE, NF, NG, NI, NL, NO, NP, NR, NU, NZ, OM, PA, PE, PF, PG, PH, PK, PL, PM, PN, PS, PT, PY, QA, RE, RO, RS, RU, RW, SA, SB, SC, SD, SE, SG, SH, SI, SJ, SK, SL, SM, SN, SO, SR, SS, ST, SV, SX, SY, SZ, TA, TC, TD, TF, TG, TH, TJ, TK, TL, TM, TN, TO, TR, TT, TV, TW, TZ, UA, UG, UM, US, UY, UZ, VA, VC, VE, VG, VN, VU, WF, WS, XK, YE, YT, ZA, ZM, ZW, ZZ"
+  |> string.split(", ")
+}
+
+fn product_feed_language_code_values() -> List(String) {
+  "AF, AK, AM, AR, AS, AZ, BE, BG, BM, BN, BO, BR, BS, CA, CE, CKB, CS, CU, CY, DA, DE, DZ, EE, EL, EN, EO, ES, ET, EU, FA, FF, FI, FIL, FO, FR, FY, GA, GD, GL, GU, GV, HA, HE, HI, HR, HU, HY, IA, ID, IG, II, IS, IT, JA, JV, KA, KI, KK, KL, KM, KN, KO, KS, KU, KW, KY, LB, LG, LN, LO, LT, LU, LV, MG, MI, MK, ML, MN, MR, MS, MT, MY, NB, ND, NE, NL, NN, NO, OM, OR, OS, PA, PL, PS, PT, PT_BR, PT_PT, QU, RM, RN, RO, RU, RW, SA, SC, SD, SE, SG, SI, SK, SL, SN, SO, SQ, SR, SU, SV, SW, TA, TE, TG, TH, TI, TK, TO, TR, TT, UG, UK, UR, UZ, VI, VO, WO, XH, YI, YO, ZH, ZH_CN, ZH_TW, ZU"
+  |> string.split(", ")
 }
 
 @internal
@@ -950,17 +1062,342 @@ pub fn handle_product_variant_relationship_bulk_update(
       ),
     ]
   }
-  mutation_result(
-    key,
+  let user_errors = case user_errors {
+    [] -> variant_relationship_semantics_errors(store, inputs)
+    errors -> errors
+  }
+  let payload =
     product_variant_relationship_bulk_update_payload(
       user_errors,
       field,
       fragments,
-    ),
-    store,
-    identity,
-    [],
+    )
+  case user_errors {
+    [] -> mutation_result(key, payload, store, identity, [])
+    _ -> mutation_rejected_result(key, payload, store, identity)
+  }
+}
+
+const product_variant_relationship_component_quantity_max: Int = 9999
+
+fn variant_relationship_semantics_errors(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  list.append(
+    duplicate_parent_variant_errors(store, inputs),
+    inputs
+      |> enumerate_items
+      |> list.flat_map(fn(pair) {
+        let #(input, input_index) = pair
+        variant_relationship_input_errors(store, input, input_index)
+      }),
   )
+}
+
+fn duplicate_parent_variant_errors(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  let parent_ids =
+    inputs
+    |> enumerate_items
+    |> list.filter_map(fn(pair) {
+      let #(input, input_index) = pair
+      case parent_variant_id_for_relationship_input(store, input) {
+        Some(id) -> Ok(#(id, input_index))
+        None -> Error(Nil)
+      }
+    })
+  duplicate_parent_variant_errors_loop(parent_ids, [], [])
+}
+
+fn duplicate_parent_variant_errors_loop(
+  parent_ids: List(#(String, Int)),
+  seen: List(String),
+  errors: List(ProductUserError),
+) -> List(ProductUserError) {
+  case parent_ids {
+    [] -> list.reverse(errors)
+    [#(id, input_index), ..rest] -> {
+      case list.contains(seen, id) {
+        True ->
+          duplicate_parent_variant_errors_loop(rest, seen, [
+            duplicated_products_error(["input", int.to_string(input_index)]),
+            ..errors
+          ])
+        False ->
+          duplicate_parent_variant_errors_loop(rest, [id, ..seen], errors)
+      }
+    }
+  }
+}
+
+fn variant_relationship_input_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  let parent_id = parent_variant_id_for_relationship_input(store, input)
+  list.append(
+    both_parent_ids_errors(input, input_index),
+    list.append(
+      create_relationship_errors(input, input_index, parent_id),
+      list.append(
+        update_relationship_errors(input, input_index),
+        remove_relationship_errors(input, input_index),
+      ),
+    ),
+  )
+}
+
+fn both_parent_ids_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  case
+    read_string_field(input, "parentProductId"),
+    read_string_field(input, "parentProductVariantId")
+  {
+    Some(_), Some(_) -> [
+      ProductUserError(
+        ["input", int.to_string(input_index)],
+        "Only one of parentProductId or parentProductVariantId can be specified.",
+        Some("INVALID_INPUT"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn create_relationship_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+  parent_id: Option(String),
+) -> List(ProductUserError) {
+  let relationships =
+    read_object_list_field(input, "productVariantRelationshipsToCreate")
+  let quantity_errors =
+    relationship_quantity_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToCreate",
+    )
+  let duplicate_errors =
+    duplicate_child_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToCreate",
+    )
+  let self_errors = case parent_id {
+    Some(parent_id) ->
+      relationships
+      |> enumerate_items
+      |> list.filter_map(fn(pair) {
+        let #(relationship, _relationship_index) = pair
+        case read_string_field(relationship, "id") {
+          Some(id) if id == parent_id ->
+            Ok(ProductUserError(
+              ["input"],
+              "A parent product variant cannot contain itself as a component.",
+              Some("CIRCULAR_REFERENCE"),
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    None -> []
+  }
+  list.append(quantity_errors, list.append(duplicate_errors, self_errors))
+}
+
+fn update_relationship_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  let relationships =
+    read_object_list_field(input, "productVariantRelationshipsToUpdate")
+  list.append(
+    relationship_quantity_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToUpdate",
+    ),
+    not_a_child_relationship_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToUpdate",
+    ),
+  )
+}
+
+fn remove_relationship_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  read_string_list_field(input, "productVariantRelationshipsToRemove")
+  |> option.unwrap([])
+  |> enumerate_items
+  |> list.map(fn(pair) {
+    let #(_, relationship_index) = pair
+    not_a_child_error([
+      "input",
+      int.to_string(input_index),
+      "productVariantRelationshipsToRemove",
+      int.to_string(relationship_index),
+    ])
+  })
+}
+
+fn relationship_quantity_errors(
+  relationships: List(Dict(String, ResolvedValue)),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  relationships
+  |> enumerate_items
+  |> list.filter_map(fn(pair) {
+    let #(relationship, relationship_index) = pair
+    case read_int_field(relationship, "quantity") {
+      Some(quantity) if quantity < 1 ->
+        Ok(ProductUserError(
+          [
+            "input",
+            int.to_string(input_index),
+            field_name,
+            int.to_string(relationship_index),
+            "quantity",
+          ],
+          "Quantity must be greater than or equal to 1",
+          Some("INVALID"),
+        ))
+      Some(quantity)
+        if quantity > product_variant_relationship_component_quantity_max
+      ->
+        Ok(ProductUserError(
+          [
+            "input",
+            int.to_string(input_index),
+            field_name,
+            int.to_string(relationship_index),
+            "quantity",
+          ],
+          "Quantity must be less than or equal to "
+            <> int.to_string(
+            product_variant_relationship_component_quantity_max,
+          ),
+          Some("INVALID"),
+        ))
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn duplicate_child_errors(
+  relationships: List(Dict(String, ResolvedValue)),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  let child_ids =
+    relationships
+    |> enumerate_items
+    |> list.filter_map(fn(pair) {
+      let #(relationship, relationship_index) = pair
+      case read_string_field(relationship, "id") {
+        Some(id) -> Ok(#(id, relationship_index))
+        None -> Error(Nil)
+      }
+    })
+  duplicate_child_errors_loop(child_ids, [], [], input_index, field_name)
+}
+
+fn duplicate_child_errors_loop(
+  child_ids: List(#(String, Int)),
+  seen: List(String),
+  errors: List(ProductUserError),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  case child_ids {
+    [] -> list.reverse(errors)
+    [#(id, relationship_index), ..rest] -> {
+      case list.contains(seen, id) {
+        True ->
+          duplicate_child_errors_loop(
+            rest,
+            seen,
+            [
+              duplicated_products_error([
+                "input",
+                int.to_string(input_index),
+                field_name,
+                int.to_string(relationship_index),
+                "id",
+              ]),
+              ..errors
+            ],
+            input_index,
+            field_name,
+          )
+        False ->
+          duplicate_child_errors_loop(
+            rest,
+            [id, ..seen],
+            errors,
+            input_index,
+            field_name,
+          )
+      }
+    }
+  }
+}
+
+fn not_a_child_relationship_errors(
+  relationships: List(Dict(String, ResolvedValue)),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  relationships
+  |> enumerate_items
+  |> list.map(fn(pair) {
+    let #(_, relationship_index) = pair
+    not_a_child_error([
+      "input",
+      int.to_string(input_index),
+      field_name,
+      int.to_string(relationship_index),
+      "id",
+    ])
+  })
+}
+
+fn parent_variant_id_for_relationship_input(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case read_string_field(input, "parentProductVariantId") {
+    Some(id) -> Some(id)
+    None ->
+      case read_string_field(input, "parentProductId") {
+        Some(product_id) ->
+          store.get_effective_variants_by_product_id(store, product_id)
+          |> list.first
+          |> option.from_result
+          |> option.map(fn(variant) { variant.id })
+        None -> None
+      }
+  }
+}
+
+fn duplicated_products_error(field: List(String)) -> ProductUserError {
+  ProductUserError(
+    field,
+    "cannot_have_duplicated_products",
+    Some("CANNOT_HAVE_DUPLICATED_PRODUCTS"),
+  )
+}
+
+fn not_a_child_error(field: List(String)) -> ProductUserError {
+  ProductUserError(field, "not_a_child", Some("NOT_A_CHILD"))
 }
 
 @internal

@@ -1088,6 +1088,174 @@ pub fn location_activate_non_activatable_returns_user_error_test() {
   )
 }
 
+pub fn location_activate_limit_and_relocation_guards_block_staging_test() {
+  let limit_id = "gid://shopify/Location/activate-limit"
+  let alternate_limit_id = "gid://shopify/Location/activate-alternate-limit"
+  let nested_limit_id = "gid://shopify/Location/activate-nested-limit"
+  let relocation_id = "gid://shopify/Location/activate-relocation"
+  let duplicate_id = "gid://shopify/Location/activate-duplicate"
+  let active_duplicate_id = "gid://shopify/Location/activate-active-duplicate"
+  let success_id = "gid://shopify/Location/activate-success"
+  let active_duplicate =
+    make_location(
+      active_duplicate_id,
+      "Duplicate Warehouse",
+      True,
+      True,
+      True,
+      False,
+    )
+  let limit_location =
+    location_with_extra_bool(
+      limit_id,
+      "Duplicate Warehouse",
+      "reachedLocationLimit",
+      True,
+    )
+  let alternate_limit_location =
+    location_with_extra_bool(
+      alternate_limit_id,
+      "Alternate Limit Warehouse",
+      "locationLimitReached",
+      True,
+    )
+  let nested_limit_location =
+    StorePropertyRecord(
+      ..make_location(
+        nested_limit_id,
+        "Nested Limit Warehouse",
+        False,
+        True,
+        True,
+        False,
+      ),
+      data: make_location(
+          nested_limit_id,
+          "Nested Limit Warehouse",
+          False,
+          True,
+          True,
+          False,
+        ).data
+        |> dict.insert(
+          "shop",
+          StorePropertyObject(
+            dict.from_list([
+              #(
+                "resourceLimits",
+                StorePropertyObject(
+                  dict.from_list([
+                    #("locationLimitReached", StorePropertyBool(True)),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+    )
+  let relocation_location =
+    location_with_extra_bool(
+      relocation_id,
+      "Duplicate Warehouse",
+      "hasIncompleteMassRelocation",
+      True,
+    )
+  let duplicate_location =
+    make_location(duplicate_id, "Duplicate Warehouse", False, True, True, False)
+  let success_location =
+    make_location(success_id, "Success Warehouse", False, True, True, False)
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(active_duplicate)
+    |> store.upsert_base_store_property_location(limit_location)
+    |> store.upsert_base_store_property_location(alternate_limit_location)
+    |> store.upsert_base_store_property_location(nested_limit_location)
+    |> store.upsert_base_store_property_location(relocation_location)
+    |> store.upsert_base_store_property_location(duplicate_location)
+    |> store.upsert_base_store_property_location(success_location)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  let mutation_prefix =
+    "{\"query\":\"mutation { locationActivate(locationId: \\\""
+  let mutation_suffix =
+    "\\\") @idempotent(key: \\\"activate-guard\\\") { location { id isActive } locationActivateUserErrors { field code message } } }\"}"
+
+  let #(proxy_state.Response(body: limit_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> limit_id <> mutation_suffix),
+    )
+  let limit_serialized = json.to_string(limit_json)
+  assert string.contains(limit_serialized, "\"isActive\":false")
+  assert string.contains(limit_serialized, "\"field\":[\"locationId\"]")
+  assert string.contains(limit_serialized, "\"code\":\"LOCATION_LIMIT\"")
+  assert !string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "activate-limit",
+  )
+
+  let #(proxy_state.Response(body: alternate_limit_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> alternate_limit_id <> mutation_suffix),
+    )
+  let alternate_limit_serialized = json.to_string(alternate_limit_json)
+  assert string.contains(alternate_limit_serialized, "\"isActive\":false")
+  assert string.contains(
+    alternate_limit_serialized,
+    "\"code\":\"LOCATION_LIMIT\"",
+  )
+
+  let #(proxy_state.Response(body: nested_limit_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> nested_limit_id <> mutation_suffix),
+    )
+  let nested_limit_serialized = json.to_string(nested_limit_json)
+  assert string.contains(nested_limit_serialized, "\"isActive\":false")
+  assert string.contains(nested_limit_serialized, "\"code\":\"LOCATION_LIMIT\"")
+
+  let #(proxy_state.Response(body: relocation_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> relocation_id <> mutation_suffix),
+    )
+  let relocation_serialized = json.to_string(relocation_json)
+  assert string.contains(relocation_serialized, "\"isActive\":false")
+  assert string.contains(
+    relocation_serialized,
+    "\"code\":\"HAS_ONGOING_RELOCATION\"",
+  )
+
+  let #(proxy_state.Response(body: duplicate_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> duplicate_id <> mutation_suffix),
+    )
+  let duplicate_serialized = json.to_string(duplicate_json)
+  assert string.contains(duplicate_serialized, "\"isActive\":false")
+  assert string.contains(
+    duplicate_serialized,
+    "\"code\":\"HAS_NON_UNIQUE_NAME\"",
+  )
+
+  let #(proxy_state.Response(body: success_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> success_id <> mutation_suffix),
+    )
+  let success_serialized = json.to_string(success_json)
+  assert string.contains(success_serialized, "\"isActive\":true")
+  assert string.contains(
+    success_serialized,
+    "\"locationActivateUserErrors\":[]",
+  )
+  assert string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "activate-success",
+  )
+}
+
 pub fn location_deactivate_only_online_fulfilling_location_returns_user_error_test() {
   let proxy = draft_proxy.new()
   let seeded_store =
@@ -1364,6 +1532,19 @@ fn location_with_bool(
   value: Bool,
 ) -> StorePropertyRecord {
   let location = make_location(id, id, True, False, True, False)
+  StorePropertyRecord(
+    ..location,
+    data: dict.insert(location.data, field, StorePropertyBool(value)),
+  )
+}
+
+fn location_with_extra_bool(
+  id: String,
+  name: String,
+  field: String,
+  value: Bool,
+) -> StorePropertyRecord {
+  let location = make_location(id, name, False, True, True, False)
   StorePropertyRecord(
     ..location,
     data: dict.insert(location.data, field, StorePropertyBool(value)),

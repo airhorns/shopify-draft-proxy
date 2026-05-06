@@ -1,0 +1,21 @@
+mutation MetafieldDefinitionAppNamespaceDelete(
+  $namespace: String!
+  $key: String!
+  $deleteAllAssociatedMetafields: Boolean!
+) {
+  metafieldDefinitionDelete(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }
+    deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields
+  ) {
+    deletedDefinition {
+      namespace
+      key
+      ownerType
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,19 @@
+mutation OrderInvoiceSendEmailValidation($id: ID!, $email: EmailInput) {
+  orderInvoiceSend(id: $id, email: $email) {
+    order {
+      id
+      name
+      email
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

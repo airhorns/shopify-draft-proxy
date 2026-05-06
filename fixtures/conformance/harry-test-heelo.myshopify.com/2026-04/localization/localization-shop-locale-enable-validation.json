@@ -1,0 +1,1934 @@
+{
+  "capturedAt": "2026-05-06T02:34:30.642Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "initialShopLocales": {
+    "data": {
+      "shopLocales": [
+        {
+          "locale": "de",
+          "name": "German",
+          "primary": false,
+          "published": true,
+          "marketWebPresences": []
+        },
+        {
+          "locale": "en",
+          "name": "English",
+          "primary": true,
+          "published": true,
+          "marketWebPresences": [
+            {
+              "id": "gid://shopify/MarketWebPresence/62842765618"
+            }
+          ]
+        }
+      ]
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 2,
+        "actualQueryCost": 2,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1996,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "availableLocales": {
+    "data": {
+      "availableLocales": [
+        {
+          "isoCode": "af",
+          "name": "Afrikaans"
+        },
+        {
+          "isoCode": "ak",
+          "name": "Akan"
+        },
+        {
+          "isoCode": "sq",
+          "name": "Albanian"
+        },
+        {
+          "isoCode": "am",
+          "name": "Amharic"
+        },
+        {
+          "isoCode": "ar",
+          "name": "Arabic"
+        },
+        {
+          "isoCode": "hy",
+          "name": "Armenian"
+        },
+        {
+          "isoCode": "as",
+          "name": "Assamese"
+        },
+        {
+          "isoCode": "az",
+          "name": "Azerbaijani"
+        },
+        {
+          "isoCode": "bm",
+          "name": "Bambara"
+        },
+        {
+          "isoCode": "bn",
+          "name": "Bangla"
+        },
+        {
+          "isoCode": "eu",
+          "name": "Basque"
+        },
+        {
+          "isoCode": "be",
+          "name": "Belarusian"
+        },
+        {
+          "isoCode": "bs",
+          "name": "Bosnian"
+        },
+        {
+          "isoCode": "br",
+          "name": "Breton"
+        },
+        {
+          "isoCode": "bg",
+          "name": "Bulgarian"
+        },
+        {
+          "isoCode": "my",
+          "name": "Burmese"
+        },
+        {
+          "isoCode": "ca",
+          "name": "Catalan"
+        },
+        {
+          "isoCode": "ckb",
+          "name": "Central Kurdish"
+        },
+        {
+          "isoCode": "ce",
+          "name": "Chechen"
+        },
+        {
+          "isoCode": "zh-CN",
+          "name": "Chinese (Simplified)"
+        },
+        {
+          "isoCode": "zh-TW",
+          "name": "Chinese (Traditional)"
+        },
+        {
+          "isoCode": "kw",
+          "name": "Cornish"
+        },
+        {
+          "isoCode": "hr",
+          "name": "Croatian"
+        },
+        {
+          "isoCode": "cs",
+          "name": "Czech"
+        },
+        {
+          "isoCode": "da",
+          "name": "Danish"
+        },
+        {
+          "isoCode": "nl",
+          "name": "Dutch"
+        },
+        {
+          "isoCode": "dz",
+          "name": "Dzongkha"
+        },
+        {
+          "isoCode": "en",
+          "name": "English"
+        },
+        {
+          "isoCode": "eo",
+          "name": "Esperanto"
+        },
+        {
+          "isoCode": "et",
+          "name": "Estonian"
+        },
+        {
+          "isoCode": "ee",
+          "name": "Ewe"
+        },
+        {
+          "isoCode": "fo",
+          "name": "Faroese"
+        },
+        {
+          "isoCode": "fil",
+          "name": "Filipino"
+        },
+        {
+          "isoCode": "fi",
+          "name": "Finnish"
+        },
+        {
+          "isoCode": "fr",
+          "name": "French"
+        },
+        {
+          "isoCode": "ff",
+          "name": "Fulah"
+        },
+        {
+          "isoCode": "gl",
+          "name": "Galician"
+        },
+        {
+          "isoCode": "lg",
+          "name": "Ganda"
+        },
+        {
+          "isoCode": "ka",
+          "name": "Georgian"
+        },
+        {
+          "isoCode": "de",
+          "name": "German"
+        },
+        {
+          "isoCode": "el",
+          "name": "Greek"
+        },
+        {
+          "isoCode": "gu",
+          "name": "Gujarati"
+        },
+        {
+          "isoCode": "ha",
+          "name": "Hausa"
+        },
+        {
+          "isoCode": "he",
+          "name": "Hebrew"
+        },
+        {
+          "isoCode": "hi",
+          "name": "Hindi"
+        },
+        {
+          "isoCode": "hu",
+          "name": "Hungarian"
+        },
+        {
+          "isoCode": "is",
+          "name": "Icelandic"
+        },
+        {
+          "isoCode": "ig",
+          "name": "Igbo"
+        },
+        {
+          "isoCode": "id",
+          "name": "Indonesian"
+        },
+        {
+          "isoCode": "ia",
+          "name": "Interlingua"
+        },
+        {
+          "isoCode": "ga",
+          "name": "Irish"
+        },
+        {
+          "isoCode": "it",
+          "name": "Italian"
+        },
+        {
+          "isoCode": "ja",
+          "name": "Japanese"
+        },
+        {
+          "isoCode": "jv",
+          "name": "Javanese"
+        },
+        {
+          "isoCode": "kl",
+          "name": "Kalaallisut"
+        },
+        {
+          "isoCode": "kn",
+          "name": "Kannada"
+        },
+        {
+          "isoCode": "ks",
+          "name": "Kashmiri"
+        },
+        {
+          "isoCode": "kk",
+          "name": "Kazakh"
+        },
+        {
+          "isoCode": "km",
+          "name": "Khmer"
+        },
+        {
+          "isoCode": "ki",
+          "name": "Kikuyu"
+        },
+        {
+          "isoCode": "rw",
+          "name": "Kinyarwanda"
+        },
+        {
+          "isoCode": "ko",
+          "name": "Korean"
+        },
+        {
+          "isoCode": "ku",
+          "name": "Kurdish"
+        },
+        {
+          "isoCode": "ky",
+          "name": "Kyrgyz"
+        },
+        {
+          "isoCode": "lo",
+          "name": "Lao"
+        },
+        {
+          "isoCode": "lv",
+          "name": "Latvian"
+        },
+        {
+          "isoCode": "ln",
+          "name": "Lingala"
+        },
+        {
+          "isoCode": "lt",
+          "name": "Lithuanian"
+        },
+        {
+          "isoCode": "lu",
+          "name": "Luba-Katanga"
+        },
+        {
+          "isoCode": "lb",
+          "name": "Luxembourgish"
+        },
+        {
+          "isoCode": "mk",
+          "name": "Macedonian"
+        },
+        {
+          "isoCode": "mg",
+          "name": "Malagasy"
+        },
+        {
+          "isoCode": "ms",
+          "name": "Malay"
+        },
+        {
+          "isoCode": "ml",
+          "name": "Malayalam"
+        },
+        {
+          "isoCode": "mt",
+          "name": "Maltese"
+        },
+        {
+          "isoCode": "gv",
+          "name": "Manx"
+        },
+        {
+          "isoCode": "mr",
+          "name": "Marathi"
+        },
+        {
+          "isoCode": "mn",
+          "name": "Mongolian"
+        },
+        {
+          "isoCode": "mi",
+          "name": "Māori"
+        },
+        {
+          "isoCode": "ne",
+          "name": "Nepali"
+        },
+        {
+          "isoCode": "nd",
+          "name": "North Ndebele"
+        },
+        {
+          "isoCode": "se",
+          "name": "Northern Sami"
+        },
+        {
+          "isoCode": "no",
+          "name": "Norwegian"
+        },
+        {
+          "isoCode": "nb",
+          "name": "Norwegian (Bokmål)"
+        },
+        {
+          "isoCode": "nn",
+          "name": "Norwegian Nynorsk"
+        },
+        {
+          "isoCode": "or",
+          "name": "Odia"
+        },
+        {
+          "isoCode": "om",
+          "name": "Oromo"
+        },
+        {
+          "isoCode": "os",
+          "name": "Ossetic"
+        },
+        {
+          "isoCode": "ps",
+          "name": "Pashto"
+        },
+        {
+          "isoCode": "fa",
+          "name": "Persian"
+        },
+        {
+          "isoCode": "pl",
+          "name": "Polish"
+        },
+        {
+          "isoCode": "pt-BR",
+          "name": "Portuguese (Brazil)"
+        },
+        {
+          "isoCode": "pt-PT",
+          "name": "Portuguese (Portugal)"
+        },
+        {
+          "isoCode": "pa",
+          "name": "Punjabi"
+        },
+        {
+          "isoCode": "qu",
+          "name": "Quechua"
+        },
+        {
+          "isoCode": "ro",
+          "name": "Romanian"
+        },
+        {
+          "isoCode": "rm",
+          "name": "Romansh"
+        },
+        {
+          "isoCode": "rn",
+          "name": "Rundi"
+        },
+        {
+          "isoCode": "ru",
+          "name": "Russian"
+        },
+        {
+          "isoCode": "sg",
+          "name": "Sango"
+        },
+        {
+          "isoCode": "sa",
+          "name": "Sanskrit"
+        },
+        {
+          "isoCode": "sc",
+          "name": "Sardinian"
+        },
+        {
+          "isoCode": "gd",
+          "name": "Scottish Gaelic"
+        },
+        {
+          "isoCode": "sr",
+          "name": "Serbian"
+        },
+        {
+          "isoCode": "sn",
+          "name": "Shona"
+        },
+        {
+          "isoCode": "ii",
+          "name": "Sichuan Yi"
+        },
+        {
+          "isoCode": "sd",
+          "name": "Sindhi"
+        },
+        {
+          "isoCode": "si",
+          "name": "Sinhala"
+        },
+        {
+          "isoCode": "sk",
+          "name": "Slovak"
+        },
+        {
+          "isoCode": "sl",
+          "name": "Slovenian"
+        },
+        {
+          "isoCode": "so",
+          "name": "Somali"
+        },
+        {
+          "isoCode": "es",
+          "name": "Spanish"
+        },
+        {
+          "isoCode": "su",
+          "name": "Sundanese"
+        },
+        {
+          "isoCode": "sw",
+          "name": "Swahili"
+        },
+        {
+          "isoCode": "sv",
+          "name": "Swedish"
+        },
+        {
+          "isoCode": "tg",
+          "name": "Tajik"
+        },
+        {
+          "isoCode": "ta",
+          "name": "Tamil"
+        },
+        {
+          "isoCode": "tt",
+          "name": "Tatar"
+        },
+        {
+          "isoCode": "te",
+          "name": "Telugu"
+        },
+        {
+          "isoCode": "th",
+          "name": "Thai"
+        },
+        {
+          "isoCode": "bo",
+          "name": "Tibetan"
+        },
+        {
+          "isoCode": "ti",
+          "name": "Tigrinya"
+        },
+        {
+          "isoCode": "to",
+          "name": "Tongan"
+        },
+        {
+          "isoCode": "tr",
+          "name": "Turkish"
+        },
+        {
+          "isoCode": "tk",
+          "name": "Turkmen"
+        },
+        {
+          "isoCode": "uk",
+          "name": "Ukrainian"
+        },
+        {
+          "isoCode": "ur",
+          "name": "Urdu"
+        },
+        {
+          "isoCode": "ug",
+          "name": "Uyghur"
+        },
+        {
+          "isoCode": "uz",
+          "name": "Uzbek"
+        },
+        {
+          "isoCode": "vi",
+          "name": "Vietnamese"
+        },
+        {
+          "isoCode": "cy",
+          "name": "Welsh"
+        },
+        {
+          "isoCode": "fy",
+          "name": "Western Frisian"
+        },
+        {
+          "isoCode": "wo",
+          "name": "Wolof"
+        },
+        {
+          "isoCode": "xh",
+          "name": "Xhosa"
+        },
+        {
+          "isoCode": "yi",
+          "name": "Yiddish"
+        },
+        {
+          "isoCode": "yo",
+          "name": "Yoruba"
+        },
+        {
+          "isoCode": "zu",
+          "name": "Zulu"
+        }
+      ]
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 1,
+        "actualQueryCost": 1,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "webPresences": {
+    "data": {
+      "webPresences": {
+        "nodes": [
+          {
+            "id": "gid://shopify/MarketWebPresence/62842765618"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 5,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1991,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "capturedWebPresenceId": "gid://shopify/MarketWebPresence/62842765618",
+  "unsupportedLocale": {
+    "request": {
+      "variables": {
+        "locale": "tlh"
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleEnable": {
+          "shopLocale": null,
+          "userErrors": [
+            {
+              "field": ["locale"],
+              "message": "Locale is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateLocale": {
+    "firstEnable": {
+      "request": {
+        "variables": {
+          "locale": "fr"
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": {
+              "locale": "fr",
+              "name": "French",
+              "primary": false,
+              "published": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "duplicateEnable": {
+      "request": {
+        "variables": {
+          "locale": "fr"
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "Locale has already been taken"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "maximumLocales": {
+    "setup": [
+      {
+        "request": {
+          "variables": {
+            "locale": "af"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "af",
+                "name": "Afrikaans",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "ak"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "ak",
+                "name": "Akan",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "sq"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "sq",
+                "name": "Albanian",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "am"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "am",
+                "name": "Amharic",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "ar"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "ar",
+                "name": "Arabic",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "hy"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "hy",
+                "name": "Armenian",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "as"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "as",
+                "name": "Assamese",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "az"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "az",
+                "name": "Azerbaijani",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "bm"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "bm",
+                "name": "Bambara",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "bn"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "bn",
+                "name": "Bangla",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "eu"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "eu",
+                "name": "Basque",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "be"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "be",
+                "name": "Belarusian",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "bs"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "bs",
+                "name": "Bosnian",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "br"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "br",
+                "name": "Breton",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "bg"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "bg",
+                "name": "Bulgarian",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "my"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "my",
+                "name": "Burmese",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "ca"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "ca",
+                "name": "Catalan",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "ckb"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "ckb",
+                "name": "Central Kurdish",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "variables": {
+            "locale": "ce"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleEnable": {
+              "shopLocale": {
+                "locale": "ce",
+                "name": "Chechen",
+                "primary": false,
+                "published": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "limitReached": {
+      "request": {
+        "variables": {
+          "locale": "zh-CN"
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Your store has reached its 20 language limit. To add Chinese (Simplified), delete one of your other languages."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "partialUpdate": {
+    "request": {
+      "variables": {
+        "locale": "tr",
+        "shopLocale": {
+          "marketWebPresenceIds": ["gid://shopify/MarketWebPresence/1"]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleUpdate": {
+          "shopLocale": {
+            "locale": "tr",
+            "name": "Turkish",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "preCaptureDisable": [
+      {
+        "locale": "de",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "de",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "disableCapturedLocales": [
+      {
+        "locale": "tr",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": null,
+              "userErrors": [
+                {
+                  "field": ["locale"],
+                  "message": "The locale doesn't exist."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "ce",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "ce",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "ckb",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "ckb",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "ca",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "ca",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "my",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "my",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "bg",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "bg",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "br",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "br",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "bs",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "bs",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "be",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "be",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "eu",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "eu",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "bn",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "bn",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "bm",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "bm",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "az",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "az",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "as",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "as",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "hy",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "hy",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "ar",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "ar",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "am",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "am",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "sq",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "sq",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "ak",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "ak",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "af",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "af",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "locale": "fr",
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "fr",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "restoreInitialLocales": [
+      {
+        "locale": "de",
+        "response": {
+          "enable": {
+            "data": {
+              "shopLocaleEnable": {
+                "shopLocale": {
+                  "locale": "de",
+                  "name": "German",
+                  "primary": false,
+                  "published": false
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1976,
+                  "restoreRate": 100
+                }
+              }
+            }
+          },
+          "update": {
+            "data": {
+              "shopLocaleUpdate": {
+                "shopLocale": {
+                  "locale": "de",
+                  "name": "German",
+                  "primary": false,
+                  "published": true,
+                  "marketWebPresences": []
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 12,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1976,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": []
+}

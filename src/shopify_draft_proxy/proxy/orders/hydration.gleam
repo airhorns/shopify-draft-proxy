@@ -26,12 +26,14 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/proxy/orders/common.{
   captured_json_from_commit, captured_json_source, captured_string_field,
-  field_arguments, find_order_with_fulfillment, inferred_user_error, json_get,
+  field_arguments, find_order_with_fulfillment,
+  find_order_with_fulfillment_order, inferred_user_error, json_get,
   json_get_bool, json_get_string, non_null_json, optional_captured_string,
   order_fulfillments, read_object, read_object_list, read_string,
   read_string_arg, replace_captured_object_fields, selection_children,
-  serialize_user_error,
+  serialize_user_error, user_error,
 }
+import shopify_draft_proxy/proxy/user_error_codes
 
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
@@ -127,40 +129,107 @@ pub fn handle_fulfillment_mutation(
             }
             Some(match) -> {
               let #(order, fulfillment) = match
-              let #(updated_fulfillment, next_identity) =
-                update_fulfillment_for_root(
+              case
+                fulfillment_mutation_state_precondition_errors(
                   root_name,
                   fulfillment,
-                  args,
-                  identity,
                 )
-              let updated_order =
-                update_order_fulfillment(order, id, updated_fulfillment)
-              let next_store = store.stage_order(store, updated_order)
-              let payload =
-                serialize_fulfillment_mutation_payload(
-                  field,
-                  Some(updated_fulfillment),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  root_name,
-                  [id],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged " <> root_name <> " in shopify-draft-proxy.",
-                  ),
-                )
-              #(key, payload, next_store, next_identity, [order.id], [], [draft])
+              {
+                [] -> {
+                  let #(updated_fulfillment, next_identity) =
+                    update_fulfillment_for_root(
+                      root_name,
+                      fulfillment,
+                      args,
+                      identity,
+                    )
+                  let updated_order =
+                    update_order_fulfillment(order, id, updated_fulfillment)
+                  let next_store = store.stage_order(store, updated_order)
+                  let payload =
+                    serialize_fulfillment_mutation_payload(
+                      field,
+                      Some(updated_fulfillment),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      root_name,
+                      [id],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged "
+                        <> root_name
+                        <> " in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [order.id], [], [
+                    draft,
+                  ])
+                }
+                errors -> {
+                  let payload =
+                    serialize_fulfillment_mutation_payload(
+                      field,
+                      None,
+                      errors,
+                      fragments,
+                    )
+                  #(key, payload, store, identity, [], [], [])
+                }
+              }
             }
           }
         }
       }
     }
+  }
+}
+
+@internal
+pub fn fulfillment_mutation_state_precondition_errors(
+  root_name: String,
+  fulfillment: CapturedJsonValue,
+) -> List(#(List(String), String, Option(String))) {
+  case root_name {
+    "fulfillmentTrackingInfoUpdate" ->
+      case captured_string_field(fulfillment, "status") {
+        Some("CANCELLED") -> [
+          user_error(
+            ["fulfillmentId"],
+            "fulfillment_is_cancelled",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        _ -> []
+      }
+
+    "fulfillmentCancel" ->
+      case
+        captured_string_field(fulfillment, "status"),
+        captured_string_field(fulfillment, "displayStatus")
+      {
+        Some("CANCELLED"), _ -> [
+          user_error(
+            ["id"],
+            "fulfillment_cannot_be_cancelled",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        _, Some("DELIVERED") -> [
+          user_error(
+            ["id"],
+            "fulfillment_already_delivered",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        _, _ -> []
+      }
+
+    _ -> []
   }
 }
 
@@ -199,6 +268,116 @@ pub fn maybe_hydrate_order_for_fulfillment(
         Error(_) -> store_in
       }
     }
+  }
+}
+
+@internal
+pub fn maybe_hydrate_order_for_fulfillment_order(
+  store_in: Store,
+  fulfillment_order_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(fulfillment_order_id)
+    || option.is_some(find_order_with_fulfillment_order(
+      store_in,
+      fulfillment_order_id,
+    ))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query OrdersFulfillmentOrderHydrate($id: ID!) {
+  fulfillmentOrder(id: $id) {
+    id
+    order {
+      id
+      name
+      email
+      phone
+      createdAt
+      updatedAt
+      closed
+      closedAt
+      cancelledAt
+      cancelReason
+      displayFinancialStatus
+      displayFulfillmentStatus
+      note
+      tags
+      fulfillments(first: 5) {
+        id
+        status
+        displayStatus
+        createdAt
+        updatedAt
+        trackingInfo { number url company }
+      }
+      fulfillmentOrders(first: 10) {
+        nodes {
+          id
+          status
+          requestStatus
+          lineItems(first: 10) {
+            nodes {
+              id
+              totalQuantity
+              remainingQuantity
+              lineItem {
+                id
+                title
+                quantity
+                fulfillableQuantity
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"
+      let variables = json.object([#("id", json.string(fulfillment_order_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersFulfillmentOrderHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          hydrate_order_for_fulfillment_order_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+@internal
+pub fn hydrate_order_for_fulfillment_order_response(
+  store_in: Store,
+  value: commit.JsonValue,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "fulfillmentOrder") |> option.then(non_null_json) {
+        Some(fulfillment_order) ->
+          case
+            json_get(fulfillment_order, "order") |> option.then(non_null_json)
+          {
+            Some(order) ->
+              case order_record_from_json(order) {
+                Ok(record) -> store.upsert_base_orders(store_in, [record])
+                Error(_) -> store_in
+              }
+            None -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
   }
 }
 
@@ -259,7 +438,7 @@ pub fn maybe_hydrate_draft_order_by_id(
     False -> {
       let query =
         "query OrdersDraftOrderHydrate($id: ID!) {
-  draftOrder(id: $id) { id name status ready email taxExempt taxesIncluded reserveInventoryUntil paymentTerms invoiceUrl note tags customAttributes { key value } customer { id email displayName } billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingLine { title code custom originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } subtotalPriceSet { shopMoney { amount currencyCode } } totalDiscountsSet { shopMoney { amount currencyCode } } totalShippingPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } totalQuantityOfLineItems lineItems { nodes { id title name quantity sku variantTitle custom requiresShipping taxable customAttributes { key value } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } discountedTotalSet { shopMoney { amount currencyCode } } totalDiscountSet { shopMoney { amount currencyCode } } variant { id title sku } } } order { id email customer { id email displayName } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id title sku } } } } }
+  draftOrder(id: $id) { id name status ready email taxExempt taxesIncluded reserveInventoryUntil paymentTerms { id overdue dueInDays paymentTermsName paymentTermsType translatedName } invoiceUrl tags customAttributes { key value } customer { id email displayName } billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip phone } shippingLine { title code custom originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } subtotalPriceSet { shopMoney { amount currencyCode } } totalDiscountsSet { shopMoney { amount currencyCode } } totalShippingPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } totalQuantityOfLineItems lineItems(first: 10) { nodes { id title name quantity sku variantTitle custom requiresShipping taxable customAttributes { key value } appliedDiscount { title description value valueType amountSet { shopMoney { amount currencyCode } } } originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } discountedTotalSet { shopMoney { amount currencyCode } } totalDiscountSet { shopMoney { amount currencyCode } } variant { id title sku } } } order { id email customer { id email displayName } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } lineItems(first: 10) { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id title sku } } } } }
 }
 "
       let variables = json.object([#("id", json.string(draft_order_id))])
@@ -627,7 +806,7 @@ pub fn maybe_hydrate_order_by_id(
     False -> {
       let query =
         "query OrdersOrderHydrate($id: ID!) {
-  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus presentmentCurrencyCode paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } variant { id title sku } } } }
+  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus presentmentCurrencyCode paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } lineItems(first: 10) { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } variant { id title sku } } } }
 }
 "
       let variables = json.object([#("id", json.string(order_id))])

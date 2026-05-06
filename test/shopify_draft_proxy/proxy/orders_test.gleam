@@ -1496,6 +1496,167 @@ pub fn orders_fulfillment_validation_guardrails_test() {
     == "{\"errors\":[{\"message\":\"Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineNullId\",\"fulfillmentTrackingInfoUpdate\",\"fulfillmentId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"fulfillmentId\"}}]}"
 }
 
+pub fn orders_fulfillment_state_preconditions_test() {
+  let order_id = "gid://shopify/Order/fulfillment-state-preconditions"
+  let fulfillment_id =
+    "gid://shopify/Fulfillment/fulfillment-state-preconditions"
+
+  let cancelled_store =
+    order_store_with_fulfillment(
+      order_id,
+      fulfillment_id,
+      "CANCELLED",
+      "CANCELED",
+    )
+
+  let cancel_mutation =
+    "
+    mutation FulfillmentCancelStatePrecondition($id: ID!) {
+      fulfillmentCancel(id: $id) {
+        fulfillment {
+          id
+          status
+          displayStatus
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let cancel_variables =
+    dict.from_list([#("id", root_field.StringVal(fulfillment_id))])
+  let cancel_on_cancelled =
+    orders.process_mutation(
+      cancelled_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      cancel_mutation,
+      cancel_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancel_on_cancelled.data)
+    == "{\"data\":{\"fulfillmentCancel\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"fulfillment_cannot_be_cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert cancel_on_cancelled.staged_resource_ids == []
+  assert cancel_on_cancelled.log_drafts == []
+
+  let tracking_mutation =
+    "
+    mutation FulfillmentTrackingStatePrecondition(
+      $fulfillmentId: ID!
+      $trackingInfoInput: FulfillmentTrackingInput!
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        fulfillmentId: $fulfillmentId
+        trackingInfoInput: $trackingInfoInput
+      ) {
+        fulfillment {
+          id
+          status
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let tracking_variables =
+    dict.from_list([
+      #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+      #(
+        "trackingInfoInput",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("number", root_field.StringVal("PRECONDITION-TRACK")),
+            #(
+              "url",
+              root_field.StringVal(
+                "https://example.com/track/PRECONDITION-TRACK",
+              ),
+            ),
+            #("company", root_field.StringVal("Hermes")),
+          ]),
+        ),
+      ),
+    ])
+  let tracking_on_cancelled =
+    orders.process_mutation(
+      cancelled_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      tracking_mutation,
+      tracking_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(tracking_on_cancelled.data)
+    == "{\"data\":{\"fulfillmentTrackingInfoUpdate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillmentId\"],\"message\":\"fulfillment_is_cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert tracking_on_cancelled.staged_resource_ids == []
+  assert tracking_on_cancelled.log_drafts == []
+
+  let delivered_store =
+    order_store_with_fulfillment(
+      order_id,
+      fulfillment_id,
+      "SUCCESS",
+      "DELIVERED",
+    )
+  let cancel_on_delivered =
+    orders.process_mutation(
+      delivered_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      cancel_mutation,
+      cancel_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancel_on_delivered.data)
+    == "{\"data\":{\"fulfillmentCancel\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"fulfillment_already_delivered\",\"code\":\"INVALID\"}]}}}"
+  assert cancel_on_delivered.staged_resource_ids == []
+  assert cancel_on_delivered.log_drafts == []
+}
+
+fn order_store_with_fulfillment(
+  order_id: String,
+  fulfillment_id: String,
+  status: String,
+  display_status: String,
+) -> store.Store {
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#FULFILLMENT-PRECONDITION")),
+        #("displayFulfillmentStatus", types.CapturedString(display_status)),
+        #(
+          "fulfillments",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(fulfillment_id)),
+              #("status", types.CapturedString(status)),
+              #("displayStatus", types.CapturedString(display_status)),
+              #("createdAt", types.CapturedString("2026-04-25T00:06:31Z")),
+              #("updatedAt", types.CapturedString("2026-04-25T00:06:31Z")),
+              #("trackingInfo", types.CapturedArray([])),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
 pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
   let order_id = "gid://shopify/Order/6834528944361"
   let fulfillment_id = "gid://shopify/Fulfillment/6189151518953"
@@ -1723,6 +1884,249 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
+}
+
+pub fn orders_fulfillment_create_precondition_validation_test() {
+  let cancelled_order_id = "gid://shopify/Order/fulfillment-create-cancelled"
+  let cancelled_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-cancelled"
+  let cancelled_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-cancelled"
+  let closed_order_id = "gid://shopify/Order/fulfillment-create-closed"
+  let closed_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-closed"
+  let closed_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-closed"
+  let progress_order_id = "gid://shopify/Order/fulfillment-create-progress"
+  let progress_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-progress"
+  let progress_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-progress"
+  let over_order_id = "gid://shopify/Order/fulfillment-create-over"
+  let over_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-over"
+  let over_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-over"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      fulfillment_create_precondition_order(
+        cancelled_order_id,
+        cancelled_fulfillment_order_id,
+        cancelled_line_item_id,
+        "CLOSED",
+        0,
+        Some("2026-05-06T00:00:00Z"),
+      ),
+      fulfillment_create_precondition_order(
+        closed_order_id,
+        closed_fulfillment_order_id,
+        closed_line_item_id,
+        "CLOSED",
+        1,
+        None,
+      ),
+      fulfillment_create_precondition_order(
+        progress_order_id,
+        progress_fulfillment_order_id,
+        progress_line_item_id,
+        "IN_PROGRESS",
+        1,
+        None,
+      ),
+      fulfillment_create_precondition_order(
+        over_order_id,
+        over_fulfillment_order_id,
+        over_line_item_id,
+        "OPEN",
+        1,
+        None,
+      ),
+    ])
+  let mutation = fulfillment_create_precondition_mutation()
+
+  let cancelled =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        cancelled_fulfillment_order_id,
+        cancelled_line_item_id,
+        1,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancelled.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Fulfillment order fulfillment-create-cancelled has an unfulfillable status= closed.\"}]}}}"
+  assert cancelled.staged_resource_ids == []
+  assert cancelled.log_drafts == []
+
+  let closed =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        closed_fulfillment_order_id,
+        closed_line_item_id,
+        1,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(closed.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Fulfillment order fulfillment-create-closed has an unfulfillable status= closed.\"}]}}}"
+  assert closed.staged_resource_ids == []
+  assert closed.log_drafts == []
+
+  let in_progress =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        progress_fulfillment_order_id,
+        progress_line_item_id,
+        1,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(in_progress.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\"},\"userErrors\":[]}}}"
+  assert in_progress.staged_resource_ids == [progress_order_id]
+  assert list.length(in_progress.log_drafts) == 1
+
+  let over_fulfill =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        over_fulfillment_order_id,
+        over_line_item_id,
+        2,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(over_fulfill.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Invalid fulfillment order line item quantity requested.\"}]}}}"
+  assert over_fulfill.staged_resource_ids == []
+  assert over_fulfill.log_drafts == []
+}
+
+fn fulfillment_create_precondition_mutation() -> String {
+  "
+    mutation FulfillmentCreatePreconditions($fulfillment: FulfillmentInput!) {
+      fulfillmentCreate(fulfillment: $fulfillment) {
+        fulfillment {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+}
+
+fn fulfillment_create_precondition_variables(
+  fulfillment_order_id: String,
+  fulfillment_order_line_item_id: String,
+  quantity: Int,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #(
+      "fulfillment",
+      root_field.ObjectVal(
+        dict.from_list([
+          #("notifyCustomer", root_field.BoolVal(False)),
+          #(
+            "lineItemsByFulfillmentOrder",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "fulfillmentOrderId",
+                    root_field.StringVal(fulfillment_order_id),
+                  ),
+                  #(
+                    "fulfillmentOrderLineItems",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "id",
+                            root_field.StringVal(fulfillment_order_line_item_id),
+                          ),
+                          #("quantity", root_field.IntVal(quantity)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ),
+  ])
+}
+
+fn fulfillment_create_precondition_order(
+  order_id: String,
+  fulfillment_order_id: String,
+  fulfillment_order_line_item_id: String,
+  status: String,
+  remaining_quantity: Int,
+  cancelled_at: Option(String),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(order_id)),
+      #("name", types.CapturedString("#FULFILL-PRECONDITION")),
+      #("cancelledAt", case cancelled_at {
+        Some(value) -> types.CapturedString(value)
+        None -> types.CapturedNull
+      }),
+      #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+      #("fulfillments", types.CapturedArray([])),
+      #(
+        "fulfillmentOrders",
+        types.CapturedArray([
+          types.CapturedObject([
+            #("id", types.CapturedString(fulfillment_order_id)),
+            #("status", types.CapturedString(status)),
+            #("requestStatus", types.CapturedString("UNSUBMITTED")),
+            #(
+              "lineItems",
+              types.CapturedArray([
+                types.CapturedObject([
+                  #("id", types.CapturedString(fulfillment_order_line_item_id)),
+                  #(
+                    "lineItemId",
+                    types.CapturedString(
+                      "gid://shopify/LineItem/" <> string.lowercase(status),
+                    ),
+                  ),
+                  #("title", types.CapturedString("Precondition item")),
+                  #("totalQuantity", types.CapturedInt(remaining_quantity)),
+                  #("remainingQuantity", types.CapturedInt(remaining_quantity)),
+                ]),
+              ]),
+            ),
+          ]),
+        ]),
+      ),
+    ]),
+  )
 }
 
 pub fn orders_fulfillment_create_event_and_detail_read_test() {
@@ -6103,6 +6507,155 @@ pub fn orders_order_update_validation_guardrails_test() {
   assert store.list_effective_orders(unknown_outcome.store) == []
 }
 
+pub fn orders_order_update_rejects_empty_phone_and_bad_address_test() {
+  let order_id = "gid://shopify/Order/6830627356905"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1323")),
+          #("email", types.CapturedString("before@example.com")),
+          #("phone", types.CapturedString("+16135550100")),
+          #("note", types.CapturedString("before")),
+          #("shippingAddress", types.CapturedNull),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderUpdateValidation($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order {
+          id
+          note
+          phone
+          shippingAddress {
+            countryCodeV2
+            provinceCode
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+
+  let empty_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let empty_json = json.to_string(empty_outcome.data)
+  assert string.contains(empty_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(empty_json, "\"field\":null")
+  assert string.contains(empty_json, "\"code\":\"INVALID\"")
+  assert string.contains(
+    empty_json,
+    "No valid update parameters have been provided",
+  )
+  assert empty_outcome.staged_resource_ids == []
+  assert empty_outcome.log_drafts == []
+
+  let phone_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+              #("phone", root_field.StringVal("not a phone")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let phone_json = json.to_string(phone_outcome.data)
+  assert string.contains(phone_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(phone_json, "\"field\":[\"phone\"]")
+  assert string.contains(phone_json, "\"code\":\"INVALID\"")
+  assert phone_outcome.staged_resource_ids == []
+  assert phone_outcome.log_drafts == []
+
+  let address_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+              #(
+                "shippingAddress",
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("address1", root_field.StringVal("3 Bad Province")),
+                    #("city", root_field.StringVal("Chicago")),
+                    #("countryCode", root_field.StringVal("US")),
+                    #("provinceCode", root_field.StringVal("ON")),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let address_json = json.to_string(address_outcome.data)
+  assert string.contains(address_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"lastName\"]",
+  )
+  assert string.contains(address_json, "Enter a last name")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"zip\"]",
+  )
+  assert string.contains(address_json, "Enter a ZIP code")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"province\"]",
+  )
+  assert string.contains(
+    address_json,
+    "State is not a valid state in United States",
+  )
+  assert string.contains(address_json, "\"code\":\"INVALID\"")
+  assert address_outcome.staged_resource_ids == []
+  assert address_outcome.log_drafts == []
+}
+
 pub fn orders_order_update_existing_order_read_after_write_test() {
   let order_id = "gid://shopify/Order/6830627356905"
   let metafield_id = "gid://shopify/Metafield/35289666519273"
@@ -6850,6 +7403,7 @@ pub fn orders_order_invoice_send_payload_test() {
         data: types.CapturedObject([
           #("id", types.CapturedString(order_id)),
           #("name", types.CapturedString("#1328")),
+          #("email", types.CapturedString("order-recipient@example.test")),
           #("closed", types.CapturedBool(False)),
           #("closedAt", types.CapturedNull),
           #("cancelledAt", types.CapturedNull),
@@ -6892,6 +7446,126 @@ pub fn orders_order_invoice_send_payload_test() {
     == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"name\":\"#1328\",\"closed\":false,\"closedAt\":null,\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_rejects_empty_recipient_test() {
+  let order_id = "gid://shopify/Order/6830646329580"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1330")),
+          #("email", types.CapturedNull),
+          #("customer", types.CapturedNull),
+        ]),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, dict.new())
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":null,\"userErrors\":[{\"field\":null,\"message\":\"No recipient email address was provided\",\"code\":\"ORDER_INVOICE_SEND_UNSUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_rejects_invalid_explicit_email_test() {
+  let order_id = "gid://shopify/Order/6830646329581"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1331")),
+          #("email", types.CapturedString("order-recipient@example.test")),
+        ]),
+      ),
+    ])
+  let variables =
+    dict.from_list([
+      #(
+        "email",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("to", root_field.StringVal("not an email")),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, variables)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":null,\"userErrors\":[{\"field\":null,\"message\":\"To is invalid\",\"code\":\"ORDER_INVOICE_SEND_UNSUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_customer_email_recipient_test() {
+  let order_id = "gid://shopify/Order/6830646329582"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1332")),
+          #("email", types.CapturedNull),
+          #(
+            "customer",
+            types.CapturedObject([
+              #(
+                "email",
+                types.CapturedString("customer-recipient@example.test"),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, dict.new())
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329582\",\"name\":\"#1332\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+fn run_order_invoice_send_validation_case(
+  seeded: store.Store,
+  order_id: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) {
+  let mutation = "
+    mutation OrderInvoiceSendValidation($email: EmailInput) {
+      orderInvoiceSend(id: \"" <> order_id <> "\", email: $email) {
+        order {
+          id
+          name
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    seeded,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    mutation,
+    variables,
+    empty_upstream_context(),
+  )
 }
 
 pub fn orders_order_mark_as_paid_read_after_write_test() {
@@ -7865,6 +8539,122 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
     orders.process(duplicate_outcome.store, read_query, dict.new())
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/3\",\"email\":\"duplicate-source@example.test\",\"shippingLine\":null,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}}}}}"
+}
+
+pub fn orders_draft_order_duplicate_resets_lifecycle_fields_test() {
+  let open_source_id = "gid://shopify/DraftOrder/101"
+  let completed_source_id = "gid://shopify/DraftOrder/100"
+  let source_order_id = "gid://shopify/Order/200"
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_draft_orders([
+      types.DraftOrderRecord(
+        id: open_source_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(open_source_id)),
+          #("name", types.CapturedString("#D101")),
+          #("status", types.CapturedString("OPEN")),
+          #("ready", types.CapturedBool(True)),
+          #("completedAt", types.CapturedNull),
+          #("createdAt", types.CapturedString("2024-03-01T12:00:00.000Z")),
+          #("updatedAt", types.CapturedString("2024-03-10T12:00:00.000Z")),
+          #("invoiceSentAt", types.CapturedString("2024-03-15T12:00:00.000Z")),
+          #(
+            "invoiceUrl",
+            types.CapturedString("https://example.test/open-invoice"),
+          ),
+          #("orderId", types.CapturedNull),
+          #("order", types.CapturedNull),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+        ]),
+      ),
+      types.DraftOrderRecord(
+        id: completed_source_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(completed_source_id)),
+          #("name", types.CapturedString("#D100")),
+          #("status", types.CapturedString("COMPLETED")),
+          #("ready", types.CapturedBool(True)),
+          #("completedAt", types.CapturedString("2024-04-01T12:00:00.000Z")),
+          #("createdAt", types.CapturedString("2024-03-01T12:00:00.000Z")),
+          #("updatedAt", types.CapturedString("2024-04-01T12:00:00.000Z")),
+          #("invoiceSentAt", types.CapturedString("2024-03-15T12:00:00.000Z")),
+          #(
+            "invoiceUrl",
+            types.CapturedString("https://example.test/inherited-invoice"),
+          ),
+          #("orderId", types.CapturedString(source_order_id)),
+          #(
+            "order",
+            types.CapturedObject([
+              #("id", types.CapturedString(source_order_id)),
+              #("name", types.CapturedString("#200")),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+        ]),
+      ),
+    ])
+
+  let duplicate_mutation =
+    "
+    mutation DraftOrderDuplicate($id: ID) {
+      draftOrderDuplicate(id: $id) {
+        draftOrder {
+          id
+          name
+          status
+          ready
+          completedAt
+          createdAt
+          updatedAt
+          invoiceSentAt
+          invoiceUrl
+          order {
+            id
+            name
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let open_duplicate_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([#("id", root_field.StringVal(open_source_id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(open_duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D3\",\"status\":\"OPEN\",\"ready\":true,\"completedAt\":null,\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\",\"invoiceSentAt\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\",\"order\":null},\"userErrors\":[]}}}"
+
+  let completed_duplicate_outcome =
+    orders.process_mutation(
+      open_duplicate_outcome.store,
+      open_duplicate_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([#("id", root_field.StringVal(completed_source_id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(completed_duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/2\",\"name\":\"#D4\",\"status\":\"OPEN\",\"ready\":true,\"completedAt\":null,\"createdAt\":\"2024-01-01T00:00:01.000Z\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"invoiceSentAt\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/2/invoice\",\"order\":null},\"userErrors\":[]}}}"
 }
 
 pub fn orders_draft_order_complete_read_after_write_test() {

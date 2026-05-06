@@ -191,12 +191,6 @@
         }
       },
       {
-        "name": "duplicate-remote-id-user-errors",
-        "capturePath": "$.operations.validation.duplicateRemoteId.data.marketingActivityCreateExternal.userErrors",
-        "proxyPath": "$.data.duplicateRemoteId.userErrors",
-        "upstreamCapturePath": null
-      },
-      {
         "name": "update-user-errors",
         "capturePath": "$.operations.updateExternalByRemoteId.response.data.marketingActivityUpdateExternal.userErrors",
         "proxyPath": "$.data.updateExternalByRemoteId.userErrors",

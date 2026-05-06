@@ -680,12 +680,32 @@ pub fn mutation_user_error(
 }
 
 @internal
+pub fn nullable_mutation_user_error(
+  field_path: Option(List(String)),
+  message: String,
+) -> OrderMutationUserError {
+  let user_error_field_path = case field_path {
+    Some(path) -> Some(list.map(path, UserErrorField))
+    None -> None
+  }
+  OrderMutationUserError(
+    field_path: user_error_field_path,
+    message: message,
+    code: infer_user_error_code(field_path, message),
+  )
+}
+
+@internal
 pub fn order_mutation_user_error(
   field_path: List(UserErrorFieldSegment),
   message: String,
   code: Option(String),
 ) -> OrderMutationUserError {
-  OrderMutationUserError(field_path: field_path, message: message, code: code)
+  OrderMutationUserError(
+    field_path: Some(field_path),
+    message: message,
+    code: code,
+  )
 }
 
 @internal
@@ -693,8 +713,13 @@ pub fn serialize_order_mutation_user_error(
   field: Selection,
   error: OrderMutationUserError,
 ) -> Json {
+  let field_source = case error.field_path {
+    Some([]) -> SrcNull
+    Some(field_path) -> SrcList(list.map(field_path, user_error_path_source))
+    None -> SrcNull
+  }
   let base_fields = [
-    #("field", SrcList(list.map(error.field_path, user_error_path_source))),
+    #("field", field_source),
     #("message", SrcString(error.message)),
   ]
   let fields = case error.code {
@@ -1175,6 +1200,19 @@ pub fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
   case value {
     Some(value) -> CapturedString(value)
     None -> CapturedNull
+  }
+}
+
+@internal
+pub fn valid_email_address(email: String) -> Bool {
+  case string.contains(email, " ") {
+    True -> False
+    False ->
+      case string.split(email, "@") {
+        [local, domain] ->
+          string.trim(local) != "" && string.contains(domain, ".")
+        _ -> False
+      }
   }
 }
 

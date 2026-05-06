@@ -5,9 +5,11 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/b2b/serializers as b2b_serializers
 import shopify_draft_proxy/proxy/customers/customer_mutations.{
   customer_missing_result,
 }
@@ -26,20 +28,27 @@ import shopify_draft_proxy/proxy/customers/serializers.{
   order_customer_payload_json, store_credit_payload_json, user_error_source,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  SrcList, SrcNull, SrcString, get_field_response_key, project_graphql_value,
-  src_object,
+  SrcList, SrcNull, SrcObject, SrcString, get_field_response_key,
+  project_graphql_value, src_object,
 }
+import shopify_draft_proxy/proxy/orders/common.{
+  captured_object_field, captured_string_field, optional_captured_string,
+  replace_captured_object_fields,
+}
+import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CustomerAddressRecord, type CustomerRecord, type Money,
+  type B2BCompanyContactRecord, type CustomerAddressRecord,
+  type CustomerOrderSummaryRecord, type CustomerRecord, type Money,
+  type OrderRecord, CapturedNull, CapturedObject, CapturedString,
   CustomerAddressRecord, CustomerDefaultEmailAddressRecord,
   CustomerDefaultPhoneNumberRecord, CustomerMergeRequestRecord,
   CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord, Money,
-  StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
+  OrderRecord, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
 }
 
 @internal
@@ -1246,63 +1255,21 @@ pub fn handle_order_customer_set(store, identity, field, fragments, variables) {
   let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   case order_id, customer_id {
     Some(order_id), Some(customer_id) ->
-      case
-        store.get_effective_customer_order_summary_by_id(store, order_id),
-        store.get_effective_customer_by_id(store, customer_id)
-      {
-        Some(order), Some(customer) -> {
-          let linked =
-            CustomerOrderSummaryRecord(..order, customer_id: Some(customer.id))
-          let next_store = store.stage_customer_order_summary(store, linked)
-          let payload =
-            order_customer_payload_json(
-              next_store,
-              "OrderCustomerSetPayload",
-              Some(linked),
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [order_id],
-              "orderCustomerSet",
-            ),
-            next_store,
-            identity,
-          )
-        }
-        _, _ -> {
-          let payload =
-            order_customer_payload_json(
-              store,
-              "OrderCustomerSetPayload",
-              None,
-              [UserError(["orderId"], "Order does not exist", Some("INVALID"))],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [],
-              "orderCustomerSet",
-            ),
-            store,
-            identity,
-          )
-        }
-      }
+      handle_order_customer_set_resolved(
+        store,
+        identity,
+        field,
+        fragments,
+        order_id,
+        customer_id,
+      )
     _, _ -> {
       let payload =
         order_customer_payload_json(
           store,
           "OrderCustomerSetPayload",
           None,
-          [UserError(["orderId"], "Order does not exist", Some("INVALID"))],
+          [order_customer_invalid_order_error()],
           field,
           fragments,
         )
@@ -1320,6 +1287,103 @@ pub fn handle_order_customer_set(store, identity, field, fragments, variables) {
   }
 }
 
+fn handle_order_customer_set_resolved(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field,
+  fragments,
+  order_id: String,
+  customer_id: String,
+) {
+  case order_customer_order_context(store, order_id) {
+    None ->
+      order_customer_set_error(
+        store,
+        identity,
+        field,
+        fragments,
+        order_customer_order_not_found_error(),
+      )
+    Some(order_context) ->
+      case store.get_effective_customer_by_id(store, customer_id) {
+        None ->
+          order_customer_set_error(
+            store,
+            identity,
+            field,
+            fragments,
+            order_customer_customer_not_found_error(),
+          )
+        Some(customer) ->
+          case order_customer_b2b_disallowed(store, customer.id) {
+            True ->
+              order_customer_set_error(
+                store,
+                identity,
+                field,
+                fragments,
+                order_customer_b2b_not_permitted_error(),
+              )
+            False -> {
+              let linked =
+                CustomerOrderSummaryRecord(
+                  ..order_context.summary,
+                  customer_id: Some(customer.id),
+                )
+              let next_store =
+                stage_order_customer_summary_and_order(
+                  store,
+                  order_context.order,
+                  linked,
+                  Some(customer),
+                )
+              let payload =
+                order_customer_payload_json(
+                  next_store,
+                  "OrderCustomerSetPayload",
+                  Some(linked),
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [order_id],
+                  "orderCustomerSet",
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
+      }
+  }
+}
+
+fn order_customer_set_error(store, identity, field, fragments, error) {
+  let payload =
+    order_customer_payload_json(
+      store,
+      "OrderCustomerSetPayload",
+      None,
+      [error],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [],
+      "orderCustomerSet",
+    ),
+    store,
+    identity,
+  )
+}
+
 @internal
 pub fn handle_order_customer_remove(
   store,
@@ -1331,59 +1395,20 @@ pub fn handle_order_customer_remove(
   let args = graphql_helpers.field_args(field, variables)
   case graphql_helpers.read_arg_string_nonempty(args, "orderId") {
     Some(order_id) ->
-      case store.get_effective_customer_order_summary_by_id(store, order_id) {
-        Some(order) -> {
-          let unlinked = CustomerOrderSummaryRecord(..order, customer_id: None)
-          let next_store = store.stage_customer_order_summary(store, unlinked)
-          let payload =
-            order_customer_payload_json(
-              next_store,
-              "OrderCustomerRemovePayload",
-              Some(unlinked),
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [order_id],
-              "orderCustomerRemove",
-            ),
-            next_store,
-            identity,
-          )
-        }
-        None -> {
-          let payload =
-            order_customer_payload_json(
-              store,
-              "OrderCustomerRemovePayload",
-              None,
-              [UserError(["orderId"], "Order does not exist", Some("INVALID"))],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [],
-              "orderCustomerRemove",
-            ),
-            store,
-            identity,
-          )
-        }
-      }
+      handle_order_customer_remove_resolved(
+        store,
+        identity,
+        field,
+        fragments,
+        order_id,
+      )
     None -> {
       let payload =
         order_customer_payload_json(
           store,
           "OrderCustomerRemovePayload",
           None,
-          [UserError(["orderId"], "Order does not exist", Some("INVALID"))],
+          [order_customer_invalid_order_error()],
           field,
           fragments,
         )
@@ -1399,6 +1424,294 @@ pub fn handle_order_customer_remove(
       )
     }
   }
+}
+
+fn handle_order_customer_remove_resolved(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field,
+  fragments,
+  order_id: String,
+) {
+  case order_customer_order_context(store, order_id) {
+    None ->
+      order_customer_remove_error(
+        store,
+        identity,
+        field,
+        fragments,
+        order_customer_order_not_found_error(),
+      )
+    Some(order_context) ->
+      case order_context.order {
+        Some(order) ->
+          case order_is_cancelled(order) {
+            True ->
+              order_customer_remove_error(
+                store,
+                identity,
+                field,
+                fragments,
+                order_customer_cannot_be_removed_error(),
+              )
+            False ->
+              stage_order_customer_remove_success(
+                store,
+                identity,
+                field,
+                fragments,
+                order_id,
+                order_context,
+              )
+          }
+        _ -> {
+          stage_order_customer_remove_success(
+            store,
+            identity,
+            field,
+            fragments,
+            order_id,
+            order_context,
+          )
+        }
+      }
+  }
+}
+
+fn stage_order_customer_remove_success(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field,
+  fragments,
+  order_id: String,
+  order_context: OrderCustomerOrderContext,
+) {
+  let unlinked =
+    CustomerOrderSummaryRecord(..order_context.summary, customer_id: None)
+  let next_store =
+    stage_order_customer_summary_and_order(
+      store,
+      order_context.order,
+      unlinked,
+      None,
+    )
+  let payload =
+    order_customer_payload_json(
+      next_store,
+      "OrderCustomerRemovePayload",
+      Some(unlinked),
+      [],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [order_id],
+      "orderCustomerRemove",
+    ),
+    next_store,
+    identity,
+  )
+}
+
+fn order_customer_remove_error(store, identity, field, fragments, error) {
+  let payload =
+    order_customer_payload_json(
+      store,
+      "OrderCustomerRemovePayload",
+      None,
+      [error],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [],
+      "orderCustomerRemove",
+    ),
+    store,
+    identity,
+  )
+}
+
+type OrderCustomerOrderContext {
+  OrderCustomerOrderContext(
+    summary: CustomerOrderSummaryRecord,
+    order: Option(OrderRecord),
+  )
+}
+
+fn order_customer_order_context(
+  store: Store,
+  order_id: String,
+) -> Option(OrderCustomerOrderContext) {
+  case store.get_effective_customer_order_summary_by_id(store, order_id) {
+    Some(summary) ->
+      Some(OrderCustomerOrderContext(
+        summary: summary,
+        order: store.get_order_by_id(store, order_id),
+      ))
+    None ->
+      case store.get_order_by_id(store, order_id) {
+        Some(order) ->
+          Some(OrderCustomerOrderContext(
+            summary: customer_order_summary_from_order(order),
+            order: Some(order),
+          ))
+        None -> None
+      }
+  }
+}
+
+fn customer_order_summary_from_order(order: OrderRecord) {
+  CustomerOrderSummaryRecord(
+    id: order.id,
+    customer_id: order_customer_id(order),
+    cursor: None,
+    name: captured_string_field(order.data, "name"),
+    email: captured_string_field(order.data, "email"),
+    created_at: captured_string_field(order.data, "createdAt"),
+    current_total_price: order_current_total_shop_money(order),
+  )
+}
+
+fn order_current_total_shop_money(order: OrderRecord) -> Option(Money) {
+  use price_set <- option.then(captured_object_field(
+    order.data,
+    "currentTotalPriceSet",
+  ))
+  use shop_money <- option.then(captured_object_field(price_set, "shopMoney"))
+  use amount <- option.then(captured_string_field(shop_money, "amount"))
+  use currency_code <- option.then(captured_string_field(
+    shop_money,
+    "currencyCode",
+  ))
+  Some(Money(amount: amount, currency_code: currency_code))
+}
+
+fn order_customer_id(order: OrderRecord) -> Option(String) {
+  use customer <- option.then(captured_object_field(order.data, "customer"))
+  case customer {
+    CapturedNull -> None
+    _ -> captured_string_field(customer, "id")
+  }
+}
+
+fn stage_order_customer_summary_and_order(
+  store: Store,
+  order: Option(OrderRecord),
+  summary: CustomerOrderSummaryRecord,
+  customer: Option(CustomerRecord),
+) -> Store {
+  let next_store = store.stage_customer_order_summary(store, summary)
+  case order {
+    Some(order) ->
+      store.stage_order(next_store, order_with_customer(order, customer))
+    None -> next_store
+  }
+}
+
+fn order_with_customer(
+  order: OrderRecord,
+  customer: Option(CustomerRecord),
+) -> OrderRecord {
+  OrderRecord(
+    ..order,
+    data: replace_captured_object_fields(order.data, [
+      #("customer", order_customer_captured(customer)),
+    ]),
+  )
+}
+
+fn order_customer_captured(customer: Option(CustomerRecord)) {
+  case customer {
+    Some(customer) ->
+      CapturedObject([
+        #("id", CapturedString(customer.id)),
+        #("email", optional_captured_string(customer.email)),
+        #("displayName", optional_captured_string(customer.display_name)),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn order_is_cancelled(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedNull) | None -> False
+    _ -> True
+  }
+}
+
+fn order_customer_b2b_disallowed(store: Store, customer_id: String) -> Bool {
+  store.list_effective_b2b_companies(store)
+  |> list.find_map(fn(company) {
+    b2b_serializers.company_contacts(store, company)
+    |> list.find(fn(contact) {
+      b2b_serializers.contact_customer_id(contact) == Some(customer_id)
+    })
+  })
+  |> result.map(fn(contact) { !contact_has_ordering_role(contact) })
+  |> result.unwrap(False)
+}
+
+fn contact_has_ordering_role(contact: B2BCompanyContactRecord) -> Bool {
+  b2b_serializers.read_object_sources(b2b_serializers.data_get(
+    contact.data,
+    "roleAssignments",
+  ))
+  |> list.any(role_assignment_is_ordering)
+}
+
+fn role_assignment_is_ordering(assignment) -> Bool {
+  case assignment {
+    SrcObject(fields) ->
+      case dict.get(fields, "role") {
+        Ok(SrcObject(role_fields)) ->
+          dict.get(role_fields, "name") == Ok(SrcString("Ordering only"))
+        _ -> False
+      }
+    _ -> False
+  }
+}
+
+fn order_customer_invalid_order_error() {
+  UserError(["orderId"], "Order does not exist", Some(user_error_codes.invalid))
+}
+
+fn order_customer_order_not_found_error() {
+  UserError(
+    ["orderId"],
+    "Order does not exist",
+    Some(user_error_codes.not_found),
+  )
+}
+
+fn order_customer_customer_not_found_error() {
+  UserError(
+    ["customerId"],
+    "Customer does not exist",
+    Some(user_error_codes.not_found),
+  )
+}
+
+fn order_customer_b2b_not_permitted_error() {
+  UserError(
+    ["customerId"],
+    "no_customer_role_error",
+    Some(user_error_codes.not_permitted),
+  )
+}
+
+fn order_customer_cannot_be_removed_error() {
+  UserError(
+    ["orderId"],
+    "customer_cannot_be_removed",
+    Some(user_error_codes.invalid),
+  )
 }
 
 @internal
