@@ -1,0 +1,184 @@
+{
+  "scenarioId": "customer-set-update-address-replacement",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "address-replacement-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Replays the captured customerSet create first so id-based update and replacement-list branches earn local state through the runner. The id variables are rebound to the primary proxy customer id; the remaining inputs preserve the captured Shopify request shape.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerSet.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerSet locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.customerSet.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet with a deterministic local timestamp while Shopify returns the live write timestamp."
+      },
+      {
+        "path": "$.customerSet.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet with a deterministic local timestamp while Shopify returns the live write timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-control",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "update-by-id",
+        "capturePath": "$.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerSet.customer.id"
+              }
+            },
+            "input": {
+              "email": "hermes-customerset-create-1777169079011@example.com",
+              "firstName": "Hermes",
+              "lastName": "SetUpdated",
+              "note": "customerSet update parity probe",
+              "phone": "+17169079012",
+              "tags": ["set", "updated"],
+              "taxExempt": false,
+              "taxExemptions": [],
+              "addresses": [
+                {
+                  "address1": "10 Set St",
+                  "city": "Ottawa",
+                  "countryCode": "CA",
+                  "provinceCode": "ON",
+                  "zip": "K1A 0B1"
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSet.customer.addressesV2.nodes[*].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy mints synthetic MailingAddress IDs for staged replacement addresses."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          }
+        ]
+      },
+      {
+        "name": "multi-address-replacement",
+        "capturePath": "$.multiAddressReplacement.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerSet.customer.id"
+              }
+            },
+            "input": {
+              "email": "hermes-customerset-create-1777169079011@example.com",
+              "addresses": [
+                {
+                  "address1": "20 Set St",
+                  "city": "Ottawa",
+                  "countryCode": "CA",
+                  "provinceCode": "ON",
+                  "zip": "K1A 0B2"
+                },
+                {
+                  "address1": "21 Set St",
+                  "city": "Toronto",
+                  "countryCode": "CA",
+                  "provinceCode": "ON",
+                  "zip": "M5H 2N3"
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSet.customer.addressesV2.nodes[*].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy mints synthetic MailingAddress IDs for staged replacement addresses."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          }
+        ]
+      },
+      {
+        "name": "null-address-list-noop",
+        "capturePath": "$.validation.nullAddressList.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerSet.customer.id"
+              }
+            },
+            "input": {
+              "email": "hermes-customerset-create-1777169079011@example.com",
+              "addresses": null
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSet.customer.addressesV2.nodes[*].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy mints synthetic MailingAddress IDs for staged replacement addresses."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          }
+        ]
+      }
+    ]
+  }
+}
