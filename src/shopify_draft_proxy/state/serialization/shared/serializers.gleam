@@ -959,6 +959,11 @@ pub fn delegated_access_token_json(
 ) -> Json {
   json.object([
     #("id", json.string(record.id)),
+    #("apiClientId", json.string(record.api_client_id)),
+    #(
+      "parentAccessTokenSha256",
+      optional_string(record.parent_access_token_sha256),
+    ),
     #("accessTokenSha256", json.string(record.access_token_sha256)),
     #("accessTokenPreview", json.string(record.access_token_preview)),
     #("accessScopes", json.array(record.access_scopes, json.string)),
