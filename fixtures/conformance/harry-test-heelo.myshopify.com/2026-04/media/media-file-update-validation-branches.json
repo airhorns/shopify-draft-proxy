@@ -201,9 +201,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "Non-ready files cannot be updated.",
                 "code": "NON_READY_STATE"
               }
@@ -238,11 +236,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files",
-                  "0",
-                  "originalSource"
-                ],
+                "field": ["files", "0", "originalSource"],
                 "message": "Updating the original source is not supported for this media type.",
                 "code": "INVALID"
               }
@@ -277,9 +271,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "Updating the filename is only supported on images and generic files",
                 "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
               }
@@ -314,9 +306,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "The filename extension provided must match the original filename.",
                 "code": "INVALID_FILENAME_EXTENSION"
               }
@@ -341,12 +331,8 @@
         "files": [
           {
             "id": "gid://shopify/MediaImage/43678570479922",
-            "referencesToAdd": [
-              "gid://shopify/Product/999999999991"
-            ],
-            "referencesToRemove": [
-              "gid://shopify/Product/999999999992"
-            ]
+            "referencesToAdd": ["gid://shopify/Product/999999999991"],
+            "referencesToRemove": ["gid://shopify/Product/999999999992"]
           }
         ]
       },
@@ -356,9 +342,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "The reference target does not exist",
                 "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
               }
@@ -394,10 +378,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files",
-                  "0"
-                ],
+                "field": ["files", "0"],
                 "message": "Specify either a source or revertToVersionId, not both.",
                 "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
               }
@@ -422,9 +403,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "File id [\"gid://shopify/Video/43678570479922\"] does not exist.",
                 "code": "FILE_DOES_NOT_EXIST"
               }
@@ -498,9 +477,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/43678570479922"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/43678570479922"]
       },
       "query": "sha:media-file-update-hydrate",
       "response": {
@@ -535,9 +512,7 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/ExternalVideo/43678570512690"
-        ]
+        "fileIds": ["gid://shopify/ExternalVideo/43678570512690"]
       },
       "query": "sha:media-file-update-hydrate",
       "response": {
