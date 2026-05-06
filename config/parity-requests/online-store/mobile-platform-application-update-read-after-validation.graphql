@@ -1,0 +1,22 @@
+query MobilePlatformApplicationUpdateReadAfterValidation($appleId: ID!, $androidId: ID!) {
+  apple: mobilePlatformApplication(id: $appleId) {
+    __typename
+    ... on AppleApplication {
+      id
+      appId
+      universalLinksEnabled
+      sharedWebCredentialsEnabled
+      appClipsEnabled
+      appClipApplicationId
+    }
+  }
+  android: mobilePlatformApplication(id: $androidId) {
+    __typename
+    ... on AndroidApplication {
+      id
+      applicationId
+      appLinksEnabled
+      sha256CertFingerprints
+    }
+  }
+}
