@@ -1,19 +1,19 @@
 {
-  "capturedAt": "2026-05-06T00:31:26.867Z",
+  "capturedAt": "2026-05-06T05:40:45.668Z",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "notes": [
-    "Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, and billing/delivery policy kind compatibility.",
+    "Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, policy kind compatibility, recurring interval counts, and recurring anchor schedule compatibility.",
     "The script creates one disposable selling-plan group so update validation branches can target an existing group and deletes it during cleanup."
   ],
-  "groupId": "gid://shopify/SellingPlanGroup/2981101874",
-  "planId": "gid://shopify/SellingPlan/7131595058",
+  "groupId": "gid://shopify/SellingPlanGroup/2983035186",
+  "planId": "gid://shopify/SellingPlan/7133561138",
   "scenarios": {
     "validSeed": {
       "label": "validSeed",
       "variables": {
         "input": {
-          "name": "Input validation seed 1778027484926",
+          "name": "Input validation seed 1778046043280",
           "options": ["Delivery frequency"],
           "sellingPlansToCreate": [
             {
@@ -59,11 +59,11 @@
         "data": {
           "sellingPlanGroupCreate": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/2981101874",
+              "id": "gid://shopify/SellingPlanGroup/2983035186",
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7131595058"
+                    "id": "gid://shopify/SellingPlan/7133561138"
                   }
                 ]
               }
@@ -221,7 +221,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -460,10 +460,171 @@
         }
       }
     },
+    "planCreateZeroRecurringInterval": {
+      "label": "planCreateZeroRecurringInterval",
+      "variables": {
+        "input": {
+          "name": "Zero recurring interval",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 0,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 0,
+                  "cutoff": 0
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "deliveryPolicy", "recurring", "intervalCount"],
+                "message": "Interval count must be greater than 0",
+                "code": "GREATER_THAN"
+              },
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "billingPolicy", "recurring", "intervalCount"],
+                "message": "Interval count must be greater than 0",
+                "code": "GREATER_THAN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planCreateAnchorMismatch": {
+      "label": "planCreateAnchorMismatch",
+      "variables": {
+        "input": {
+          "name": "Anchor mismatch",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12,
+                  "anchors": [
+                    {
+                      "type": "MONTHDAY",
+                      "day": 1
+                    }
+                  ]
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "cutoff": 0,
+                  "anchors": [
+                    {
+                      "type": "MONTHDAY",
+                      "day": 2
+                    }
+                  ]
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0"],
+                "message": "Billing and delivery policy anchors must be the same",
+                "code": "SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "groupUpdateOptionsTooLong": {
       "label": "groupUpdateOptionsTooLong",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
         "input": {
           "options": ["a", "b", "c", "d"]
         }
@@ -499,7 +660,7 @@
     "planUpdateMissingId": {
       "label": "planUpdateMissingId",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
         "input": {
           "sellingPlansToUpdate": [
             {
@@ -539,11 +700,11 @@
     "planUpdateOptionsTooLong": {
       "label": "planUpdateOptionsTooLong",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
         "input": {
           "sellingPlansToUpdate": [
             {
-              "id": "gid://shopify/SellingPlan/7131595058",
+              "id": "gid://shopify/SellingPlan/7133561138",
               "options": ["a", "b", "c", "d"]
             }
           ]
@@ -580,11 +741,11 @@
     "planUpdatePricingPoliciesTooLong": {
       "label": "planUpdatePricingPoliciesTooLong",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
         "input": {
           "sellingPlansToUpdate": [
             {
-              "id": "gid://shopify/SellingPlan/7131595058",
+              "id": "gid://shopify/SellingPlan/7133561138",
               "pricingPolicies": [
                 {
                   "fixed": {
@@ -648,11 +809,11 @@
     "planUpdatePositionInvalid": {
       "label": "planUpdatePositionInvalid",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
         "input": {
           "sellingPlansToUpdate": [
             {
-              "id": "gid://shopify/SellingPlan/7131595058",
+              "id": "gid://shopify/SellingPlan/7133561138",
               "position": 9999999999
             }
           ]
@@ -689,11 +850,11 @@
     "planUpdatePolicyMismatch": {
       "label": "planUpdatePolicyMismatch",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
         "input": {
           "sellingPlansToUpdate": [
             {
-              "id": "gid://shopify/SellingPlan/7131595058",
+              "id": "gid://shopify/SellingPlan/7133561138",
               "billingPolicy": {
                 "recurring": {
                   "interval": "MONTH",
@@ -738,19 +899,146 @@
           }
         }
       }
+    },
+    "planUpdateZeroRecurringInterval": {
+      "label": "planUpdateZeroRecurringInterval",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "id": "gid://shopify/SellingPlan/7133561138",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 0,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 0,
+                  "cutoff": 0
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0", "deliveryPolicy", "recurring", "intervalCount"],
+                "message": "Interval count must be greater than 0",
+                "code": "GREATER_THAN"
+              },
+              {
+                "field": ["input", "sellingPlansToUpdate", "0", "billingPolicy", "recurring", "intervalCount"],
+                "message": "Interval count must be greater than 0",
+                "code": "GREATER_THAN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planUpdateAnchorMismatch": {
+      "label": "planUpdateAnchorMismatch",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2983035186",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "id": "gid://shopify/SellingPlan/7133561138",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12,
+                  "anchors": [
+                    {
+                      "type": "MONTHDAY",
+                      "day": 1
+                    }
+                  ]
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "cutoff": 0,
+                  "anchors": [
+                    {
+                      "type": "MONTHDAY",
+                      "day": 2
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0"],
+                "message": "Billing and delivery policy anchors must be the same",
+                "code": "SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     }
   },
   "cleanup": [
     {
       "label": "cleanup sellingPlanGroupDelete",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/2981101874"
+        "id": "gid://shopify/SellingPlanGroup/2983035186"
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupDelete": {
-            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/2981101874",
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/2983035186",
             "userErrors": []
           }
         },

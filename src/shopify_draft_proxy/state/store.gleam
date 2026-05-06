@@ -450,6 +450,10 @@ pub const get_effective_shop = admin_platform.get_effective_shop
 
 pub const shop_sells_subscriptions = admin_platform.shop_sells_subscriptions
 
+pub const payment_gateway_by_id = admin_platform.payment_gateway_by_id
+
+pub const set_shop_payment_gateways = admin_platform.set_shop_payment_gateways
+
 pub const set_shop_sells_subscriptions = admin_platform.set_shop_sells_subscriptions
 
 pub const upsert_base_b2b_company = b2b.upsert_base_b2b_company

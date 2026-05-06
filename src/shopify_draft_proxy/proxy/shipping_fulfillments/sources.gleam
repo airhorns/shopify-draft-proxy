@@ -635,6 +635,15 @@ pub fn invalid_fulfillment_service_destination_location() -> shipping_types.Fulf
 }
 
 @internal
+pub fn fulfillment_service_destination_location_should_not_be_present() -> shipping_types.FulfillmentServiceUserError {
+  shipping_types.FulfillmentServiceUserError(
+    field: Some(["inventoryAction"]),
+    message: "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service.",
+    code: Some("DESTINATION_LOCATION_ID_SHOULD_NOT_PRESENT"),
+  )
+}
+
+@internal
 pub fn blank_delivery_profile_name_error() -> shipping_types.DeliveryProfileUserError {
   shipping_types.DeliveryProfileUserError(
     field: Some(["profile", "name"]),
