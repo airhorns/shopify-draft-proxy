@@ -96,10 +96,7 @@
             "paymentCustomization": null,
             "userErrors": [
               {
-                "field": [
-                  "paymentCustomization",
-                  "functionId"
-                ],
+                "field": ["paymentCustomization", "functionId"],
                 "code": "FUNCTION_ID_CANNOT_BE_CHANGED",
                 "message": "Function ID cannot be changed."
               }

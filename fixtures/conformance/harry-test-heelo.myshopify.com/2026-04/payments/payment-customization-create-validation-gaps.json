@@ -137,9 +137,7 @@
           "paymentCustomization": null,
           "userErrors": [
             {
-              "field": [
-                "paymentCustomization"
-              ],
+              "field": ["paymentCustomization"],
               "code": "MULTIPLE_FUNCTION_IDENTIFIERS",
               "message": "Only one of function_id or function_handle can be provided, not both."
             }
@@ -149,10 +147,7 @@
           "paymentCustomization": null,
           "userErrors": [
             {
-              "field": [
-                "paymentCustomization",
-                "functionHandle"
-              ],
+              "field": ["paymentCustomization", "functionHandle"],
               "code": "MISSING_FUNCTION_IDENTIFIER",
               "message": "Either function_id or function_handle must be provided."
             }

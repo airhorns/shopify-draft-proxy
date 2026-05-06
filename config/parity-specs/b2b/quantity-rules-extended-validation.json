@@ -1,0 +1,65 @@
+{
+  "scenarioId": "b2b-quantity-rules-extended-validation",
+  "operationNames": ["quantityPricingByVariantUpdate", "quantityRulesAdd", "quantityRulesDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/quantity-rules-extended-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/quantity-rules-delete.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "notes": "Live Shopify Admin GraphQL 2025-01 evidence for B2B-backed price-list quantityRulesDelete when the variant has no fixed quantity rule, quantityRulesAdd missing-variant validation, and quantityRulesAdd maximum-vs-existing-quantity-price-break validation. The capture seeds and cleans up a fixed quantity rule plus quantity price break through quantityPricingByVariantUpdate, while parity replay uses cassette-backed preflight reads and keeps supported quantityRulesAdd/Delete mutations local.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delete-no-existing-rule",
+        "capturePath": "$.cases[0].response.payload.data.quantityRulesDelete",
+        "proxyPath": "$.data.quantityRulesDelete"
+      },
+      {
+        "name": "add-missing-variant",
+        "capturePath": "$.cases[1].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "seed-existing-price-break",
+        "capturePath": "$.setup.seed.payload.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update.graphql",
+          "variables": {
+            "priceListId": {
+              "fromCapturePath": "$.setup.priceListId"
+            },
+            "input": {
+              "fromCapturePath": "$.setup.seedInput"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "add-maximum-below-existing-price-break",
+        "capturePath": "$.cases[2].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

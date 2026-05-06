@@ -25,12 +25,7 @@
         "name": "payment-customization-validation-data",
         "capturePath": "$.response.payload.data",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.unknownUpdate",
-          "$.unknownActivation",
-          "$.emptyActivation",
-          "$.unknownDelete"
-        ],
+        "selectedPaths": ["$.unknownUpdate", "$.unknownActivation", "$.emptyActivation", "$.unknownDelete"],
         "upstreamCapturePath": null
       }
     ]

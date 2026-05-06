@@ -54,7 +54,9 @@ function payloadId(result: ConformanceGraphqlResult, alias: string): string | nu
 function paymentCustomizationNodes(result: ConformanceGraphqlResult): JsonRecord[] {
   const data = readRecord(result.payload.data);
   const connection = readRecord(data?.['paymentCustomizations']);
-  return readArray(connection?.['nodes']).map(readRecord).filter((node): node is JsonRecord => node !== null);
+  return readArray(connection?.['nodes'])
+    .map(readRecord)
+    .filter((node): node is JsonRecord => node !== null);
 }
 
 async function deletePaymentCustomization(id: string): Promise<ConformanceGraphqlResult> {
