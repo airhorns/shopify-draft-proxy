@@ -9,7 +9,7 @@
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
-    "variablesCapturePath": "$.cases[7].variables"
+    "variablesCapturePath": "$.cases[10].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -18,7 +18,7 @@
     "targets": [
       {
         "name": "partial-update-preserves-absent-fields",
-        "capturePath": "$.cases[8].response.payload.data.webPresenceUpdate",
+        "capturePath": "$.cases[11].response.payload.data.webPresenceUpdate",
         "proxyPath": "$.data.webPresenceUpdate",
         "selectedPaths": [
           "$.webPresence.defaultLocale.locale",
@@ -33,7 +33,7 @@
               "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
             },
             "input": {
-              "fromCapturePath": "$.cases[8].variables.input"
+              "fromCapturePath": "$.cases[11].variables.input"
             }
           }
         }

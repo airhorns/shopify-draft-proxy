@@ -2977,6 +2977,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-customer-selection-internal-conflicts',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-customer-selection-internal-conflicts-conformance.ts',
+    purpose:
+      'Discount customerSelection all/customers and all/customerSegments BadRequest parity plus public-schema saved-search coercion for basic code create inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-customer-selection-internal-conflicts.json`,
+      'config/parity-specs/discounts/discount-customer-selection-internal-conflicts.json',
+      'config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer, one disposable customer segment, and one valid disposable code discount for the happy path; deletes all created resources after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-minimum-requirement-exclusivity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-minimum-requirement-exclusivity-conformance.ts',
@@ -3468,6 +3485,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/shipping-fulfillments/shipping-user-error-codes.json',
     ],
     cleanupBehavior: 'No persistent setup or cleanup; all captures are validation-only carrier-service branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'carrier-service-callback-url-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-carrier-service-callback-url-validation-conformance.ts',
+    purpose:
+      'DeliveryCarrierService callbackUrl variable coercion, HTTPS-only resolver validation, banned-host resolver validation, and update-time typed userError codes.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}carrier-service-callback-url-validation.json`,
+      'config/parity-specs/shipping-fulfillments/carrier-service-callback-url-validation.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable carrier service with an allowed callback URL, records invalid update attempts against it, then deletes the carrier service in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
