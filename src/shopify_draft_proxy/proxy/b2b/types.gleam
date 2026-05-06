@@ -1,7 +1,7 @@
 //// Shared internal B2B domain types and constants.
 
 import gleam/option.{type Option}
-import shopify_draft_proxy/graphql/root_field
+
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{type SourceValue}
 import shopify_draft_proxy/state/store.{type Store}

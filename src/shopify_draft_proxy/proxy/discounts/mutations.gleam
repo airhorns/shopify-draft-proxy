@@ -1,113 +1,51 @@
 //// Discounts mutation staging and validation dispatch.
 
 import gleam/dict.{type Dict}
-import gleam/float
+
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/order
+
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/commit
-import shopify_draft_proxy/proxy/discounts/queries.{
-  child_fields, compare_discount_timestamp,
-  discount_matches_positive_search_term, discount_matches_type_filter,
-  discount_node_source, discount_record_timestamp, filter_discounts,
-  get_effective_discount_bulk_operation, handle_discount_query,
-  handle_query_request, is_discount_query_root,
-  local_has_discount_bulk_creation_id, local_has_discount_id,
-  local_has_staged_discounts, process, reverse_order, root_query_payload,
-  serialize_count, serialize_discount_connection, serialize_page_info,
-  should_passthrough_in_live_hybrid, sort_discounts, sort_discounts_by_timestamp,
-}
+
+import shopify_draft_proxy/proxy/discounts/queries.{child_fields}
+
 import shopify_draft_proxy/proxy/discounts/serializers.{
-  app_discount_function_api_supported,
-  app_discount_function_does_not_implement_error,
-  app_discount_function_not_found_error,
-  app_discount_missing_function_identifier_error,
-  app_discount_multiple_function_identifiers_error, append_blank_title_error,
-  apply_bulk_effects, automatic_record_from_hydrate_node,
-  blank_subscription_field_error, blank_subscription_field_errors, bool_value,
-  build_discount_record, bulk_invalid_saved_search_message,
-  bulk_missing_selector_message, bulk_too_many_selector_message,
-  bxgy_disallowed_subscription_errors, bxgy_disallowed_value_errors,
-  bxgy_discount_on_quantity_quantity_blank_error,
-  bxgy_missing_discount_on_quantity_errors, code_record_from_hydrate_node,
-  customer_gets_fields, customer_gets_items_fields, customer_gets_value_fields,
-  customer_gets_value_type_count, decimal_at_least, decimal_parts_at_least,
-  default_discount_classes, derive_discount_status, derive_discount_status_ms,
-  digits_only, discount_class_for_record, discount_classes_for_input,
-  discount_code_blank_error, discount_record_from_hydrate,
-  discount_type_from_typename, existing_discount_id, existing_discount_source,
-  fetch_shop_subscription_capability, fetch_taken_code_error, has_object_field,
-  has_subscription_validation_fields, infer_basic_discount_classes,
-  input_or_existing_discount_source, input_value_is_present, invalid_date_range,
-  invalid_free_shipping_combines, invalid_id_errors, is_bulk_rule_discount,
-  items_targets_entitled_resources, json_get, json_get_string, json_to_code_pair,
+  apply_bulk_effects, build_discount_record, fetch_taken_code_error,
   maybe_hydrate_discount, maybe_hydrate_discount_subscription_capability,
-  maybe_hydrate_shopify_function, nested_has_all, non_null_node,
-  normalize_function_api_type, owner_node_field, payload_json,
-  primary_discount_class, product_discounts_with_tags_settings,
-  read_bulk_saved_search_id, read_numeric_string,
-  redeem_code_bulk_delete_target_ids, redeem_code_ids_matching_query,
-  redeem_code_ids_selector_is_empty, redeem_code_ids_selector_present,
-  redeem_code_matches_positive_search_term, selector_present, set_record_status,
-  shop_sells_subscriptions_from_response, shopify_function_app_record_from_node,
-  shopify_function_record_from_node, shopify_function_record_from_response,
-  source_timestamp_ms, subscription_field_error, subscription_field_location,
-  subscription_field_source, subscription_fields_not_permitted_errors,
-  subscription_not_permitted_message, summary_for, synthetic_now,
-  tag_add_remove_overlap, title_is_blank, trim_leading_zeroes, typename_for,
-  validate_app_discount_function_input, validate_app_discount_function_reference,
-  validate_basic_refs, validate_bulk_saved_search_selector,
-  validate_bulk_search_selector, validate_bulk_selector, validate_bxgy_input,
-  validate_cart_line_combination_tag_settings,
-  validate_cart_line_combination_tag_top_level_errors,
-  validate_context_customer_selection_conflict,
-  validate_customer_gets_value_type_top_level_errors,
-  validate_discount_code_input, validate_discount_input,
-  validate_discount_items_refs, validate_discount_top_level_errors,
-  validate_discount_update_input, validate_minimum_quantity_limit,
-  validate_minimum_requirement, validate_minimum_subtotal_limit,
+  maybe_hydrate_shopify_function, payload_json,
+  redeem_code_bulk_delete_target_ids, validate_bulk_selector,
+  validate_context_customer_selection_conflict, validate_discount_input,
+  validate_discount_top_level_errors, validate_discount_update_input,
   validate_redeem_code_bulk_delete_after_hydrate,
-  validate_redeem_code_bulk_delete_saved_search_selector,
-  validate_redeem_code_bulk_delete_search_selector,
   validate_redeem_code_bulk_delete_selector_shape,
-  validate_subscription_field_values, validate_subscription_fields,
 }
+
 import shopify_draft_proxy/proxy/discounts/types as discount_types
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SelectedFieldOptions, SrcBool, SrcFloat,
-  SrcInt, SrcList, SrcNull, SrcObject, SrcString, field_locations_json,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  project_graphql_value,
+  type FragmentMap, type SourceValue, SrcBool, SrcInt, SrcList, SrcNull,
+  SrcObject, SrcString, field_locations_json, get_document_fragments,
+  get_field_response_key, project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
   single_root_log_draft, validate_required_field_arguments,
 }
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
+
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
-import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/state/iso_timestamp
+
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountBulkOperationRecord, type DiscountRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord, CapturedArray,
-  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
-  CapturedString, DiscountBulkOperationRecord, DiscountRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
+  type DiscountRecord, DiscountBulkOperationRecord, DiscountRecord,
 }
 
 @internal

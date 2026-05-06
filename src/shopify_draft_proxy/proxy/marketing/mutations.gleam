@@ -5,10 +5,10 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/string
+
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/commit
+
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
   get_document_fragments, get_field_response_key, src_object,
@@ -26,9 +26,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  MarketingBool, MarketingEngagementRecord, MarketingFloat, MarketingInt,
-  MarketingList, MarketingNull, MarketingObject, MarketingRecord,
-  MarketingString,
+  MarketingBool, MarketingEngagementRecord, MarketingInt, MarketingList,
+  MarketingNull, MarketingObject, MarketingRecord, MarketingString,
 }
 
 @internal
