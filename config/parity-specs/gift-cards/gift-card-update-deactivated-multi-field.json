@@ -1,0 +1,72 @@
+{
+  "scenarioId": "gift-card-update-deactivated-multi-field",
+  "operationNames": ["customerCreate", "giftCardCreate", "giftCardDeactivate", "giftCardUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-update-deactivated-multi-field.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-customer-create.graphql",
+    "variablesCapturePath": "$.setup[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures giftCardUpdate validation for deactivated cards when multiple public blocked fields are supplied in the same input. The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live fixture records field/message evidence and the expected replay payload adds the typed INVALID code required by the internal GiftCardErrorCode contract. Runtime coverage also exercises the local-only crossCurrencyRedemptionStrategy priority branch that is not present in the public 2025-01 GiftCardUpdateInput schema.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-customer-user-errors",
+        "capturePath": "$.setup[0].response.payload.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "create-deactivated-card-user-errors",
+        "capturePath": "$.setup[1].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-gift-card-create.graphql",
+          "variablesCapturePath": "$.setup[1].variables"
+        }
+      },
+      {
+        "name": "deactivate-card-user-errors",
+        "capturePath": "$.setup[2].response.payload.data.giftCardDeactivate.userErrors",
+        "proxyPath": "$.data.giftCardDeactivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-gift-card-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-deactivated-card-user-errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "giftCardUpdate deactivated multi-field userErrors",
+        "capturePath": "$.expected.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-deactivated-multi-field.graphql",
+          "variables": {
+            "deactivatedId": {
+              "fromProxyResponse": "deactivate-card-user-errors",
+              "path": "$.data.giftCardDeactivate.giftCard.id"
+            },
+            "customerId": {
+              "fromProxyResponse": "create-customer-user-errors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "recipientId": {
+              "fromProxyResponse": "create-customer-user-errors",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
