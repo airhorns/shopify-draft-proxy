@@ -1,0 +1,28 @@
+mutation StandardMetafieldDefinitionEnableDeprecatedAccessFilter {
+  standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    id: "gid://shopify/StandardMetafieldDefinitionTemplate/3"
+    useAsAdminFilter: true
+    visibleToStorefrontApi: false
+  ) {
+    createdDefinition {
+      namespace
+      key
+      access {
+        storefront
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

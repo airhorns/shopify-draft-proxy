@@ -1,0 +1,212 @@
+{
+  "capturedAt": "2026-05-06T03:19:37.909Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": {
+    "publicSchemaBoundary": "Public Admin GraphQL 2026-04 exposes ownerType, id, namespace, key, pin, capabilities, and access on standardMetafieldDefinitionEnable. It does not expose forceEnable, useAsCollectionCondition, useAsAdminFilter, or visibleToStorefrontApi on this conformance shop, so those ticket-required branches are local-runtime-backed contract evidence rather than public-schema live captures.",
+    "templateCatalogEvidence": "A read-only 2026-04 standardMetafieldDefinitionTemplates(first: 100, excludeActivated: false) probe returned template ids 1, 2, 3, 10001, and 10004 with the namespace/key/type data encoded in the local standard template slice.",
+    "cleanupEvidence": "The live known-good color-pattern probe created gid://shopify/MetafieldDefinition/206789771570, but this token received ACCESS_DENIED from metafieldDefinitionDelete for that standard definition. The checked-in executable success target therefore uses local-runtime expected payload and avoids depending on that non-cleaned live write."
+  },
+  "live": {
+    "captures": [
+      {
+        "name": "invalid-smart-collection-capability",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-smart-capability.graphql",
+          "variables": {}
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The capability smart_collection_condition is not valid for this definition.",
+                  "code": "INVALID_CAPABILITY"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "invalid-unique-values-capability",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-unique-capability.graphql",
+          "variables": {}
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The capability unique_values is not valid for this definition.",
+                  "code": "INVALID_CAPABILITY"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "runtime": {
+    "cases": [
+      {
+        "name": "known-good-color-pattern",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-color-pattern.graphql",
+          "variables": {}
+        },
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": {
+                "namespace": "shopify",
+                "key": "color-pattern",
+                "type": {
+                  "name": "list.metaobject_reference"
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      {
+        "name": "admin-access-input-not-allowed",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-admin-access.graphql",
+          "variables": {}
+        },
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": null,
+              "userErrors": [
+                {
+                  "field": ["access"],
+                  "message": "Admin access input is not allowed for this standard metafield definition.",
+                  "code": "ADMIN_ACCESS_INPUT_NOT_ALLOWED"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "deprecated-access-and-filter-translation",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-deprecated-access-filter.graphql",
+          "variables": {}
+        },
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": {
+                "namespace": "facts",
+                "key": "isbn",
+                "access": {
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "adminFilterable": {
+                    "enabled": true,
+                    "eligible": true,
+                    "status": "FILTERABLE"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      {
+        "name": "unstructured-metafield-setup",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-metafields-set-subtitle.graphql",
+          "variables": {}
+        },
+        "response": {
+          "data": {
+            "metafieldsSet": {
+              "metafields": [
+                {
+                  "namespace": "descriptors",
+                  "key": "subtitle"
+                }
+              ],
+              "userErrors": []
+            }
+          }
+        }
+      },
+      {
+        "name": "unstructured-already-exists-force-false",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-force-false.graphql",
+          "variables": {}
+        },
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Unstructured metafields already exist for this owner type, namespace, and key.",
+                  "code": "UNSTRUCTURED_ALREADY_EXISTS"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "deprecated-collection-condition-type-not-allowed",
+        "request": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-deprecated-condition.graphql",
+          "variables": {}
+        },
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Definition type is not allowed for smart collection conditions.",
+                  "code": "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "definition-limit-exceeded",
+        "response": {
+          "data": {
+            "standardMetafieldDefinitionEnable": {
+              "createdDefinition": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Definition limit reached for owner type.",
+                  "code": "LIMIT_EXCEEDED"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": []
+}

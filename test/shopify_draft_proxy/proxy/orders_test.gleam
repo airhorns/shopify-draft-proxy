@@ -8392,6 +8392,122 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/3\",\"email\":\"duplicate-source@example.test\",\"shippingLine\":null,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}}}}}"
 }
 
+pub fn orders_draft_order_duplicate_resets_lifecycle_fields_test() {
+  let open_source_id = "gid://shopify/DraftOrder/101"
+  let completed_source_id = "gid://shopify/DraftOrder/100"
+  let source_order_id = "gid://shopify/Order/200"
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_draft_orders([
+      types.DraftOrderRecord(
+        id: open_source_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(open_source_id)),
+          #("name", types.CapturedString("#D101")),
+          #("status", types.CapturedString("OPEN")),
+          #("ready", types.CapturedBool(True)),
+          #("completedAt", types.CapturedNull),
+          #("createdAt", types.CapturedString("2024-03-01T12:00:00.000Z")),
+          #("updatedAt", types.CapturedString("2024-03-10T12:00:00.000Z")),
+          #("invoiceSentAt", types.CapturedString("2024-03-15T12:00:00.000Z")),
+          #(
+            "invoiceUrl",
+            types.CapturedString("https://example.test/open-invoice"),
+          ),
+          #("orderId", types.CapturedNull),
+          #("order", types.CapturedNull),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+        ]),
+      ),
+      types.DraftOrderRecord(
+        id: completed_source_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(completed_source_id)),
+          #("name", types.CapturedString("#D100")),
+          #("status", types.CapturedString("COMPLETED")),
+          #("ready", types.CapturedBool(True)),
+          #("completedAt", types.CapturedString("2024-04-01T12:00:00.000Z")),
+          #("createdAt", types.CapturedString("2024-03-01T12:00:00.000Z")),
+          #("updatedAt", types.CapturedString("2024-04-01T12:00:00.000Z")),
+          #("invoiceSentAt", types.CapturedString("2024-03-15T12:00:00.000Z")),
+          #(
+            "invoiceUrl",
+            types.CapturedString("https://example.test/inherited-invoice"),
+          ),
+          #("orderId", types.CapturedString(source_order_id)),
+          #(
+            "order",
+            types.CapturedObject([
+              #("id", types.CapturedString(source_order_id)),
+              #("name", types.CapturedString("#200")),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+        ]),
+      ),
+    ])
+
+  let duplicate_mutation =
+    "
+    mutation DraftOrderDuplicate($id: ID) {
+      draftOrderDuplicate(id: $id) {
+        draftOrder {
+          id
+          name
+          status
+          ready
+          completedAt
+          createdAt
+          updatedAt
+          invoiceSentAt
+          invoiceUrl
+          order {
+            id
+            name
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let open_duplicate_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([#("id", root_field.StringVal(open_source_id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(open_duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D3\",\"status\":\"OPEN\",\"ready\":true,\"completedAt\":null,\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\",\"invoiceSentAt\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\",\"order\":null},\"userErrors\":[]}}}"
+
+  let completed_duplicate_outcome =
+    orders.process_mutation(
+      open_duplicate_outcome.store,
+      open_duplicate_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([#("id", root_field.StringVal(completed_source_id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(completed_duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/2\",\"name\":\"#D4\",\"status\":\"OPEN\",\"ready\":true,\"completedAt\":null,\"createdAt\":\"2024-01-01T00:00:01.000Z\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"invoiceSentAt\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/2/invoice\",\"order\":null},\"userErrors\":[]}}}"
+}
+
 pub fn orders_draft_order_complete_read_after_write_test() {
   let create_mutation =
     "

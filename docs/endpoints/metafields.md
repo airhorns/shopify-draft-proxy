@@ -67,7 +67,7 @@ The fixture documents excluded product-owned metafield types instead of adding p
 
 ### Standard metafield definition enablement
 
-`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the HAR-257 captured standard template slice. Supported selectors are the fixture-backed template IDs/namespaces in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json`.
+`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the captured standard template slice. Supported selectors are the fixture-backed template IDs/namespaces in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json`, the 2026-04 read-only `standardMetafieldDefinitionTemplates(first: 100, excludeActivated: false)` probe noted in `fixtures/conformance/local-runtime/2026-04/metafields/standard-metafield-definition-enable-error-branches.json`, and the constrained-template evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-create-with-pin-guards.json`.
 
 Successful local enablement:
 
@@ -75,6 +75,11 @@ Successful local enablement:
 - supports `id` or `namespace` / `key` template selection for the captured template slice
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
 - rejects ineligible capability inputs before staging, using the same captured `INVALID_CAPABILITY` branch as definition create/update but with standard-enable field paths
+- translates the deprecated local inputs `useAsCollectionCondition`, `useAsAdminFilter`, and `visibleToStorefrontApi` into the corresponding capability/access records before staging
+- rejects matching existing unstructured metafields with `UNSTRUCTURED_ALREADY_EXISTS` unless `forceEnable: true` is provided
+- returns `INVALID_CAPABILITY` for ineligible capability input, and returns `TYPE_NOT_ALLOWED_FOR_CONDITIONS` for the deprecated collection-condition argument on an ineligible type
+- returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` when merchant admin access is supplied for non-app-owned standard templates
+- returns `LIMIT_EXCEEDED` when the product owner-type definition cap is already reached
 - when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
@@ -88,6 +93,8 @@ HAR-257 captured validation behavior in `fixtures/conformance/harry-test-heelo.m
 - template ID `1` with incompatible owner type `CUSTOMER` returns the same invalid-template-ID branch
 
 That fixture scope is not a rule against live success captures. Normal supported proxy runtime handling must not send this mutation to Shopify, but explicit conformance recording may create and clean up real standard definitions in a disposable test shop, and `__meta/commit` replay should let the queued raw mutation create its Shopify-side schema effect.
+
+The public Admin GraphQL 2026-04 schema on the current conformance shop exposes `capabilities` and `access`, but no longer exposes `forceEnable`, `useAsCollectionCondition`, `useAsAdminFilter`, or `visibleToStorefrontApi` on `standardMetafieldDefinitionEnable`. `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json` therefore combines live public captures for schema-exposed capability errors with local-runtime-backed contract targets for the deprecated/internal inputs required by this proxy fidelity slice.
 
 ### Metafield definition pinning
 

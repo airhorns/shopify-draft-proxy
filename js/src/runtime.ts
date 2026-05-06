@@ -25,7 +25,9 @@ import {
   stage_staged_upload_content,
   with_config,
   with_default_registry,
+  with_upstream_transport,
 } from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/draft_proxy.mjs';
+import { SyncTransport } from '../../build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/shopify/upstream_client.mjs';
 import {
   Config,
   Live,
@@ -189,6 +191,10 @@ export class DraftProxy {
     const [resp, next] = await process_graphql_request_async(this.#inner, bodyToString(body), gleamOptions);
     this.#inner = next;
     return responseFromGleam(resp);
+  }
+
+  installSyncTransport(send: ConstructorParameters<typeof SyncTransport>[0]): void {
+    this.#inner = with_upstream_transport(this.#inner, new SyncTransport(send));
   }
 
   reset(): void {
