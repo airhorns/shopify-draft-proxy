@@ -1,0 +1,8 @@
+#graphql
+query BulkOperationsInvalidCreatedAtValidation {
+  bulkOperations(first: 1, query: "created_at:not-a-date") {
+    nodes {
+      id
+    }
+  }
+}
