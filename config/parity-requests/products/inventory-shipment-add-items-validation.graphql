@@ -1,0 +1,19 @@
+mutation InventoryShipmentAddItemsValidationParity($id: ID!, $lineItems: [InventoryShipmentAddItemInput!]!) {
+  inventoryShipmentAddItems(id: $id, lineItems: $lineItems) {
+    inventoryShipment {
+      id
+      status
+      lineItemTotalQuantity
+    }
+    addedItems {
+      id
+      quantity
+      unreceivedQuantity
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

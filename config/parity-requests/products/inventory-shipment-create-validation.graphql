@@ -1,0 +1,21 @@
+mutation InventoryShipmentCreateValidationParity($input: InventoryShipmentCreateInput!) {
+  inventoryShipmentCreate(input: $input) {
+    inventoryShipment {
+      id
+      status
+      lineItemTotalQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          unreceivedQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
