@@ -2789,22 +2789,20 @@ fn gift_card_update_deactivated_user_errors(
   case current.enabled {
     True -> []
     False ->
-      [
-        "expiresOn",
-        "customerId",
-        "recipientAttributes",
-        "crossCurrencyRedemptionStrategy",
-      ]
-      |> list.filter_map(fn(field) {
-        case dict_has_key(input, field) {
-          True ->
-            Ok(invalid_user_error(
-              ["input", field],
-              "The gift card is deactivated.",
-            ))
-          False -> Error(Nil)
-        }
-      })
+      case
+        [
+          "expiresOn",
+          "customerId",
+          "recipientAttributes",
+          "crossCurrencyRedemptionStrategy",
+        ]
+        |> list.find(fn(field) { dict_has_key(input, field) })
+      {
+        Ok(field) -> [
+          invalid_user_error(["input", field], "The gift card is deactivated."),
+        ]
+        Error(Nil) -> []
+      }
   }
 }
 
