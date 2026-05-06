@@ -1,8 +1,4 @@
-query CustomerEmailNormalizationRead(
-  $identifier: CustomerIdentifierInput!
-  $query: String!
-  $first: Int!
-) {
+query CustomerEmailNormalizationRead($identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
   customerByIdentifier(identifier: $identifier) {
     email
     defaultEmailAddress {

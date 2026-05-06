@@ -87,9 +87,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email has already been taken"
               }
             ]
@@ -121,9 +119,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -155,9 +151,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -189,9 +183,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -223,9 +215,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -257,15 +247,11 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is too long (maximum is 255 characters)"
               },
               {
-                "field": [
-                  "email"
-                ],
+                "field": ["email"],
                 "message": "Email is invalid"
               }
             ]
@@ -364,10 +350,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "email"
-                ],
+                "field": ["input", "email"],
                 "message": "Email has already been taken"
               }
             ]
@@ -399,10 +382,7 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "email"
-                ],
+                "field": ["input", "email"],
                 "message": "Email is invalid"
               }
             ]
@@ -434,17 +414,11 @@
             "customer": null,
             "userErrors": [
               {
-                "field": [
-                  "input",
-                  "email"
-                ],
+                "field": ["input", "email"],
                 "message": "Email is too long (maximum is 255 characters)"
               },
               {
-                "field": [
-                  "input",
-                  "email"
-                ],
+                "field": ["input", "email"],
                 "message": "Email is invalid"
               }
             ]

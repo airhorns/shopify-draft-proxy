@@ -163,9 +163,8 @@ async function main() {
   const stamp = Date.now();
   const normalizedCreateEmail = stampEmail(stamp, 'create');
   const spacedCreateEmail = normalizedCreateEmail.replace('normalization', 'normal ization');
-  const duplicateCreateEmail = normalizedCreateEmail
-    .replace('hermes', 'Hermes')
-    .replace('normalization', 'normal iz ation') + ' ';
+  const duplicateCreateEmail =
+    normalizedCreateEmail.replace('hermes', 'Hermes').replace('normalization', 'normal iz ation') + ' ';
   const updateEmail = stampEmail(stamp, 'updated');
   const spacedUpdateEmail = updateEmail.replace('updated', 'up dated') + ' ';
   const setEmail = stampEmail(stamp, 'set');
@@ -179,7 +178,9 @@ async function main() {
   );
   const createCustomerId = createSanitized.response?.data?.customerCreate?.customer?.id;
   if (typeof createCustomerId !== 'string' || !createCustomerId) {
-    throw new Error(`customerCreate normalization did not return an id: ${JSON.stringify(createSanitized.response, null, 2)}`);
+    throw new Error(
+      `customerCreate normalization did not return an id: ${JSON.stringify(createSanitized.response, null, 2)}`,
+    );
   }
 
   const downstreamRead = await runCase(
@@ -233,7 +234,9 @@ async function main() {
   );
   const customerSetId = customerSetSanitized.response?.data?.customerSet?.customer?.id;
   if (typeof customerSetId !== 'string' || !customerSetId) {
-    throw new Error(`customerSet normalization did not return an id: ${JSON.stringify(customerSetSanitized.response, null, 2)}`);
+    throw new Error(
+      `customerSet normalization did not return an id: ${JSON.stringify(customerSetSanitized.response, null, 2)}`,
+    );
   }
 
   const customerSetDuplicate = await runCase(

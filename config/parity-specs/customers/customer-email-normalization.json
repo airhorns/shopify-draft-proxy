@@ -2,12 +2,7 @@
   "scenarioId": "customer-email-normalization",
   "operationNames": ["customerCreate", "customerUpdate", "customerSet"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "downstream-read-parity",
-    "runtime-staging"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-email-normalization.json"
   ],
@@ -47,10 +42,7 @@
         "name": "downstream-read-normalized",
         "capturePath": "$.cases.downstreamRead.response.data",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.customerByIdentifier.email",
-          "$.customerByIdentifier.defaultEmailAddress"
-        ],
+        "selectedPaths": ["$.customerByIdentifier.email", "$.customerByIdentifier.defaultEmailAddress"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-email-normalization-read.graphql",
           "apiVersion": "2025-01",
