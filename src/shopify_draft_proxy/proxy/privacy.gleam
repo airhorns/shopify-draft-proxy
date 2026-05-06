@@ -22,6 +22,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -87,7 +88,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   "dataSaleOptOut",
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "privacy",
                   "stage-locally",
                   Some(

@@ -10,6 +10,7 @@ import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type ProductRecord, BulkOperationRecord, ProductRecord, ProductSeoRecord,
@@ -677,7 +678,7 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
       query: Some(log_query),
       variables: Some(log_variables),
       staged_resource_ids: [product_id, ..],
-      status: store.Staged,
+      status: store_types.Staged,
       ..,
     ),
   ] = outcome.log_drafts

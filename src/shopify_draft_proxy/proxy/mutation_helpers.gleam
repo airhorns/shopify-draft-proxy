@@ -47,6 +47,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Response, Response,
 }
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -1938,7 +1939,7 @@ pub fn record_log_drafts(
     let #(received_at, identity_after_ts) =
       synthetic_identity.make_synthetic_timestamp(identity_after_id)
     let entry =
-      store.MutationLogEntry(
+      store_types.MutationLogEntry(
         id: log_id,
         received_at: received_at,
         operation_name: draft.operation_name,
@@ -1947,12 +1948,12 @@ pub fn record_log_drafts(
         variables: option.unwrap(draft.variables, variables),
         staged_resource_ids: draft.staged_resource_ids,
         status: draft.status,
-        interpreted: store.InterpretedMetadata(
-          operation_type: store.Mutation,
+        interpreted: store_types.InterpretedMetadata(
+          operation_type: store_types.Mutation,
           operation_name: draft.operation_name,
           root_fields: draft.root_fields,
           primary_root_field: draft.primary_root_field,
-          capability: store.Capability(
+          capability: store_types.Capability(
             operation_name: draft.operation_name,
             domain: draft.domain,
             execution: draft.execution,
