@@ -73,6 +73,25 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'b2b',
+    captureId: 'b2b-quantity-rules-extended-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-quantity-rules-extended-validation-conformance.mts',
+    purpose:
+      'B2B-backed price-list quantityRulesAdd maximum-vs-existing-price-break validation, missing-variant validation, and quantityRulesDelete no-existing-rule validation.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-rules-extended-validation.json`,
+      'config/parity-specs/b2b/quantity-rules-extended-validation.json',
+      'config/parity-requests/markets/quantity-pricing-by-variant-update.graphql',
+      'config/parity-requests/markets/quantity-rules-add-validation.graphql',
+      'config/parity-requests/markets/quantity-rules-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes any existing fixed quantity pricing for the configured variant, records validation failures, seeds a disposable quantity price break, captures the overlap validation failure, then deletes the seeded fixed quantity pricing.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-company-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
@@ -2180,9 +2199,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
       'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
+      'config/parity-specs/markets/web-presence-partial-update-alternate-locales.json',
     ],
     cleanupBehavior:
-      'Creates one disposable subfolder web presence, updates it, deletes it, records one multi-locale disposable web presence with subfolder suffix intl, deletes it, and verifies the baseline read after cleanup.',
+      'Creates one disposable subfolder web presence, updates it, deletes it, records one multi-locale disposable web presence with subfolder suffix intl, records one partial alternate-locale-only update, deletes all disposable web presences, and verifies the baseline read after cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2456,6 +2476,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable blogs/articles and REST article comments, then deletes the article or blog during the scenario; failure cleanup deletes any remaining article/blog records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-comment-moderation-state-transitions',
+    scriptPath: 'scripts/capture-online-store-comment-moderation-state-transitions-conformance.ts',
+    purpose:
+      'commentApprove, commentSpam, and commentNotSpam state-machine preconditions, idempotent branches, and invalid source-state userErrors.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}comment-moderation-state-transitions.json`,
+      'config/parity-specs/online-store/comment-moderation-state-transitions.json',
+      'config/parity-requests/online-store/comment-moderation-state-transition-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable moderated blog/article and REST article comments, prepares PUBLISHED and SPAM source states with Admin GraphQL moderation roots, then deletes the article and blog during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
