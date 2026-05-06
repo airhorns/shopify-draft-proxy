@@ -1,0 +1,16 @@
+#graphql
+mutation OrderCustomerRemoveErrorPaths($orderId: ID!) {
+  orderCustomerRemove(orderId: $orderId) {
+    order {
+      id
+      customer {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
