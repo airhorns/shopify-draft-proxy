@@ -1,0 +1,24 @@
+query MetafieldDefinitionCreateWithPinGuardsRead($namespace: String!) {
+  overCapDefinition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "over_cap" }) {
+    id
+    namespace
+    key
+    pinnedPosition
+  }
+  constrainedDefinition: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }
+  ) {
+    id
+    namespace
+    key
+    pinnedPosition
+  }
+  standardMaterialDefinition: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: "shopify", key: "material" }
+  ) {
+    id
+    namespace
+    key
+    pinnedPosition
+  }
+}

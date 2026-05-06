@@ -769,6 +769,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-create-with-pin-guards',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-create-with-pin-guards.mts',
+    purpose:
+      'metafieldDefinitionCreate(pin: true) pin-limit and constrained-definition validation, plus constrained standardMetafieldDefinitionEnable(pin: true).',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-create-with-pin-guards.json`,
+      'config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json',
+      'config/parity-requests/metafields/metafield-definition-create-with-pin-guards.graphql',
+      'config/parity-requests/metafields/metafield-definition-create-with-pin-guards-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The live standard-enable pin-cap branch currently creates an unpinned definition on the 2026-04 target, so this capture records the constrained standard-enable branch while runtime tests cover the ticket-required cap behavior.',
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-update-delete-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-update-delete-preconditions-conformance.mts',

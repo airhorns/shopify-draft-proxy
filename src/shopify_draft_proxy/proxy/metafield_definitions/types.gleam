@@ -84,6 +84,7 @@ pub type StandardMetafieldDefinitionTemplate {
     owner_types: List(String),
     type_: MetafieldDefinitionTypeRecord,
     validations: List(MetafieldDefinitionValidationRecord),
+    constraints: MetafieldDefinitionConstraintsRecord,
     visible_to_storefront_api: Bool,
   )
 }
@@ -308,10 +309,6 @@ pub fn build_enabled_standard_definition(
     None ->
       synthetic_identity.make_synthetic_gid(identity, "MetafieldDefinition")
   }
-  let pinned_position = case read_optional_bool(args, "pin") {
-    Some(True) -> Some(next_pinned_position(store_in, owner_type, existing))
-    _ -> None
-  }
   #(
     MetafieldDefinitionRecord(
       id: id,
@@ -327,10 +324,8 @@ pub fn build_enabled_standard_definition(
         args,
         "capabilities",
       )),
-      constraints: Some(
-        MetafieldDefinitionConstraintsRecord(key: None, values: []),
-      ),
-      pinned_position: pinned_position,
+      constraints: Some(template.constraints),
+      pinned_position: None,
       validation_status: "ALL_VALID",
     ),
     next_identity,
