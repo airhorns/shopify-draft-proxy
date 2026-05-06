@@ -764,7 +764,7 @@ pub fn serialize_draft_order_nullable_error_payload(
           case name.value {
             "draftOrder" -> #(key, case draft_order {
               Some(record) ->
-                serialize_draft_order_node(child, record, fragments)
+                serialize_draft_order_node(None, child, record, fragments)
               None -> json.null()
             })
             "userErrors" -> #(
@@ -796,7 +796,7 @@ pub fn serialize_draft_order_mutation_payload(
           case name.value {
             "draftOrder" -> #(key, case draft_order {
               Some(record) ->
-                serialize_draft_order_node(child, record, fragments)
+                serialize_draft_order_node(None, child, record, fragments)
               None -> json.null()
             })
             "userErrors" -> #(

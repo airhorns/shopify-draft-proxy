@@ -810,7 +810,7 @@ pub fn serialize_draft_order_invoice_send_payload(
           case name.value {
             "draftOrder" -> #(key, case draft_order {
               Some(record) ->
-                serialize_draft_order_node(child, record, fragments)
+                serialize_draft_order_node(None, child, record, fragments)
               None -> json.null()
             })
             "userErrors" -> #(
