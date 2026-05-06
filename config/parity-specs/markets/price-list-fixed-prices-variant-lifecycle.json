@@ -1,0 +1,128 @@
+{
+  "scenarioId": "price-list-fixed-prices-variant-lifecycle",
+  "operationNames": [
+    "priceListFixedPricesAdd",
+    "priceListFixedPricesUpdate",
+    "priceListFixedPricesDelete",
+    "priceList"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-variant-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-add.graphql",
+    "variablesCapturePath": "$.successPath[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variant-fixed-price-add-payload",
+        "capturePath": "$.successPath[0].response.payload.data.priceListFixedPricesAdd",
+        "proxyPath": "$.data.priceListFixedPricesAdd"
+      },
+      {
+        "name": "downstream-read-after-add",
+        "capturePath": "$.successPath[1].response.payload.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-read.graphql",
+          "variablesCapturePath": "$.successPath[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "variant-fixed-price-update-payload",
+        "capturePath": "$.successPath[2].response.payload.data.priceListFixedPricesUpdate",
+        "proxyPath": "$.data.priceListFixedPricesUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-update.graphql",
+          "variablesCapturePath": "$.successPath[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "downstream-read-after-update",
+        "capturePath": "$.successPath[3].response.payload.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-read.graphql",
+          "variablesCapturePath": "$.successPath[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "variant-fixed-price-delete-payload",
+        "capturePath": "$.successPath[4].response.payload.data.priceListFixedPricesDelete",
+        "proxyPath": "$.data.priceListFixedPricesDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-delete.graphql",
+          "variablesCapturePath": "$.successPath[4].request.variables"
+        }
+      },
+      {
+        "name": "downstream-read-after-delete",
+        "capturePath": "$.successPath[5].response.payload.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-read.graphql",
+          "variablesCapturePath": "$.successPath[5].request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captures Admin GraphQL 2026-04 variant-level priceListFixedPricesAdd, priceListFixedPricesUpdate, and priceListFixedPricesDelete behavior against an existing disposable conformance price list and variant. The capture cleans any pre-existing fixed row, adds a variant fixed price, verifies downstream PriceList.prices(originType: FIXED), updates that same fixed row, verifies the updated downstream read, deletes the fixed row, and verifies the fixed-price connection is empty again. The local proxy stages each supported mutation without runtime Shopify writes and uses a cassette-backed preflight hydrate only to load the baseline price-list/product/variant records."
+}

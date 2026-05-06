@@ -1,0 +1,155 @@
+{
+  "scenarioId": "order_capture_validation",
+  "operationNames": ["orderCreate", "orderCapture"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payment-transaction-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-capture-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/order-capture-validation-order-create.graphql",
+    "variablesCapturePath": "$.operations.createAuthorizationOrder.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "multi-currency-authorization-order",
+        "capturePath": "$.operations.createAuthorizationOrder.response.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": ["$.order.transactions", "$.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "The proxy generates a synthetic authorization transaction ID."
+          }
+        ]
+      },
+      {
+        "name": "currency-required-validation",
+        "capturePath": "$.operations.currencyRequired.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": ["$.transaction", "$.userErrors[0].field"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "5.00"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "currency-mismatch-validation",
+        "capturePath": "$.operations.currencyMismatch.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": ["$.transaction", "$.userErrors[0].field"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "5.00",
+              "currency": "CAD"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "parent-transaction-not-found-validation",
+        "capturePath": "$.operations.parentNotFound.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": ["$.transaction"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variablesCapturePath": "$.operations.parentNotFound.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-amount-validation",
+        "capturePath": "$.operations.invalidAmount.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": ["$.transaction"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "0.00",
+              "currency": "USD"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "over-capture-validation",
+        "capturePath": "$.operations.overCapture.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": ["$.transaction"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "99.99",
+              "currency": "USD"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "capture-after-public-final-capture-rejection",
+        "capturePath": "$.operations.postFinalCapture.response.data.orderCapture",
+        "proxyPath": "$.data.orderCapture",
+        "selectedPaths": ["$.transaction.kind", "$.transaction.status", "$.transaction.gateway", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-capture-validation-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "1.00",
+              "currency": "USD"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 public Admin API capture for orderCapture validation against a disposable multi-currency authorization order. Public orderCapture.userErrors exposes field/message and this manual gateway returns public messages/field paths that differ from the internal OrderCaptureUserError code contract; focused runtime tests cover the internal code projection. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available."
+}
