@@ -177,12 +177,21 @@ pub fn read_input_objects(
 pub fn read_definition_identifier(
   args: Dict(String, root_field.ResolvedValue),
 ) -> Option(#(String, String, String)) {
+  read_definition_identifier_with_requesting_api_client_id(args, None)
+}
+
+@internal
+pub fn read_definition_identifier_with_requesting_api_client_id(
+  args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Option(#(String, String, String)) {
   let identifier = read_object(args, "identifier")
   let owner_type = read_optional_string(identifier, "ownerType")
   let namespace = read_optional_string(identifier, "namespace")
   let key = read_optional_string(identifier, "key")
   case owner_type, namespace, key {
-    Some(owner), Some(ns), Some(k) -> Some(#(owner, ns, k))
+    Some(owner), Some(ns), Some(k) ->
+      Some(#(owner, resolve_app_namespace(ns, requesting_api_client_id), k))
     _, _, _ -> None
   }
 }
@@ -192,6 +201,15 @@ pub fn find_definition_from_args(
   store_in: Store,
   args: Dict(String, root_field.ResolvedValue),
 ) -> Option(MetafieldDefinitionRecord) {
+  find_definition_from_args_with_requesting_api_client_id(store_in, args, None)
+}
+
+@internal
+pub fn find_definition_from_args_with_requesting_api_client_id(
+  store_in: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Option(MetafieldDefinitionRecord) {
   let id =
     read_optional_string(args, "definitionId")
     |> option.or(read_optional_string(args, "id"))
@@ -199,7 +217,12 @@ pub fn find_definition_from_args(
     Some(definition_id) ->
       store.get_effective_metafield_definition_by_id(store_in, definition_id)
     None ->
-      case read_definition_identifier(args) {
+      case
+        read_definition_identifier_with_requesting_api_client_id(
+          args,
+          requesting_api_client_id,
+        )
+      {
         Some(#(owner_type, namespace, key)) ->
           store.find_effective_metafield_definition(
             store_in,
@@ -209,6 +232,66 @@ pub fn find_definition_from_args(
           )
         None -> None
       }
+  }
+}
+
+@internal
+pub fn resolve_app_namespace(
+  namespace: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  case string.starts_with(namespace, "$app:") {
+    True ->
+      case requesting_api_client_id {
+        Some(api_client_id) ->
+          "app--"
+          <> api_client_id
+          <> "--"
+          <> string.drop_start(namespace, string.length("$app:"))
+        None -> namespace
+      }
+    False -> namespace
+  }
+}
+
+@internal
+pub fn resolve_namespace_input(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Dict(String, root_field.ResolvedValue) {
+  case read_optional_string(input, "namespace") {
+    Some(namespace) ->
+      dict.insert(
+        input,
+        "namespace",
+        root_field.StringVal(resolve_app_namespace(
+          namespace,
+          requesting_api_client_id,
+        )),
+      )
+    None -> input
+  }
+}
+
+@internal
+pub fn namespace_api_client_id(namespace: String) -> Option(String) {
+  case string.split(namespace, "--") {
+    ["app", api_client_id, rest, ..] if api_client_id != "" && rest != "" ->
+      Some(api_client_id)
+    _ -> None
+  }
+}
+
+@internal
+pub fn namespace_belongs_to_requesting_api_client(
+  namespace: String,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case namespace_api_client_id(namespace), requesting_api_client_id {
+    Some(namespace_api_client_id), Some(requesting_id) ->
+      namespace_api_client_id == requesting_id
+    Some(_), None -> True
+    None, _ -> True
   }
 }
 
@@ -951,10 +1034,36 @@ pub fn maybe_hydrate_definition_for_args(
   args: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Store {
-  case find_definition_from_args(store_in, args) {
+  maybe_hydrate_definition_for_args_with_requesting_api_client_id(
+    store_in,
+    args,
+    upstream,
+    None,
+  )
+}
+
+@internal
+pub fn maybe_hydrate_definition_for_args_with_requesting_api_client_id(
+  store_in: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
+) -> Store {
+  case
+    find_definition_from_args_with_requesting_api_client_id(
+      store_in,
+      args,
+      requesting_api_client_id,
+    )
+  {
     Some(_) -> store_in
     None ->
-      case read_definition_identifier(args) {
+      case
+        read_definition_identifier_with_requesting_api_client_id(
+          args,
+          requesting_api_client_id,
+        )
+      {
         Some(#(owner_type, namespace, _key)) ->
           hydrate_definitions_by_namespace(
             store_in,

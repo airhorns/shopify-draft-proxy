@@ -8,6 +8,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{get_field_response_key}
 import shopify_draft_proxy/proxy/metafield_definitions/serializers
 import shopify_draft_proxy/proxy/metafield_definitions/types as definition_types
@@ -56,6 +57,44 @@ pub fn process_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
+  process_mutation_with_requesting_api_client_id(
+    store_in,
+    identity,
+    document,
+    variables,
+    upstream,
+    app_identity.read_requesting_api_client_id(upstream.headers),
+  )
+}
+
+@internal
+pub fn process_mutation_with_headers(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  request_headers: Dict(String, String),
+) -> MutationOutcome {
+  process_mutation_with_requesting_api_client_id(
+    store_in,
+    identity,
+    document,
+    variables,
+    upstream,
+    app_identity.read_requesting_api_client_id(request_headers),
+  )
+}
+
+fn process_mutation_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store_in, identity, err)
     Ok(fields) -> {
@@ -71,6 +110,7 @@ pub fn process_mutation(
         fields,
         variables,
         upstream,
+        requesting_api_client_id,
       )
     }
   }
@@ -83,6 +123,7 @@ pub fn handle_mutation_fields(
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #(store_in, identity, [], [], [], [])
   let #(store_out, identity_out, entries, drafts, staged_all, top_errors) =
@@ -105,12 +146,10 @@ pub fn handle_mutation_fields(
               field,
               variables,
               upstream,
+              requesting_api_client_id,
             )
-          let next_entries = case field_errors {
-            [] ->
-              list.append(entries, [#(get_field_response_key(field), payload)])
-            [_, ..] -> entries
-          }
+          let next_entries =
+            list.append(entries, [#(get_field_response_key(field), payload)])
           let next_drafts = case field_errors {
             [] -> {
               let draft =
@@ -144,7 +183,11 @@ pub fn handle_mutation_fields(
     })
   let envelope = case top_errors {
     [] -> graphql_helpers.wrap_data(json.object(entries))
-    [_, ..] -> json.object([#("errors", json.preprocessed_array(top_errors))])
+    [_, ..] ->
+      json.object([
+        #("errors", json.preprocessed_array(top_errors)),
+        #("data", json.object(entries)),
+      ])
   }
   let staged_resource_ids = case top_errors {
     [] -> staged_all
@@ -176,54 +219,97 @@ pub fn dispatch_mutation_field(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String), List(Json)) {
   case root_name {
-    "metafieldDefinitionCreate" ->
-      no_top_level_errors(serialize_definition_create_root(
-        store_in,
-        identity,
-        field,
-        variables,
-      ))
-    "metafieldDefinitionUpdate" ->
-      no_top_level_errors(serialize_definition_update_root(
-        store_in,
-        identity,
-        field,
-        variables,
-      ))
+    "metafieldDefinitionCreate" -> {
+      let args = definition_types.read_args(field, variables)
+      let input = definition_types.read_object(args, "definition")
+      case
+        cross_app_namespace_access_errors(
+          root_name,
+          input,
+          requesting_api_client_id,
+        )
+      {
+        [] ->
+          no_top_level_errors(
+            serialize_definition_create_root_with_requesting_api_client_id(
+              store_in,
+              identity,
+              field,
+              variables,
+              requesting_api_client_id,
+            ),
+          )
+        errors -> #(json.null(), store_in, identity, [], errors)
+      }
+    }
+    "metafieldDefinitionUpdate" -> {
+      let args = definition_types.read_args(field, variables)
+      let input = definition_types.read_object(args, "definition")
+      case
+        cross_app_namespace_access_errors(
+          root_name,
+          input,
+          requesting_api_client_id,
+        )
+      {
+        [] ->
+          no_top_level_errors(
+            serialize_definition_update_root_with_requesting_api_client_id(
+              store_in,
+              identity,
+              field,
+              variables,
+              requesting_api_client_id,
+            ),
+          )
+        errors -> #(json.null(), store_in, identity, [], errors)
+      }
+    }
     "metafieldDefinitionDelete" ->
-      no_top_level_errors(serialize_definition_delete_root(
-        store_in,
-        identity,
-        field,
-        variables,
-      ))
-    "standardMetafieldDefinitionEnable" ->
       no_top_level_errors(
-        serialize_standard_metafield_definition_enable_mutation(
+        serialize_definition_delete_root_with_requesting_api_client_id(
           store_in,
           identity,
           field,
           variables,
+          requesting_api_client_id,
+        ),
+      )
+    "standardMetafieldDefinitionEnable" ->
+      no_top_level_errors(
+        serialize_standard_metafield_definition_enable_mutation_with_requesting_api_client_id(
+          store_in,
+          identity,
+          field,
+          variables,
+          requesting_api_client_id,
         ),
       )
     "metafieldDefinitionPin" ->
-      no_top_level_errors(serialize_definition_pin_root(
-        store_in,
-        identity,
-        field,
-        variables,
-        upstream,
-      ))
+      no_top_level_errors(
+        serialize_definition_pin_root_with_requesting_api_client_id(
+          store_in,
+          identity,
+          field,
+          variables,
+          upstream,
+          requesting_api_client_id,
+        ),
+      )
     "metafieldDefinitionUnpin" ->
-      no_top_level_errors(serialize_definition_unpin_root(
-        store_in,
-        identity,
-        field,
-        variables,
-        upstream,
-      ))
+      no_top_level_errors(
+        serialize_definition_unpin_root_with_requesting_api_client_id(
+          store_in,
+          identity,
+          field,
+          variables,
+          upstream,
+          requesting_api_client_id,
+        ),
+      )
     "metafieldsSet" ->
       no_top_level_errors(serialize_metafields_set_root(
         store_in,
@@ -255,6 +341,58 @@ pub fn no_top_level_errors(
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String), List(Json)) {
   let #(payload, store_out, identity_out, staged_ids) = result
   #(payload, store_out, identity_out, staged_ids, [])
+}
+
+@internal
+pub fn cross_app_namespace_access_errors(
+  root_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> List(Json) {
+  case definition_types.read_optional_string(input, "namespace") {
+    Some(namespace) ->
+      case
+        definition_types.namespace_belongs_to_requesting_api_client(
+          namespace,
+          requesting_api_client_id,
+        )
+      {
+        True -> []
+        False -> [metafield_definition_namespace_access_denied_error(root_name)]
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn metafield_definition_namespace_access_denied_error(
+  root_name: String,
+) -> Json {
+  let required_access =
+    "API client to have access to the namespace and the resource type associated with the metafield definition.\n"
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Access denied for "
+        <> root_name
+        <> " field. Required access: "
+        <> required_access,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("ACCESS_DENIED")),
+        #(
+          "documentation",
+          json.string("https://shopify.dev/api/usage/access-scopes"),
+        ),
+        #("requiredAccess", json.string(required_access)),
+      ]),
+    ),
+    #("path", json.preprocessed_array([json.string(root_name)])),
+  ])
 }
 
 @internal
@@ -398,9 +536,27 @@ pub fn find_standard_template(
   Option(definition_types.StandardMetafieldDefinitionTemplate),
   List(definition_types.UserError),
 ) {
+  find_standard_template_with_requesting_api_client_id(args, None)
+}
+
+@internal
+pub fn find_standard_template_with_requesting_api_client_id(
+  args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(
+  Option(definition_types.StandardMetafieldDefinitionTemplate),
+  List(definition_types.UserError),
+) {
   let owner_type = definition_types.read_optional_string(args, "ownerType")
   let id = definition_types.read_optional_string(args, "id")
-  let namespace = definition_types.read_optional_string(args, "namespace")
+  let namespace =
+    definition_types.read_optional_string(args, "namespace")
+    |> option.map(fn(namespace) {
+      definition_types.resolve_app_namespace(
+        namespace,
+        requesting_api_client_id,
+      )
+    })
   let key = definition_types.read_optional_string(args, "key")
   case owner_type, id, namespace, key {
     None, _, _, _ | Some(_), None, None, _ | Some(_), None, _, None -> #(None, [
@@ -459,8 +615,29 @@ pub fn serialize_standard_metafield_definition_enable_mutation(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  serialize_standard_metafield_definition_enable_mutation_with_requesting_api_client_id(
+    store_in,
+    identity,
+    field,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_standard_metafield_definition_enable_mutation_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
-  let #(template, user_errors) = find_standard_template(args)
+  let #(template, user_errors) =
+    find_standard_template_with_requesting_api_client_id(
+      args,
+      requesting_api_client_id,
+    )
   case template {
     None -> #(
       serializers.serialize_standard_enable_payload(
@@ -683,8 +860,27 @@ pub fn serialize_definition_create_root(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  serialize_definition_create_root_with_requesting_api_client_id(
+    store_in,
+    identity,
+    field,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_definition_create_root_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
-  let input = definition_types.read_object(args, "definition")
+  let input =
+    definition_types.read_object(args, "definition")
+    |> definition_types.resolve_namespace_input(requesting_api_client_id)
   let errors = definition_types.validate_definition_input(input, True)
   case errors {
     [_, ..] -> #(
@@ -815,8 +1011,27 @@ pub fn serialize_definition_update_root(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  serialize_definition_update_root_with_requesting_api_client_id(
+    store_in,
+    identity,
+    field,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_definition_update_root_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
-  let input = definition_types.read_object(args, "definition")
+  let input =
+    definition_types.read_object(args, "definition")
+    |> definition_types.resolve_namespace_input(requesting_api_client_id)
   let errors = definition_types.validate_definition_input(input, False)
   case errors {
     [_, ..] -> #(
@@ -922,8 +1137,30 @@ pub fn serialize_definition_delete_root(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  serialize_definition_delete_root_with_requesting_api_client_id(
+    store_in,
+    identity,
+    field,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_definition_delete_root_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
-  let definition = definition_types.find_definition_from_args(store_in, args)
+  let definition =
+    definition_types.find_definition_from_args_with_requesting_api_client_id(
+      store_in,
+      args,
+      requesting_api_client_id,
+    )
   case definition {
     None -> #(
       serializers.serialize_definition_delete_payload(
@@ -1030,14 +1267,44 @@ pub fn serialize_definition_pin_root(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  serialize_definition_pin_root_with_requesting_api_client_id(
+    store_in,
+    identity,
+    field,
+    variables,
+    upstream,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_definition_pin_root_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
   // Pattern 2: pinning is a supported local mutation, but a cold LiveHybrid
   // request may target an upstream definition. Hydrate the definition catalog
   // first, then stage only the pin effect locally. Snapshot/no-transport mode
   // keeps the current local not-found behavior.
   let store_in =
-    definition_types.maybe_hydrate_definition_for_args(store_in, args, upstream)
-  case definition_types.find_definition_from_args(store_in, args) {
+    definition_types.maybe_hydrate_definition_for_args_with_requesting_api_client_id(
+      store_in,
+      args,
+      upstream,
+      requesting_api_client_id,
+    )
+  case
+    definition_types.find_definition_from_args_with_requesting_api_client_id(
+      store_in,
+      args,
+      requesting_api_client_id,
+    )
+  {
     None -> #(
       serializers.serialize_pinning_payload(
         store_in,
@@ -1102,12 +1369,42 @@ pub fn serialize_definition_unpin_root(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  serialize_definition_unpin_root_with_requesting_api_client_id(
+    store_in,
+    identity,
+    field,
+    variables,
+    upstream,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_definition_unpin_root_with_requesting_api_client_id(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let args = definition_types.read_args(field, variables)
   // Pattern 2: unpinning mirrors pinning — hydrate any upstream definition
   // before applying the local stage so downstream reads observe local state.
   let store_in =
-    definition_types.maybe_hydrate_definition_for_args(store_in, args, upstream)
-  case definition_types.find_definition_from_args(store_in, args) {
+    definition_types.maybe_hydrate_definition_for_args_with_requesting_api_client_id(
+      store_in,
+      args,
+      upstream,
+      requesting_api_client_id,
+    )
+  case
+    definition_types.find_definition_from_args_with_requesting_api_client_id(
+      store_in,
+      args,
+      requesting_api_client_id,
+    )
+  {
     None -> #(
       serializers.serialize_pinning_payload(
         store_in,

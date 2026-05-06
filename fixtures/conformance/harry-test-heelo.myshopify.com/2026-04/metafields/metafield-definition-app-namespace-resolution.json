@@ -1,0 +1,354 @@
+{
+  "capturedAt": "2026-05-06T01:32:48.846Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "MetafieldDefinition app namespace resolution for create, update, identifier reads, canonical delete, and cross-app access denial.",
+  "seed": {
+    "runId": "motdulij",
+    "requestingApiClientId": "347082227713",
+    "appNamespaceInput": "$app:app_namespace_motdulij",
+    "appNamespaceResolved": "app--347082227713--app_namespace_motdulij",
+    "crossAppNamespace": "app--999999999999--app_namespace_motdulij",
+    "key": "tier"
+  },
+  "appPrefixedCreate": {
+    "name": "app-prefixed-create",
+    "request": {
+      "query": "mutation MetafieldDefinitionAppNamespaceCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "App namespace definition motdulij",
+          "namespace": "$app:app_namespace_motdulij",
+          "key": "tier",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field",
+          "description": "Temporary app namespace definition motdulij",
+          "validations": [
+            {
+              "name": "max",
+              "value": "32"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791639346",
+            "name": "App namespace definition motdulij",
+            "namespace": "app--347082227713--app_namespace_motdulij",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "description": "Temporary app namespace definition motdulij",
+            "validations": [
+              {
+                "name": "max",
+                "value": "32"
+              }
+            ],
+            "validationStatus": "ALL_VALID"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appPrefixedUpdate": {
+    "name": "app-prefixed-update",
+    "request": {
+      "query": "mutation MetafieldDefinitionAppNamespaceUpdate($definition: MetafieldDefinitionUpdateInput!) {\n  metafieldDefinitionUpdate(definition: $definition) {\n    updatedDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "App namespace definition updated motdulij",
+          "namespace": "$app:app_namespace_motdulij",
+          "key": "tier",
+          "ownerType": "PRODUCT",
+          "description": "Updated app namespace definition motdulij"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionUpdate": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206791639346",
+            "name": "App namespace definition updated motdulij",
+            "namespace": "app--347082227713--app_namespace_motdulij",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "description": "Updated app namespace definition motdulij",
+            "validations": [
+              {
+                "name": "max",
+                "value": "32"
+              }
+            ],
+            "validationStatus": "ALL_VALID"
+          },
+          "userErrors": [],
+          "validationJob": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appNamespaceRead": {
+    "name": "read-by-canonical-and-app-prefix",
+    "request": {
+      "query": "query MetafieldDefinitionAppNamespaceRead($canonicalNamespace: String!, $appNamespace: String!, $key: String!) {\n  canonical: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $canonicalNamespace, key: $key }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n  }\n  appPrefix: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $appNamespace, key: $key }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n  }\n  catalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $appNamespace, first: 5) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n    }\n  }\n}\n",
+      "variables": {
+        "canonicalNamespace": "app--347082227713--app_namespace_motdulij",
+        "appNamespace": "$app:app_namespace_motdulij",
+        "key": "tier"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "canonical": {
+          "id": "gid://shopify/MetafieldDefinition/206791639346",
+          "name": "App namespace definition updated motdulij",
+          "namespace": "app--347082227713--app_namespace_motdulij",
+          "key": "tier",
+          "ownerType": "PRODUCT"
+        },
+        "appPrefix": {
+          "id": "gid://shopify/MetafieldDefinition/206791639346",
+          "name": "App namespace definition updated motdulij",
+          "namespace": "app--347082227713--app_namespace_motdulij",
+          "key": "tier",
+          "ownerType": "PRODUCT"
+        },
+        "catalog": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MetafieldDefinition/206791639346",
+              "name": "App namespace definition updated motdulij",
+              "namespace": "app--347082227713--app_namespace_motdulij",
+              "key": "tier",
+              "ownerType": "PRODUCT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "canonicalDelete": {
+    "name": "delete-by-canonical-identifier",
+    "request": {
+      "query": "mutation MetafieldDefinitionAppNamespaceDelete(\n  $namespace: String!\n  $key: String!\n  $deleteAllAssociatedMetafields: Boolean!\n) {\n  metafieldDefinitionDelete(\n    identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }\n    deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields\n  ) {\n    deletedDefinition {\n      namespace\n      key\n      ownerType\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "namespace": "app--347082227713--app_namespace_motdulij",
+        "key": "tier",
+        "deleteAllAssociatedMetafields": true
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinition": {
+            "namespace": "app--347082227713--app_namespace_motdulij",
+            "key": "tier",
+            "ownerType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postDeleteRead": {
+    "name": "post-delete-read",
+    "request": {
+      "query": "query MetafieldDefinitionAppNamespaceRead($canonicalNamespace: String!, $appNamespace: String!, $key: String!) {\n  canonical: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $canonicalNamespace, key: $key }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n  }\n  appPrefix: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $appNamespace, key: $key }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n  }\n  catalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $appNamespace, first: 5) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n    }\n  }\n}\n",
+      "variables": {
+        "canonicalNamespace": "app--347082227713--app_namespace_motdulij",
+        "appNamespace": "$app:app_namespace_motdulij",
+        "key": "tier"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "canonical": null,
+        "appPrefix": null,
+        "catalog": {
+          "nodes": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "crossAppCreate": {
+    "name": "cross-app-create",
+    "request": {
+      "query": "mutation MetafieldDefinitionAppNamespaceCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "Cross app namespace definition motdulij",
+          "namespace": "app--999999999999--app_namespace_motdulij",
+          "key": "tier",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field",
+          "description": "Temporary app namespace definition motdulij",
+          "validations": [
+            {
+              "name": "max",
+              "value": "32"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Access denied for metafieldDefinitionCreate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\n",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "API client to have access to the namespace and the resource type associated with the metafield definition.\n"
+          },
+          "path": ["metafieldDefinitionCreate"]
+        }
+      ],
+      "data": {
+        "metafieldDefinitionCreate": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "crossAppUpdate": {
+    "name": "cross-app-update",
+    "request": {
+      "query": "mutation MetafieldDefinitionAppNamespaceUpdate($definition: MetafieldDefinitionUpdateInput!) {\n  metafieldDefinitionUpdate(definition: $definition) {\n    updatedDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "Cross app namespace update motdulij",
+          "namespace": "app--999999999999--app_namespace_motdulij",
+          "key": "tier",
+          "ownerType": "PRODUCT",
+          "description": "Updated app namespace definition motdulij"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Access denied for metafieldDefinitionUpdate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\n",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "API client to have access to the namespace and the resource type associated with the metafield definition.\n"
+          },
+          "path": ["metafieldDefinitionUpdate"]
+        }
+      ],
+      "data": {
+        "metafieldDefinitionUpdate": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [],
+  "upstreamCalls": []
+}
