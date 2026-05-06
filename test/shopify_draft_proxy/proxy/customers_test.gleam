@@ -1,13 +1,16 @@
 import gleam/dict
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/types.{
-  type CustomerRecord, CustomerRecord, Money, StoreCreditAccountRecord,
+  type CustomerOrderSummaryRecord, type CustomerRecord, type OrderRecord,
+  B2BCompanyContactRecord, B2BCompanyRecord, CapturedNull, CapturedObject,
+  CapturedString, CustomerOrderSummaryRecord, CustomerRecord, Money, OrderRecord,
+  StoreCreditAccountRecord, StorePropertyList, StorePropertyString,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -74,6 +77,120 @@ fn assert_missing_customer_error(body: json.Json) {
     json.to_string(body),
     "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Customer does not exist\"}]",
   )
+}
+
+pub fn order_customer_set_error_paths_test() {
+  let customer_id = "gid://shopify/Customer/order-customer-errors"
+  let order_id = "gid://shopify/Order/order-customer-errors"
+  let proxy = order_customer_proxy(order_id, Some(customer_id), False)
+
+  let #(Response(status: unknown_order_status, body: unknown_order_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { orderCustomerSet(orderId: \"gid://shopify/Order/missing\", customerId: \""
+        <> customer_id
+        <> "\") { order { id } userErrors { field message code } } }",
+    )
+  assert unknown_order_status == 200
+  assert json.to_string(unknown_order_body)
+    == "{\"data\":{\"orderCustomerSet\":{\"order\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let #(
+    Response(status: unknown_customer_status, body: unknown_customer_body, ..),
+    _,
+  ) =
+    graphql(
+      proxy,
+      "mutation { orderCustomerSet(orderId: \""
+        <> order_id
+        <> "\", customerId: \"gid://shopify/Customer/missing\") { order { id } userErrors { field message code } } }",
+    )
+  assert unknown_customer_status == 200
+  assert json.to_string(unknown_customer_body)
+    == "{\"data\":{\"orderCustomerSet\":{\"order\":null,\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Customer does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn order_customer_set_rejects_b2b_contact_without_ordering_role_test() {
+  let customer_id = "gid://shopify/Customer/order-customer-b2b"
+  let order_id = "gid://shopify/Order/order-customer-b2b"
+  let proxy =
+    order_customer_proxy(order_id, Some(customer_id), False)
+    |> seed_b2b_contact_without_ordering_role(customer_id)
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { orderCustomerSet(orderId: \""
+        <> order_id
+        <> "\", customerId: \""
+        <> customer_id
+        <> "\") { order { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"orderCustomerSet\":{\"order\":null,\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"no_customer_role_error\",\"code\":\"NOT_PERMITTED\"}]}}}"
+}
+
+pub fn order_customer_remove_rejects_cancelled_order_test() {
+  let customer_id = "gid://shopify/Customer/order-customer-cancelled"
+  let order_id = "gid://shopify/Order/order-customer-cancelled"
+  let proxy = order_customer_proxy(order_id, Some(customer_id), True)
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { orderCustomerRemove(orderId: \""
+        <> order_id
+        <> "\") { order { id customer { id } } userErrors { field message code } } }",
+    )
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"orderCustomerRemove\":{\"order\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"customer_cannot_be_removed\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn order_customer_set_and_remove_happy_path_test() {
+  let customer_id = "gid://shopify/Customer/order-customer-happy"
+  let order_id = "gid://shopify/Order/order-customer-happy"
+  let proxy = order_customer_proxy(order_id, None, False)
+
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { orderCustomerSet(orderId: \""
+        <> order_id
+        <> "\", customerId: \""
+        <> customer_id
+        <> "\") { order { id customer { id email displayName } } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"orderCustomerSet\":{\"order\":{\"id\":\"gid://shopify/Order/order-customer-happy\",\"customer\":{\"id\":\"gid://shopify/Customer/order-customer-happy\",\"email\":\"enabled@example.com\",\"displayName\":\"ENABLED Customer\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(
+      proxy,
+      "query { order(id: \""
+        <> order_id
+        <> "\") { id customer { id } } customer(id: \""
+        <> customer_id
+        <> "\") { orders(first: 5) { nodes { id customer { id } } } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/order-customer-happy\"}",
+  )
+
+  let #(Response(status: remove_status, body: remove_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { orderCustomerRemove(orderId: \""
+        <> order_id
+        <> "\") { order { id customer { id } } userErrors { field message code } } }",
+    )
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"orderCustomerRemove\":{\"order\":{\"id\":\"gid://shopify/Order/order-customer-happy\",\"customer\":null},\"userErrors\":[]}}}"
 }
 
 pub fn customer_delete_blocks_when_customer_has_staged_order_test() {
@@ -199,6 +316,125 @@ fn customer_with_state(id: String, state: String) -> CustomerRecord {
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
+}
+
+fn order_customer_proxy(
+  order_id: String,
+  customer_id: Option(String),
+  cancelled: Bool,
+) -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  let customer =
+    customer_with_state(
+      option.unwrap(customer_id, "gid://shopify/Customer/order-customer-happy"),
+      "ENABLED",
+    )
+  let order = order_customer_order(order_id, customer_id, cancelled)
+  let summary = order_customer_summary(order_id, customer_id)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_customers([customer])
+    |> store_mod.upsert_base_orders([order])
+    |> store_mod.upsert_base_customer_order_summaries([summary])
+  proxy_state.DraftProxy(..proxy, store: store)
+}
+
+fn order_customer_order(
+  order_id: String,
+  customer_id: Option(String),
+  cancelled: Bool,
+) -> OrderRecord {
+  OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString(order_id)),
+      #("name", CapturedString("#1001")),
+      #("email", CapturedString("order-customer@example.com")),
+      #("createdAt", CapturedString("2024-01-01T00:00:00.000Z")),
+      #("customer", order_customer_captured(customer_id)),
+      #("cancelledAt", case cancelled {
+        True -> CapturedString("2024-01-02T00:00:00.000Z")
+        False -> CapturedNull
+      }),
+      #(
+        "currentTotalPriceSet",
+        CapturedObject([
+          #(
+            "shopMoney",
+            CapturedObject([
+              #("amount", CapturedString("10.0")),
+              #("currencyCode", CapturedString("USD")),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn order_customer_summary(
+  order_id: String,
+  customer_id: Option(String),
+) -> CustomerOrderSummaryRecord {
+  CustomerOrderSummaryRecord(
+    id: order_id,
+    customer_id: customer_id,
+    cursor: None,
+    name: Some("#1001"),
+    email: Some("order-customer@example.com"),
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    current_total_price: Some(Money(amount: "10.0", currency_code: "USD")),
+  )
+}
+
+fn order_customer_captured(customer_id: Option(String)) {
+  case customer_id {
+    Some(id) ->
+      CapturedObject([
+        #("id", CapturedString(id)),
+        #("email", CapturedString("order-customer-happy@example.com")),
+        #("displayName", CapturedString("ENABLED Customer")),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn seed_b2b_contact_without_ordering_role(
+  proxy: draft_proxy.DraftProxy,
+  customer_id: String,
+) -> draft_proxy.DraftProxy {
+  let company_id = "gid://shopify/Company/order-customer-b2b"
+  let contact_id = "gid://shopify/CompanyContact/order-customer-b2b"
+  let company =
+    B2BCompanyRecord(
+      id: company_id,
+      cursor: None,
+      data: dict.from_list([
+        #("id", StorePropertyString(company_id)),
+        #("name", StorePropertyString("Order Customer B2B")),
+      ]),
+      main_contact_id: None,
+      contact_ids: [contact_id],
+      location_ids: [],
+      contact_role_ids: [],
+    )
+  let contact =
+    B2BCompanyContactRecord(
+      id: contact_id,
+      cursor: None,
+      company_id: company_id,
+      data: dict.from_list([
+        #("id", StorePropertyString(contact_id)),
+        #("customerId", StorePropertyString(customer_id)),
+        #("roleAssignments", StorePropertyList([])),
+      ]),
+    )
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_b2b_company(company)
+    |> store_mod.upsert_base_b2b_company_contact(contact)
+  proxy_state.DraftProxy(..proxy, store: store)
 }
 
 fn customer_state_proxy(id: String, state: String) -> draft_proxy.DraftProxy {

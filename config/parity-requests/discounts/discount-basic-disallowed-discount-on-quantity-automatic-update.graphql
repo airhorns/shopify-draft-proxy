@@ -1,0 +1,13 @@
+mutation DiscountBasicDisallowedQuantityAutomaticUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
