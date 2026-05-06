@@ -204,16 +204,19 @@ const createSuffix = `har${randomLetters(10)}`;
 const updateSuffix = `har${randomLetters(10)}`;
 const multiLocaleSuffix = 'intl';
 const frenchCanadianSuffix = 'fr';
+const partialUpdateSuffix = `har${randomLetters(10)}`;
 const regionalLocaleSuffix = `har${randomLetters(10)}`;
 const caseInsensitiveSuffix = `har${randomLetters(10)}`;
 let createdWebPresenceId: string | null = null;
 let multiLocaleWebPresenceId: string | null = null;
 let frenchCanadianWebPresenceId: string | null = null;
+let partialUpdateWebPresenceId: string | null = null;
 let regionalLocaleWebPresenceId: string | null = null;
 let caseInsensitiveWebPresenceId: string | null = null;
 let cleanupResponse: unknown = null;
 let multiLocaleCleanupResponse: unknown = null;
 let frenchCanadianCleanupResponse: unknown = null;
+let partialUpdateCleanupResponse: unknown = null;
 let regionalLocaleCleanupResponse: unknown = null;
 let caseInsensitiveCleanupResponse: unknown = null;
 const localeRestoreActions: LocaleRestoreAction[] = [];
@@ -395,6 +398,33 @@ try {
     },
   };
   const invalidAlternatesCreateResponse = await runGraphql(createMutation, invalidAlternatesCreateVariables);
+
+  const partialUpdateCreateVariables = {
+    input: {
+      defaultLocale: 'fr',
+      alternateLocales: [],
+      subfolderSuffix: partialUpdateSuffix,
+    },
+  };
+  const partialUpdateCreateResponse = await runGraphql(createMutation, partialUpdateCreateVariables);
+  partialUpdateWebPresenceId = partialUpdateCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!partialUpdateWebPresenceId) {
+    throw new Error(
+      `partial-update webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        partialUpdateCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const partialUpdateVariables = {
+    id: partialUpdateWebPresenceId,
+    input: {
+      alternateLocales: ['de'],
+    },
+  };
+  const partialUpdateResponse = await runGraphql(updateMutation, partialUpdateVariables);
+  partialUpdateCleanupResponse = await runGraphql(deleteMutation, { id: partialUpdateWebPresenceId });
   localeCleanupResponses = await restoreEnabledLocales();
 
   const fixture = {
@@ -406,6 +436,7 @@ try {
       updated: updateSuffix,
       multiLocale: multiLocaleSuffix,
       frenchCanadian: frenchCanadianSuffix,
+      partialUpdate: partialUpdateSuffix,
       regionalLocale: regionalLocaleSuffix,
       caseInsensitive: caseInsensitiveSuffix,
     },
@@ -556,6 +587,24 @@ try {
           payload: invalidAlternatesCreateResponse,
         },
       },
+      {
+        name: 'webPresencePartialUpdateCreate',
+        query: createMutation,
+        variables: partialUpdateCreateVariables,
+        response: {
+          status: 200,
+          payload: partialUpdateCreateResponse,
+        },
+      },
+      {
+        name: 'webPresencePartialUpdateAlternateLocalesOnly',
+        query: updateMutation,
+        variables: partialUpdateVariables,
+        response: {
+          status: 200,
+          payload: partialUpdateResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -580,6 +629,14 @@ try {
         response: {
           status: 200,
           payload: frenchCanadianCleanupResponse,
+        },
+      },
+      partialUpdateWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: partialUpdateWebPresenceId },
+        response: {
+          status: 200,
+          payload: partialUpdateCleanupResponse,
         },
       },
       regionalLocaleWebPresenceDelete: {
@@ -630,6 +687,19 @@ try {
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: frenchCanadianCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: partialUpdateCreateVariables,
         query: 'hand-synthesized from checked-in capture',
         response: {
           status: 200,
@@ -699,6 +769,10 @@ try {
   if (frenchCanadianWebPresenceId && !frenchCanadianCleanupResponse) {
     frenchCanadianCleanupResponse = await runGraphql(deleteMutation, { id: frenchCanadianWebPresenceId });
     console.error(JSON.stringify({ frenchCanadianCleanupAfterFailure: frenchCanadianCleanupResponse }, null, 2));
+  }
+  if (partialUpdateWebPresenceId && !partialUpdateCleanupResponse) {
+    partialUpdateCleanupResponse = await runGraphql(deleteMutation, { id: partialUpdateWebPresenceId });
+    console.error(JSON.stringify({ partialUpdateCleanupAfterFailure: partialUpdateCleanupResponse }, null, 2));
   }
   if (regionalLocaleWebPresenceId && !regionalLocaleCleanupResponse) {
     regionalLocaleCleanupResponse = await runGraphql(deleteMutation, { id: regionalLocaleWebPresenceId });

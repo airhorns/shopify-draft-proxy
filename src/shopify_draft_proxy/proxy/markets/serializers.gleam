@@ -1867,10 +1867,12 @@ pub fn quantity_pricing_input_errors(
 @internal
 pub fn quantity_rules_input_errors(
   store: Store,
+  price_list: PriceListRecord,
   inputs: List(Dict(String, root_field.ResolvedValue)),
 ) -> List(CapturedJsonValue) {
   quantity_rules_input_errors_loop(
     store,
+    price_list,
     enumerate_dicts(inputs),
     duplicate_quantity_rule_variant_ids(inputs),
   )
@@ -1878,6 +1880,7 @@ pub fn quantity_rules_input_errors(
 
 fn quantity_rules_input_errors_loop(
   store: Store,
+  price_list: PriceListRecord,
   entries: List(#(Dict(String, root_field.ResolvedValue), Int)),
   duplicate_variant_ids: List(String),
 ) -> List(CapturedJsonValue) {
@@ -1892,16 +1895,24 @@ fn quantity_rules_input_errors_loop(
           quantity_rule_variant_errors(store, input, index),
           list.append(
             quantity_rule_numeric_errors(input, index),
-            quantity_rule_duplicate_variant_errors(
-              variant_id,
-              index,
-              duplicate_variant_ids,
+            list.append(
+              quantity_rule_price_break_errors(price_list, input, index),
+              quantity_rule_duplicate_variant_errors(
+                variant_id,
+                index,
+                duplicate_variant_ids,
+              ),
             ),
           ),
         )
       list.append(
         current_errors,
-        quantity_rules_input_errors_loop(store, rest, duplicate_variant_ids),
+        quantity_rules_input_errors_loop(
+          store,
+          price_list,
+          rest,
+          duplicate_variant_ids,
+        ),
       )
     }
   }
@@ -2072,6 +2083,31 @@ fn quantity_rule_maximum_divisibility_errors(
   }
 }
 
+fn quantity_rule_price_break_errors(
+  price_list: PriceListRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  let variant_id = graphql_helpers.read_arg_string_nonempty(input, "variantId")
+  let maximum = graphql_helpers.read_arg_int(input, "maximum")
+  case variant_id, maximum {
+    Some(id), Some(maximum_value) -> {
+      let break_minimums = quantity_price_break_minimums(price_list, id)
+      case list.any(break_minimums, fn(value) { value > maximum_value }) {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "maximum"],
+            "Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.",
+            "MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM",
+          ),
+        ]
+        False -> []
+      }
+    }
+    _, _ -> []
+  }
+}
+
 fn quantity_rule_duplicate_variant_errors(
   variant_id: Option(String),
   index: Int,
@@ -2139,6 +2175,7 @@ fn duplicate_quantity_rule_variant_ids_loop(
 @internal
 pub fn quantity_rule_delete_errors(
   store: Store,
+  price_list: PriceListRecord,
   variant_ids: List(String),
 ) -> List(CapturedJsonValue) {
   variant_ids
@@ -2146,13 +2183,36 @@ pub fn quantity_rule_delete_errors(
   |> list.filter_map(fn(entry) {
     let #(variant_id, index) = entry
     case store.get_effective_variant_by_id(store, variant_id) {
-      Some(_) -> Error(Nil)
+      Some(_) ->
+        case price_list_has_fixed_quantity_rule(price_list, variant_id) {
+          True -> Error(Nil)
+          False ->
+            Ok(user_error(
+              ["variantIds", int.to_string(index)],
+              "Quantity rule for variant associated with the price list provided does not exist.",
+              "VARIANT_QUANTITY_RULE_DOES_NOT_EXIST",
+            ))
+        }
       None ->
         Ok(user_error(
           ["variantIds", int.to_string(index)],
           "Product variant ID does not exist.",
           "PRODUCT_VARIANT_DOES_NOT_EXIST",
         ))
+    }
+  })
+}
+
+fn price_list_has_fixed_quantity_rule(
+  price_list: PriceListRecord,
+  variant_id: String,
+) -> Bool {
+  quantity_rule_edges(price_list.data)
+  |> list.any(fn(edge) {
+    quantity_rule_edge_variant_id(edge) == Some(variant_id)
+    && case captured_edge_node(edge) {
+      Some(node) -> captured_string_field(node, "originType") == Some("FIXED")
+      None -> False
     }
   })
 }
@@ -2536,6 +2596,31 @@ pub fn captured_edge_node(
   edge: CapturedJsonValue,
 ) -> Option(CapturedJsonValue) {
   captured_field(edge, "node")
+}
+
+fn quantity_price_break_minimums(
+  price_list: PriceListRecord,
+  variant_id: String,
+) -> List(Int) {
+  price_edges(price_list.data)
+  |> list.filter(fn(edge) {
+    fixed_price_edge_variant_id(edge) == Some(variant_id)
+  })
+  |> list.flat_map(fn(edge) {
+    case captured_edge_node(edge) {
+      Some(node) ->
+        captured_field(node, "quantityPriceBreaks")
+        |> captured_connection_edges
+        |> list.filter_map(fn(break_edge) {
+          use break_node <- result.try(
+            captured_edge_node(break_edge) |> option_to_result,
+          )
+          captured_int_field(break_node, "minimumQuantity")
+          |> option_to_result
+        })
+      None -> []
+    }
+  })
 }
 
 @internal
@@ -3196,6 +3281,13 @@ pub fn captured_string_field(
 ) -> Option(String) {
   case captured_field(value, key) {
     Some(CapturedString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn captured_int_field(value: CapturedJsonValue, key: String) -> Option(Int) {
+  case captured_field(value, key) {
+    Some(CapturedInt(i)) -> Some(i)
     _ -> None
   }
 }
