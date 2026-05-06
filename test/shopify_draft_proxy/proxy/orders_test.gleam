@@ -1753,8 +1753,8 @@ pub fn orders_fulfillment_create_precondition_validation_test() {
         cancelled_order_id,
         cancelled_fulfillment_order_id,
         cancelled_line_item_id,
-        "OPEN",
-        1,
+        "CLOSED",
+        0,
         Some("2026-05-06T00:00:00Z"),
       ),
       fulfillment_create_precondition_order(
@@ -1798,7 +1798,7 @@ pub fn orders_fulfillment_create_precondition_validation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(cancelled.data)
-    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"input\",\"lineItemsByFulfillmentOrder\"],\"message\":\"cannot_fulfill_cancelled_order\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Fulfillment order fulfillment-create-cancelled has an unfulfillable status= closed.\"}]}}}"
   assert cancelled.staged_resource_ids == []
   assert cancelled.log_drafts == []
 
@@ -1816,7 +1816,7 @@ pub fn orders_fulfillment_create_precondition_validation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(closed.data)
-    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"input\",\"lineItemsByFulfillmentOrder\",\"0\",\"fulfillmentOrderId\"],\"message\":\"Fulfillment order cannot be fulfilled.\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Fulfillment order fulfillment-create-closed has an unfulfillable status= closed.\"}]}}}"
   assert closed.staged_resource_ids == []
   assert closed.log_drafts == []
 
@@ -1834,9 +1834,9 @@ pub fn orders_fulfillment_create_precondition_validation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(in_progress.data)
-    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"input\",\"lineItemsByFulfillmentOrder\",\"0\",\"fulfillmentOrderId\"],\"message\":\"Fulfillment order cannot be fulfilled.\",\"code\":\"INVALID\"}]}}}"
-  assert in_progress.staged_resource_ids == []
-  assert in_progress.log_drafts == []
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\"},\"userErrors\":[]}}}"
+  assert in_progress.staged_resource_ids == [progress_order_id]
+  assert list.length(in_progress.log_drafts) == 1
 
   let over_fulfill =
     orders.process_mutation(
@@ -1852,7 +1852,7 @@ pub fn orders_fulfillment_create_precondition_validation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(over_fulfill.data)
-    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"input\",\"lineItemsByFulfillmentOrder\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"Quantity is greater than remaining quantity.\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Invalid fulfillment order line item quantity requested.\"}]}}}"
   assert over_fulfill.staged_resource_ids == []
   assert over_fulfill.log_drafts == []
 }
@@ -1867,7 +1867,6 @@ fn fulfillment_create_precondition_mutation() -> String {
         userErrors {
           field
           message
-          code
         }
       }
     }

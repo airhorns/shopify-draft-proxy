@@ -63,6 +63,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -342,29 +343,27 @@ pub fn fulfillment_create_group_precondition_errors(
   group_index: Int,
   group: Dict(String, root_field.ResolvedValue),
 ) -> List(#(List(String), String, Option(String))) {
-  case fulfillment_create_order_is_cancelled(order) {
-    True -> [
+  case captured_string_field(fulfillment_order, "status") {
+    Some("CLOSED") -> [
       user_error(
-        ["input", "lineItemsByFulfillmentOrder"],
-        "cannot_fulfill_cancelled_order",
-        Some(user_error_codes.invalid),
+        ["fulfillment"],
+        fulfillment_create_unfulfillable_status_message(
+          fulfillment_order,
+          "CLOSED",
+        ),
+        None,
       ),
     ]
-    False ->
-      case captured_string_field(fulfillment_order, "status") {
-        Some("CLOSED") | Some("IN_PROGRESS") -> [
+    _ ->
+      case fulfillment_create_order_is_cancelled(order) {
+        True -> [
           user_error(
-            [
-              "input",
-              "lineItemsByFulfillmentOrder",
-              int.to_string(group_index),
-              "fulfillmentOrderId",
-            ],
-            "Fulfillment order cannot be fulfilled.",
+            ["input", "lineItemsByFulfillmentOrder"],
+            "cannot_fulfill_cancelled_order",
             Some(user_error_codes.invalid),
           ),
         ]
-        _ ->
+        False ->
           fulfillment_create_line_item_quantity_errors(
             fulfillment_order,
             group_index,
@@ -372,6 +371,21 @@ pub fn fulfillment_create_group_precondition_errors(
           )
       }
   }
+}
+
+fn fulfillment_create_unfulfillable_status_message(
+  fulfillment_order: CapturedJsonValue,
+  status: String,
+) -> String {
+  let id =
+    captured_string_field(fulfillment_order, "id")
+    |> option.then(resource_ids.shopify_gid_tail)
+    |> option.unwrap("")
+  "Fulfillment order "
+  <> id
+  <> " has an unfulfillable status= "
+  <> string.lowercase(status)
+  <> "."
 }
 
 @internal
@@ -385,15 +399,11 @@ pub fn fulfillment_create_order_is_cancelled(order: OrderRecord) -> Bool {
 @internal
 pub fn fulfillment_create_line_item_quantity_errors(
   fulfillment_order: CapturedJsonValue,
-  group_index: Int,
+  _group_index: Int,
   group: Dict(String, root_field.ResolvedValue),
 ) -> List(#(List(String), String, Option(String))) {
   read_object_list(group, "fulfillmentOrderLineItems")
-  |> list.index_map(fn(line_item_input, line_item_index) {
-    #(line_item_index, line_item_input)
-  })
-  |> list.filter_map(fn(indexed_input) {
-    let #(line_item_index, line_item_input) = indexed_input
+  |> list.filter_map(fn(line_item_input) {
     case
       read_string(line_item_input, "id"),
       read_optional_int(line_item_input, "quantity")
@@ -410,16 +420,9 @@ pub fn fulfillment_create_line_item_quantity_errors(
             case quantity > remaining_quantity {
               True ->
                 Ok(user_error(
-                  [
-                    "input",
-                    "lineItemsByFulfillmentOrder",
-                    int.to_string(group_index),
-                    "fulfillmentOrderLineItems",
-                    int.to_string(line_item_index),
-                    "quantity",
-                  ],
-                  "Quantity is greater than remaining quantity.",
-                  Some(user_error_codes.invalid),
+                  ["fulfillment"],
+                  "Invalid fulfillment order line item quantity requested.",
+                  None,
                 ))
               False -> Error(Nil)
             }
