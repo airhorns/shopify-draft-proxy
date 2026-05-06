@@ -24,6 +24,7 @@ type CreatedOrder = {
   name: string | null;
   response: ConformanceGraphqlPayload<JsonRecord>;
   variables: JsonRecord;
+  hydrate: GraphqlCapture;
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -90,6 +91,15 @@ const orderCreateMutation = `#graphql
         field
         message
       }
+    }
+  }
+`;
+
+const orderHydrateQuery = `#graphql
+  ${orderMoneyBagFields}
+  query OrdersOrderHydrate($id: ID!) {
+    order(id: $id) {
+      ...OrderMarkAsPaidMoneyBagFields
     }
   }
 `;
@@ -229,7 +239,7 @@ function makeOrderVariables(
   },
 ): JsonRecord {
   const presentmentCurrency = options.presentmentCurrency ?? options.shopCurrency;
-  const shopAmount = options.presentmentCurrency ? '16.99' : '12.50';
+  const shopAmount = options.presentmentCurrency ? '17.01' : '12.50';
   const presentmentAmount = '12.50';
   const priceSet = moneyBag(shopAmount, options.shopCurrency, presentmentCurrency, presentmentAmount);
   const order: JsonRecord = {
@@ -280,12 +290,20 @@ async function createOrder(
   if (!id) {
     throw new Error(`Created ${scenario} order is missing id: ${JSON.stringify(response.payload)}`);
   }
+  const hydrate = await hydrateOrder(id);
   return {
     id,
     name: readString(order, 'name'),
     variables,
     response: response.payload,
+    hydrate,
   };
+}
+
+async function hydrateOrder(orderId: string): Promise<GraphqlCapture> {
+  const variables = { id: orderId };
+  const response = await run(orderHydrateQuery, variables);
+  return { variables, response };
 }
 
 async function markAsPaid(orderId: string): Promise<GraphqlCapture> {
@@ -308,15 +326,11 @@ async function cleanupOrder(orderId: string): Promise<GraphqlCapture> {
 function hydrateCall(order: CreatedOrder): JsonRecord {
   return {
     operationName: 'OrdersOrderHydrate',
-    variables: { id: order.id },
-    query: 'hand-synthesized from checked-in setup orderCreate response for orderMarkAsPaid Pattern 2 hydration',
+    variables: order.hydrate.variables,
+    query: trimGraphql(orderHydrateQuery),
     response: {
-      status: 200,
-      body: {
-        data: {
-          order: readRecord(readRecord(order.response.data, 'orderCreate'), 'order'),
-        },
-      },
+      status: order.hydrate.response.status,
+      body: order.hydrate.response.payload,
     },
   };
 }
@@ -351,8 +365,6 @@ const cleanup: GraphqlCapture[] = [];
 try {
   const unpaid = await createOrder(stamp, 'unpaid-success', { shopCurrency: 'CAD', paid: false });
   createdOrders.push(unpaid);
-  const alreadyPaid = await createOrder(stamp, 'already-paid', { shopCurrency: 'CAD', paid: true });
-  createdOrders.push(alreadyPaid);
   const multiCurrency = await createOrder(stamp, 'multi-currency', {
     shopCurrency: 'CAD',
     presentmentCurrency: 'USD',
@@ -362,7 +374,7 @@ try {
   assertMultiCurrencyOrder(multiCurrency);
 
   const unpaidSuccess = await markAsPaid(unpaid.id);
-  const alreadyPaidResult = await markAsPaid(alreadyPaid.id);
+  const alreadyPaidResult = await markAsPaid(unpaid.id);
   const multiCurrencyResult = await markAsPaid(multiCurrency.id);
 
   await writeJson(outputPath, {
@@ -371,7 +383,6 @@ try {
     apiVersion,
     setup: {
       unpaid,
-      alreadyPaid,
       multiCurrency,
     },
     cases: {
@@ -379,7 +390,7 @@ try {
       alreadyPaid: alreadyPaidResult,
       multiCurrency: multiCurrencyResult,
     },
-    upstreamCalls: [hydrateCall(unpaid), hydrateCall(alreadyPaid), hydrateCall(multiCurrency)],
+    upstreamCalls: [hydrateCall(unpaid), hydrateCall(multiCurrency)],
   });
 
   console.log(

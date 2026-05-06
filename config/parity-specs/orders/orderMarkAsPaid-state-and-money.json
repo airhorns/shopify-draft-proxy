@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-563 live 2026-04 capture for orderMarkAsPaid state validation and MoneyBag shape. The public 2026-04 schema exposes orderMarkAsPaid.userErrors as UserError without a code field, so live parity compares field/message while focused runtime tests cover the local INVALID code projection requested by the ticket.",
+  "notes": "Live 2026-04 capture for orderMarkAsPaid state validation and MoneyBag shape. The public 2026-04 schema exposes orderMarkAsPaid.userErrors as UserError without a code field, so live parity compares field/message while focused runtime tests cover the local INVALID code projection requested by the ticket.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -44,6 +44,13 @@
           "$.order.totalOutstandingSet",
           "$.order.displayFinancialStatus",
           "$.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "The proxy reuses its synthetic local transaction ID after the first staged payment."
+          }
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/orderMarkAsPaid-state-and-money.graphql",
