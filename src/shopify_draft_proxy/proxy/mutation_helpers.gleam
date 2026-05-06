@@ -1546,6 +1546,7 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "FAILURE",
       "CARRIER_PICKED_UP",
     ]),
+    #("ResourceFeedbackState", ["ACCEPTED", "REQUIRES_ACTION"]),
     #("PublicationCreateInputPublicationDefaultState", [
       "EMPTY",
       "ALL_PRODUCTS",
