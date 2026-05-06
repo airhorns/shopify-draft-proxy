@@ -338,7 +338,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-product-conformance.mts',
     purpose: 'Product read baselines, search grammar, selected product detail subresources.',
     requiredAuthScopes: ['read_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}product-*.json`, 'product catalog/search parity specs when promoted'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-*.json`,
+      `${CAPTURE_ROOT}products-*.json`,
+      'product catalog/search parity specs when promoted',
+    ],
     cleanupBehavior: 'Read-only capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -491,7 +495,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-product-state-mutation-conformance.mts',
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}product-state-mutation-*.json`],
+    fixtureOutputs: [`${CAPTURE_ROOT}product-state-mutation-*.json`, `${CAPTURE_ROOT}tags-*.json`],
     cleanupBehavior: 'Creates temporary products and resets/deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -501,7 +505,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-product-publication-conformance.mts',
     purpose: 'Publication aggregate reads plus productPublish/productUnpublish probes.',
     requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
-    fixtureOutputs: [`${CAPTURE_ROOT}product-publication-*.json`, 'publication blocker notes when access is missing'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-publication-*.json`,
+      `${CAPTURE_ROOT}publishable-*.json`,
+      `${CAPTURE_ROOT}publications-*.json`,
+      'publication blocker notes when access is missing',
+    ],
     cleanupBehavior: 'Publishes/unpublishes disposable products only after publication target probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
@@ -523,6 +532,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_files', 'write_files'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}file-mutation-*.json`,
+      `${CAPTURE_ROOT}file-*.json`,
       `${CAPTURE_ROOT}media-file-*.json`,
       `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`,
     ],
@@ -770,7 +780,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-product-metafield-mutation-conformance.mts',
     purpose: 'Product-scoped metafieldsSet/metafieldsDelete mutation behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}product-metafield-mutation-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-metafield-mutation-*.json`,
+      `${CAPTURE_ROOT}metafields-set-*.json`,
+      `${CAPTURE_ROOT}metafields-delete-parity.json`,
+    ],
     cleanupBehavior: 'Creates disposable products/collections and removes them after metafield probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -796,7 +810,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-metafield-definition-pinning-conformance.mts',
     purpose: 'metafieldDefinitionPin/metafieldDefinitionUnpin behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}metafield-definition-pinning.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-pinning.json`,
+      `${CAPTURE_ROOT}metafield-definition-pinning-parity.json`,
+    ],
     cleanupBehavior: 'Creates temporary product-owned definitions and deletes them after pinning probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -1465,6 +1482,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-quantity-roots-parity.json`,
+      `${CAPTURE_ROOT}inventory-adjust-quantities-parity.json`,
       'config/parity-specs/products/inventory-quantity-roots-parity.json',
     ],
     cleanupBehavior:
@@ -1649,7 +1667,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-market-conformance.mts',
     purpose: 'Markets read baselines and localization-adjacent validation probes.',
     requiredAuthScopes: ['read_markets', 'read_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}markets-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}markets-*.json`,
+      `${CAPTURE_ROOT}market-catalog-detail.json`,
+      `${CAPTURE_ROOT}market-catalogs.json`,
+      `${CAPTURE_ROOT}market-detail.json`,
+      `${CAPTURE_ROOT}market-web-presences.json`,
+      `${CAPTURE_ROOT}price-list-detail.json`,
+      `${CAPTURE_ROOT}price-list-prices-filtered.json`,
+      `${CAPTURE_ROOT}price-lists.json`,
+    ],
     cleanupBehavior:
       'Read/validation oriented; do not run market lifecycle writes without disposable setup and cleanup.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
@@ -2093,7 +2120,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-collection-conformance.mts',
     purpose: 'Collection read baselines for custom/smart collections and product membership.',
     requiredAuthScopes: ['read_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}collection-*.json`],
+    fixtureOutputs: [`${CAPTURE_ROOT}collection-*.json`, `${CAPTURE_ROOT}collections-*.json`],
     cleanupBehavior: 'Read-only capture against existing store collections; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -2156,7 +2183,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-location-conformance.mts',
     purpose: 'Location roots and inventory/publication-adjacent store property reads.',
     requiredAuthScopes: ['read_locations'],
-    fixtureOutputs: [`${CAPTURE_ROOT}locations-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}locations-*.json`,
+      `${CAPTURE_ROOT}location-custom-id-miss.json`,
+      `${CAPTURE_ROOT}business-entities-*.json`,
+      `${CAPTURE_ROOT}business-entity-*.json`,
+    ],
     cleanupBehavior: 'Read-only by default; location lifecycle writes need disposable location setup and cleanup.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
@@ -2166,7 +2198,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-location-conformance.mts',
     purpose: 'Store property roots sharing the location capture harness.',
     requiredAuthScopes: ['read_locations', 'read_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}store-properties-*.json`, `${CAPTURE_ROOT}locations-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-properties-*.json`,
+      `${CAPTURE_ROOT}locations-*.json`,
+      `${CAPTURE_ROOT}location-custom-id-miss.json`,
+      `${CAPTURE_ROOT}business-entities-*.json`,
+      `${CAPTURE_ROOT}business-entity-*.json`,
+    ],
     cleanupBehavior: 'Read-only by default; avoid merchant-topology writes without explicit cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -2304,6 +2342,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}root-operation-introspection.json`,
+      `${CAPTURE_ROOT}admin-graphql-root-operation-introspection.json`,
       'src/shopify_draft_proxy/proxy/operation_registry_data.gleam updates when intentionally edited',
     ],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
@@ -2326,7 +2365,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-order-conformance.mts',
     purpose: 'Order reads, orderCreate, order-edit, transaction, and downstream order-family behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}order-*.json`, 'order blocker notes when credential/store access is insufficient'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-*.json`,
+      'fixtures/conformance/<store>/<api-version>/orders/draft-orders-*.json',
+      'fixtures/conformance/<store>/<api-version>/orders/fulfillment-*.json',
+      'order blocker notes when credential/store access is insufficient',
+    ],
     cleanupBehavior: 'Creates/cancels disposable orders only after credential and store-state probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
@@ -3096,7 +3140,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
     purpose: 'Order refund calculation/create behavior against disposable orders.',
     requiredAuthScopes: ['read_orders', 'write_orders'],
-    fixtureOutputs: [`${CAPTURE_ROOT}order-refund-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-refund-*.json`,
+      'fixtures/conformance/<store>/<api-version>/orders/refund-create-*.json',
+    ],
     cleanupBehavior: 'Uses disposable orders and records cleanup/cancel evidence where possible.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
@@ -3260,6 +3307,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}delivery-profile-*.json`,
+      `${CAPTURE_ROOT}delivery-profiles-*.json`,
       'config/parity-specs/shipping-fulfillments/delivery-profile-*.json',
     ],
     cleanupBehavior: 'Removes or restores created delivery profile artifacts; review default-profile protections.',
@@ -3627,7 +3675,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-customer-conformance.mts',
     purpose: 'Customer read baselines and nested customer subresources.',
     requiredAuthScopes: ['read_customers'],
-    fixtureOutputs: [`${CAPTURE_ROOT}customer-*.json`, 'customer read parity specs when promoted'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-*.json`,
+      `${CAPTURE_ROOT}customers-*.json`,
+      'customer read parity specs when promoted',
+    ],
     cleanupBehavior: 'Read-only capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -3904,6 +3956,8 @@ export function validateCaptureIndexAgainstScriptFiles(
 
 export type ConformanceFixtureProvenanceProfile = {
   fixtureCount: number;
+  liveShopifyFixtureCount: number;
+  localRuntimeFixtureCount: number;
   indexedFixtureOutputPatterns: string[];
   orphanedFixturePaths: string[];
 };
@@ -3932,13 +3986,16 @@ export function profileConformanceFixtureProvenance(
   entries: ConformanceCaptureIndexEntry[] = conformanceCaptureIndex,
 ): ConformanceFixtureProvenanceProfile {
   const fixturePaths = listConformanceFixturePaths(repoRoot);
+  const liveShopifyFixturePaths = fixturePaths.filter((fixturePath) => !isLocalRuntimeFixturePath(fixturePath));
   const indexedFixtureOutputPatterns = listIndexedConformanceFixtureOutputPatterns(entries);
   const indexedFixtureOutputMatchers = indexedFixtureOutputPatterns.map(fixtureOutputPatternToRegExp);
 
   return {
     fixtureCount: fixturePaths.length,
+    liveShopifyFixtureCount: liveShopifyFixturePaths.length,
+    localRuntimeFixtureCount: fixturePaths.length - liveShopifyFixturePaths.length,
     indexedFixtureOutputPatterns,
-    orphanedFixturePaths: fixturePaths.filter(
+    orphanedFixturePaths: liveShopifyFixturePaths.filter(
       (fixturePath) => !indexedFixtureOutputMatchers.some((matcher) => matcher.test(fixturePath)),
     ),
   };
@@ -3985,6 +4042,10 @@ function walkFiles(directory: string): string[] {
     const entryPath = path.join(directory, entry.name);
     return entry.isDirectory() ? walkFiles(entryPath) : [entryPath];
   });
+}
+
+function isLocalRuntimeFixturePath(fixturePath: string): boolean {
+  return fixturePath.startsWith('fixtures/conformance/local-runtime/');
 }
 
 function fixtureOutputPatternToRegExp(fixtureOutputPattern: string): RegExp {

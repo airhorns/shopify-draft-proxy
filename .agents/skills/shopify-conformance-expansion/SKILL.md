@@ -9,11 +9,13 @@ description: Extend Shopify Admin GraphQL conformance coverage in shopify-draft-
 
 Treat conformance as the fidelity source of truth. Do not guess Shopify behavior when a safe live capture or existing fixture can answer it. Preserve the project goal: broad, high-fidelity Shopify Admin GraphQL draft proxy behavior, not a generic mock server.
 
-Checked-in conformance fixture JSON must be a recorded real Shopify interaction
-from a committed capture script. Do not hand-author, synthesize, or regenerate
-fixture data from assumptions, local proxy output, or edited examples. If a
-capture cannot be run yet, leave the gap in Linear/workpad notes instead of
-adding fixture JSON.
+Checked-in live Shopify conformance fixture JSON must be a recorded real
+Shopify interaction from a committed capture script. Do not hand-author,
+synthesize, or regenerate Shopify fidelity fixture data from assumptions, local
+proxy output, or edited examples. If a capture cannot be run yet, leave the gap
+in Linear/workpad notes instead of adding fixture JSON. Local-runtime fixtures
+may prove proxy-only mechanics when explicitly runtime-test-backed, but they are
+not a substitute for real Shopify evidence.
 
 ## Why a live target exists
 

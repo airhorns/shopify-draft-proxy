@@ -48,11 +48,14 @@ describe('conformance capture index', () => {
     expect(markdown).not.toContain('## customers');
   });
 
-  it('profiles checked-in conformance fixtures without recorder-declared outputs', () => {
+  it('profiles checked-in live Shopify fixtures without recorder-declared outputs', () => {
     const profile = profileConformanceFixtureProvenance(repoRoot);
 
     expect(profile.fixtureCount).toBeGreaterThan(0);
+    expect(profile.liveShopifyFixtureCount).toBeGreaterThan(0);
+    expect(profile.localRuntimeFixtureCount).toBeGreaterThan(0);
     expect(profile.indexedFixtureOutputPatterns.length).toBeGreaterThan(0);
+    expect(profile.orphanedFixturePaths).not.toContainEqual(expect.stringContaining('/local-runtime/'));
     expect(profile.orphanedFixturePaths).toMatchSnapshot();
   });
 });

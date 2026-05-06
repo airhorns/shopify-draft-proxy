@@ -125,7 +125,6 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
 - Do not hand-author or synthetically generate checked-in conformance fixture
-- Do not hand-author or synthetically generate checked-in conformance fixture
   data, parity fixtures, or expected payloads as Shopify fidelity evidence. If
   a parity spec claims captured Shopify behavior, its fixture must be a recorded
   real Shopify interaction produced by a committed capture script or an
