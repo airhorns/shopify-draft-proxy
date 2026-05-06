@@ -1,0 +1,37 @@
+mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {
+  tagsAdd(id: $id, tags: $tags) {
+    node {
+      __typename
+      ... on Product {
+        id
+        title
+        tags
+      }
+      ... on Order {
+        id
+        name
+        tags
+      }
+      ... on Customer {
+        id
+        email
+        displayName
+        tags
+      }
+      ... on Article {
+        id
+        title
+        tags
+      }
+      ... on DraftOrder {
+        id
+        name
+        tags
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

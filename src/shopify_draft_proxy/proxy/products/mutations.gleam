@@ -244,6 +244,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        upstream,
       )
     }
   }
@@ -277,6 +278,7 @@ pub fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   let uses_inventory_quantity_202604_contract =
     admin_api_version_at_least(request_path, "2026-04")
@@ -2273,6 +2275,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let draft =
                 single_root_log_draft(
@@ -2314,6 +2317,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let draft =
                 single_root_log_draft(
