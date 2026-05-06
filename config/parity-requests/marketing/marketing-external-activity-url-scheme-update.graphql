@@ -1,7 +1,4 @@
-mutation MarketingExternalActivityUrlSchemeUpdate(
-  $remoteId: String
-  $input: MarketingActivityUpdateExternalInput!
-) {
+mutation MarketingExternalActivityUrlSchemeUpdate($remoteId: String, $input: MarketingActivityUpdateExternalInput!) {
   marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
     marketingActivity {
       id

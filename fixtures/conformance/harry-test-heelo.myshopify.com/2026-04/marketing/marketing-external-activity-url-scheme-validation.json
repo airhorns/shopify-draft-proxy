@@ -131,9 +131,7 @@
               "extensions": {
                 "code": "INVALID_FIELD_ARGUMENTS"
               },
-              "path": [
-                "marketingActivityUpdateExternal"
-              ]
+              "path": ["marketingActivityUpdateExternal"]
             }
           ],
           "data": {
@@ -182,9 +180,7 @@
                 },
                 "problems": [
                   {
-                    "path": [
-                      "remotePreviewImageUrl"
-                    ],
+                    "path": ["remotePreviewImageUrl"],
                     "explanation": "Invalid url 'javascript:alert(1)', missing host",
                     "message": "Invalid url 'javascript:alert(1)', missing host"
                   }
@@ -198,9 +194,7 @@
     "readAfterInvalidUpdate": {
       "operation": "read",
       "variables": {
-        "remoteIds": [
-          "url-scheme-valid-https-1778110717537-plsh1t"
-        ]
+        "remoteIds": ["url-scheme-valid-https-1778110717537-plsh1t"]
       },
       "response": {
         "status": 200,
@@ -270,9 +264,7 @@
               "extensions": {
                 "code": "INVALID_FIELD_ARGUMENTS"
               },
-              "path": [
-                "marketingActivityCreateExternal"
-              ]
+              "path": ["marketingActivityCreateExternal"]
             }
           ],
           "data": {
@@ -295,9 +287,7 @@
     "readAfterInvalidCreate": {
       "operation": "read",
       "variables": {
-        "remoteIds": [
-          "url-scheme-create-ftp-1778110717537-plsh1t"
-        ]
+        "remoteIds": ["url-scheme-create-ftp-1778110717537-plsh1t"]
       },
       "response": {
         "status": 200,
@@ -358,9 +348,7 @@
               "extensions": {
                 "code": "INVALID_FIELD_ARGUMENTS"
               },
-              "path": [
-                "marketingActivityCreateExternal"
-              ]
+              "path": ["marketingActivityCreateExternal"]
             }
           ],
           "data": {
@@ -426,9 +414,7 @@
                 },
                 "problems": [
                   {
-                    "path": [
-                      "remoteUrl"
-                    ],
+                    "path": ["remoteUrl"],
                     "explanation": "Invalid url 'data:text/plain,hello', missing host",
                     "message": "Invalid url 'data:text/plain,hello', missing host"
                   }
@@ -475,9 +461,7 @@
               "extensions": {
                 "code": "INVALID_FIELD_ARGUMENTS"
               },
-              "path": [
-                "marketingActivityUpsertExternal"
-              ]
+              "path": ["marketingActivityUpsertExternal"]
             }
           ],
           "data": {
@@ -545,9 +529,7 @@
                 },
                 "problems": [
                   {
-                    "path": [
-                      "remotePreviewImageUrl"
-                    ],
+                    "path": ["remotePreviewImageUrl"],
                     "explanation": "Invalid url 'javascript:alert(1)', missing host",
                     "message": "Invalid url 'javascript:alert(1)', missing host"
                   }

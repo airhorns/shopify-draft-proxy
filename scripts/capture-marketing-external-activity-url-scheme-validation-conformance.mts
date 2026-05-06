@@ -209,7 +209,11 @@ try {
       remoteUrl: 'ftp://example.com/url-scheme-update',
     },
   });
-  assertInvalidFieldArguments('invalid-update-remote-url-ftp', invalidUpdateFtp.payload, 'marketingActivityUpdateExternal');
+  assertInvalidFieldArguments(
+    'invalid-update-remote-url-ftp',
+    invalidUpdateFtp.payload,
+    'marketingActivityUpdateExternal',
+  );
 
   const invalidUpdatePreviewJavascript = await runCase(
     cases,
@@ -236,7 +240,11 @@ try {
   const invalidCreateFtp = await runCase(cases, 'invalidCreateRemoteUrlFtp', 'create', createDocument, {
     input: invalidCreateFtpInput,
   });
-  assertInvalidFieldArguments('invalid-create-remote-url-ftp', invalidCreateFtp.payload, 'marketingActivityCreateExternal');
+  assertInvalidFieldArguments(
+    'invalid-create-remote-url-ftp',
+    invalidCreateFtp.payload,
+    'marketingActivityCreateExternal',
+  );
 
   const readAfterInvalidCreate = await runCase(cases, 'readAfterInvalidCreate', 'read', readDocument, {
     remoteIds: [invalidCreateFtpInput.remoteId],
@@ -261,7 +269,11 @@ try {
   const invalidUpsertMailto = await runCase(cases, 'invalidUpsertRemoteUrlMailto', 'upsert', upsertDocument, {
     input: invalidUpsertMailtoInput,
   });
-  assertInvalidFieldArguments('invalid-upsert-remote-url-mailto', invalidUpsertMailto.payload, 'marketingActivityUpsertExternal');
+  assertInvalidFieldArguments(
+    'invalid-upsert-remote-url-mailto',
+    invalidUpsertMailto.payload,
+    'marketingActivityUpsertExternal',
+  );
 
   const invalidUpsertPreviewJavascript = await runCase(
     cases,
