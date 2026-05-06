@@ -1,0 +1,73 @@
+mutation PriceListFixedPricesUpdate(
+  $priceListId: ID!
+  $pricesToAdd: [PriceListPriceInput!]!
+  $variantIdsToDelete: [ID!]!
+) {
+  priceListFixedPricesUpdate(
+    priceListId: $priceListId
+    pricesToAdd: $pricesToAdd
+    variantIdsToDelete: $variantIdsToDelete
+  ) {
+    priceList {
+      id
+      name
+      currency
+      fixedPricesCount
+      prices(first: 10, originType: FIXED) {
+        edges {
+          cursor
+          node {
+            price {
+              amount
+              currencyCode
+            }
+            compareAtPrice {
+              amount
+              currencyCode
+            }
+            originType
+            variant {
+              id
+              sku
+              product {
+                id
+                title
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pricesAdded {
+      price {
+        amount
+        currencyCode
+      }
+      compareAtPrice {
+        amount
+        currencyCode
+      }
+      originType
+      variant {
+        id
+        sku
+        product {
+          id
+          title
+        }
+      }
+    }
+    deletedFixedPriceVariantIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
