@@ -192,6 +192,29 @@ function hasEmptyUserErrors(result, rootName) {
   return !hasTopLevelErrors(result) && readUserErrors(result, rootName).length === 0;
 }
 
+function fulfillmentHydrateUpstreamCall(fulfillmentId, orderReadResult) {
+  const order = orderReadResult?.payload?.data?.order ?? null;
+  return {
+    operationName: 'OrdersFulfillmentHydrate',
+    variables: { id: fulfillmentId },
+    query:
+      'hand-synthesized from the checked-in fulfillment lifecycle read response for orders fulfillment mutation hydration',
+    response: {
+      status: orderReadResult?.status ?? 200,
+      body: {
+        data: {
+          fulfillment: order
+            ? {
+                id: fulfillmentId,
+                order,
+              }
+            : null,
+        },
+      },
+    },
+  };
+}
+
 function findFulfillmentLifecycleCandidate(result) {
   const orders = result?.payload?.data?.orders?.nodes;
   if (!Array.isArray(orders)) {
@@ -2100,6 +2123,9 @@ async function main() {
           variables: { id: fulfillmentLifecycleCandidate.order.id },
           response: fulfillmentReadAfterCancelResult?.payload ?? null,
         },
+        upstreamCalls: [
+          fulfillmentHydrateUpstreamCall(fulfillmentCancelLiveVariables.id, fulfillmentReadAfterTrackingUpdateResult),
+        ],
       });
     }
     await writeJson(orderCreateInlineMissingOrderFixturePath, {

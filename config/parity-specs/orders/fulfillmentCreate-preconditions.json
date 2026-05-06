@@ -1,0 +1,91 @@
+{
+  "scenarioId": "fulfillmentCreate-preconditions",
+  "operationNames": ["fulfillmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["validation-parity", "mutation-lifecycle", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/fulfillment-create-preconditions.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+    "variablesCapturePath": "$.cases.cancelled.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancelled-order-closed-fulfillment-order",
+        "capturePath": "$.cases.cancelled.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate"
+      },
+      {
+        "name": "over-fulfill-quantity",
+        "capturePath": "$.cases.overFulfill.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.overFulfill.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "closed-fulfillment-order",
+        "capturePath": "$.cases.closed.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.closed.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "in-progress-public-happy-path",
+        "capturePath": "$.cases.inProgress.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "selectedPaths": [
+          "$.fulfillment.status",
+          "$.fulfillment.displayStatus",
+          "$.fulfillment.trackingInfo",
+          "$.fulfillment.fulfillmentLineItems.nodes[0].quantity",
+          "$.fulfillment.fulfillmentLineItems.nodes[0].lineItem.title",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.inProgress.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "open-fulfillment-order-happy-path",
+        "capturePath": "$.cases.happyPath.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "selectedPaths": [
+          "$.fulfillment.status",
+          "$.fulfillment.displayStatus",
+          "$.fulfillment.trackingInfo",
+          "$.fulfillment.fulfillmentLineItems.nodes[0].quantity",
+          "$.fulfillment.fulfillmentLineItems.nodes[0].lineItem.title",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.happyPath.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured public Admin API fulfillmentCreate preconditions. Public userErrors expose field/message only for this root; 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves a fulfillment order IN_PROGRESS, so the scenario records that as the public happy-path contrast rather than treating it as a rejection."
+}

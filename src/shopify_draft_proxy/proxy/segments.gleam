@@ -116,7 +116,8 @@ pub fn normalize_segment_name(name: String) -> String {
   mutations.normalize_segment_name(name)
 }
 
-/// Resolve a segment name against existing names, appending " (N)" until free.
+/// Resolve a segment name against existing names using Shopify's duplicate
+/// suffix and retry behavior.
 pub fn resolve_unique_segment_name(
   store: Store,
   requested: String,

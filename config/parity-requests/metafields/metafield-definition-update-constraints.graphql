@@ -1,0 +1,138 @@
+mutation MetafieldDefinitionUpdateConstraints(
+  $namespace: String!
+  $categoryId: String!
+  $alternateCategoryId: String!
+) {
+  createDefinition: metafieldDefinitionCreate(
+    definition: {
+      name: "Constraint update definition"
+      namespace: $namespace
+      key: "tier"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+        }
+      }
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+
+  setConstraints: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "tier"
+      ownerType: PRODUCT
+      constraintsUpdates: { key: "category", values: [{ create: $categoryId }] }
+    }
+  ) {
+    updatedDefinition {
+      id
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+
+  pinConstrained: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "tier" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+
+  updateConstraints: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "tier"
+      ownerType: PRODUCT
+      constraintsUpdates: { key: "category", values: [{ delete: $categoryId }, { create: $alternateCategoryId }] }
+    }
+  ) {
+    updatedDefinition {
+      id
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+
+  unconstrain: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "tier"
+      ownerType: PRODUCT
+      constraintsUpdates: { key: null, values: [] }
+    }
+  ) {
+    updatedDefinition {
+      id
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+
+  pinUnconstrained: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "tier" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

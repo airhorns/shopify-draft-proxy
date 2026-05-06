@@ -35,7 +35,7 @@ import shopify_draft_proxy/proxy/orders/common.{
   order_presentment_currency_code, order_transactions, read_bool, read_number,
   read_object, read_string, read_string_arg, replace_captured_object_fields,
   selection_children, serialize_captured_selection, serialize_job,
-  serialize_order_mutation_user_error, serialize_user_error,
+  serialize_order_mutation_user_error, serialize_user_error, valid_email_address,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
 import shopify_draft_proxy/proxy/orders/order_types.{
@@ -572,16 +572,28 @@ pub fn handle_order_invoice_send(
           let hydrated_store =
             maybe_hydrate_order_by_id(store, order_id, upstream)
           case store.get_order_by_id(hydrated_store, order_id) {
-            Some(order) -> #(
-              key,
-              serialize_order_mutation_payload(
-                field,
-                Some(order),
+            Some(order) -> {
+              let user_errors =
+                order_invoice_send_email_user_errors(
+                  args,
+                  hydrated_store,
+                  order,
+                )
+              let payload_order = case user_errors {
+                [] -> Some(order)
+                _ -> None
+              }
+              #(
+                key,
+                serialize_order_mutation_payload(
+                  field,
+                  payload_order,
+                  user_errors,
+                  fragments,
+                ),
                 [],
-                fragments,
-              ),
-              [],
-            )
+              )
+            }
             None -> #(
               key,
               serialize_order_mutation_payload(
@@ -611,6 +623,93 @@ pub fn handle_order_invoice_send(
       }
     }
   }
+}
+
+fn order_invoice_send_email_user_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  store: Store,
+  order: OrderRecord,
+) -> List(OrderMutationUserError) {
+  case explicit_invoice_email_to(args) {
+    Some(email) ->
+      case string.trim(email) {
+        "" -> [
+          order_invoice_send_email_error(
+            "No recipient email address was provided",
+          ),
+        ]
+        trimmed ->
+          case valid_email_address(trimmed) {
+            True -> []
+            False -> [order_invoice_send_email_error("To is invalid")]
+          }
+      }
+    None ->
+      case resolved_order_invoice_email(store, order) {
+        Some(_) -> []
+        None -> [
+          order_invoice_send_email_error(
+            "No recipient email address was provided",
+          ),
+        ]
+      }
+  }
+}
+
+fn explicit_invoice_email_to(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case dict.get(args, "email") {
+    Ok(root_field.ObjectVal(email_input)) ->
+      Some(read_string(email_input, "to") |> option.unwrap(""))
+    _ -> None
+  }
+}
+
+fn resolved_order_invoice_email(
+  store: Store,
+  order: OrderRecord,
+) -> Option(String) {
+  captured_string_field(order.data, "email")
+  |> option.then(non_blank_string)
+  |> option.or(order_customer_email(store, order))
+}
+
+fn order_customer_email(store: Store, order: OrderRecord) -> Option(String) {
+  case captured_object_field(order.data, "customer") {
+    Some(customer) ->
+      captured_string_field(customer, "email")
+      |> option.then(non_blank_string)
+      |> option.or(customer_record_email(store, customer))
+    None -> None
+  }
+}
+
+fn customer_record_email(
+  store: Store,
+  customer: CapturedJsonValue,
+) -> Option(String) {
+  use customer_id <- option.then(captured_string_field(customer, "id"))
+  use record <- option.then(store.get_effective_customer_by_id(
+    store,
+    customer_id,
+  ))
+  record.email |> option.then(non_blank_string)
+}
+
+fn non_blank_string(value: String) -> Option(String) {
+  case string.trim(value) {
+    "" -> None
+    trimmed -> Some(trimmed)
+  }
+}
+
+fn order_invoice_send_email_error(message: String) -> OrderMutationUserError {
+  order_mutation_user_error(
+    [],
+    message,
+    Some(user_error_codes.order_invoice_send_unsuccessful),
+  )
 }
 
 @internal

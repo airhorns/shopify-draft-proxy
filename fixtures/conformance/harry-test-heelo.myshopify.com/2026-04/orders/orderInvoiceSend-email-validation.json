@@ -1,0 +1,401 @@
+{
+  "cases": [
+    {
+      "name": "no-recipient-email-required",
+      "variables": {
+        "id": "gid://shopify/Order/8731493269810"
+      },
+      "setup": {
+        "orderCreate": {
+          "query": "mutation OrderInvoiceSendEmailValidationCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "order": {
+              "note": "order invoice email validation no-recipient",
+              "tags": ["order-invoice-email-validation", "no-recipient"],
+              "test": true,
+              "currency": "USD",
+              "lineItems": [
+                {
+                  "title": "Invoice validation no-recipient",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "1.00",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "invoice-validation-no-recipient-1778034898324"
+                }
+              ]
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8731493269810",
+                  "name": "#1194",
+                  "email": null,
+                  "customer": null
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1983,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "orderRead": {
+          "query": "query OrderInvoiceSendEmailValidationRead($id: ID!) {\n    order(id: $id) {\n      \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Order/8731493269810"
+          },
+          "response": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8731493269810",
+                "name": "#1194",
+                "email": null,
+                "customer": null
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 2,
+                "actualQueryCost": 2,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "mutation OrderInvoiceSendEmailValidation($id: ID!, $email: EmailInput) {\n    orderInvoiceSend(id: $id, email: $email) {\n      order {\n        \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "response": {
+          "data": {
+            "orderInvoiceSend": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "No recipient email address was provided",
+                  "code": "ORDER_INVOICE_SEND_UNSUCCESSFUL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "malformed-explicit-email",
+      "variables": {
+        "id": "gid://shopify/Order/8731493269810",
+        "email": {
+          "to": "not an email"
+        }
+      },
+      "mutation": {
+        "query": "mutation OrderInvoiceSendEmailValidation($id: ID!, $email: EmailInput) {\n    orderInvoiceSend(id: $id, email: $email) {\n      order {\n        \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "response": {
+          "data": {
+            "orderInvoiceSend": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "To is invalid",
+                  "code": "ORDER_INVOICE_SEND_UNSUCCESSFUL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "order-email-happy-path",
+      "variables": {
+        "id": "gid://shopify/Order/8731493302578"
+      },
+      "setup": {
+        "orderCreate": {
+          "query": "mutation OrderInvoiceSendEmailValidationCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+          "variables": {
+            "order": {
+              "note": "order invoice email validation order-email",
+              "tags": ["order-invoice-email-validation", "order-email"],
+              "test": true,
+              "currency": "USD",
+              "lineItems": [
+                {
+                  "title": "Invoice validation order-email",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "1.00",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "invoice-validation-order-email-1778034898324"
+                }
+              ],
+              "email": "invoice-validation-1778034898324@example.com"
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8731493302578",
+                  "name": "#1195",
+                  "email": "invoice-validation-1778034898324@example.com",
+                  "customer": {
+                    "id": "gid://shopify/Customer/10583449862450",
+                    "email": "invoice-validation-1778034898324@example.com",
+                    "displayName": "invoice-validation-1778034898324@example.com"
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "orderRead": {
+          "query": "query OrderInvoiceSendEmailValidationRead($id: ID!) {\n    order(id: $id) {\n      \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/Order/8731493302578"
+          },
+          "response": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8731493302578",
+                "name": "#1195",
+                "email": "invoice-validation-1778034898324@example.com",
+                "customer": {
+                  "id": "gid://shopify/Customer/10583449862450",
+                  "email": "invoice-validation-1778034898324@example.com",
+                  "displayName": "invoice-validation-1778034898324@example.com"
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 2,
+                "actualQueryCost": 2,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1996,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "mutation OrderInvoiceSendEmailValidation($id: ID!, $email: EmailInput) {\n    orderInvoiceSend(id: $id, email: $email) {\n      order {\n        \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "response": {
+          "data": {
+            "orderInvoiceSend": {
+              "order": {
+                "id": "gid://shopify/Order/8731493302578",
+                "name": "#1195",
+                "email": "invoice-validation-1778034898324@example.com",
+                "customer": {
+                  "id": "gid://shopify/Customer/10583449862450",
+                  "email": "invoice-validation-1778034898324@example.com",
+                  "displayName": "invoice-validation-1778034898324@example.com"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "noRecipientOrder": {
+      "query": "mutation OrderInvoiceSendEmailValidationCleanup($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $restock: Boolean!) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8731493269810",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/f8dcc18b-9369-41a0-bd66-60cec5d6f2f0",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderEmailOrder": {
+      "query": "mutation OrderInvoiceSendEmailValidationCleanup($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $restock: Boolean!) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8731493302578",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/f8dcc18b-9369-41a0-bd66-60cec5d6f2f0",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8731493269810"
+      },
+      "query": "hand-synthesized from orderInvoiceSend email validation no-recipient setup read for Pattern 2 order hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8731493269810",
+              "name": "#1194",
+              "email": null,
+              "customer": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8731493302578"
+      },
+      "query": "hand-synthesized from orderInvoiceSend email validation happy-path setup read for Pattern 2 order hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8731493302578",
+              "name": "#1195",
+              "email": "invoice-validation-1778034898324@example.com",
+              "customer": {
+                "id": "gid://shopify/Customer/10583449862450",
+                "email": "invoice-validation-1778034898324@example.com",
+                "displayName": "invoice-validation-1778034898324@example.com"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

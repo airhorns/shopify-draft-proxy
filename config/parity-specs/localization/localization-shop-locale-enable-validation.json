@@ -1,0 +1,266 @@
+{
+  "scenarioId": "localization-shop-locale-enable-validation",
+  "operationNames": ["shopLocaleEnable", "shopLocaleUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-validation", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-enable-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+    "variablesCapturePath": "$.unsupportedLocale.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unsupported-locale-invalid",
+        "capturePath": "$.unsupportedLocale.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable"
+      },
+      {
+        "name": "duplicate-locale-first-enable",
+        "capturePath": "$.duplicateLocale.firstEnable.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.duplicateLocale.firstEnable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "duplicate-locale-taken",
+        "capturePath": "$.duplicateLocale.duplicateEnable.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.duplicateLocale.duplicateEnable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-01",
+        "capturePath": "$.maximumLocales.setup[0].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[0].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-02",
+        "capturePath": "$.maximumLocales.setup[1].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[1].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-03",
+        "capturePath": "$.maximumLocales.setup[2].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[2].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-04",
+        "capturePath": "$.maximumLocales.setup[3].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[3].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-05",
+        "capturePath": "$.maximumLocales.setup[4].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[4].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-06",
+        "capturePath": "$.maximumLocales.setup[5].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[5].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-07",
+        "capturePath": "$.maximumLocales.setup[6].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[6].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-08",
+        "capturePath": "$.maximumLocales.setup[7].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[7].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-09",
+        "capturePath": "$.maximumLocales.setup[8].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[8].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-10",
+        "capturePath": "$.maximumLocales.setup[9].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[9].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-11",
+        "capturePath": "$.maximumLocales.setup[10].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[10].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-12",
+        "capturePath": "$.maximumLocales.setup[11].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[11].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-13",
+        "capturePath": "$.maximumLocales.setup[12].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[12].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-14",
+        "capturePath": "$.maximumLocales.setup[13].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[13].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-15",
+        "capturePath": "$.maximumLocales.setup[14].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[14].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-16",
+        "capturePath": "$.maximumLocales.setup[15].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[15].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-17",
+        "capturePath": "$.maximumLocales.setup[16].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[16].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-18",
+        "capturePath": "$.maximumLocales.setup[17].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[17].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-setup-19",
+        "capturePath": "$.maximumLocales.setup[18].response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.setup[18].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-locale-limit-reached",
+        "capturePath": "$.maximumLocales.limitReached.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "selectedPaths": ["$.shopLocale", "$.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+          "variablesCapturePath": "$.maximumLocales.limitReached.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "partial-market-web-presence-update-missing-locale",
+        "capturePath": "$.partialUpdate.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "selectedPaths": [
+          "$.shopLocale.locale",
+          "$.shopLocale.name",
+          "$.shopLocale.primary",
+          "$.shopLocale.published",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-update-market-web-presences.graphql",
+          "variablesCapturePath": "$.partialUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable unsupported-locale INVALID text, duplicate TAKEN text, maximum alternate-locale limit text, and shopLocaleUpdate marketWebPresenceIds-only success for a locale that was not enabled. The public schema exposes these payloads as UserError field/message; local unit tests cover the proxy's internal code serialization. Public Shopify returns null for the limit field and ignores non-matching MarketWebPresence IDs on the partial update response, so those public-only slices compare the stable message/locale payload while local tests cover the proxy's internal code/field and staged-ID behavior."
+}

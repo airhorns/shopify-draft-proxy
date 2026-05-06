@@ -11,6 +11,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -42,6 +43,24 @@ fn run_mutation_outcome(
 
 fn run_mutation(store_in: store.Store, document: String) -> String {
   json.to_string(run_mutation_outcome(store_in, document).data)
+}
+
+fn run_mutation_with_variables(
+  store_in: store.Store,
+  document: String,
+  variables: dict.Dict(String, root_field.ResolvedValue),
+) -> String {
+  let identity = synthetic_identity.new()
+  let outcome =
+    segments.process_mutation(
+      store_in,
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      variables,
+      empty_upstream_context(),
+    )
+  json.to_string(outcome.data)
 }
 
 fn seed(store_in: store.Store, record: SegmentRecord) -> store.Store {
@@ -423,6 +442,48 @@ pub fn segment_update_missing_id_emits_user_error_test() {
     == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
 }
 
+pub fn segment_update_malformed_gid_variable_is_top_level_error_test() {
+  let body =
+    run_mutation_with_variables(
+      store.new(),
+      "mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) { segmentUpdate(id: $id, name: $name) { segment { id } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal("not-a-gid")),
+        #("name", root_field.StringVal("x")),
+      ]),
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":\"not-a-gid\",\"problems\":[{\"path\":[],\"explanation\":\"Invalid global id 'not-a-gid'\",\"message\":\"Invalid global id 'not-a-gid'\"}]}}]}"
+}
+
+pub fn segment_update_empty_gid_variable_is_top_level_error_test() {
+  let body =
+    run_mutation_with_variables(
+      store.new(),
+      "mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) { segmentUpdate(id: $id, name: $name) { segment { id } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal("")),
+        #("name", root_field.StringVal("x")),
+      ]),
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":\"\",\"problems\":[{\"path\":[],\"explanation\":\"Invalid global id ''\",\"message\":\"Invalid global id ''\"}]}}]}"
+}
+
+pub fn segment_update_wrong_gid_type_is_top_level_error_with_null_data_test() {
+  let body =
+    run_mutation_with_variables(
+      store.new(),
+      "mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) { segmentUpdate(id: $id, name: $name) { segment { id } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/Order/1")),
+        #("name", root_field.StringVal("x")),
+      ]),
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"invalid id\",\"path\":[\"segmentUpdate\"],\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"}}],\"data\":{\"segmentUpdate\":null}}"
+}
+
 pub fn segment_update_without_changes_emits_user_error_test() {
   let existing =
     segment_record("gid://shopify/Segment/105", "Keep", "number_of_orders >= 2")
@@ -521,6 +582,39 @@ pub fn segment_delete_missing_id_emits_user_error_test() {
     )
   assert body
     == "{\"data\":{\"segmentDelete\":{\"deletedSegmentId\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
+}
+
+pub fn segment_delete_malformed_gid_variable_is_top_level_error_test() {
+  let body =
+    run_mutation_with_variables(
+      store.new(),
+      "mutation SegmentDeleteMalformedGid($id: ID!) { segmentDelete(id: $id) { deletedSegmentId userErrors { field message } } }",
+      dict.from_list([#("id", root_field.StringVal("not-a-gid"))]),
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":\"not-a-gid\",\"problems\":[{\"path\":[],\"explanation\":\"Invalid global id 'not-a-gid'\",\"message\":\"Invalid global id 'not-a-gid'\"}]}}]}"
+}
+
+pub fn segment_delete_empty_gid_variable_is_top_level_error_test() {
+  let body =
+    run_mutation_with_variables(
+      store.new(),
+      "mutation SegmentDeleteMalformedGid($id: ID!) { segmentDelete(id: $id) { deletedSegmentId userErrors { field message } } }",
+      dict.from_list([#("id", root_field.StringVal(""))]),
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Variable $id of type ID! was provided invalid value\",\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":\"\",\"problems\":[{\"path\":[],\"explanation\":\"Invalid global id ''\",\"message\":\"Invalid global id ''\"}]}}]}"
+}
+
+pub fn segment_delete_wrong_gid_type_is_top_level_error_with_null_data_test() {
+  let body =
+    run_mutation_with_variables(
+      store.new(),
+      "mutation SegmentDeleteMalformedGid($id: ID!) { segmentDelete(id: $id) { deletedSegmentId userErrors { field message } } }",
+      dict.from_list([#("id", root_field.StringVal("gid://shopify/Order/1"))]),
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"invalid id\",\"path\":[\"segmentDelete\"],\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"}}],\"data\":{\"segmentDelete\":null}}"
 }
 
 // ----------- unique-name resolution -----------

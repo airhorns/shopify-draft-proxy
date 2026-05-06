@@ -1383,6 +1383,13 @@ pub type MarketingRecord {
   )
 }
 
+/// Local registry entry for Shopify MarketingChannelDefinition handles.
+/// An empty `api_client_ids` list means the handle is recognized without
+/// app scoping in local/snapshot fixtures that do not model a caller app.
+pub type MarketingChannelDefinitionRecord {
+  MarketingChannelDefinitionRecord(handle: String, api_client_ids: List(String))
+}
+
 /// Mirrors `MarketingEngagementRecord`.
 pub type MarketingEngagementRecord {
   MarketingEngagementRecord(
