@@ -2,6 +2,7 @@ mutation StorefrontAccessTokenLocalDelete($input: StorefrontAccessTokenDeleteInp
   storefrontAccessTokenDelete(input: $input) {
     deletedStorefrontAccessTokenId
     userErrors {
+      code
       field
       message
     }

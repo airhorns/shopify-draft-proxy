@@ -8,12 +8,14 @@
     "downstream-read-parity",
     "credential-return-on-create",
     "credential-redaction-on-read",
+    "schema-validation",
+    "user-errors-parity",
     "null-empty-behavior"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/online-store/storefront-access-token-local-staging.json"
   ],
-  "runtimeTestFiles": ["tests/integration/online-store-integrations-flow.test.ts"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/storefront-access-token-create.graphql",
     "variablesCapturePath": "$.primary.variables",
@@ -40,6 +42,15 @@
         }
       },
       {
+        "name": "storefront-token-delete-wrong-gid-type",
+        "capturePath": "$.expected.deleteWrongGidType.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/storefront-access-token-delete-wrong-gid-type.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "storefront-token-delete-payload",
         "capturePath": "$.expected.delete.response.data.storefrontAccessTokenDelete",
         "proxyPath": "$.data.storefrontAccessTokenDelete",
@@ -56,6 +67,20 @@
         }
       },
       {
+        "name": "storefront-token-delete-missing-not-found",
+        "capturePath": "$.expected.deleteMissing.response.data.storefrontAccessTokenDelete",
+        "proxyPath": "$.data.storefrontAccessTokenDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/storefront-access-token-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/StorefrontAccessToken/999999"
+            }
+          }
+        }
+      },
+      {
         "name": "storefront-token-read-after-delete",
         "capturePath": "$.expected.readAfterDelete.response.data",
         "proxyPath": "$.data",
@@ -67,5 +92,5 @@
       }
     ]
   },
-  "notes": "HAR-452 rework adds explicit generic parity coverage for the staged storefront access token lifecycle requested in PR review. HAR-584 updates the local create payload to return a deterministic shpat_ token and non-empty storefront scopes while downstream reads keep the token value redacted. Live 2026-04 safe-read evidence confirms Shopify's empty shop.storefrontAccessTokens connection shape; the current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful write evidence remains local-runtime-backed and runtime-test-backed until a write-capable conformance credential is available. The strict proxy replay covers create payload shape, downstream read-after-create, delete payload, and downstream empty read-after-delete."
+  "notes": "Executable local-runtime parity coverage for the staged storefront access token lifecycle. The scenario now proves delete input gid type validation before lookup by attempting a Product gid while a matching token exists, then successfully deleting the token afterward. It also proves missing-token NOT_FOUND userError shape with code and [\"input\", \"id\"] field path. Live 2026-04 safe-read evidence confirms Shopify's empty shop.storefrontAccessTokens connection shape; the current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful write evidence remains local-runtime-backed and runtime-test-backed until a write-capable conformance credential is available. Cross-app/api-permission scoping is covered by the focused Gleam runtime test because the generic parity runner intentionally has no local setup hook for seeding another app permission's token."
 }

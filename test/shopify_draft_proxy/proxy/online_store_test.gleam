@@ -69,6 +69,19 @@ fn graphql_request(query: String) -> Request {
   )
 }
 
+fn graphql_request_with_variables(query: String, variables: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\""
+      <> escape(query)
+      <> "\",\"variables\":"
+      <> variables
+      <> "}",
+  )
+}
+
 fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
@@ -365,6 +378,30 @@ fn proxy_with_current_app_scopes(scopes: List(String)) -> DraftProxy {
   DraftProxy(..proxy(), store: seeded_store)
 }
 
+fn proxy_with_storefront_token_for_api_permission(
+  id: String,
+  api_permission: String,
+) -> DraftProxy {
+  let base_proxy = proxy()
+  let record =
+    types.OnlineStoreIntegrationRecord(
+      id: id,
+      kind: "storefrontAccessToken",
+      cursor: None,
+      created_at: None,
+      updated_at: None,
+      data: types.CapturedObject([
+        #("__typename", types.CapturedString("StorefrontAccessToken")),
+        #("id", types.CapturedString(id)),
+        #("title", types.CapturedString("Other app token")),
+        #("apiPermission", types.CapturedString(api_permission)),
+      ]),
+    )
+  let seeded_store =
+    store.upsert_base_online_store_integrations(base_proxy.store, [record])
+  DraftProxy(..base_proxy, store: seeded_store)
+}
+
 fn captured_object_merge(
   data: CapturedJsonValue,
   entries: List(#(String, CapturedJsonValue)),
@@ -416,6 +453,99 @@ pub fn storefront_access_token_create_returns_unique_token_scopes_and_shop_test(
   assert second
     == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"id\":\"gid://shopify/StorefrontAccessToken/3?shopify-draft-proxy=synthetic\",\"title\":\"Hydrogen\",\"accessToken\":\"shpat_43199f7763e24d2f\",\"accessScopes\":[{\"handle\":\"unauthenticated_read_product_listings\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[]}}}"
   assert first != second
+}
+
+pub fn storefront_access_token_delete_rejects_mismatched_gid_type_test() {
+  let create_query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { id } userErrors { code field message } } }"
+  let #(create_body, proxy) = run_graphql(proxy(), create_query)
+  assert create_body
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"id\":\"gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let wrong_type_query =
+    "mutation { storefrontAccessTokenDelete(input: { id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\" }) { deletedStorefrontAccessTokenId userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(wrong_type_query))
+  assert status == 200
+  let wrong_type_body = json.to_string(body)
+  assert string.contains(wrong_type_body, "\"errors\"")
+  assert string.contains(wrong_type_body, "\"data\"") == False
+  assert string.contains(
+    wrong_type_body,
+    "Invalid global id 'gid://shopify/Product/1?shopify-draft-proxy=synthetic'",
+  )
+  assert string.contains(
+    wrong_type_body,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(wrong_type_body, "\"typeName\":\"CoercionError\"")
+
+  let delete_query =
+    "mutation { storefrontAccessTokenDelete(input: { id: \"gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic\" }) { deletedStorefrontAccessTokenId userErrors { code field message } } }"
+  let #(delete_body, _) = run_graphql(proxy, delete_query)
+  assert delete_body
+    == "{\"data\":{\"storefrontAccessTokenDelete\":{\"deletedStorefrontAccessTokenId\":\"gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+}
+
+pub fn storefront_access_token_delete_rejects_variable_mismatched_gid_type_test() {
+  let input_query =
+    "mutation DeleteToken($input: StorefrontAccessTokenDeleteInput!) { storefrontAccessTokenDelete(input: $input) { deletedStorefrontAccessTokenId userErrors { code field message } } }"
+  let input_variables = "{\"input\":{\"id\":\"gid://shopify/Product/1\"}}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request_with_variables(input_query, input_variables),
+    )
+  assert status == 200
+  let body = json.to_string(body)
+  assert string.contains(
+    body,
+    "Variable $input of type StorefrontAccessTokenDeleteInput! was provided invalid value for id (Invalid global id 'gid://shopify/Product/1')",
+  )
+  assert string.contains(body, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(body, "\"path\":[\"id\"]")
+
+  let nested_id_query =
+    "mutation DeleteToken($id: ID!) { storefrontAccessTokenDelete(input: { id: $id }) { deletedStorefrontAccessTokenId userErrors { code field message } } }"
+  let id_variables = "{\"id\":\"gid://shopify/Product/1\"}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request_with_variables(nested_id_query, id_variables),
+    )
+  assert status == 200
+  let body = json.to_string(body)
+  assert string.contains(
+    body,
+    "Variable $id of type ID! was provided invalid value for id (Invalid global id 'gid://shopify/Product/1')",
+  )
+  assert string.contains(body, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(body, "\"value\":\"gid://shopify/Product/1\"")
+}
+
+pub fn storefront_access_token_delete_missing_and_cross_app_return_not_found_test() {
+  let missing_query =
+    "mutation { storefrontAccessTokenDelete(input: { id: \"gid://shopify/StorefrontAccessToken/999999\" }) { deletedStorefrontAccessTokenId userErrors { code field message } } }"
+  let #(missing_body, _) = run_graphql(proxy(), missing_query)
+  assert missing_body
+    == "{\"data\":{\"storefrontAccessTokenDelete\":{\"deletedStorefrontAccessTokenId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"input\",\"id\"],\"message\":\"Storefront access token does not exist\"}]}}}"
+
+  let cross_app_id = "gid://shopify/StorefrontAccessToken/777"
+  let #(cross_app_body, cross_app_proxy) =
+    run_graphql(
+      proxy_with_storefront_token_for_api_permission(cross_app_id, "other-app"),
+      "mutation { storefrontAccessTokenDelete(input: { id: \""
+        <> cross_app_id
+        <> "\" }) { deletedStorefrontAccessTokenId userErrors { code field message } } }",
+    )
+  assert cross_app_body
+    == "{\"data\":{\"storefrontAccessTokenDelete\":{\"deletedStorefrontAccessTokenId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"input\",\"id\"],\"message\":\"Storefront access token does not exist\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      cross_app_proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 1
 }
 
 pub fn storefront_access_token_create_filters_current_app_storefront_scopes_test() {
