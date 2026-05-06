@@ -472,9 +472,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "automaticNode"
-              ]
+              "path": ["automaticNode"]
             }
           ],
           "data": {
@@ -534,9 +532,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "automaticNode"
-              ]
+              "path": ["automaticNode"]
             }
           ],
           "data": {
@@ -596,9 +592,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "codeNode"
-              ]
+              "path": ["codeNode"]
             }
           ],
           "data": {
@@ -650,9 +644,7 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": [
-                "codeNode"
-              ]
+              "path": ["codeNode"]
             }
           ],
           "data": {
