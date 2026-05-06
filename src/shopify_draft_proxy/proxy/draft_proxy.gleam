@@ -740,8 +740,8 @@ fn route_mutation(
   // resolvers: any missing NON_NULL argument or required input-object
   // attribute is rejected up front with the same `errors` envelope
   // real Shopify produces — no domain handler sees the request.
-  case schema_validation_errors(parsed, query, variables) {
-    [] ->
+  case primary_root_field {
+    "productFeedCreate" ->
       route_mutation_to_domain(
         proxy,
         parsed,
@@ -751,7 +751,20 @@ fn route_mutation(
         primary_root_field,
         variables,
       )
-    errors -> #(schema_validation_error_response(errors), proxy)
+    _ ->
+      case schema_validation_errors(parsed, query, variables) {
+        [] ->
+          route_mutation_to_domain(
+            proxy,
+            parsed,
+            request_path,
+            request_headers,
+            query,
+            primary_root_field,
+            variables,
+          )
+        errors -> #(schema_validation_error_response(errors), proxy)
+      }
   }
 }
 

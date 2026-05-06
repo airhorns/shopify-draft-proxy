@@ -4,13 +4,36 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field.{StringVal}
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/proxy_state.{type Request, Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   InventoryItemRecord, ProductCategoryRecord, ProductOptionRecord,
   ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
+
+fn graphql_with_variables(query: String, variables: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\""
+      <> escape(query)
+      <> "\",\"variables\":"
+      <> variables
+      <> "}",
+  )
+}
+
+fn escape(value: String) -> String {
+  value
+  |> string.replace("\\", "\\\\")
+  |> string.replace("\"", "\\\"")
+}
+
+const product_feed_create_query: String = "mutation ProductFeedCreate($input: ProductFeedInput) { productFeedCreate(input: $input) { productFeed { id country language status } userErrors { field message code } } }"
 
 pub fn product_empty_state_read_test() {
   let variables =
@@ -83,6 +106,61 @@ pub fn product_feeds_empty_read_test() {
     )
   assert json.to_string(result)
     == "{\"data\":{\"missingProductFeed\":null,\"productFeeds\":{\"nodes\":[],\"edges\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}}}}"
+}
+
+pub fn product_feed_create_rejects_invalid_country_test() {
+  let variables = "{\"input\":{\"country\":\"BANANAS\",\"language\":\"EN\"}}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_with_variables(product_feed_create_query, variables),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":null,\"userErrors\":[{\"field\":[\"country\"],\"message\":\"Country is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn product_feed_create_rejects_invalid_language_test() {
+  let variables = "{\"input\":{\"country\":\"US\",\"language\":\"BANANAS\"}}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_with_variables(product_feed_create_query, variables),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":null,\"userErrors\":[{\"field\":[\"language\"],\"message\":\"Language is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn product_feed_create_rejects_duplicate_country_language_test() {
+  let variables = "{\"input\":{\"country\":\"US\",\"language\":\"EN\"}}"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_with_variables(product_feed_create_query, variables),
+    )
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"},\"userErrors\":[]}}}"
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_with_variables(product_feed_create_query, variables),
+    )
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":null,\"userErrors\":[{\"field\":[\"country\"],\"message\":\"Product feed already exists for this country/language pair\",\"code\":\"TAKEN\"}]}}}"
+
+  let read_query =
+    "query { productFeed(id: \"gid://shopify/ProductFeed/US-EN\") { id country language status } productFeeds(first: 10) { nodes { id country language status } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_with_variables(read_query, "{}"))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"},\"productFeeds\":{\"nodes\":[{\"id\":\"gid://shopify/ProductFeed/US-EN\",\"country\":\"US\",\"language\":\"EN\",\"status\":\"ACTIVE\"}]}}}"
 }
 
 pub fn product_duplicate_job_unknown_shape_test() {
