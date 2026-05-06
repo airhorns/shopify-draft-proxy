@@ -1,0 +1,161 @@
+{
+  "variables": {
+    "id": "gid://shopify/Order/8733114663218",
+    "email": {
+      "to": "sdp-order-invoice-1778105336783@example.com",
+      "subject": "Shopify draft proxy conformance invoice",
+      "customMessage": "Order invoice send capture for shopify-draft-proxy conformance."
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderInvoiceSend": {
+          "order": {
+            "id": "gid://shopify/Order/8733114663218",
+            "name": "#1288",
+            "closed": false,
+            "closedAt": null,
+            "cancelledAt": null,
+            "cancelReason": null,
+            "displayFinancialStatus": null,
+            "paymentGatewayNames": [],
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "16.0",
+                "currencyCode": "USD"
+              }
+            },
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "16.0",
+                "currencyCode": "USD"
+              }
+            },
+            "customer": {
+              "id": "gid://shopify/Customer/10586240778546",
+              "email": "sdp-order-invoice-1778105336783@example.com",
+              "displayName": "sdp-order-invoice-1778105336783@example.com"
+            },
+            "transactions": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8733114663218"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8733114663218",
+          "name": "#1288",
+          "closed": false,
+          "closedAt": null,
+          "cancelledAt": null,
+          "cancelReason": null,
+          "displayFinancialStatus": null,
+          "paymentGatewayNames": [],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "16.0",
+              "currencyCode": "USD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "16.0",
+              "currencyCode": "USD"
+            }
+          },
+          "customer": {
+            "id": "gid://shopify/Customer/10586240778546",
+            "email": "sdp-order-invoice-1778105336783@example.com",
+            "displayName": "sdp-order-invoice-1778105336783@example.com"
+          },
+          "transactions": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8733114663218"
+      },
+      "query": "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733114663218",
+              "name": "#1288",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "16.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10586240778546",
+                "email": "sdp-order-invoice-1778105336783@example.com",
+                "displayName": "sdp-order-invoice-1778105336783@example.com"
+              },
+              "transactions": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

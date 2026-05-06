@@ -3,13 +3,13 @@
   "operationNames": ["orderOpen"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderOpen-parity.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderOpen-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderOpen-parity.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured 2026-04 orderOpen conformance slice for HAR-120 local staging.",
+  "notes": "Captured 2026-04 orderOpen conformance slice for local staging.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
