@@ -36,9 +36,12 @@ Local staged mutations:
 - `returnRequest` stages the same order-backed shape with status `REQUESTED` and uses the same already-returned quantity
   cap as `returnCreate`.
 - `returnApproveRequest` transitions a local `REQUESTED` return to `OPEN`, clears any decline metadata, and creates a
-  reverse fulfillment order with line work for the approved return line quantities.
+  reverse fulfillment order with line work for the approved return line quantities. Approving a return whose status is no
+  longer `REQUESTED` returns `INVALID` on `["id"]` with `return_request_status_invalid`, does not change the return, and
+  does not create additional reverse fulfillment order work.
 - `returnDeclineRequest` transitions a local `REQUESTED` return to `DECLINED` and stores the selected decline reason/note.
-  Customer notification side effects are not sent.
+  Declining a non-`REQUESTED` return returns the same `INVALID` / `return_request_status_invalid` user error and leaves
+  local return state unchanged. Customer notification side effects are not sent.
 - `returnCancel`, `returnClose`, and `returnReopen` update the status of known local returns. `returnClose` records a local
   `closedAt` timestamp; `returnReopen` clears it.
 - `removeFromReturn` reduces or removes return line quantities, recomputes `totalQuantity`, and syncs the associated
