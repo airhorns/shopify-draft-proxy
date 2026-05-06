@@ -1,0 +1,24 @@
+mutation MetaobjectDefinitionUpdateImmutable($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      name
+      description
+      displayNameKey
+      standardTemplate {
+        type
+        name
+      }
+      fieldDefinitions {
+        key
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

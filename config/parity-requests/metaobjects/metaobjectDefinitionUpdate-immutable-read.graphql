@@ -1,0 +1,14 @@
+query MetaobjectDefinitionUpdateImmutableRead($id: ID!) {
+  metaobjectDefinition(id: $id) {
+    name
+    description
+    displayNameKey
+    standardTemplate {
+      type
+      name
+    }
+    fieldDefinitions {
+      key
+    }
+  }
+}
