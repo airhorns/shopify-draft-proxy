@@ -1,0 +1,16 @@
+mutation StandardMetafieldDefinitionEnableColorPattern {
+  standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "color-pattern") {
+    createdDefinition {
+      namespace
+      key
+      type {
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

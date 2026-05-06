@@ -1,0 +1,48 @@
+{
+  "scenarioId": "orderInvoiceSend-email-validation",
+  "operationNames": ["orderInvoiceSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderInvoiceSend-email-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderInvoiceSend-email-validation.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "no-recipient-email-required",
+        "capturePath": "$.cases[0].mutation.response.data.orderInvoiceSend",
+        "proxyPath": "$.data.orderInvoiceSend"
+      },
+      {
+        "name": "malformed-explicit-email",
+        "capturePath": "$.cases[1].mutation.response.data.orderInvoiceSend",
+        "proxyPath": "$.data.orderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderInvoiceSend-email-validation.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "order-email-happy-path",
+        "capturePath": "$.cases[2].mutation.response.data.orderInvoiceSend",
+        "proxyPath": "$.data.orderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderInvoiceSend-email-validation.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin 2026-04 orderInvoiceSend recipient validation against disposable test orders: no resolved recipient returns ORDER_INVOICE_SEND_UNSUCCESSFUL with a null field and message `No recipient email address was provided`, malformed explicit email returns ORDER_INVOICE_SEND_UNSUCCESSFUL with message `To is invalid`, and an order-level recipient succeeds. The capture cancels created orders in cleanup and parity replay hydrates order records from cassette-backed upstream reads."
+}

@@ -634,6 +634,8 @@ pub const upsert_base_marketing_activities = marketing.upsert_base_marketing_act
 
 pub const upsert_base_marketing_events = marketing.upsert_base_marketing_events
 
+pub const upsert_base_marketing_channel_definitions = marketing.upsert_base_marketing_channel_definitions
+
 pub const stage_marketing_activity = marketing.stage_marketing_activity
 
 pub const stage_marketing_event = marketing.stage_marketing_event
@@ -667,6 +669,8 @@ pub const stage_delete_all_channel_marketing_engagements = marketing.stage_delet
 pub const list_effective_marketing_engagements = marketing.list_effective_marketing_engagements
 
 pub const has_known_marketing_channel_handle = marketing.has_known_marketing_channel_handle
+
+pub const has_known_marketing_channel_handle_for_app = marketing.has_known_marketing_channel_handle_for_app
 
 pub const upsert_base_bulk_operations = bulk_operations.upsert_base_bulk_operations
 

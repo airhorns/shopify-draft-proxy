@@ -1,0 +1,51 @@
+mutation OrderUpdateInputValidation(
+  $emptyInput: OrderInput!
+  $invalidPhone: OrderInput!
+  $badShippingAddress: OrderInput!
+  $happyNote: OrderInput!
+) {
+  emptyInput: orderUpdate(input: $emptyInput) {
+    order {
+      id
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  invalidPhone: orderUpdate(input: $invalidPhone) {
+    order {
+      id
+      phone
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  badShippingAddress: orderUpdate(input: $badShippingAddress) {
+    order {
+      id
+      shippingAddress {
+        countryCodeV2
+        provinceCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  happyNote: orderUpdate(input: $happyNote) {
+    order {
+      id
+      name
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

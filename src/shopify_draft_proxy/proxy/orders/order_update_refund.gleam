@@ -19,6 +19,9 @@ import shopify_draft_proxy/graphql/ast.{
 }
 
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/customers/customer_mutations
+import shopify_draft_proxy/proxy/customers/customer_types.{UserError}
+import shopify_draft_proxy/proxy/customers/inputs as customer_inputs
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, SrcList, SrcNull, SrcString, get_field_response_key,
@@ -35,12 +38,12 @@ import shopify_draft_proxy/proxy/orders/common.{
   captured_object_field, captured_string_field, field_arguments,
   find_order_line_item, float_to_fixed_2, format_decimal_amount,
   money_set_string_with_presentment, mutation_user_error, nonzero_float,
-  optional_captured_string, order_currency_code, order_money_set_from_input,
-  order_money_set_string, order_presentment_currency_code, order_refunds,
-  order_total_price, order_transactions, prepend_captured_replacement, read_bool,
-  read_int, read_number, read_object, read_object_list, read_string,
-  read_string_list, replace_captured_object_fields, replace_if_present,
-  selection_children,
+  nullable_mutation_user_error, optional_captured_string, order_currency_code,
+  order_money_set_from_input, order_money_set_string,
+  order_presentment_currency_code, order_refunds, order_total_price,
+  order_transactions, prepend_captured_replacement, read_bool, read_int,
+  read_number, read_object, read_object_list, read_string, read_string_list,
+  replace_captured_object_fields, replace_if_present, selection_children,
 }
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{
   build_order_update_address, captured_attributes,
@@ -50,7 +53,7 @@ import shopify_draft_proxy/proxy/orders/order_create.{
   serialize_order_mutation_error_payload,
 }
 import shopify_draft_proxy/proxy/orders/order_types.{
-  type RefundCreateUserError, RefundCreateUserError,
+  type OrderMutationUserError, type RefundCreateUserError, RefundCreateUserError,
 }
 import shopify_draft_proxy/proxy/orders/serializers.{
   serialize_order_mutation_payload, serialize_order_node,
@@ -131,27 +134,49 @@ pub fn handle_order_update_mutation(
                   [],
                 )
                 Some(order) -> {
-                  let #(updated_order, next_identity) =
-                    build_updated_order(order, input, identity)
-                  let next_store =
-                    store.stage_order(hydrated_store, updated_order)
-                  let payload =
-                    serialize_order_mutation_payload(
-                      field,
-                      Some(updated_order),
+                  case validate_order_update_business_input(input) {
+                    [first, ..rest] -> #(
+                      key,
+                      serialize_order_mutation_payload(
+                        field,
+                        Some(order),
+                        [first, ..rest],
+                        fragments,
+                      ),
+                      hydrated_store,
+                      identity,
                       [],
-                      fragments,
+                      [],
+                      [],
                     )
-                  let draft =
-                    single_root_log_draft(
-                      "orderUpdate",
-                      [id],
-                      store_types.Staged,
-                      "orders",
-                      "stage-locally",
-                      Some("Locally staged orderUpdate in shopify-draft-proxy."),
-                    )
-                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                    [] -> {
+                      let #(updated_order, next_identity) =
+                        build_updated_order(order, input, identity)
+                      let next_store =
+                        store.stage_order(hydrated_store, updated_order)
+                      let payload =
+                        serialize_order_mutation_payload(
+                          field,
+                          Some(updated_order),
+                          [],
+                          fragments,
+                        )
+                      let draft =
+                        single_root_log_draft(
+                          "orderUpdate",
+                          [id],
+                          store_types.Staged,
+                          "orders",
+                          "stage-locally",
+                          Some(
+                            "Locally staged orderUpdate in shopify-draft-proxy.",
+                          ),
+                        )
+                      #(key, payload, next_store, next_identity, [id], [], [
+                        draft,
+                      ])
+                    }
+                  }
                 }
               }
             }
@@ -1135,6 +1160,113 @@ pub fn order_metafields_connection(
   metafields: List(CapturedJsonValue),
 ) -> CapturedJsonValue {
   CapturedObject([#("nodes", CapturedArray(metafields))])
+}
+
+@internal
+pub fn validate_order_update_business_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  let empty_errors = case has_order_update_mutable_input(input) {
+    True -> []
+    False -> [
+      nullable_mutation_user_error(
+        None,
+        "No valid update parameters have been provided",
+      ),
+    ]
+  }
+  empty_errors
+  |> list.append(validate_order_update_phone(input))
+  |> list.append(validate_order_update_shipping_address(input))
+}
+
+@internal
+pub fn has_order_update_mutable_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.keys(input)
+  |> list.any(fn(field_name) {
+    list.contains(order_update_mutable_fields(), field_name)
+  })
+}
+
+@internal
+pub fn order_update_mutable_fields() -> List(String) {
+  [
+    "note",
+    "phone",
+    "email",
+    "poNumber",
+    "tags",
+    "metafields",
+    "customAttributes",
+    "shippingAddress",
+  ]
+}
+
+@internal
+pub fn validate_order_update_phone(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_string(input, "phone") {
+    Some(phone) ->
+      case customer_mutations.valid_phone(phone) {
+        True -> []
+        False -> [mutation_user_error(["phone"], "Phone is invalid")]
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_order_update_shipping_address(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_object(input, "shippingAddress") {
+    Some(address) ->
+      order_update_required_address_errors(address)
+      |> list.append(
+        customer_inputs.validate_address_input(address, None, [
+          "shippingAddress",
+        ])
+        |> list.map(fn(error) {
+          let UserError(field: field_path, message: message, ..) = error
+          mutation_user_error(
+            field_path,
+            normalize_order_update_address_message(address, field_path, message),
+          )
+        }),
+      )
+    None -> []
+  }
+}
+
+fn order_update_required_address_errors(
+  address: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  let last_name_errors = case read_string(address, "lastName") {
+    Some(last_name) if last_name != "" -> []
+    _ -> [
+      mutation_user_error(["shippingAddress", "lastName"], "Enter a last name"),
+    ]
+  }
+  let zip_errors = case read_string(address, "zip") {
+    Some(zip) if zip != "" -> []
+    _ -> [mutation_user_error(["shippingAddress", "zip"], "Enter a ZIP code")]
+  }
+  list.append(last_name_errors, zip_errors)
+}
+
+fn normalize_order_update_address_message(
+  address: Dict(String, root_field.ResolvedValue),
+  field_path: List(String),
+  message: String,
+) -> String {
+  case field_path, read_string(address, "countryCode") {
+    ["shippingAddress", "province"], Some("US") ->
+      "State is not a valid state in United States"
+    _, _ -> message
+  }
 }
 
 @internal

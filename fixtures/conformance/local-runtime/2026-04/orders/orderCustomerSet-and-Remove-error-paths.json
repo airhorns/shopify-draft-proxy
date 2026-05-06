@@ -1,0 +1,212 @@
+{
+  "scenarioId": "orderCustomerSet-and-Remove-error-paths",
+  "recordedAt": "2026-05-06T00:00:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "coveredOperations": [
+    "customerCreate",
+    "companyCreate",
+    "companyAssignCustomerAsContact",
+    "orderCreate",
+    "orderCancel",
+    "orderCustomerSet",
+    "orderCustomerRemove"
+  ],
+  "setup": {
+    "customerCreate": {
+      "variables": {
+        "input": {
+          "email": "order-customer-error-paths@example.com",
+          "firstName": "Order Customer",
+          "lastName": "Error Paths"
+        }
+      }
+    },
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "currency": "USD",
+          "financialStatus": "PENDING",
+          "email": "order-customer-set-remove@example.com",
+          "lineItems": [
+            {
+              "title": "Order customer item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "companyCreate": {
+      "variables": {
+        "input": {
+          "company": {
+            "name": "Order Customer Error Paths Company"
+          }
+        }
+      }
+    },
+    "b2bOrderCreate": {
+      "variables": {
+        "order": {
+          "currency": "USD",
+          "financialStatus": "PENDING",
+          "email": "order-customer-b2b@example.com",
+          "lineItems": [
+            {
+              "title": "B2B order customer item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "customerCreate": {
+      "data": {
+        "customerCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "setupOrderCreate": {
+      "data": {
+        "orderCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "happySet": {
+      "data": {
+        "orderCustomerSet": {
+          "order": {
+            "id": "gid://shopify/Order/1?shopify-draft-proxy=synthetic",
+            "customer": {
+              "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+              "email": "order-customer-error-paths@example.com",
+              "displayName": "Order Customer Error Paths"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "happyRemove": {
+      "data": {
+        "orderCustomerRemove": {
+          "order": {
+            "id": "gid://shopify/Order/1?shopify-draft-proxy=synthetic",
+            "customer": null
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "unknownOrder": {
+      "data": {
+        "orderCustomerSet": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["orderId"],
+              "message": "Order does not exist",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      }
+    },
+    "unknownCustomer": {
+      "data": {
+        "orderCustomerSet": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["customerId"],
+              "message": "Customer does not exist",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      }
+    },
+    "companyCreate": {
+      "data": {
+        "companyCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "assignCustomer": {
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "userErrors": []
+        }
+      }
+    },
+    "setupB2bOrderCreate": {
+      "data": {
+        "orderCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "b2bNotPermitted": {
+      "data": {
+        "orderCustomerSet": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["customerId"],
+              "message": "no_customer_role_error",
+              "code": "NOT_PERMITTED"
+            }
+          ]
+        }
+      }
+    },
+    "setupCancelledOrderCreate": {
+      "data": {
+        "orderCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "cancelOrder": {
+      "data": {
+        "orderCancel": {
+          "orderCancelUserErrors": [],
+          "userErrors": []
+        }
+      }
+    },
+    "cancelledRemove": {
+      "data": {
+        "orderCustomerRemove": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["orderId"],
+              "message": "customer_cannot_be_removed",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

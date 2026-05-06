@@ -1,0 +1,114 @@
+{
+  "fixtureKind": "local-runtime-product-feed-create-validation",
+  "apiVersion": "2026-04",
+  "invalidCountry": {
+    "variables": {
+      "input": {
+        "country": "BANANAS",
+        "language": "EN"
+      }
+    },
+    "response": {
+      "data": {
+        "productFeedCreate": {
+          "productFeed": null,
+          "userErrors": [
+            {
+              "field": ["country"],
+              "message": "Country is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "invalidLanguage": {
+    "variables": {
+      "input": {
+        "country": "US",
+        "language": "BANANAS"
+      }
+    },
+    "response": {
+      "data": {
+        "productFeedCreate": {
+          "productFeed": null,
+          "userErrors": [
+            {
+              "field": ["language"],
+              "message": "Language is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "firstCreate": {
+    "variables": {
+      "input": {
+        "country": "US",
+        "language": "EN"
+      }
+    },
+    "response": {
+      "data": {
+        "productFeedCreate": {
+          "productFeed": {
+            "id": "gid://shopify/ProductFeed/US-EN",
+            "country": "US",
+            "language": "EN",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "duplicateCreate": {
+    "response": {
+      "data": {
+        "productFeedCreate": {
+          "productFeed": null,
+          "userErrors": [
+            {
+              "field": ["country"],
+              "message": "Product feed already exists for this country/language pair",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "read": {
+    "response": {
+      "data": {
+        "productFeed": {
+          "id": "gid://shopify/ProductFeed/US-EN",
+          "country": "US",
+          "language": "EN",
+          "status": "ACTIVE"
+        },
+        "productFeeds": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductFeed/US-EN",
+              "country": "US",
+              "language": "EN",
+              "status": "ACTIVE"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/ProductFeed/US-EN",
+            "endCursor": "cursor:gid://shopify/ProductFeed/US-EN"
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

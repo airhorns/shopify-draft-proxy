@@ -1,0 +1,23 @@
+mutation StandardMetafieldDefinitionEnableMetafieldsSetSubtitle {
+  metafieldsSet(
+    metafields: [
+      {
+        ownerId: "gid://shopify/Product/1"
+        namespace: "descriptors"
+        key: "subtitle"
+        type: "single_line_text_field"
+        value: "Existing subtitle"
+      }
+    ]
+  ) {
+    metafields {
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

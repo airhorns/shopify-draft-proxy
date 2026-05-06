@@ -22,6 +22,11 @@
 ////       console.log(resp);
 ////     '
 
+@target(erlang)
+pub fn draft_proxy_async_js_only_placeholder_test() {
+  Nil
+}
+
 @target(javascript)
 import gleam/dict
 @target(javascript)
