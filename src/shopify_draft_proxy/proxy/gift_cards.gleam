@@ -49,6 +49,7 @@ import shopify_draft_proxy/search_query_parser.{type SearchQueryTerm}
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -1370,9 +1371,9 @@ fn gift_cards_status_for(
   case root_field_name, staged_resource_ids {
     "giftCardSendNotificationToCustomer", _
     | "giftCardSendNotificationToRecipient", _
-    -> store.Staged
-    _, [] -> store.Failed
-    _, [_, ..] -> store.Staged
+    -> store_types.Staged
+    _, [] -> store_types.Failed
+    _, [_, ..] -> store_types.Staged
   }
 }
 

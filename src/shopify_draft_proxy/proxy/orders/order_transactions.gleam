@@ -62,6 +62,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -177,7 +178,7 @@ pub fn handle_order_lifecycle_mutation(
                     single_root_log_draft(
                       root_name,
                       [id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -350,7 +351,7 @@ pub fn handle_order_cancel_mutation(
                         single_root_log_draft(
                           "orderCancel",
                           [order_id],
-                          store.Staged,
+                          store_types.Staged,
                           "orders",
                           "stage-locally",
                           Some(
@@ -726,7 +727,7 @@ pub fn handle_order_mark_as_paid_mutation(
                     single_root_log_draft(
                       "orderMarkAsPaid",
                       [id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -842,7 +843,7 @@ pub fn handle_order_capture_mutation(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCapture", [], store.Failed),
+        payment_log_draft("orderCapture", [], store_types.Failed),
       ])
     }
     Some(input) -> {
@@ -862,7 +863,7 @@ pub fn handle_order_capture_mutation(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("orderCapture", [], store.Failed),
+            payment_log_draft("orderCapture", [], store_types.Failed),
           ])
         }
         Some(order_id) ->
@@ -877,7 +878,7 @@ pub fn handle_order_capture_mutation(
                   fragments,
                 )
               #(key, payload, store, identity, [], [
-                payment_log_draft("orderCapture", [], store.Failed),
+                payment_log_draft("orderCapture", [], store_types.Failed),
               ])
             }
             Some(order) ->
@@ -897,7 +898,11 @@ pub fn handle_order_capture_mutation(
                       fragments,
                     )
                   #(key, payload, store, identity, [], [
-                    payment_log_draft("orderCapture", [order.id], store.Failed),
+                    payment_log_draft(
+                      "orderCapture",
+                      [order.id],
+                      store_types.Failed,
+                    ),
                   ])
                 }
                 Some(transaction_id) ->
@@ -920,7 +925,7 @@ pub fn handle_order_capture_mutation(
                         payment_log_draft(
                           "orderCapture",
                           [order.id],
-                          store.Failed,
+                          store_types.Failed,
                         ),
                       ])
                     }
@@ -979,7 +984,7 @@ pub fn capture_order_payment(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCapture", [order.id], store.Failed),
+        payment_log_draft("orderCapture", [order.id], store_types.Failed),
       ])
     }
     False ->
@@ -999,7 +1004,7 @@ pub fn capture_order_payment(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("orderCapture", [order.id], store.Failed),
+            payment_log_draft("orderCapture", [order.id], store_types.Failed),
           ])
         }
         False ->
@@ -1019,7 +1024,11 @@ pub fn capture_order_payment(
                   fragments,
                 )
               #(key, payload, store, identity, [], [
-                payment_log_draft("orderCapture", [order.id], store.Failed),
+                payment_log_draft(
+                  "orderCapture",
+                  [order.id],
+                  store_types.Failed,
+                ),
               ])
             }
             False -> {
@@ -1070,7 +1079,11 @@ pub fn capture_order_payment(
                   fragments,
                 )
               #(key, payload, next_store, next_identity, [order.id], [
-                payment_log_draft("orderCapture", [order.id], store.Staged),
+                payment_log_draft(
+                  "orderCapture",
+                  [order.id],
+                  store_types.Staged,
+                ),
               ])
             }
           }
@@ -1106,7 +1119,7 @@ pub fn handle_transaction_void_mutation(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("transactionVoid", [], store.Failed),
+        payment_log_draft("transactionVoid", [], store_types.Failed),
       ])
     }
     Some(transaction_id) ->
@@ -1120,7 +1133,7 @@ pub fn handle_transaction_void_mutation(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("transactionVoid", [], store.Failed),
+            payment_log_draft("transactionVoid", [], store_types.Failed),
           ])
         }
         Some(match) -> {
@@ -1191,7 +1204,7 @@ pub fn void_order_transaction(
       let payload =
         serialize_transaction_void_payload(field, None, user_errors, fragments)
       #(key, payload, store, identity, [], [
-        payment_log_draft("transactionVoid", [order.id], store.Failed),
+        payment_log_draft("transactionVoid", [order.id], store_types.Failed),
       ])
     }
     [] -> {
@@ -1218,7 +1231,7 @@ pub fn void_order_transaction(
           fragments,
         )
       #(key, payload, next_store, next_identity, [order.id], [
-        payment_log_draft("transactionVoid", [order.id], store.Staged),
+        payment_log_draft("transactionVoid", [order.id], store_types.Staged),
       ])
     }
   }
@@ -1256,7 +1269,7 @@ pub fn handle_order_create_mandate_payment_mutation(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCreateMandatePayment", [], store.Failed),
+        payment_log_draft("orderCreateMandatePayment", [], store_types.Failed),
       ])
     }
     Some(order_id) ->
@@ -1272,7 +1285,11 @@ pub fn handle_order_create_mandate_payment_mutation(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("orderCreateMandatePayment", [], store.Failed),
+            payment_log_draft(
+              "orderCreateMandatePayment",
+              [],
+              store_types.Failed,
+            ),
           ])
         }
         Some(order) -> {
@@ -1297,7 +1314,7 @@ pub fn handle_order_create_mandate_payment_mutation(
                 payment_log_draft(
                   "orderCreateMandatePayment",
                   [order.id],
-                  store.Failed,
+                  store_types.Failed,
                 ),
               ])
             }
@@ -1317,7 +1334,7 @@ pub fn handle_order_create_mandate_payment_mutation(
                     payment_log_draft(
                       "orderCreateMandatePayment",
                       [order.id],
-                      store.Staged,
+                      store_types.Staged,
                     ),
                   ])
                 }
@@ -1378,7 +1395,11 @@ pub fn create_mandate_payment(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCreateMandatePayment", [order.id], store.Failed),
+        payment_log_draft(
+          "orderCreateMandatePayment",
+          [order.id],
+          store_types.Failed,
+        ),
       ])
     }
     False -> {
@@ -1422,7 +1443,11 @@ pub fn create_mandate_payment(
           fragments,
         )
       #(key, payload, next_store, identity_after_job, [order.id], [
-        payment_log_draft("orderCreateMandatePayment", [order.id], store.Staged),
+        payment_log_draft(
+          "orderCreateMandatePayment",
+          [order.id],
+          store_types.Staged,
+        ),
       ])
     }
   }

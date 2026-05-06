@@ -59,6 +59,7 @@ import shopify_draft_proxy/state/serialization/shared/serializers.{
   validation_json, web_presence_json, webhook_subscription_json,
 }
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 
 pub fn serialize_base_state(state: store.BaseState) -> Json {
   json.object(base_state_dump_fields(state))
@@ -971,7 +972,7 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use deleted_shipping_package_ids <- bool_dict_field(
     "deletedShippingPackageIds",
   )
-  decode.success(store.BaseState(
+  decode.success(store_types.BaseState(
     products: empty.products,
     product_order: empty.product_order,
     deleted_product_ids: empty.deleted_product_ids,
