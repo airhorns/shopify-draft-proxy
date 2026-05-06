@@ -16,11 +16,12 @@ import shopify_draft_proxy/proxy/markets/queries
 import shopify_draft_proxy/proxy/markets/serializers.{
   append_unique_strings, assigned_market_country_codes, captured_field,
   captured_json_source, captured_object_upsert, captured_string_field,
-  catalog_create_input_errors, catalog_data, catalog_update_input_errors,
-  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
-  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
-  market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
+  catalog_connection_from_ids, catalog_create_input_errors, catalog_data,
+  catalog_update_input_errors, delete_fixed_price_nodes,
+  delete_quantity_rule_nodes, enumerate_dicts, enumerate_strings,
+  fixed_price_edge_variant_id, market_connection_from_ids, market_data,
+  market_handle_in_use, market_localization_payload, market_name_in_use,
+  markets_log_draft, mutation_variant_ids, option_to_result,
   optional_captured_string, price_edges, price_list_currency, price_list_data,
   price_list_fixed_prices_by_product_user_error, price_list_input_errors,
   product_level_fixed_price_errors, product_payloads, project_record,
@@ -31,19 +32,20 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   result_to_option, string_array, translation_user_error,
   upsert_fixed_price_nodes, upsert_quantity_price_break_nodes,
   upsert_quantity_rule_nodes, user_error, user_error_with_typename,
-  valid_currency, variant_payloads,
+  valid_currency, variant_payloads, web_presence_connection_from_ids,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type MarketLocalizableContentRecord,
-  type MarketLocalizationRecord, type PriceListRecord,
+  type MarketLocalizationRecord, type MarketRecord, type PriceListRecord,
   type ProductMetafieldRecord, type ShopDomainRecord, type WebPresenceRecord,
   CapturedArray, CapturedBool, CapturedNull, CapturedObject, CapturedString,
   CatalogRecord, MarketLocalizationRecord, MarketRecord, PriceListRecord,
@@ -570,24 +572,38 @@ fn handle_market_update(
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
         Some(existing) -> {
-          let data = market_data(store, id, input, Some(existing.data))
-          let #(_, next_store) =
-            store.upsert_staged_market(
-              store,
-              MarketRecord(id, existing.cursor, data),
-            )
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "marketUpdate",
-            "market",
-            data,
-            [],
-            next_store,
-            identity,
-            [id],
-          )
+          let errors = market_update_linkage_errors(store, input)
+          case errors {
+            [] -> {
+              let #(data, next_store) =
+                apply_market_update_linkage(store, existing, input)
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "marketUpdate",
+                "market",
+                data,
+                [],
+                next_store,
+                identity,
+                [id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "marketUpdate",
+                "market",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           not_found_mutation_result(
@@ -617,6 +633,237 @@ fn handle_market_update(
         identity,
       )
   }
+}
+
+fn market_update_linkage_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  [
+    missing_catalog_link_errors(store, input, "catalogsToAdd"),
+    missing_web_presence_link_errors(store, input, "webPresencesToAdd"),
+  ]
+  |> list.flatten
+}
+
+fn missing_catalog_link_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let missing =
+    read_arg_string_array(input, field_name)
+    |> option.unwrap([])
+    |> list.filter(fn(id) {
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  missing_customizations_error(field_name, missing)
+}
+
+fn missing_web_presence_link_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let missing =
+    read_arg_string_array(input, field_name)
+    |> option.unwrap([])
+    |> list.filter(fn(id) {
+      case store.get_effective_web_presence_by_id(store, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  missing_customizations_error(field_name, missing)
+}
+
+fn missing_customizations_error(
+  field_name: String,
+  missing_ids: List(String),
+) -> List(CapturedJsonValue) {
+  case missing_ids {
+    [] -> []
+    [_, ..] -> [
+      user_error(
+        ["input", field_name],
+        "The following customization IDs were not found: "
+          <> string.join(list.map(missing_ids, gid_tail_or_id), ", "),
+        "CUSTOMIZATIONS_NOT_FOUND",
+      ),
+    ]
+  }
+}
+
+fn gid_tail_or_id(id: String) -> String {
+  resource_ids.shopify_gid_tail(id) |> option.unwrap(id)
+}
+
+fn apply_market_update_linkage(
+  store: Store,
+  existing: MarketRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(CapturedJsonValue, Store) {
+  let catalog_ids =
+    read_connection_node_ids(existing.data, "catalogs")
+    |> append_unique_strings(
+      read_arg_string_array(input, "catalogsToAdd") |> option.unwrap([]),
+    )
+    |> remove_strings(
+      read_arg_string_array(input, "catalogsToDelete") |> option.unwrap([]),
+    )
+  let web_presence_ids =
+    read_connection_node_ids(existing.data, "webPresences")
+    |> append_unique_strings(
+      read_arg_string_array(input, "webPresencesToAdd") |> option.unwrap([]),
+    )
+    |> remove_strings(
+      read_arg_string_array(input, "webPresencesToDelete") |> option.unwrap([]),
+    )
+  let market_data =
+    market_data(store, existing.id, input, Some(existing.data))
+    |> captured_object_upsert([
+      #("catalogs", catalog_connection_from_ids(store, catalog_ids)),
+      #(
+        "webPresences",
+        web_presence_connection_from_ids(store, web_presence_ids),
+      ),
+    ])
+  let #(_, next_store) =
+    store.upsert_staged_market(
+      store,
+      MarketRecord(existing.id, existing.cursor, market_data),
+    )
+  let next_store =
+    sync_market_catalog_links(
+      next_store,
+      existing.id,
+      read_arg_string_array(input, "catalogsToAdd") |> option.unwrap([]),
+      read_arg_string_array(input, "catalogsToDelete") |> option.unwrap([]),
+    )
+  let next_store =
+    sync_market_web_presence_links(
+      next_store,
+      existing.id,
+      read_arg_string_array(input, "webPresencesToAdd") |> option.unwrap([]),
+      read_arg_string_array(input, "webPresencesToDelete") |> option.unwrap([]),
+    )
+  let market_data =
+    captured_object_upsert(market_data, [
+      #("catalogs", catalog_connection_from_ids(next_store, catalog_ids)),
+      #(
+        "webPresences",
+        web_presence_connection_from_ids(next_store, web_presence_ids),
+      ),
+    ])
+  let #(_, next_store) =
+    store.upsert_staged_market(
+      next_store,
+      MarketRecord(existing.id, existing.cursor, market_data),
+    )
+  #(market_data, next_store)
+}
+
+fn sync_market_catalog_links(
+  store: Store,
+  market_id: String,
+  add_ids: List(String),
+  delete_ids: List(String),
+) -> Store {
+  append_unique_strings(add_ids, delete_ids)
+  |> list.fold(store, fn(next_store, catalog) {
+    case store.get_effective_catalog_by_id(next_store, catalog) {
+      Some(record) -> {
+        let linked_market_ids =
+          read_connection_node_ids(record.data, "markets")
+          |> append_unique_strings(case list.contains(add_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+          |> remove_strings(case list.contains(delete_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+        let data =
+          captured_object_upsert(record.data, [
+            #(
+              "markets",
+              market_connection_from_ids(next_store, linked_market_ids),
+            ),
+          ])
+        let #(_, staged) =
+          store.upsert_staged_catalog(
+            next_store,
+            CatalogRecord(record.id, record.cursor, data),
+          )
+        staged
+      }
+      None -> next_store
+    }
+  })
+}
+
+fn sync_market_web_presence_links(
+  store: Store,
+  market_id: String,
+  add_ids: List(String),
+  delete_ids: List(String),
+) -> Store {
+  append_unique_strings(add_ids, delete_ids)
+  |> list.fold(store, fn(next_store, web_presence) {
+    case store.get_effective_web_presence_by_id(next_store, web_presence) {
+      Some(record) -> {
+        let linked_market_ids =
+          read_connection_node_ids(record.data, "markets")
+          |> append_unique_strings(case list.contains(add_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+          |> remove_strings(case list.contains(delete_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+        let data =
+          captured_object_upsert(record.data, [
+            #(
+              "markets",
+              market_connection_from_ids(next_store, linked_market_ids),
+            ),
+          ])
+        let #(_, staged) =
+          store.upsert_staged_web_presence(
+            next_store,
+            WebPresenceRecord(record.id, record.cursor, data),
+          )
+        staged
+      }
+      None -> next_store
+    }
+  })
+}
+
+fn read_connection_node_ids(
+  data: CapturedJsonValue,
+  field_name: String,
+) -> List(String) {
+  case captured_field(data, field_name) {
+    Some(connection) ->
+      case captured_field(connection, "nodes") {
+        Some(CapturedArray(nodes)) ->
+          nodes
+          |> list.filter_map(fn(node) {
+            captured_string_field(node, "id") |> option_to_result
+          })
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn remove_strings(base: List(String), removed: List(String)) -> List(String) {
+  list.filter(base, fn(item) { !list.contains(removed, item) })
 }
 
 fn handle_market_delete(

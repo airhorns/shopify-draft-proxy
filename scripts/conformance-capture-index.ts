@@ -2118,6 +2118,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-update-linkage',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-market-update-linkage-conformance.mts',
+    purpose:
+      'marketUpdate catalogsToAdd linkage lifecycle, downstream Market.catalogs and MarketCatalog.markets readback, and unknown catalog/web-presence add validation.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-update-linkage.json`,
+      'config/parity-specs/markets/market-update-linkage.json',
+      'config/parity-requests/markets/market-update-linkage-catalog-create.graphql',
+      'config/parity-requests/markets/market-update-linkage-catalog-read.graphql',
+      'config/parity-requests/markets/market-update-linkage-market-create.graphql',
+      'config/parity-requests/markets/market-update-linkage-market-read.graphql',
+      'config/parity-requests/markets/market-update-linkage-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable markets and one disposable market catalog, links the catalog to the target market, captures readback and validation branches, then removes the link and deletes the catalog and markets.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'product-contextual-pricing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
