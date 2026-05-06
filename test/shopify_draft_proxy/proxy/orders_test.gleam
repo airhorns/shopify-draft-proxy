@@ -7706,6 +7706,192 @@ pub fn orders_draft_order_update_read_after_write_test() {
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"email\":\"updated-draft@example.test\",\"note\":\"Updated note\",\"tags\":[\"draft\",\"updated\"],\"totalQuantityOfLineItems\":2,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"}}}}}"
 }
 
+pub fn orders_draft_order_update_business_validation_test() {
+  let create_mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"validation-probe@example.test\"
+        lineItems: [{
+          title: \"Validation item\"
+          quantity: 1
+          originalUnitPrice: \"10.00\"
+          sku: \"VALIDATION\"
+        }]
+        shippingLine: {
+          title: \"Courier\"
+          priceWithCurrency: { amount: \"5.00\", currencyCode: CAD }
+        }
+      }) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      create_mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  let complete_mutation =
+    "
+    mutation {
+      draftOrderComplete(id: \"gid://shopify/DraftOrder/1\") {
+        draftOrder {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let complete_outcome =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      complete_mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  let completed_update =
+    orders.process_mutation(
+      complete_outcome.store,
+      complete_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderUpdate(
+          id: \"gid://shopify/DraftOrder/1\"
+          input: { email: \"mutated-completed@example.test\" }
+        ) {
+          draftOrder {
+            id
+            status
+            email
+          }
+          userErrors {
+            field
+            message
+            code
+          }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(completed_update.data)
+    == "{\"data\":{\"draftOrderUpdate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"draft_order_already_completed\",\"code\":\"INVALID\"}]}}}"
+  assert completed_update.staged_resource_ids == []
+  assert completed_update.log_drafts == []
+  let assert Ok(completed_read) =
+    orders.process(
+      completed_update.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id status email } }",
+      dict.new(),
+    )
+  assert json.to_string(completed_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"COMPLETED\",\"email\":\"validation-probe@example.test\"}}}"
+
+  let currency_update =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderUpdate(
+          id: \"gid://shopify/DraftOrder/1\"
+          input: { presentmentCurrencyCode: USD }
+        ) {
+          draftOrder {
+            id
+            totalPriceSet {
+              shopMoney {
+                currencyCode
+              }
+              presentmentMoney {
+                currencyCode
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+            code
+          }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(currency_update.data)
+    == "{\"data\":{\"draftOrderUpdate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"input\",\"presentmentCurrencyCode\"],\"message\":\"presentment_currency_code_cannot_be_changed\",\"code\":\"INVALID\"}]}}}"
+  assert currency_update.staged_resource_ids == []
+  assert currency_update.log_drafts == []
+
+  let empty_line_items_update =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderUpdate(
+          id: \"gid://shopify/DraftOrder/1\"
+          input: { lineItems: [] }
+        ) {
+          draftOrder {
+            id
+            totalQuantityOfLineItems
+            lineItems {
+              nodes {
+                id
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+            code
+          }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(empty_line_items_update.data)
+    == "{\"data\":{\"draftOrderUpdate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"input\",\"lineItems\"],\"message\":\"line_items_must_not_be_empty\",\"code\":\"INVALID\"}]}}}"
+  assert empty_line_items_update.staged_resource_ids == []
+  assert empty_line_items_update.log_drafts == []
+  let assert Ok(empty_line_items_read) =
+    orders.process(
+      empty_line_items_update.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id totalQuantityOfLineItems lineItems { nodes { title } } } }",
+      dict.new(),
+    )
+  assert json.to_string(empty_line_items_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"totalQuantityOfLineItems\":1,\"lineItems\":{\"nodes\":[{\"title\":\"Validation item\"}]}}}}"
+}
+
 pub fn orders_draft_order_duplicate_read_after_write_test() {
   let create_mutation =
     "
