@@ -1,0 +1,491 @@
+{
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-06T04:13:01.941Z",
+  "scenarioId": "metaobject-update-error-codes",
+  "notes": "Captured live 2026-04 evidence for metaobjectUpdate bad-id RECORD_NOT_FOUND, duplicate fields[] key validation, and non-display-field update displayName preservation.",
+  "setup": {
+    "definitionCreate": {
+      "name": "definition-create",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectUpdateErrorCodesDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "type": "codex_update_errors_1778040780683",
+            "name": "Update errors 1778040780683",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "type": "multi_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17884184882",
+              "type": "codex_update_errors_1778040780683"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "displayCreate": {
+      "name": "display-create",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectUpdateErrorCodesSetupCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        id\n        handle\n        displayName\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_update_errors_1778040780683",
+            "handle": "update-errors-display-1778040780683",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Display 1778040780683"
+              },
+              {
+                "key": "body",
+                "value": "Body 1778040780683"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188166603058",
+              "handle": "update-errors-display-1778040780683",
+              "displayName": "Display 1778040780683",
+              "updatedAt": "2026-05-06T04:13:01Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "updateWithBadId": {
+      "name": "update-with-bad-id",
+      "request": {
+        "query": "mutation MetaobjectUpdateErrorCodesBadId($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/9999991778040780683",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "title",
+                "value": "Nope"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "duplicateFieldInput": {
+      "name": "duplicate-field-input",
+      "request": {
+        "query": "mutation MetaobjectUpdateErrorCodesDuplicateCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      displayName\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_update_errors_1778040780683",
+            "fields": [
+              {
+                "key": "title",
+                "value": "First 1778040780683"
+              },
+              {
+                "key": "title",
+                "value": "Second 1778040780683"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "1"],
+                "message": "Field \"title\" duplicates other inputs",
+                "code": "DUPLICATE_FIELD_INPUT",
+                "elementKey": "title",
+                "elementIndex": null
+              },
+              {
+                "field": ["metaobject", "fields", "1"],
+                "message": "Title can't be blank",
+                "code": "OBJECT_FIELD_REQUIRED",
+                "elementKey": "title",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "displayNameUntouchedUpdate": {
+      "name": "display-name-untouched-update",
+      "request": {
+        "query": "mutation MetaobjectUpdateErrorCodesDisplayUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188166603058",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "body",
+                "value": "Changed body 1778040780683"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188166603058",
+              "handle": "update-errors-display-1778040780683",
+              "displayName": "Display 1778040780683",
+              "updatedAt": "2026-05-06T04:13:01Z",
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "Display 1778040780683"
+                },
+                {
+                  "key": "body",
+                  "value": "Changed body 1778040780683"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectHydrateById",
+      "variables": {
+        "id": "gid://shopify/Metaobject/9999991778040780683"
+      },
+      "query": "sha:captured-by-script",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobject": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectDefinitionHydrateByType",
+      "variables": {
+        "type": "codex_update_errors_1778040780683"
+      },
+      "query": "sha:captured-by-script",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": {
+              "id": "gid://shopify/MetaobjectDefinition/17884184882",
+              "type": "codex_update_errors_1778040780683",
+              "name": "Update errors 1778040780683",
+              "description": null,
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": null,
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 1,
+              "standardTemplate": null,
+              "createdAt": "2026-05-06T04:13:00Z",
+              "updatedAt": "2026-05-06T04:13:00Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetaobjectHydrateById",
+      "variables": {
+        "id": "gid://shopify/Metaobject/188166603058"
+      },
+      "query": "sha:captured-by-script",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188166603058",
+              "handle": "update-errors-display-1778040780683",
+              "type": "codex_update_errors_1778040780683",
+              "displayName": "Display 1778040780683",
+              "createdAt": "2026-05-06T04:13:01Z",
+              "updatedAt": "2026-05-06T04:13:01Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Display 1778040780683",
+                  "jsonValue": "Display 1778040780683",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "Body 1778040780683",
+                  "jsonValue": "Body 1778040780683",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "definition": {
+                "id": "gid://shopify/MetaobjectDefinition/17884184882",
+                "type": "codex_update_errors_1778040780683",
+                "name": "Update errors 1778040780683",
+                "description": null,
+                "displayNameKey": "title",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": false
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "title",
+                    "name": "Title",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "body",
+                    "name": "Body",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 1,
+                "standardTemplate": null,
+                "createdAt": "2026-05-06T04:13:00Z",
+                "updatedAt": "2026-05-06T04:13:00Z"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

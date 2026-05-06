@@ -1,0 +1,78 @@
+{
+  "scenarioId": "discount-activation-failure-field-base",
+  "operationNames": [
+    "discountCodeAppCreate",
+    "discountAutomaticAppCreate",
+    "discountCodeActivate",
+    "discountCodeDeactivate",
+    "discountAutomaticActivate",
+    "discountAutomaticDeactivate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "mutation-lifecycle",
+    "user-errors-parity",
+    "function-revocation-parity",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-activation-failure-field-base-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "app-discount-create-setup",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "code-app-activation-revoked-function-base-error",
+        "capturePath": "$.codeActivationFailure.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activation-failure-field-base-code-activate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeAppCreate.codeAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-app-activation-revoked-function-base-error",
+        "capturePath": "$.automaticActivationFailure.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activation-failure-field-base-automatic-activate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-activate-deactivate-stays-id-invalid",
+        "capturePath": "$.unknown.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activation-failure-field-base-unknown.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for activation failure when an app discount's backing Function is no longer available at activation time. The setup earns app-discount state through replayed create mutations and cassette-backed Function metadata hydration; activation then re-checks Function availability through a separate cassette-backed upstream read that returns an empty Function connection, matching Shopify's base-level INTERNAL_ERROR shape. The final target keeps all four unknown activate/deactivate roots on Shopify's id-level INVALID path."
+}

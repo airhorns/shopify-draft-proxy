@@ -1,0 +1,91 @@
+{
+  "fixtureKind": "local-runtime-online-store-blog-commentable-local-staging",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T00:00:00.000Z",
+  "summary": "Executable local-runtime fixture for blogUpdate commentable mapping onto downstream commentPolicy.",
+  "primary": {
+    "variables": {
+      "blog": {
+        "title": "Commentable Blog",
+        "commentPolicy": "CLOSED"
+      }
+    }
+  },
+  "expected": {
+    "create": {
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/1?shopify-draft-proxy=synthetic",
+              "title": "Commentable Blog",
+              "commentPolicy": "CLOSED"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "update": {
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/1?shopify-draft-proxy=synthetic",
+              "title": "Commentable Blog",
+              "commentPolicy": "MODERATED"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "readAfterUpdate": {
+      "response": {
+        "data": {
+          "blog": {
+            "id": "gid://shopify/Blog/1?shopify-draft-proxy=synthetic",
+            "title": "Commentable Blog",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      }
+    },
+    "invalidUpdate": {
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": null,
+            "userErrors": [
+              {
+                "field": ["blog", "commentable"],
+                "message": "Commentable is not included in the list",
+                "code": "INCLUSION"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "readAfterInvalid": {
+      "response": {
+        "data": {
+          "blog": {
+            "id": "gid://shopify/Blog/1?shopify-draft-proxy=synthetic",
+            "title": "Commentable Blog",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "local-runtime-backed-by-core-resolver-contract",
+    "notes": [
+      "The branch behavior stages commentable locally and projects it through commentPolicy in the mutation payload and downstream blog read.",
+      "Invalid local enum values surface as a commentable field INCLUSION userError and do not mutate the staged blog.",
+      "The configured live public Admin API target for 2025-01 and 2026-04 rejected commentable as an unknown BlogUpdateInput field, so this fixture intentionally has no upstream calls."
+    ]
+  },
+  "upstreamCalls": []
+}

@@ -1,0 +1,19 @@
+mutation ScriptTagUpdateEventForceOnload {
+  scriptTagUpdate(
+    id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic"
+    input: { event: "onstart", cache: true }
+  ) {
+    scriptTag {
+      id
+      src
+      displayScope
+      event
+      cache
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

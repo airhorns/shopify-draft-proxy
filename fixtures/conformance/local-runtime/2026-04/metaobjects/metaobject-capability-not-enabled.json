@@ -1,0 +1,111 @@
+{
+  "kind": "local-runtime-fixture",
+  "apiVersion": "2026-04",
+  "scenarioId": "metaobject-capability-not-enabled",
+  "storeDomain": "local-runtime.myshopify.com",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "coveredOperations": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjectUpdate", "metaobjectUpsert"],
+  "evidence": [
+    "Definition create omits publishable and onlineStore, leaving both disabled.",
+    "Entry capability input for disabled definition capabilities returns CAPABILITY_NOT_ENABLED.",
+    "Rejected create, update, and upsert branches do not stage mutation log entries or persist partial entry changes in the runtime test."
+  ],
+  "definitionCreate": {
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+            "type": "codex_capability_not_enabled",
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "metaobjectsCount": 0
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "validCreate": {
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/3?shopify-draft-proxy=synthetic",
+            "handle": "existing",
+            "displayName": "Original"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "updateOnlineStore": {
+    "response": {
+      "data": {
+        "metaobjectUpdate": {
+          "metaobject": null,
+          "userErrors": [
+            {
+              "field": ["capabilities", "onlineStore"],
+              "message": "Capability is not enabled on this definition",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "createPublishable": {
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": null,
+          "userErrors": [
+            {
+              "field": ["capabilities", "publishable"],
+              "message": "Capability is not enabled on this definition",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upsertBoth": {
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": null,
+          "userErrors": [
+            {
+              "field": ["capabilities", "publishable"],
+              "message": "Capability is not enabled on this definition",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            },
+            {
+              "field": ["capabilities", "onlineStore"],
+              "message": "Capability is not enabled on this definition",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
