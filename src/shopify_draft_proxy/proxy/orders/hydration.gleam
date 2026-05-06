@@ -33,6 +33,7 @@ import shopify_draft_proxy/proxy/orders/common.{
   read_string_arg, replace_captured_object_fields, selection_children,
   serialize_user_error, user_error,
 }
+import shopify_draft_proxy/proxy/user_error_codes
 
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
