@@ -4001,6 +4001,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-merge-blockers',
+    scriptPath: 'scripts/capture-customer-merge-blockers-conformance.mts',
+    purpose: 'Synchronous customerMerge blockers for combined tags, combined notes, and gift-card assignments.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_customer_merge',
+      'write_customer_merge',
+      'read_gift_cards',
+      'write_gift_cards',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-merge-blockers.json`,
+      'config/parity-specs/customers/customerMerge-blockers.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers and one assigned gift card; deactivates the gift card and deletes customers after validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-merge-attached-resources',
     scriptPath: 'scripts/capture-customer-merge-attached-resources-conformance.mts',
     purpose: 'customerMerge with attached address/metafield/order resources.',

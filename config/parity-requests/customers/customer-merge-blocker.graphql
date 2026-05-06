@@ -1,0 +1,14 @@
+mutation CustomerMergeBlocker($one: ID!, $two: ID!) {
+  customerMerge(customerOneId: $one, customerTwoId: $two) {
+    resultingCustomerId
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
