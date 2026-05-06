@@ -252,10 +252,7 @@
         "name": "declined-read-after-invalid",
         "capturePath": "$.expected.statePreconditionReads.declined",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.return.status",
-          "$.return.reverseFulfillmentOrders.nodes[0]"
-        ],
+        "selectedPaths": ["$.return.status", "$.return.reverseFulfillmentOrders.nodes[0]"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/return-state-precondition-read-local-staging.graphql",
           "variables": {
