@@ -1,0 +1,45 @@
+{
+  "scenarioId": "inventory-activate-validation",
+  "operationNames": ["inventoryActivate", "inventoryBulkToggleActivation", "inventoryDeactivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "route-version-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-linkage-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventoryActivate-parity-plan.graphql",
+    "variablesCapturePath": "$.inventoryActivateUnknownLocation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inventory-activate-unknown-location",
+        "capturePath": "$.inventoryActivateUnknownLocation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "inventory-bulk-toggle-unknown-location",
+        "capturePath": "$.inventoryBulkToggleUnknownLocation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryBulkToggleActivation-parity-plan.graphql",
+          "variablesCapturePath": "$.inventoryBulkToggleUnknownLocation.variables"
+        }
+      },
+      {
+        "name": "inventory-deactivate-only-location",
+        "capturePath": "$.inventoryDeactivateOnlyLocationError.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryDeactivate-validation.graphql",
+          "variablesCapturePath": "$.inventoryDeactivateOnlyLocationError.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Covers captured Shopify validation for unknown inventoryActivate location, unknown inventoryBulkToggleActivation location, and the minimum-one-active-location inventoryDeactivate guard. Runtime tests cover staged duplicate activation and negative quantity branches because checked-in live capture evidence records already-active inventoryActivate as a no-op/available-conflict flow rather than TAKEN."
+}

@@ -14,14 +14,14 @@ import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
   type InventoryQuantityRecord, type InventoryTransferRecord,
-  type MetafieldDefinitionCapabilitiesRecord,
+  type LocationRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
   type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
   CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
   InventoryQuantityRecord, InventoryTransferLineItemRecord,
-  InventoryTransferRecord, MetafieldDefinitionCapabilitiesRecord,
+  InventoryTransferRecord, LocationRecord, MetafieldDefinitionCapabilitiesRecord,
   MetafieldDefinitionCapabilityRecord, MetafieldDefinitionRecord,
   MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
   ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
@@ -1559,7 +1559,7 @@ pub fn product_user_error_shape_validation_branches_test() {
     )
   assert activate_status == 200
   assert json.to_string(activate_body)
-    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"INVALID_INVENTORY_ITEM\"}]}}}"
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
 }
 
 pub fn combined_listing_update_rejects_non_parent_product_test() {
@@ -4274,6 +4274,95 @@ pub fn inventory_deactivate_only_location_stays_active_test() {
     == "{\"data\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":true}}}"
 }
 
+pub fn inventory_activate_unknown_location_returns_not_found_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/missing\\\") { inventoryLevel { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"locationId\"],\"message\":\"The product couldn't be stocked because the location wasn't found.\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn inventory_activate_rejects_negative_quantities_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_locations([
+        LocationRecord(
+          id: "gid://shopify/Location/1",
+          name: "Shop location",
+          cursor: None,
+        ),
+        LocationRecord(
+          id: "gid://shopify/Location/2",
+          name: "Second location",
+          cursor: None,
+        ),
+      ]),
+    )
+  let available_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\", available: -1) { inventoryLevel { id } userErrors { field message code } } }"
+
+  let #(Response(status: available_status, body: available_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(available_query))
+
+  assert available_status == 200
+  assert json.to_string(available_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"available\"],\"message\":\"Available must be greater than or equal to 0\",\"code\":\"NEGATIVE\"}]}}}"
+
+  let on_hand_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\", onHand: -1) { inventoryLevel { id } userErrors { field message code } } }"
+
+  let #(Response(status: on_hand_status, body: on_hand_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(on_hand_query))
+
+  assert on_hand_status == 200
+  assert json.to_string(on_hand_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"onHand\"],\"message\":\"On hand must be greater than or equal to 0\",\"code\":\"NEGATIVE\"}]}}}"
+}
+
+pub fn inventory_activate_duplicate_staged_activation_returns_taken_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_locations([
+        LocationRecord(
+          id: "gid://shopify/Location/1",
+          name: "Shop location",
+          cursor: None,
+        ),
+        LocationRecord(
+          id: "gid://shopify/Location/2",
+          name: "Second location",
+          cursor: None,
+        ),
+      ]),
+    )
+  let query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\") { inventoryLevel { id isActive location { id name } } userErrors { field message code } } }"
+
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked\",\"isActive\":true,\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Second location\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked\",\"isActive\":true,\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Second location\"}},\"userErrors\":[{\"field\":[\"locationId\"],\"message\":\"Inventory level has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
 pub fn inventory_activate_available_conflict_requires_active_level_test() {
   let active_proxy = draft_proxy.new()
   let active_proxy =
@@ -4317,6 +4406,81 @@ pub fn inventory_activate_available_conflict_requires_active_level_test() {
   assert inactive_status == 200
   assert json.to_string(inactive_body)
     == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[]}}}"
+}
+
+pub fn inventory_bulk_toggle_unknown_location_returns_not_found_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryBulkToggleActivation(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", inventoryItemUpdates: [{ locationId: \\\"gid://shopify/Location/missing\\\", activate: true }]) { inventoryItem { id } inventoryLevels { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryBulkToggleActivation\":{\"inventoryItem\":null,\"inventoryLevels\":null,\"userErrors\":[{\"field\":[\"inventoryItemUpdates\",\"0\",\"locationId\"],\"message\":\"The quantity couldn't be updated because the location was not found.\",\"code\":\"LOCATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn inventory_bulk_toggle_activate_known_location_stages_level_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_locations([
+        LocationRecord(
+          id: "gid://shopify/Location/1",
+          name: "Shop location",
+          cursor: None,
+        ),
+        LocationRecord(
+          id: "gid://shopify/Location/2",
+          name: "Second location",
+          cursor: None,
+        ),
+      ]),
+    )
+  let query =
+    "mutation { inventoryBulkToggleActivation(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", inventoryItemUpdates: [{ locationId: \\\"gid://shopify/Location/2\\\", activate: true }]) { inventoryItem { id } inventoryLevels { id location { id name } item { id } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryBulkToggleActivation\":{\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"inventoryLevels\":[{\"id\":\"gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked\",\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Second location\"},\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"}}],\"userErrors\":[]}}}"
+}
+
+pub fn inventory_bulk_toggle_deactivate_last_active_location_returns_error_test() {
+  let inactive_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      False,
+      [
+        inventory_quantity("available", 0),
+        inventory_quantity("on_hand", 0),
+      ],
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+        tracked_inventory_level(),
+        inactive_level,
+      ]),
+    )
+  let query =
+    "mutation { inventoryBulkToggleActivation(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", inventoryItemUpdates: [{ locationId: \\\"gid://shopify/Location/1\\\", activate: false }]) { inventoryItem { id } inventoryLevels { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryBulkToggleActivation\":{\"inventoryItem\":null,\"inventoryLevels\":null,\"userErrors\":[{\"field\":[\"inventoryItemUpdates\",\"0\",\"locationId\"],\"message\":\"The variant couldn't be unstocked from Shop location because products need to be stocked at a minimum of 1 location.\",\"code\":\"CANNOT_DEACTIVATE_FROM_ONLY_LOCATION\"}]}}}"
 }
 
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
@@ -4746,6 +4910,13 @@ fn tracked_inventory_level() -> InventoryLevelRecord {
 
 fn tracked_inventory_store() -> store.Store {
   tracked_inventory_store_with_levels([tracked_inventory_level()])
+}
+
+fn tracked_inventory_store_with_locations(
+  locations: List(LocationRecord),
+) -> store.Store {
+  tracked_inventory_store()
+  |> store.upsert_base_locations(locations)
 }
 
 fn tracked_inventory_store_with_transfer(
