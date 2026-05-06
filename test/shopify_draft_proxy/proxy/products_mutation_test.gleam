@@ -211,6 +211,268 @@ pub fn selling_plan_group_update_rejects_input_validation_errors_test() {
   assert update_entry.staged_resource_ids == []
 }
 
+pub fn selling_plan_group_add_products_rejects_unknown_and_duplicate_ids_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: default_option_store()
+        |> store.upsert_base_products([
+          ProductRecord(
+            ..default_product(),
+            id: "gid://shopify/Product/non-member",
+            title: "Non-member Board",
+            handle: "non-member-board",
+          ),
+        ])
+        |> store.upsert_base_product_variants([
+          ProductVariantRecord(
+            ..default_variant(),
+            id: "gid://shopify/ProductVariant/non-member",
+            product_id: "gid://shopify/Product/non-member",
+          ),
+        ]),
+    )
+  let create_query =
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Seed\\\", options: [\\\"Delivery\\\"] }) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+  let assert [group] = store.list_effective_selling_plan_groups(proxy.store)
+
+  let unknown_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_query))
+  let unknown_serialized = json.to_string(unknown_body)
+
+  assert unknown_status == 200
+  assert string.contains(unknown_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(unknown_serialized, "\"field\":[\"productIds\"]")
+  assert string.contains(
+    unknown_serialized,
+    "\"message\":\"Product gid://shopify/Product/missing does not exist.\"",
+  )
+  assert string.contains(unknown_serialized, "\"code\":\"NOT_FOUND\"")
+  let assert [unchanged_group] =
+    store.list_effective_selling_plan_groups(proxy.store)
+  assert unchanged_group.product_ids == []
+
+  let add_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert add_status == 200
+  assert string.contains(json.to_string(add_body), "\"userErrors\":[]")
+
+  let duplicate_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_status, body: duplicate_body, ..),
+    duplicate_proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  let duplicate_serialized = json.to_string(duplicate_body)
+
+  assert duplicate_status == 200
+  assert string.contains(duplicate_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(duplicate_serialized, "\"field\":[\"productIds\"]")
+  assert string.contains(
+    duplicate_serialized,
+    "\"message\":\"Resource has already been taken\"",
+  )
+  let assert [duplicate_group] =
+    store.list_effective_selling_plan_groups(duplicate_proxy.store)
+  assert duplicate_group.product_ids == ["gid://shopify/Product/optioned"]
+
+  let unknown_variant_query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/missing\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+  let #(
+    Response(status: unknown_variant_status, body: unknown_variant_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      duplicate_proxy,
+      graphql_request(unknown_variant_query),
+    )
+  let unknown_variant_serialized = json.to_string(unknown_variant_body)
+
+  assert unknown_variant_status == 200
+  assert string.contains(
+    unknown_variant_serialized,
+    "\"sellingPlanGroup\":null",
+  )
+  assert string.contains(
+    unknown_variant_serialized,
+    "\"field\":[\"productVariantIds\"]",
+  )
+  assert string.contains(
+    unknown_variant_serialized,
+    "\"message\":\"Product variant gid://shopify/ProductVariant/missing does not exist.\"",
+  )
+  assert string.contains(unknown_variant_serialized, "\"code\":\"NOT_FOUND\"")
+
+  let add_variant_query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: add_variant_status, body: add_variant_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_variant_query))
+  assert add_variant_status == 200
+  assert string.contains(json.to_string(add_variant_body), "\"userErrors\":[]")
+
+  let duplicate_variant_query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_variant_status, body: duplicate_variant_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_variant_query))
+  let duplicate_variant_serialized = json.to_string(duplicate_variant_body)
+
+  assert duplicate_variant_status == 200
+  assert string.contains(
+    duplicate_variant_serialized,
+    "\"sellingPlanGroup\":null",
+  )
+  assert string.contains(
+    duplicate_variant_serialized,
+    "\"field\":[\"productVariantIds\"]",
+  )
+  assert string.contains(
+    duplicate_variant_serialized,
+    "\"message\":\"Resource has already been taken\"",
+  )
+
+  let remove_non_member_query =
+    "mutation { sellingPlanGroupRemoveProducts(id: \\\""
+    <> group.id
+    <> "\\\", productIds: [\\\"gid://shopify/Product/non-member\\\", \\\"gid://shopify/Product/unknown\\\"]) { removedProductIds userErrors { field message code } } }"
+  let #(
+    Response(status: remove_non_member_status, body: remove_non_member_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(proxy, graphql_request(remove_non_member_query))
+  assert remove_non_member_status == 200
+  assert json.to_string(remove_non_member_body)
+    == "{\"data\":{\"sellingPlanGroupRemoveProducts\":{\"removedProductIds\":[],\"userErrors\":[]}}}"
+
+  let remove_non_member_variant_query =
+    "mutation { sellingPlanGroupRemoveProductVariants(id: \\\""
+    <> group.id
+    <> "\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/non-member\\\", \\\"gid://shopify/ProductVariant/unknown\\\"]) { removedProductVariantIds userErrors { field message code } } }"
+  let #(
+    Response(
+      status: remove_non_member_variant_status,
+      body: remove_non_member_variant_body,
+      ..,
+    ),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(remove_non_member_variant_query),
+    )
+  assert remove_non_member_variant_status == 200
+  assert json.to_string(remove_non_member_variant_body)
+    == "{\"data\":{\"sellingPlanGroupRemoveProductVariants\":{\"removedProductVariantIds\":[],\"userErrors\":[]}}}"
+
+  let malformed_remove_query =
+    "mutation RemoveMalformed($id: ID!, $productIds: [ID!]!) { sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) { removedProductIds userErrors { field message code } } }"
+  let malformed_remove_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(malformed_remove_query)),
+        #(
+          "variables",
+          json.object([
+            #("id", json.string(group.id)),
+            #("productIds", json.array(["not-a-product-gid"], json.string)),
+          ]),
+        ),
+      ]),
+    )
+  let #(
+    Response(status: malformed_remove_status, body: malformed_remove_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_body(malformed_remove_body),
+    )
+  let malformed_remove_serialized = json.to_string(malformed_remove_body)
+  assert malformed_remove_status == 200
+  assert string.contains(malformed_remove_serialized, "\"errors\":[")
+  assert string.contains(
+    malformed_remove_serialized,
+    "\"code\":\"INVALID_VARIABLE\"",
+  )
+  assert string.contains(
+    malformed_remove_serialized,
+    "Invalid global id 'not-a-product-gid'",
+  )
+
+  let malformed_remove_variant_query =
+    "mutation RemoveMalformedVariant($id: ID!, $productVariantIds: [ID!]!) { sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) { removedProductVariantIds userErrors { field message code } } }"
+  let malformed_remove_variant_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(malformed_remove_variant_query)),
+        #(
+          "variables",
+          json.object([
+            #("id", json.string(group.id)),
+            #(
+              "productVariantIds",
+              json.array(["not-a-product-variant-gid"], json.string),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let #(
+    Response(
+      status: malformed_remove_variant_status,
+      body: malformed_remove_variant_body,
+      ..,
+    ),
+    final_proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_body(malformed_remove_variant_body),
+    )
+  let malformed_remove_variant_serialized =
+    json.to_string(malformed_remove_variant_body)
+  assert malformed_remove_variant_status == 200
+  assert string.contains(
+    malformed_remove_variant_serialized,
+    "\"code\":\"INVALID_VARIABLE\"",
+  )
+  assert string.contains(
+    malformed_remove_variant_serialized,
+    "Invalid global id 'not-a-product-variant-gid'",
+  )
+
+  let assert [final_group] =
+    store.list_effective_selling_plan_groups(final_proxy.store)
+  assert final_group.product_ids == ["gid://shopify/Product/optioned"]
+  assert final_group.product_variant_ids
+    == [
+      "gid://shopify/ProductVariant/default",
+    ]
+}
+
 pub fn product_options_create_stages_default_product_options_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
