@@ -2211,7 +2211,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["productFullSync", "ProductFullSync"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages product-feed sync acknowledgement locally for known staged feeds and returns captured unknown-id userErrors for absent feeds without runtime Shopify writes.",
+        "Stages product-feed sync kickoff locally for known staged feeds, returns a pollable local Job with done=false, and rejects absent feeds before runtime Shopify writes.",
       ),
     ),
     RegistryEntry(

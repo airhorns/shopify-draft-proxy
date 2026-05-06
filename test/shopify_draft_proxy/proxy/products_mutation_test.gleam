@@ -53,6 +53,20 @@ fn graphql_request_body(body: String) -> Request {
   )
 }
 
+fn graphql_request_with_variables(
+  query: String,
+  variables: json.Json,
+) -> Request {
+  graphql_request_body(
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #("variables", variables),
+      ]),
+    ),
+  )
+}
+
 fn run_product_mutation(initial_store: store.Store, query: String) {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: initial_store)
@@ -135,6 +149,81 @@ fn graphql_document_request(query: String) -> Request {
     headers: empty_headers(),
     body: json.to_string(json.object([#("query", json.string(query))])),
   )
+}
+
+pub fn product_full_sync_unknown_feed_returns_not_found_test() {
+  let query =
+    "mutation ProductFullSyncUnknown($id: ID!) { productFullSync(id: $id) { id userErrors { field message code } } }"
+  let variables =
+    json.object([
+      #("id", json.string("gid://shopify/ProductFeed/999999999")),
+    ])
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_with_variables(query, variables),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productFullSync\":{\"id\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"ProductFeed does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_full_sync_returns_pollable_job_test() {
+  let create_query =
+    "mutation ProductFeedCreateForSync($input: ProductFeedInput) { productFeedCreate(input: $input) { productFeed { id } userErrors { field message code } } }"
+  let create_variables =
+    json.object([
+      #(
+        "input",
+        json.object([
+          #("country", json.string("US")),
+          #("language", json.string("EN")),
+        ]),
+      ),
+    ])
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_with_variables(create_query, create_variables),
+    )
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/2\"},\"userErrors\":[]}}}"
+
+  let sync_query =
+    "mutation ProductFullSyncJob($id: ID!) { productFullSync(id: $id) { __typename id job { __typename id done query { __typename } } userErrors { field message code } } }"
+  let sync_variables =
+    json.object([#("id", json.string("gid://shopify/ProductFeed/2"))])
+  let #(Response(status: sync_status, body: sync_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_with_variables(sync_query, sync_variables),
+    )
+
+  assert sync_status == 200
+  assert json.to_string(sync_body)
+    == "{\"data\":{\"productFullSync\":{\"__typename\":\"ProductFullSyncPayload\",\"id\":\"gid://shopify/ProductFeed/2\",\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/4\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}},\"userErrors\":[]}}}"
+
+  let job_query =
+    "query ProductFullSyncJobPoll($id: ID!) { job(id: $id) { __typename id done query { __typename } } }"
+  let job_variables = json.object([#("id", json.string("gid://shopify/Job/4"))])
+  let #(Response(status: job_status, body: job_body, ..), next_proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_with_variables(job_query, job_variables),
+    )
+
+  assert job_status == 200
+  assert json.to_string(job_body)
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/4\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+  let assert [_, sync_entry] = store.get_log(next_proxy.store)
+  assert sync_entry.staged_resource_ids
+    == ["gid://shopify/ProductFeed/2", "gid://shopify/Job/4"]
 }
 
 fn valid_selling_plan_input() -> String {

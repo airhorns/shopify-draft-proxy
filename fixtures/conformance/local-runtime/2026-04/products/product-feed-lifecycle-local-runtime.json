@@ -27,7 +27,27 @@
       "data": {
         "productFullSync": {
           "id": "gid://shopify/ProductFeed/2",
+          "job": {
+            "id": "gid://shopify/Job/4",
+            "done": false,
+            "query": {
+              "__typename": "QueryRoot"
+            }
+          },
           "userErrors": []
+        }
+      }
+    }
+  },
+  "syncJob": {
+    "response": {
+      "data": {
+        "job": {
+          "id": "gid://shopify/Job/4",
+          "done": false,
+          "query": {
+            "__typename": "QueryRoot"
+          }
         }
       }
     }
