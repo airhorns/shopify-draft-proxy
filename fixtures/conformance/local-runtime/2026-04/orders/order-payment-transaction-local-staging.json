@@ -455,8 +455,8 @@
             "transaction": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "Transaction has already been captured"
+                "field": ["parentTransactionId"],
+                "message": "Parent transaction require a parent_id referring to a voidable transaction"
               }
             ]
           }
