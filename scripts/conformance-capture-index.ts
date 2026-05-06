@@ -1261,6 +1261,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-create-field-validations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-field-validations-conformance.ts',
+    purpose:
+      'Metaobject definition create fieldDefinitions validation for reserved keys, duplicate input, displayNameKey resolution, hyphen keys, and max field count.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}definition-create-field-validations.json`,
+      'config/parity-specs/metaobjects/definition_create_field_validations.json',
+      'config/parity-requests/metaobjects/definition-create-field-validations.graphql',
+    ],
+    cleanupBehavior:
+      'Validation branches create no records; the successful hyphen-key definition is deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-name-type-description-length',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-name-type-description-length-conformance.ts',

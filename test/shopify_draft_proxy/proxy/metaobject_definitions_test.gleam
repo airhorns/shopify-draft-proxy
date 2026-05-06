@@ -157,6 +157,34 @@ fn create_definition_with_field_key_query(
   }"
 }
 
+fn field_definition_input(key: String) -> String {
+  "{ key: \""
+  <> key
+  <> "\", name: \""
+  <> key
+  <> "\", type: \"single_line_text_field\", required: false }"
+}
+
+fn create_definition_with_field_keys_query(
+  type_: String,
+  display_name_key: String,
+  keys: List(String),
+) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"Codex Rows\",
+      displayNameKey: \"" <> display_name_key <> "\",
+      fieldDefinitions: [
+        " <> string.join(list.map(keys, field_definition_input), ",") <> "
+      ]
+    }) {
+      metaobjectDefinition { id type displayNameKey fieldDefinitions { key } }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
 fn create_definition_with_scalars_query(
   type_: String,
   name: String,
@@ -401,10 +429,81 @@ pub fn definition_create_rejects_invalid_field_key_test() {
     run_mutation(
       store.new(),
       synthetic_identity.new(),
-      create_definition_with_field_key_query("codex_rows_invalid_key", "Title"),
+      create_definition_with_field_key_query(
+        "codex_rows_invalid_key",
+        "bad key",
+      ),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"key\"],\"message\":\"is invalid\",\"code\":\"INVALID\",\"elementKey\":\"Title\",\"elementIndex\":0}]}}}"
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\"],\"message\":\"Key contains one or more invalid characters.\",\"code\":\"INVALID\",\"elementKey\":\"bad key\",\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_create_validates_field_definition_input_test() {
+  let reserved =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_rows_reserved_key",
+        "handle",
+        ["handle"],
+      ),
+    )
+  assert json.to_string(reserved.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\"],\"message\":\"The name \\\"handle\\\" is reserved for system use\",\"code\":\"RESERVED_NAME\",\"elementKey\":\"handle\",\"elementIndex\":null}]}}}"
+
+  let duplicate =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_rows_duplicate_key",
+        "title",
+        ["title", "title"],
+      ),
+    )
+  assert json.to_string(duplicate.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"1\"],\"message\":\"Field \\\"title\\\" duplicates other inputs\",\"code\":\"DUPLICATE_FIELD_INPUT\",\"elementKey\":\"title\",\"elementIndex\":null}]}}}"
+
+  let missing_display_name_key =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_rows_missing_display",
+        "missing",
+        ["title"],
+      ),
+    )
+  assert json.to_string(missing_display_name_key.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"displayNameKey\"],\"message\":\"Field definition \\\"missing\\\" does not exist\",\"code\":\"UNDEFINED_OBJECT_FIELD\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let hyphen_key =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_rows_hyphen_key",
+        "field-key",
+        ["field-key"],
+      ),
+    )
+  assert json.to_string(hyphen_key.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"codex_rows_hyphen_key\",\"displayNameKey\":\"field-key\",\"fieldDefinitions\":[{\"key\":\"field-key\"}]},\"userErrors\":[]}}}"
+
+  let too_many =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_rows_too_many",
+        "field_1",
+        int_range(from: 1, to: 41)
+          |> list.map(fn(index) { "field_" <> int.to_string(index) }),
+      ),
+    )
+  assert json.to_string(too_many.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
 pub fn definition_update_validates_type_and_field_key_test() {
@@ -515,7 +614,7 @@ pub fn definition_update_validates_type_and_field_key_test() {
       "mutation {
         metaobjectDefinitionUpdate(
           id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
-          definition: { fieldDefinitions: [{ update: { key: \"BadKey\", name: \"Bad\" } }] }
+          definition: { fieldDefinitions: [{ update: { key: \"Bad Key\", name: \"Bad\" } }] }
         ) {
           metaobjectDefinition { id type fieldDefinitions { key name } }
           userErrors { field message code elementKey elementIndex }
@@ -523,7 +622,99 @@ pub fn definition_update_validates_type_and_field_key_test() {
       }",
     )
   assert json.to_string(invalid_key_update.data)
-    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"key\"],\"message\":\"is invalid\",\"code\":\"INVALID\",\"elementKey\":\"BadKey\",\"elementIndex\":0}]}}}"
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\"],\"message\":\"Key contains one or more invalid characters.\",\"code\":\"INVALID\",\"elementKey\":\"Bad Key\",\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_update_validates_field_definition_input_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_key_query(
+        "codex_rows_update_field_validation",
+        "title",
+      ),
+    )
+
+  let reserved =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { fieldDefinitions: [{ create: { key: \"handle\", name: \"Handle\", type: \"single_line_text_field\" } }] }
+        ) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(reserved.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\"],\"message\":\"The name \\\"handle\\\" is reserved for system use\",\"code\":\"RESERVED_NAME\",\"elementKey\":\"handle\",\"elementIndex\":null}]}}}"
+
+  let duplicate =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            fieldDefinitions: [
+              { create: { key: \"subtitle\", name: \"Subtitle\", type: \"single_line_text_field\" } },
+              { create: { key: \"subtitle\", name: \"Subtitle\", type: \"single_line_text_field\" } }
+            ]
+          }
+        ) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(duplicate.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"1\"],\"message\":\"Field \\\"subtitle\\\" duplicates other inputs\",\"code\":\"DUPLICATE_FIELD_INPUT\",\"elementKey\":\"subtitle\",\"elementIndex\":null}]}}}"
+
+  let missing_display_name_key =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { displayNameKey: \"missing\" }
+        ) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(missing_display_name_key.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"displayNameKey\"],\"message\":\"Field definition \\\"missing\\\" does not exist\",\"code\":\"UNDEFINED_OBJECT_FIELD\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_many = run_mutation(created.store, created.identity, "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            fieldDefinitions: [" <> string.join(
+      int_range(from: 2, to: 41)
+        |> list.map(fn(index) {
+          "{ create: { key: \"field_"
+          <> int.to_string(index)
+          <> "\", name: \"Field "
+          <> int.to_string(index)
+          <> "\", type: \"single_line_text_field\" } }"
+        }),
+      ",",
+    ) <> "]
+          }
+        ) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }")
+  assert json.to_string(too_many.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
 pub fn definition_and_entry_lifecycle_stages_locally_test() {
