@@ -488,6 +488,7 @@ pub type StagedState {
     deleted_marketing_event_ids: Dict(String, Bool),
     deleted_marketing_engagement_ids: Dict(String, Bool),
     marketing_delete_all_external_in_flight: Bool,
+    marketing_delete_all_external_in_flight_api_client_ids: Dict(String, Bool),
     validations: Dict(String, ValidationRecord),
     validation_order: List(String),
     deleted_validation_ids: Dict(String, Bool),

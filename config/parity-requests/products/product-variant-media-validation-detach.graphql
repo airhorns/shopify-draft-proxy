@@ -1,0 +1,20 @@
+mutation ProductVariantMediaValidationDetach($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+  productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+    productVariants {
+      id
+      media(first: 10) {
+        nodes {
+          id
+          alt
+          mediaContentType
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

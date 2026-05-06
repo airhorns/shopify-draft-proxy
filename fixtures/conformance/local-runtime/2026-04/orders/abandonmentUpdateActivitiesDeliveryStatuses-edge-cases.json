@@ -1,0 +1,282 @@
+{
+  "scenarioId": "abandonmentUpdateActivitiesDeliveryStatuses-edge-cases",
+  "recordedAt": "2026-05-06T11:55:00.000Z",
+  "source": "local-runtime",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "coveredOperations": ["abandonmentUpdateActivitiesDeliveryStatuses", "abandonment"],
+  "notes": "Deterministic local-runtime evidence for abandonment delivery-status edge cases. The public Abandonment object exposes emailState and emailSentAt but not the internal marketing-activity delivery-status membership needed for these validations, so the cassette carries the local deliveryActivities contract used by the proxy hydration path.",
+  "cases": {
+    "forward": {
+      "variables": {
+        "abandonmentId": "gid://shopify/Abandonment/1001",
+        "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+        "deliveryStatus": "DELIVERED",
+        "deliveredAt": "2026-04-27T00:00:00Z",
+        "deliveryStatusChangeReason": "local-runtime forward transition"
+      },
+      "expected": {
+        "data": {
+          "abandonmentUpdateActivitiesDeliveryStatuses": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1001",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "forwardRead": {
+      "expected": {
+        "data": {
+          "abandonment": {
+            "id": "gid://shopify/Abandonment/1001",
+            "emailState": "DELIVERED",
+            "emailSentAt": "2026-04-27T00:00:00Z"
+          }
+        }
+      }
+    },
+    "unknownMarketingActivity": {
+      "variables": {
+        "abandonmentId": "gid://shopify/Abandonment/1002",
+        "marketingActivityId": "gid://shopify/MarketingActivity/9999",
+        "deliveryStatus": "SENDING",
+        "deliveredAt": "2026-04-27T00:00:00Z",
+        "deliveryStatusChangeReason": "local-runtime unknown activity"
+      },
+      "expected": {
+        "data": {
+          "abandonmentUpdateActivitiesDeliveryStatuses": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1002",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z"
+            },
+            "userErrors": [
+              {
+                "field": ["deliveryStatuses", "0", "marketingActivityId"],
+                "message": "invalid",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "backwards": {
+      "variables": {
+        "abandonmentId": "gid://shopify/Abandonment/1003",
+        "marketingActivityId": "gid://shopify/MarketingActivity/2003",
+        "deliveryStatus": "SENDING",
+        "deliveredAt": "2026-04-27T00:00:00Z",
+        "deliveryStatusChangeReason": "local-runtime backwards transition"
+      },
+      "expected": {
+        "data": {
+          "abandonmentUpdateActivitiesDeliveryStatuses": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1003",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z"
+            },
+            "userErrors": [
+              {
+                "field": ["deliveryStatuses", "0", "deliveryStatus"],
+                "message": "invalid_transition",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sameStatus": {
+      "variables": {
+        "abandonmentId": "gid://shopify/Abandonment/1004",
+        "marketingActivityId": "gid://shopify/MarketingActivity/2004",
+        "deliveryStatus": "DELIVERED",
+        "deliveredAt": "2026-04-27T00:00:00Z",
+        "deliveryStatusChangeReason": "local-runtime same status"
+      },
+      "expected": {
+        "data": {
+          "abandonmentUpdateActivitiesDeliveryStatuses": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1004",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "futureDeliveredAt": {
+      "variables": {
+        "abandonmentId": "gid://shopify/Abandonment/1005",
+        "marketingActivityId": "gid://shopify/MarketingActivity/2005",
+        "deliveryStatus": "DELIVERED",
+        "deliveredAt": "2099-01-01T00:00:00Z",
+        "deliveryStatusChangeReason": "local-runtime future deliveredAt"
+      },
+      "expected": {
+        "data": {
+          "abandonmentUpdateActivitiesDeliveryStatuses": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1005",
+              "emailState": "SENDING",
+              "emailSentAt": null
+            },
+            "userErrors": [
+              {
+                "field": ["deliveryStatuses", "0", "deliveredAt"],
+                "message": "invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersAbandonmentDeliveryHydrate",
+      "variables": {
+        "id": "gid://shopify/Abandonment/1001"
+      },
+      "query": "\nquery OrdersAbandonmentDeliveryHydrate($id: ID!) {\n  abandonment(id: $id) {\n    id\n    emailState\n    emailSentAt\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1001",
+              "emailState": "SENDING",
+              "emailSentAt": null,
+              "deliveryActivities": [
+                {
+                  "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+                  "deliveryStatus": "SENDING",
+                  "deliveredAt": null,
+                  "deliveryStatusChangeReason": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersAbandonmentDeliveryHydrate",
+      "variables": {
+        "id": "gid://shopify/Abandonment/1002"
+      },
+      "query": "\nquery OrdersAbandonmentDeliveryHydrate($id: ID!) {\n  abandonment(id: $id) {\n    id\n    emailState\n    emailSentAt\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1002",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z",
+              "deliveryActivities": [
+                {
+                  "marketingActivityId": "gid://shopify/MarketingActivity/2002",
+                  "deliveryStatus": "DELIVERED",
+                  "deliveredAt": "2026-04-27T00:00:00Z",
+                  "deliveryStatusChangeReason": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersAbandonmentDeliveryHydrate",
+      "variables": {
+        "id": "gid://shopify/Abandonment/1003"
+      },
+      "query": "\nquery OrdersAbandonmentDeliveryHydrate($id: ID!) {\n  abandonment(id: $id) {\n    id\n    emailState\n    emailSentAt\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1003",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z",
+              "deliveryActivities": [
+                {
+                  "marketingActivityId": "gid://shopify/MarketingActivity/2003",
+                  "deliveryStatus": "DELIVERED",
+                  "deliveredAt": "2026-04-27T00:00:00Z",
+                  "deliveryStatusChangeReason": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersAbandonmentDeliveryHydrate",
+      "variables": {
+        "id": "gid://shopify/Abandonment/1004"
+      },
+      "query": "\nquery OrdersAbandonmentDeliveryHydrate($id: ID!) {\n  abandonment(id: $id) {\n    id\n    emailState\n    emailSentAt\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1004",
+              "emailState": "DELIVERED",
+              "emailSentAt": "2026-04-27T00:00:00Z",
+              "deliveryActivities": [
+                {
+                  "marketingActivityId": "gid://shopify/MarketingActivity/2004",
+                  "deliveryStatus": "DELIVERED",
+                  "deliveredAt": "2026-04-27T00:00:00Z",
+                  "deliveryStatusChangeReason": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersAbandonmentDeliveryHydrate",
+      "variables": {
+        "id": "gid://shopify/Abandonment/1005"
+      },
+      "query": "\nquery OrdersAbandonmentDeliveryHydrate($id: ID!) {\n  abandonment(id: $id) {\n    id\n    emailState\n    emailSentAt\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "abandonment": {
+              "id": "gid://shopify/Abandonment/1005",
+              "emailState": "SENDING",
+              "emailSentAt": null,
+              "deliveryActivities": [
+                {
+                  "marketingActivityId": "gid://shopify/MarketingActivity/2005",
+                  "deliveryStatus": "SENDING",
+                  "deliveredAt": null,
+                  "deliveryStatusChangeReason": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

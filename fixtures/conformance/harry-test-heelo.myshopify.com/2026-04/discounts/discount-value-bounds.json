@@ -1,0 +1,291 @@
+{
+  "capturedAt": "2026-05-06T03:31:56.861Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [],
+  "cases": {
+    "bounds": {
+      "query": "mutation DiscountValueBounds(\n  $percentageHigh: DiscountCodeBasicInput!\n  $percentageNegative: DiscountCodeBasicInput!\n  $percentageZero: DiscountCodeBasicInput!\n  $amountNegative: DiscountCodeBasicInput!\n  $amountZero: DiscountCodeBasicInput!\n) {\n  percentageHigh: discountCodeBasicCreate(basicCodeDiscount: $percentageHigh) { codeDiscountNode { id } userErrors { field message code extraInfo } }\n  percentageNegative: discountCodeBasicCreate(basicCodeDiscount: $percentageNegative) { codeDiscountNode { id } userErrors { field message code extraInfo } }\n  percentageZero: discountCodeBasicCreate(basicCodeDiscount: $percentageZero) { codeDiscountNode { id } userErrors { field message code extraInfo } }\n  amountNegative: discountCodeBasicCreate(basicCodeDiscount: $amountNegative) { codeDiscountNode { id } userErrors { field message code extraInfo } }\n  amountZero: discountCodeBasicCreate(basicCodeDiscount: $amountZero) { codeDiscountNode { id } userErrors { field message code extraInfo } }\n}",
+      "variables": {
+        "percentageHigh": {
+          "title": "Value Bounds PCTHIGH 1778037966619",
+          "code": "VALUEBOUNDSPCTHIGH1778037966619",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 1.5
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "percentageNegative": {
+          "title": "Value Bounds PCTNEG 1778037966619",
+          "code": "VALUEBOUNDSPCTNEG1778037966619",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": -0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "percentageZero": {
+          "title": "Value Bounds PCTZERO 1778037966619",
+          "code": "VALUEBOUNDSPCTZERO1778037966619",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "amountNegative": {
+          "title": "Value Bounds AMTNEG 1778037966619",
+          "code": "VALUEBOUNDSAMTNEG1778037966619",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "-5",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        },
+        "amountZero": {
+          "title": "Value Bounds AMTZERO 1778037966619",
+          "code": "VALUEBOUNDSAMTZERO1778037966619",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "0",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "percentageHigh": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "customerGets", "value", "percentage"],
+                "message": "Value must be between 0.0 and 1.0",
+                "code": "VALUE_OUTSIDE_RANGE",
+                "extraInfo": null
+              }
+            ]
+          },
+          "percentageNegative": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "customerGets", "value", "percentage"],
+                "message": "Value must be between 0.0 and 1.0",
+                "code": "VALUE_OUTSIDE_RANGE",
+                "extraInfo": null
+              }
+            ]
+          },
+          "percentageZero": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640501150002"
+            },
+            "userErrors": []
+          },
+          "amountNegative": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["basicCodeDiscount", "customerGets", "value", "discountAmount", "amount"],
+                "message": "Value must be less than or equal to 0",
+                "code": "LESS_THAN_OR_EQUAL_TO",
+                "extraInfo": null
+              }
+            ]
+          },
+          "amountZero": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640501182770"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 50,
+            "actualQueryCost": 50,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1950,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonNumeric": {
+      "query": "mutation DiscountValueBoundsNonNumeric($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "variables": {
+        "input": {
+          "title": "Value Bounds NonNumeric 1778037991411",
+          "code": "VALUEBOUNDSNAN1778037991411",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "discountAmount": {
+                "amount": "abc",
+                "appliesOnEachItem": false
+              }
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountCodeBasicInput! was provided invalid value for customerGets.value.discountAmount.amount (invalid decimal 'abc')",
+            "locations": [
+              {
+                "line": 1,
+                "column": 40
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Value Bounds NonNumeric 1778037991411",
+                "code": "VALUEBOUNDSNAN1778037991411",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "discountAmount": {
+                      "amount": "abc",
+                      "appliesOnEachItem": false
+                    }
+                  },
+                  "items": {
+                    "all": true
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerGets", "value", "discountAmount", "amount"],
+                  "explanation": "invalid decimal 'abc'",
+                  "message": "invalid decimal 'abc'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation Cleanup($ids: [ID!]!) { discountCodeBulkDelete(ids: $ids) { job { id done } userErrors { field message code extraInfo } } }",
+    "variables": {
+      "ids": ["gid://shopify/DiscountCodeNode/1640501150002", "gid://shopify/DiscountCodeNode/1640501182770"]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "discountCodeBulkDelete": {
+          "job": {
+            "id": "gid://shopify/Job/204e1f68-1d7c-4587-a07a-948274dab67a",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

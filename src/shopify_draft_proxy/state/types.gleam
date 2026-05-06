@@ -870,8 +870,15 @@ pub type ShopFeaturesRecord {
   )
 }
 
+pub type PaymentGatewayRecord {
+  PaymentGatewayRecord(id: String, name: String, active: Bool)
+}
+
 pub type PaymentSettingsRecord {
-  PaymentSettingsRecord(supported_digital_wallets: List(String))
+  PaymentSettingsRecord(
+    supported_digital_wallets: List(String),
+    payment_gateways: List(PaymentGatewayRecord),
+  )
 }
 
 pub type ShopPolicyRecord {
@@ -1384,6 +1391,7 @@ pub type MarketingRecord {
   MarketingRecord(
     id: String,
     cursor: Option(String),
+    api_client_id: Option(String),
     data: Dict(String, MarketingValue),
   )
 }
@@ -1399,6 +1407,7 @@ pub type MarketingChannelDefinitionRecord {
 pub type MarketingEngagementRecord {
   MarketingEngagementRecord(
     id: String,
+    api_client_id: Option(String),
     marketing_activity_id: Option(String),
     remote_id: Option(String),
     channel_handle: Option(String),

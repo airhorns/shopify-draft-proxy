@@ -1,0 +1,9 @@
+query ScriptTagUpdateReadback {
+  scriptTag(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic") {
+    id
+    src
+    displayScope
+    event
+    cache
+  }
+}

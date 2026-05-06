@@ -1,0 +1,234 @@
+{
+  "scenarioId": "collection-product-membership-job-parity",
+  "operationNames": ["collectionCreate", "collectionAddProductsV2", "collectionRemoveProducts"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "smart-collection-guards",
+    "async-job-readback",
+    "input-cap-validation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-product-membership-job-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collection-product-membership-job-create.graphql",
+    "variablesCapturePath": "$.smartCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for collectionAddProductsV2 and collectionRemoveProducts smart-collection guards, async Job payload/readback, unknown productIds acceptance, and the 250-item productIds cap. Live Admin GraphQL returns top-level MAX_INPUT_SIZE_EXCEEDED for 251 productIds and accepts unknown product IDs asynchronously with an empty userErrors array.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local parity harness allocate collection identifiers independently."
+      },
+      {
+        "path": "$.collectionAddProductsV2.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Shopify and the local parity harness allocate async job identifiers independently."
+      },
+      {
+        "path": "$.collectionRemoveProducts.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Shopify and the local parity harness allocate async job identifiers independently."
+      },
+      {
+        "path": "$.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "The job readback targets the job id allocated by the local parity run."
+      }
+    ],
+    "targets": [
+      {
+        "name": "smart-create",
+        "capturePath": "$.smartCreate.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-add-v2-user-error",
+        "capturePath": "$.smartAddV2.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-add-v2.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "smart-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-remove-user-error",
+        "capturePath": "$.smartRemove.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-remove.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "smart-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "custom-create",
+        "capturePath": "$.customCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-create.graphql",
+          "variablesCapturePath": "$.customCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "unknown-add-v2-accepted-job",
+        "capturePath": "$.unknownAddV2.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-add-v2.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.missingProductId"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "too-many-add-v2-top-level-error",
+        "capturePath": "$.tooManyAddV2.response.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-add-v2.graphql",
+          "variablesCapturePath": "$.tooManyAddV2.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "success-add-v2-job",
+        "capturePath": "$.successAddV2.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-add-v2.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "success-add-v2-job-read",
+        "capturePath": "$.successAddJobRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "success-add-v2-job",
+              "path": "$.data.collectionAddProductsV2.job.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "unknown-remove-accepted-job",
+        "capturePath": "$.unknownRemove.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-remove.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.missingProductId"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "too-many-remove-top-level-error",
+        "capturePath": "$.tooManyRemove.response.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-remove.graphql",
+          "variablesCapturePath": "$.tooManyRemove.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "success-remove-job",
+        "capturePath": "$.successRemove.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-remove.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "success-remove-job-read",
+        "capturePath": "$.successRemoveJobRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-product-membership-job-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "success-remove-job",
+              "path": "$.data.collectionRemoveProducts.job.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

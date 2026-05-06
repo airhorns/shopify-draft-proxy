@@ -39,4 +39,16 @@ mutation ScriptTagCreateValidatesSrc {
       message
     }
   }
+  http: scriptTagCreate(input: { src: "http://example.test/app.js" }) {
+    scriptTag {
+      id
+      src
+      displayScope
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
 }

@@ -1,0 +1,14 @@
+mutation OnlineStoreBlogCommentableUpdate($id: ID!, $blog: BlogUpdateInput!) {
+  blogUpdate(id: $id, blog: $blog) {
+    blog {
+      id
+      title
+      commentPolicy
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

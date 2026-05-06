@@ -1,0 +1,60 @@
+{
+  "scenarioId": "order-create-mandate-payment-idempotency",
+  "operationNames": ["orderCreate", "orderCreateMandatePayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "idempotency", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-payment-create-local-staging.graphql",
+    "variablesCapturePath": "$.mandateFlow.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-mandate-payment",
+        "capturePath": "$.mandateFlow.expected.mandate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order_create_mandate_payment.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": {
+              "amount": "25.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      {
+        "name": "repeat-does-not-duplicate",
+        "capturePath": "$.mandateFlow.expected.repeatMandate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order_create_mandate_payment.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": {
+              "amount": "25.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime mandate payment parity for `(orderId, idempotencyKey)` idempotency. The repeat request returns the original job/reference and keeps the transaction list unchanged."
+}

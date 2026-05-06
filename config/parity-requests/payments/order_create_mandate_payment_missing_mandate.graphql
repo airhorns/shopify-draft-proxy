@@ -1,0 +1,9 @@
+mutation OrderCreateMandatePaymentMissingMandate($id: ID!, $idempotencyKey: String!) {
+  orderCreateMandatePayment(id: $id, idempotencyKey: $idempotencyKey) {
+    paymentReferenceId
+    userErrors {
+      field
+      message
+    }
+  }
+}

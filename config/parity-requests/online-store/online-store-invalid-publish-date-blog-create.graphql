@@ -1,0 +1,14 @@
+mutation OnlineStoreInvalidPublishDateBlogCreate($blog: BlogCreateInput!) {
+  blogCreate(blog: $blog) {
+    blog {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

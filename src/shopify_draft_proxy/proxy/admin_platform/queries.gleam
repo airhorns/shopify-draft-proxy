@@ -202,6 +202,8 @@ fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
   || dict.size(store_in.staged_state.product_options) > 0
   || dict.size(store_in.staged_state.product_metafields) > 0
   || dict.size(store_in.staged_state.collections) > 0
+  || dict.size(store_in.base_state.product_operations) > 0
+  || dict.size(store_in.staged_state.product_operations) > 0
   || dict.size(store_in.staged_state.customers) > 0
   || dict.size(store_in.staged_state.store_property_locations) > 0
   || option.is_some(store_in.base_state.shop)
@@ -531,7 +533,7 @@ fn serialize_query_field(
       serialize_nodes(store, shop_origin, field, fragments, variables),
       [],
     )
-    "job" -> #(serialize_job(field, fragments, variables), [])
+    "job" -> #(serialize_job(store, field, fragments, variables), [])
     "domain" -> #(serialize_domain(store, field, fragments, variables), [])
     "backupRegion" -> {
       let value = case effective_backup_region(store, shop_origin) {
@@ -791,14 +793,23 @@ fn serialize_node_by_id(
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
     "Job" ->
-      case store.get_customer_merge_request(store, id) {
-        Some(_) ->
+      case is_local_product_full_sync_job(store, id) {
+        True ->
           project_graphql_value(
-            job_source(id),
+            job_source(id, False),
             admin_node_selected_fields(selections, "Job", fragments),
             fragments,
           )
-        None -> json.null()
+        False ->
+          case store.get_customer_merge_request(store, id) {
+            Some(_) ->
+              project_graphql_value(
+                job_source(id, True),
+                admin_node_selected_fields(selections, "Job", fragments),
+                fragments,
+              )
+            None -> json.null()
+          }
       }
     "Location" ->
       case store.get_effective_store_property_location_by_id(store, id) {
@@ -874,6 +885,15 @@ fn serialize_node_by_id(
         store,
         id,
         selections,
+        fragments,
+      )
+    "ProductBundleOperation"
+    | "ProductDuplicateOperation"
+    | "ProductSetOperation" ->
+      products.serialize_product_operation_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, gid_resource_type(id), fragments),
         fragments,
       )
     "Metafield" ->
@@ -1050,6 +1070,7 @@ fn gid_resource_type(id: String) -> String {
 }
 
 fn serialize_job(
+  store: Store,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1059,17 +1080,52 @@ fn serialize_job(
     Ok(root_field.StringVal(id)) ->
       case id {
         "" -> json.null()
-        _ -> project_selection(job_source(id), field, fragments)
+        _ ->
+          case
+            store.get_effective_admin_platform_generic_node_by_id(store, id)
+          {
+            Some(record) ->
+              case record.typename {
+                "Job" ->
+                  project_graphql_value(
+                    captured_json_source_with_typename(
+                      record.data,
+                      record.typename,
+                    ),
+                    selection_children(field),
+                    fragments,
+                  )
+                _ ->
+                  project_selection(
+                    job_source(id, !is_local_product_full_sync_job(store, id)),
+                    field,
+                    fragments,
+                  )
+              }
+            None ->
+              project_selection(
+                job_source(id, !is_local_product_full_sync_job(store, id)),
+                field,
+                fragments,
+              )
+          }
       }
     _ -> json.null()
   }
 }
 
-fn job_source(id: String) -> SourceValue {
+fn is_local_product_full_sync_job(store: Store, id: String) -> Bool {
+  list.any(store.get_log(store), fn(entry) {
+    entry.interpreted.primary_root_field == Some("productFullSync")
+    && list.contains(entry.staged_resource_ids, id)
+  })
+}
+
+fn job_source(id: String, done: Bool) -> SourceValue {
   src_object([
     #("__typename", SrcString("Job")),
     #("id", SrcString(id)),
-    #("done", SrcBool(True)),
+    #("done", SrcBool(done)),
     #("query", src_object([#("__typename", SrcString("QueryRoot"))])),
   ])
 }

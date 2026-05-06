@@ -1,0 +1,288 @@
+{
+  "scenarioId": "inventory-shipment-validation-local-runtime",
+  "operationNames": [
+    "inventoryTransferCreateAsReadyToShip",
+    "inventoryTransferCancel",
+    "inventoryShipmentCreate",
+    "inventoryShipmentAddItems",
+    "inventoryShipmentUpdateItemQuantities",
+    "inventoryShipmentReceive"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "transfer-membership-validation",
+    "inventory-shipment-state-machine",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/inventory-shipment-validation-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-transfer-create-ready.graphql",
+    "variablesCapturePath": "$.workflow.createReadyTransfer.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-ready-transfer",
+        "capturePath": "$.workflow.createReadyTransfer.response.payload.data.inventoryTransferCreateAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferCreateAsReadyToShip",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy generates stable session-local transfer IDs."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "The local proxy generates stable session-local transfer line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "unknown-transfer",
+        "capturePath": "$.workflow.unknownTransfer.response.payload.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-validation.graphql",
+          "variables": {
+            "input": {
+              "transferId": "gid://shopify/InventoryTransfer/missing",
+              "lineItems": [
+                {
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 1
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "line-item-not-member",
+        "capturePath": "$.workflow.lineItemNotMember.response.payload.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-validation.graphql",
+          "variables": {
+            "input": {
+              "transferId": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "lineItems": [
+                {
+                  "inventoryTransferLineItemId": "gid://shopify/InventoryTransferLineItem/not-member",
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 1
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "quantity-exceeds-remaining",
+        "capturePath": "$.workflow.quantityExceedsRemaining.response.payload.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-validation.graphql",
+          "variables": {
+            "input": {
+              "transferId": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "lineItems": [
+                {
+                  "inventoryTransferLineItemId": {
+                    "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+                  },
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 3
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "tracking-invalid",
+        "capturePath": "$.workflow.trackingInvalid.response.payload.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-validation.graphql",
+          "variables": {
+            "input": {
+              "transferId": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "trackingInput": {
+                "carrier": "BAD_CARRIER",
+                "url": "not-a-url"
+              },
+              "lineItems": [
+                {
+                  "inventoryTransferLineItemId": {
+                    "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+                  },
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 1
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "create-draft-shipment",
+        "capturePath": "$.workflow.createDraftShipment.response.payload.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-validation.graphql",
+          "variables": {
+            "input": {
+              "transferId": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "lineItems": [
+                {
+                  "inventoryTransferLineItemId": {
+                    "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+                  },
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 1
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryShipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The local proxy generates stable session-local shipment IDs."
+          },
+          {
+            "path": "$.inventoryShipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The local proxy generates stable session-local shipment line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "add-items-exceeds-remaining",
+        "capturePath": "$.workflow.addItemsExceedsRemaining.response.payload.data.inventoryShipmentAddItems",
+        "proxyPath": "$.data.inventoryShipmentAddItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-add-items-validation.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-draft-shipment",
+              "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+            },
+            "lineItems": [
+              {
+                "inventoryTransferLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+                },
+                "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                "quantity": 2
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "update-quantity-exceeds-remaining",
+        "capturePath": "$.workflow.updateQuantityExceedsRemaining.response.payload.data.inventoryShipmentUpdateItemQuantities",
+        "proxyPath": "$.data.inventoryShipmentUpdateItemQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-update-quantities.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-draft-shipment",
+              "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+            },
+            "items": [
+              {
+                "shipmentLineItemId": {
+                  "fromProxyResponse": "create-draft-shipment",
+                  "path": "$.data.inventoryShipmentCreate.inventoryShipment.lineItems.nodes[0].id"
+                },
+                "quantity": 3
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "receive-draft-shipment",
+        "capturePath": "$.workflow.receiveDraftShipment.response.payload.data.inventoryShipmentReceive",
+        "proxyPath": "$.data.inventoryShipmentReceive",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-receive.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-draft-shipment",
+              "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+            },
+            "lineItems": [
+              {
+                "shipmentLineItemId": {
+                  "fromProxyResponse": "create-draft-shipment",
+                  "path": "$.data.inventoryShipmentCreate.inventoryShipment.lineItems.nodes[0].id"
+                },
+                "quantity": 1,
+                "reason": "ACCEPTED"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "cancel-transfer",
+        "capturePath": "$.workflow.cancelTransfer.response.payload.data.inventoryTransferCancel",
+        "proxyPath": "$.data.inventoryTransferCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-cancel.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "create-against-canceled-transfer",
+        "capturePath": "$.workflow.createAgainstCanceledTransfer.response.payload.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-validation.graphql",
+          "variables": {
+            "input": {
+              "transferId": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "lineItems": [
+                {
+                  "inventoryTransferLineItemId": {
+                    "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+                  },
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 1
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for inventory shipment validation guardrails. The scenario earns local transfer state through replayed inventory transfer mutations, then proves unknown transfer, transfer-line membership, remaining quantity, tracking validation, add/update remaining-quantity checks, receive source-state validation, and disallowed transfer state without runtime Shopify shipment writes. Direct live shipment recording remains blocked by the documented missing read_inventory_shipments/write_inventory_shipments conformance scopes; received transfer state remains covered by focused runtime fixtures because no supported transfer mutation currently earns RECEIVED state inside generic parity replay."
+}
