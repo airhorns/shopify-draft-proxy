@@ -15,6 +15,7 @@ import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
   type InventoryQuantityRecord, type InventoryTransferRecord,
   type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
   type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
   CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
