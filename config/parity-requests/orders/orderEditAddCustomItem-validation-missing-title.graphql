@@ -1,0 +1,11 @@
+mutation OrderEditAddCustomItemMissingTitle($id: ID!, $quantity: Int!, $price: MoneyInput!) {
+  orderEditAddCustomItem(id: $id, quantity: $quantity, price: $price) {
+    calculatedLineItem {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

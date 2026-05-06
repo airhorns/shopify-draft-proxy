@@ -1,0 +1,44 @@
+mutation OrderEditAddCustomItemValidationCase($id: ID!, $title: String!, $quantity: Int!, $price: MoneyInput!) {
+  orderEditAddCustomItem(id: $id, title: $title, quantity: $quantity, price: $price) {
+    calculatedOrder {
+      id
+      subtotalLineItemsQuantity
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      title
+      quantity
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      discountedUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    orderEditSession {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
