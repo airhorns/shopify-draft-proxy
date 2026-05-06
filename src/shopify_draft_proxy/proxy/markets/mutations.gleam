@@ -881,12 +881,12 @@ fn handle_price_list_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let errors = price_list_input_errors(input, None)
+  let errors = price_list_input_errors(store, input, None)
   case errors {
     [] -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "PriceList")
-      let data = price_list_data(id, input, None)
+      let data = price_list_data(store, id, input, None)
       let #(_, next_store) =
         store.upsert_staged_price_list(
           store,
@@ -936,10 +936,11 @@ fn handle_price_list_update(
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
         Some(existing) -> {
-          let errors = price_list_input_errors(input, Some(existing.data))
+          let errors =
+            price_list_input_errors(store, input, Some(existing.data))
           case errors {
             [] -> {
-              let data = price_list_data(id, input, Some(existing.data))
+              let data = price_list_data(store, id, input, Some(existing.data))
               let #(_, next_store) =
                 store.upsert_staged_price_list(
                   store,
