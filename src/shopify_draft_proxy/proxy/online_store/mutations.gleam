@@ -721,30 +721,32 @@ fn delete_content(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
-  _kind: String,
+  kind: String,
   deleted_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id =
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
-  let #(deleted, errors, store) = case id {
+  let #(deleted, errors, store, staged_ids) = case id {
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
-        Some(_) -> #(
-          SrcString(id),
-          [],
-          store.delete_staged_online_store_content(outcome.store, id),
-        )
+        Some(_) -> {
+          let #(store, staged_ids) =
+            cascade_delete_content(outcome.store, kind, id)
+          #(SrcString(id), [], store, staged_ids)
+        }
         None -> #(
           SrcNull,
           [serializers.user_error(["id"], "Content does not exist")],
           outcome.store,
+          [],
         )
       }
     None -> #(
       SrcNull,
       [serializers.user_error(["id"], "Content does not exist")],
       outcome.store,
+      [],
     )
   }
   let payload =
@@ -765,11 +767,49 @@ fn delete_content(
       outcome.identity,
       root,
       case errors {
-        [] -> serializers.option_list(id)
+        [] -> staged_ids
         _ -> []
       },
     ),
   )
+}
+
+fn cascade_delete_content(
+  store_in: Store,
+  kind: String,
+  id: String,
+) -> #(Store, List(String)) {
+  let article_ids = case kind {
+    "blog" -> child_content_ids(store_in, "article", [id])
+    "article" -> [id]
+    _ -> []
+  }
+  let comment_ids = child_content_ids(store_in, "comment", article_ids)
+  let staged_ids = case kind {
+    "blog" -> [id, ..list.append(article_ids, comment_ids)]
+    "article" -> [id, ..comment_ids]
+    _ -> [id]
+  }
+  let next_store =
+    list.fold(staged_ids, store_in, fn(current_store, staged_id) {
+      store.delete_staged_online_store_content(current_store, staged_id)
+    })
+  #(next_store, staged_ids)
+}
+
+fn child_content_ids(
+  store_in: Store,
+  kind: String,
+  parent_ids: List(String),
+) -> List(String) {
+  store.list_effective_online_store_content(store_in, kind)
+  |> list.filter(fn(record) {
+    case record.parent_id {
+      Some(parent_id) -> list.contains(parent_ids, parent_id)
+      None -> False
+    }
+  })
+  |> list.map(fn(record) { record.id })
 }
 
 fn moderate_comment(

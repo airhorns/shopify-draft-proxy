@@ -44,6 +44,37 @@ fn proxy_with_comment(status: String) -> DraftProxy {
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
+fn comment_record(
+  id: String,
+  article_id: String,
+) -> types.OnlineStoreContentRecord {
+  types.OnlineStoreContentRecord(
+    id: id,
+    kind: "comment",
+    cursor: None,
+    parent_id: Some(article_id),
+    created_at: Some("2026-05-05T00:00:00.000Z"),
+    updated_at: Some("2026-05-05T00:00:00.000Z"),
+    data: types.CapturedObject([
+      #("__typename", types.CapturedString("Comment")),
+      #("id", types.CapturedString(id)),
+      #("status", types.CapturedString("PUBLISHED")),
+      #("isPublished", types.CapturedBool(True)),
+      #("body", types.CapturedString("Cascade fixture")),
+      #("bodyHtml", types.CapturedString("<p>Cascade fixture</p>")),
+    ]),
+  )
+}
+
+fn with_comments(
+  proxy: DraftProxy,
+  comments: List(types.OnlineStoreContentRecord),
+) -> DraftProxy {
+  let seeded_store =
+    store.upsert_base_online_store_content(proxy.store, comments)
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
 fn graphql_request(query: String) -> Request {
   Request(
     method: "POST",
@@ -134,6 +165,109 @@ pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test(
     )
   assert body
     == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"delete\":{\"deletedCommentId\":\"gid://shopify/Comment/har-587\",\"userErrors\":[]}}}"
+}
+
+pub fn blog_delete_cascades_articles_and_comments_test() {
+  let #(created_blog, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { blogCreate(blog: { title: \"Cascade Blog\" }) { blog { id } userErrors { field message code } } }",
+    )
+  assert created_blog
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let #(created_article_one, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleCreate(article: { title: \"Cascade One\", body: \"<p>One</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Cascade Author\" } }) { article { id } userErrors { field message code } } }",
+    )
+  assert created_article_one
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let #(created_article_two, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleCreate(article: { title: \"Cascade Two\", body: \"<p>Two</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Cascade Author\" } }) { article { id } userErrors { field message code } } }",
+    )
+  assert created_article_two
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/5?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let proxy =
+    with_comments(proxy, [
+      comment_record(
+        "gid://shopify/Comment/cascade-blog-1",
+        "gid://shopify/Article/3?shopify-draft-proxy=synthetic",
+      ),
+      comment_record(
+        "gid://shopify/Comment/cascade-blog-2",
+        "gid://shopify/Article/5?shopify-draft-proxy=synthetic",
+      ),
+    ])
+
+  let #(deleted, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { blogDelete(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { deletedBlogId userErrors { field message code } } }",
+    )
+  assert deleted
+    == "{\"data\":{\"blogDelete\":{\"deletedBlogId\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+
+  let #(read_after_delete, _) =
+    run_graphql(
+      proxy,
+      "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id } articleOne: article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id } articleTwo: article(id: \"gid://shopify/Article/5?shopify-draft-proxy=synthetic\") { id } commentOne: comment(id: \"gid://shopify/Comment/cascade-blog-1\") { id } commentTwo: comment(id: \"gid://shopify/Comment/cascade-blog-2\") { id } comments(first: 10) { nodes { id } } }",
+    )
+  assert read_after_delete
+    == "{\"data\":{\"blog\":null,\"articleOne\":null,\"articleTwo\":null,\"commentOne\":null,\"commentTwo\":null,\"comments\":{\"nodes\":[]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+  assert store.list_effective_online_store_content(proxy.store, "comment")
+    |> list.length
+    == 0
+}
+
+pub fn article_delete_cascades_comments_test() {
+  let #(_, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { blogCreate(blog: { title: \"Article Cascade Blog\" }) { blog { id } userErrors { field message code } } }",
+    )
+  let #(_, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleCreate(article: { title: \"Article Cascade\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Cascade Author\" } }) { article { id } userErrors { field message code } } }",
+    )
+  let proxy =
+    with_comments(proxy, [
+      comment_record(
+        "gid://shopify/Comment/cascade-article-1",
+        "gid://shopify/Article/3?shopify-draft-proxy=synthetic",
+      ),
+      comment_record(
+        "gid://shopify/Comment/cascade-article-2",
+        "gid://shopify/Article/3?shopify-draft-proxy=synthetic",
+      ),
+    ])
+
+  let #(deleted, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleDelete(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { deletedArticleId userErrors { field message code } } }",
+    )
+  assert deleted
+    == "{\"data\":{\"articleDelete\":{\"deletedArticleId\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+
+  let #(read_after_delete, _) =
+    run_graphql(
+      proxy,
+      "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id } blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { articles(first: 10) { nodes { id } } } commentOne: comment(id: \"gid://shopify/Comment/cascade-article-1\") { id } commentTwo: comment(id: \"gid://shopify/Comment/cascade-article-2\") { id } comments(first: 10) { nodes { id } } }",
+    )
+  assert read_after_delete
+    == "{\"data\":{\"article\":null,\"blog\":{\"articles\":{\"nodes\":[]}},\"commentOne\":null,\"commentTwo\":null,\"comments\":{\"nodes\":[]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "comment")
+    |> list.length
+    == 0
 }
 
 fn read_state(proxy: DraftProxy) -> String {
