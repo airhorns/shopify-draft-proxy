@@ -296,8 +296,6 @@ fn variables_to_json(
   )
 }
 
-const price_list_fixed_prices_by_product_preflight_query: String = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }"
-
 const placeholder_preflight_query: String = "query MarketsMutationPreflightHydrate { __typename }"
 
 fn mutation_preflight_request(
@@ -306,14 +304,21 @@ fn mutation_preflight_request(
 ) -> #(String, Json) {
   case has_root_field(fields, "priceListFixedPricesByProductUpdate") {
     True -> #(
-      price_list_fixed_prices_by_product_preflight_query,
-      price_list_fixed_prices_by_product_preflight_variables(variables),
+      product_fixed_prices_preflight_query,
+      product_fixed_prices_preflight_variables(variables),
     )
-    False -> #(placeholder_preflight_query, variables_to_json(variables))
+    False ->
+      case mutation_needs_price_list_preflight(fields) {
+        True -> #(
+          price_list_mutation_preflight_query,
+          variables_to_json(variables),
+        )
+        False -> #(placeholder_preflight_query, variables_to_json(variables))
+      }
   }
 }
 
-fn price_list_fixed_prices_by_product_preflight_variables(
+fn product_fixed_prices_preflight_variables(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   json.object([
@@ -327,15 +332,12 @@ fn price_list_fixed_prices_by_product_preflight_variables(
     }),
     #(
       "productIds",
-      json.array(
-        price_list_fixed_prices_by_product_preflight_product_ids(variables),
-        json.string,
-      ),
+      json.array(product_fixed_prices_product_ids(variables), json.string),
     ),
   ])
 }
 
-fn price_list_fixed_prices_by_product_preflight_product_ids(
+fn product_fixed_prices_product_ids(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(String) {
   let add_ids = case dict.get(variables, "pricesToAdd") {
@@ -387,6 +389,16 @@ fn dedupe_strings(values: List(String)) -> List(String) {
   })
 }
 
+fn has_root_field(fields: List(Selection), root_name: String) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) -> name.value == root_name
+      _ -> False
+    }
+  })
+}
+
 fn fetch_error_message(error: upstream_query.FetchError) -> String {
   case error {
     upstream_query.TransportFailed(message) -> message
@@ -430,11 +442,74 @@ pub fn hydrate_mutation_preconditions(
   }
 }
 
-fn has_root_field(fields: List(Selection), root_name: String) -> Bool {
+const product_fixed_prices_preflight_query: String = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }"
+
+const price_list_mutation_preflight_query: String = "
+query MarketsMutationPreflightHydrate($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    quantityRules(first: 20) {
+      edges {
+        cursor
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant { id }
+        }
+      }
+    }
+    prices(first: 20) {
+      edges {
+        cursor
+        node {
+          price { amount currencyCode }
+          compareAtPrice { amount currencyCode }
+          originType
+          variant { id sku product { id title } }
+          quantityPriceBreaks(first: 20) {
+            edges {
+              cursor
+              node {
+                minimumQuantity
+                price { amount currencyCode }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  products(first: 10) {
+    nodes {
+      id
+      title
+      variants(first: 20) {
+        nodes { id title sku }
+      }
+    }
+  }
+}
+"
+
+fn mutation_needs_price_list_preflight(fields: List(Selection)) -> Bool {
   fields
   |> list.any(fn(selection) {
     case selection {
-      Field(name: name, ..) -> name.value == root_name
+      Field(name: name, ..) ->
+        case name.value {
+          "priceListFixedPricesByProductUpdate"
+          | "quantityPricingByVariantUpdate"
+          | "quantityRulesAdd"
+          | "quantityRulesDelete" -> True
+          _ -> False
+        }
       _ -> False
     }
   })

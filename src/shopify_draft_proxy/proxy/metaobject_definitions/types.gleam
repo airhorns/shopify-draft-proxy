@@ -638,6 +638,28 @@ pub fn apply_definition_update(
   reset_field_order: Bool,
   requesting_api_client_id: Option(String),
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
+  case build_unrecoverable_definition_update_user_errors(existing) {
+    [_, ..] as user_errors -> #(existing, identity, user_errors)
+    [] ->
+      apply_mutable_definition_update(
+        store,
+        identity,
+        existing,
+        input,
+        reset_field_order,
+        requesting_api_client_id,
+      )
+  }
+}
+
+fn apply_mutable_definition_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  reset_field_order: Bool,
+  requesting_api_client_id: Option(String),
+) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
   let #(now, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity)
   let #(fields, user_errors, ordered_keys) =
@@ -706,6 +728,54 @@ pub fn apply_definition_update(
         list.map(next_fields, fn(field) { field.key }),
       ),
     ]),
+  )
+}
+
+@internal
+pub fn build_unrecoverable_definition_update_user_errors(
+  existing: MetaobjectDefinitionRecord,
+) -> List(UserError) {
+  case is_standard_or_shopify_reserved_definition(existing) {
+    True -> [standard_definition_immutable_user_error()]
+    False -> []
+  }
+}
+
+@internal
+pub fn is_standard_or_shopify_reserved_definition(
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  is_standard_template_definition(definition)
+  || is_shopify_reserved_definition_type(definition.type_)
+}
+
+@internal
+pub fn is_standard_template_definition(
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  case definition.standard_template {
+    Some(_) -> True
+    None ->
+      case standard_template(definition.type_) {
+        Some(_) -> True
+        None -> False
+      }
+  }
+}
+
+@internal
+pub fn is_shopify_reserved_definition_type(type_: String) -> Bool {
+  string.starts_with(string.lowercase(type_), "shopify--")
+}
+
+@internal
+pub fn standard_definition_immutable_user_error() -> UserError {
+  UserError(
+    Some(["definition"]),
+    "Standard metaobject definitions can't be updated",
+    "IMMUTABLE",
+    None,
+    None,
   )
 }
 

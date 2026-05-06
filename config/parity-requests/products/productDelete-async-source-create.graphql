@@ -1,0 +1,14 @@
+mutation ProductDeleteAsyncSourceCreate($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

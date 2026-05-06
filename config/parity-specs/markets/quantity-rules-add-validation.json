@@ -1,0 +1,77 @@
+{
+  "scenarioId": "quantity-rules-add-validation",
+  "operationNames": ["quantityRulesAdd"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/quantity-rules-add-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify Admin GraphQL 2026-04 validation capture for quantityRulesAdd numeric bounds, range, divisibility, and duplicate variant inputs. The scenario uses an existing disposable conformance price list and product variant; every captured mutation rejects before staging a quantity rule.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "minimum-too-low",
+        "capturePath": "$.cases[0].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd"
+      },
+      {
+        "name": "increment-too-low",
+        "capturePath": "$.cases[1].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      },
+      {
+        "name": "minimum-greater-than-maximum",
+        "capturePath": "$.cases[2].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[2].variables"
+        }
+      },
+      {
+        "name": "minimum-not-multiple-of-increment",
+        "capturePath": "$.cases[3].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[3].variables"
+        }
+      },
+      {
+        "name": "maximum-not-multiple-of-increment",
+        "capturePath": "$.cases[4].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[4].variables"
+        }
+      },
+      {
+        "name": "duplicate-variant-id",
+        "capturePath": "$.cases[5].response.payload.data.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[5].variables"
+        }
+      }
+    ]
+  }
+}

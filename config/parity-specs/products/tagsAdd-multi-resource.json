@@ -1,0 +1,117 @@
+{
+  "scenarioId": "tags-add-multi-resource",
+  "operationNames": ["tagsAdd", "tagsRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-multi-resource.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+    "variablesCapturePath": "$.cases.productAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture covers the polymorphic Admin `tagsAdd`/`tagsRemove` resource set currently modeled locally: Product, Order, Customer, Article, and DraftOrder. Proxy replay hydrates existing resources through cassette-backed reads and stages the supported mutations locally without forwarding them to Shopify.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-add",
+        "capturePath": "$.cases.productAdd.response.data.tagsAdd",
+        "proxyPath": "$.data.tagsAdd"
+      },
+      {
+        "name": "order-add",
+        "capturePath": "$.cases.orderAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.cases.orderAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd"
+      },
+      {
+        "name": "customer-add",
+        "capturePath": "$.cases.customerAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.cases.customerAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd"
+      },
+      {
+        "name": "article-add",
+        "capturePath": "$.cases.articleAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.cases.articleAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd"
+      },
+      {
+        "name": "draft-order-remove",
+        "capturePath": "$.cases.draftOrderRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.cases.draftOrderRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove"
+      },
+      {
+        "name": "downstream-product-read",
+        "capturePath": "$.downstreamRead.response.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource-read-product.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "proxyPath": "$.data.product"
+      },
+      {
+        "name": "downstream-order-read",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource-read-order.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "proxyPath": "$.data.order"
+      },
+      {
+        "name": "downstream-customer-read",
+        "capturePath": "$.downstreamRead.response.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource-read-customer.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "proxyPath": "$.data.customer"
+      },
+      {
+        "name": "downstream-draft-order-read",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource-read-draft-order.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "proxyPath": "$.data.draftOrder"
+      },
+      {
+        "name": "downstream-article-read",
+        "capturePath": "$.downstreamRead.response.data.article",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource-read-article.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "proxyPath": "$.data.article"
+      },
+      {
+        "name": "unsupported-add",
+        "capturePath": "$.cases.unsupportedAdd.response",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.cases.unsupportedAdd.variables"
+        },
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"]
+      }
+    ]
+  }
+}
