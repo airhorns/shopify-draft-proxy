@@ -510,10 +510,23 @@ pub fn product_operation_source(
   store: Store,
   operation: ProductOperationRecord,
 ) -> SourceValue {
+  let status = case operation.type_name, operation.status {
+    "ProductDeleteOperation", "CREATED" -> "COMPLETE"
+    "ProductDeleteOperation", "RUNNING" -> "COMPLETE"
+    _, status -> status
+  }
   src_object([
     #("__typename", SrcString(operation.type_name)),
     #("id", SrcString(operation.id)),
-    #("status", SrcString(operation.status)),
+    #("status", SrcString(status)),
+    #("deletedProductId", case operation.type_name, status {
+      "ProductDeleteOperation", "COMPLETE" ->
+        case operation.product_id {
+          Some(product_id) -> SrcString(product_id)
+          None -> SrcNull
+        }
+      _, _ -> SrcNull
+    }),
     #("product", case operation.product_id {
       Some(product_id) ->
         case store.get_effective_product_by_id(store, product_id) {

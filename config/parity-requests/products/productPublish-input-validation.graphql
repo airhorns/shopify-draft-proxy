@@ -1,0 +1,11 @@
+mutation ProductPublishInputValidation($input: ProductPublishInput!) {
+  productPublish(input: $input) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

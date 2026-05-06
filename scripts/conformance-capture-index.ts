@@ -531,6 +531,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-publish-input-validation',
+    scriptPath: 'scripts/capture-product-publish-input-validation-conformance.ts',
+    purpose:
+      'productPublish ProductPublicationInput validation for omitted lists, empty lists, and unknown publication/channel targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productPublish-input-validation.json`,
+      'config/parity-specs/products/productPublish-input-validation.json',
+      'config/parity-requests/products/productPublish-input-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, records validation branches, captures a hydration cassette while the product exists, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-media-mutations',
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',
     purpose: 'Product media create/update/delete validation and downstream read branches.',
@@ -931,6 +947,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/productDuplicate-async-*.json',
     ],
     cleanupBehavior: 'Creates disposable source/duplicate products and deletes both after operation completion.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-delete-async',
+    scriptPath: 'scripts/capture-product-delete-async-conformance.ts',
+    purpose: 'Asynchronous productDelete operation payload, duplicate pending-operation guard, and helper reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-delete-async-operation.json`,
+      'config/parity-specs/products/productDelete-async-operation.json',
+      'config/parity-requests/products/productDelete-async-*.graphql',
+      'config/parity-requests/products/productDelete-operation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enqueues async deletion, captures immediate reads, then waits for Shopify to delete it or falls back to best-effort synchronous delete.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1713,6 +1745,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Validation-only mutations reject before changing market state; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'price-list-fixed-prices-by-product-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-fixed-prices-by-product-update-validation-conformance.ts',
+    purpose:
+      'priceListFixedPricesByProductUpdate validation branches for no-op input, currency mismatch, duplicate product IDs, and add/delete mutual exclusivity.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-fixed-prices-by-product-update-validation.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-by-product-update-validation.json',
+      'config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only mutations reject before changing price-list fixed prices; no setup or cleanup records are created.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3262,6 +3311,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates and fulfills a disposable order, records return/reverse-logistics lifecycle evidence, then cancels the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'return-status-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
+    purpose:
+      'returnClose, returnReopen, and returnCancel status-machine preconditions, idempotent no-op branches, and processed-return cancel rejection.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
+      'config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json',
+      'config/parity-requests/orders/return-*-state-precondition.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills disposable orders for requested, open/closed, cancelable, declined, and processed return states, records status precondition behavior, then cancels the orders.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

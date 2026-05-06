@@ -888,6 +888,7 @@ fn serialize_node_by_id(
         fragments,
       )
     "ProductBundleOperation"
+    | "ProductDeleteOperation"
     | "ProductDuplicateOperation"
     | "ProductSetOperation" ->
       products.serialize_product_operation_node_by_id(
