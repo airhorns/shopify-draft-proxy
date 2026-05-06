@@ -10,15 +10,17 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type MarketRecord, type PriceListRecord, type ProductMetafieldRecord,
-  type ProductRecord, type ProductVariantRecord, type ShopRecord, CapturedArray,
-  CapturedBool, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  type CatalogRecord, type MarketRecord, type PriceListRecord,
+  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
+  type PublicationRecord, type ShopRecord, CapturedArray, CapturedBool,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
   MarketLocalizableContentRecord, MarketRecord, PaymentSettingsRecord,
   PriceListRecord, ProductMetafieldRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 
 fn graphql(query: String) {
@@ -1039,6 +1041,112 @@ pub fn catalog_create_stages_market_context_test() {
   )
 }
 
+pub fn catalog_create_rejects_unknown_price_list_id_test() {
+  let #(Response(status: market_status, body: market_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, priceListId: \"gid://shopify/PriceList/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_create_rejects_taken_price_list_id_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Second Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, priceListId: \"gid://shopify/PriceList/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
+pub fn catalog_create_rejects_unknown_publication_id_test() {
+  let #(Response(status: market_status, body: market_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, publicationId: \"gid://shopify/Publication/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication not found.\",\"code\":\"PUBLICATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_create_rejects_taken_publication_id_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Second Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, publicationId: \"gid://shopify/Publication/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication is already attached to another catalog\",\"code\":\"PUBLICATION_TAKEN\"}]}}}"
+}
+
+pub fn catalog_update_rejects_unknown_attached_ids_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: price_status, body: price_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { priceListId: \"gid://shopify/PriceList/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: publication_status, body: publication_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { publicationId: \"gid://shopify/Publication/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert price_status == 200
+  assert json.to_string(price_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]}}}"
+  assert publication_status == 200
+  assert json.to_string(publication_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication not found.\",\"code\":\"PUBLICATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_update_rejects_taken_attached_ids_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: price_status, body: price_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { priceListId: \"gid://shopify/PriceList/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: publication_status, body: publication_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { publicationId: \"gid://shopify/Publication/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert price_status == 200
+  assert json.to_string(price_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list has already been taken\",\"code\":\"TAKEN\"}]}}}"
+  assert publication_status == 200
+  assert json.to_string(publication_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication is already attached to another catalog\",\"code\":\"PUBLICATION_TAKEN\"}]}}}"
+}
+
 pub fn catalog_context_update_requires_add_or_remove_contexts_test() {
   let #(Response(status: _, body: _, ..), proxy) =
     graphql(
@@ -1047,7 +1155,7 @@ pub fn catalog_context_update_requires_add_or_remove_contexts_test() {
   let #(Response(status: _, body: _, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
     )
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
@@ -1073,7 +1181,7 @@ pub fn catalog_context_update_removes_market_contexts_test() {
   let #(Response(status: _, body: _, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { catalogCreate(input: { title: \"Global Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\", \"gid://shopify/Market/3\"] } }) { catalog { id } userErrors { field message code } } }",
+      "mutation { catalogCreate(input: { title: \"Global Catalog\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/1\", \"gid://shopify/Market/3\"] } }) { catalog { id } userErrors { field message code } } }",
     )
   let #(Response(status: status, body: body, ..), proxy) =
     graphql_with_proxy(
@@ -1102,7 +1210,7 @@ pub fn catalog_context_update_validates_missing_market_context_ids_test() {
   let #(Response(status: _, body: _, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
     )
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
@@ -1128,12 +1236,12 @@ pub fn catalog_context_update_allows_market_already_on_another_market_catalog_te
   let #(Response(status: _, body: _, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
     )
   let #(Response(status: _, body: _, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { catalogCreate(input: { title: \"NA Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/3\"] } }) { catalog { id } userErrors { field message code } } }",
+      "mutation { catalogCreate(input: { title: \"NA Catalog\", status: ACTIVE, context: { marketIds: [\"gid://shopify/Market/3\"] } }) { catalog { id } userErrors { field message code } } }",
     )
   let #(Response(status: status, body: body, ..), proxy) =
     graphql_with_proxy(
@@ -1163,4 +1271,128 @@ pub fn catalog_context_update_unknown_catalog_returns_typed_user_error_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"catalogId\"],\"message\":\"Catalog does not exist\",\"code\":\"CATALOG_NOT_FOUND\"}]}}}"
+}
+
+fn catalog_relation_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_markets([catalog_relation_market()])
+    |> store.upsert_base_price_lists([catalog_relation_price_list()])
+    |> store.upsert_base_publications([catalog_relation_publication()])
+    |> store.upsert_base_catalogs([
+      catalog_with_relations("gid://shopify/MarketCatalog/1"),
+      catalog_without_relations("gid://shopify/MarketCatalog/2"),
+    ])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn catalog_relation_market() -> MarketRecord {
+  MarketRecord(
+    id: "gid://shopify/Market/1",
+    cursor: Some("gid://shopify/Market/1"),
+    data: CapturedObject([
+      #("__typename", CapturedString("Market")),
+      #("id", CapturedString("gid://shopify/Market/1")),
+      #("name", CapturedString("Europe")),
+    ]),
+  )
+}
+
+fn catalog_relation_price_list() -> PriceListRecord {
+  PriceListRecord(
+    id: "gid://shopify/PriceList/1",
+    cursor: Some("gid://shopify/PriceList/1"),
+    data: CapturedObject([
+      #("__typename", CapturedString("PriceList")),
+      #("id", CapturedString("gid://shopify/PriceList/1")),
+      #("name", CapturedString("EU Prices")),
+      #("currency", CapturedString("EUR")),
+    ]),
+  )
+}
+
+fn catalog_relation_publication() -> PublicationRecord {
+  PublicationRecord(
+    id: "gid://shopify/Publication/1",
+    name: Some("Online Store"),
+    auto_publish: Some(False),
+    supports_future_publishing: Some(False),
+    catalog_id: None,
+    channel_id: None,
+    cursor: Some("gid://shopify/Publication/1"),
+  )
+}
+
+fn catalog_with_relations(id: String) -> CatalogRecord {
+  CatalogRecord(
+    id: id,
+    cursor: Some(id),
+    data: CapturedObject([
+      #("__typename", CapturedString("MarketCatalog")),
+      #("id", CapturedString(id)),
+      #("title", CapturedString("First Catalog")),
+      #("status", CapturedString("ACTIVE")),
+      #("markets", catalog_relation_markets()),
+      #("operations", CapturedArray([])),
+      #("priceList", catalog_relation_price_list_node()),
+      #("publication", catalog_relation_publication_node()),
+    ]),
+  )
+}
+
+fn catalog_without_relations(id: String) -> CatalogRecord {
+  CatalogRecord(
+    id: id,
+    cursor: Some(id),
+    data: CapturedObject([
+      #("__typename", CapturedString("MarketCatalog")),
+      #("id", CapturedString(id)),
+      #("title", CapturedString("Second Catalog")),
+      #("status", CapturedString("ACTIVE")),
+      #("markets", catalog_relation_markets()),
+      #("operations", CapturedArray([])),
+      #("priceList", CapturedNull),
+      #("publication", CapturedNull),
+    ]),
+  )
+}
+
+fn catalog_relation_markets() {
+  CapturedObject([
+    #(
+      "nodes",
+      CapturedArray([
+        CapturedObject([
+          #("__typename", CapturedString("Market")),
+          #("id", CapturedString("gid://shopify/Market/1")),
+          #("name", CapturedString("Europe")),
+        ]),
+      ]),
+    ),
+    #("edges", CapturedArray([])),
+    #(
+      "pageInfo",
+      CapturedObject([
+        #("hasNextPage", CapturedBool(False)),
+        #("hasPreviousPage", CapturedBool(False)),
+        #("startCursor", CapturedNull),
+        #("endCursor", CapturedNull),
+      ]),
+    ),
+  ])
+}
+
+fn catalog_relation_price_list_node() {
+  CapturedObject([
+    #("__typename", CapturedString("PriceList")),
+    #("id", CapturedString("gid://shopify/PriceList/1")),
+  ])
+}
+
+fn catalog_relation_publication_node() {
+  CapturedObject([
+    #("__typename", CapturedString("Publication")),
+    #("id", CapturedString("gid://shopify/Publication/1")),
+  ])
 }
