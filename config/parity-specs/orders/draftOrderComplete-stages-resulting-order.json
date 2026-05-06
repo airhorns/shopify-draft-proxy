@@ -1,0 +1,62 @@
+{
+  "scenarioId": "draft-order-complete-stages-resulting-order",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete", "order", "orders"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-create.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-staged-draft",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.create",
+        "proxyPath": "$"
+      },
+      {
+        "name": "complete-staged-draft",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.complete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-complete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": false
+          }
+        }
+      },
+      {
+        "name": "read-completed-order-by-id",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.readById",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-id.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "complete-staged-draft",
+              "path": "$.data.draftOrderComplete.draftOrder.order.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-completed-order-by-name",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.readByName",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-name.graphql"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for completing a locally staged draft order and then resolving the synthesized regular order through canonical order reads. The scenario earns state through replayed draftOrderCreate and draftOrderComplete requests and uses an empty cassette to prove no runtime Shopify write or read is required for the staged flow."
+}

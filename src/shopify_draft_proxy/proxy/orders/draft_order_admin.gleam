@@ -142,7 +142,7 @@ pub fn handle_draft_order_complete(
                       read_bool(args, "paymentPending", False),
                     )
                   let next_store =
-                    store.stage_draft_order(
+                    stage_completed_draft_order_graph(
                       hydrated_store,
                       completed_draft_order,
                     )
@@ -191,6 +191,56 @@ pub fn handle_draft_order_complete(
         None -> #(key, json.null(), store, identity, [], [], [])
       }
     }
+  }
+}
+
+fn stage_completed_draft_order_graph(
+  store_in: Store,
+  completed_draft_order: DraftOrderRecord,
+) -> Store {
+  let draft_store = store.stage_draft_order(store_in, completed_draft_order)
+  case captured_object_field(completed_draft_order.data, "order") {
+    Some(order_data) ->
+      case captured_string_field(order_data, "id") {
+        Some(order_id) -> {
+          let order = OrderRecord(id: order_id, cursor: None, data: order_data)
+          store.stage_order(draft_store, order)
+          |> stage_completed_order_customer_summary(order)
+        }
+        None -> draft_store
+      }
+    None -> draft_store
+  }
+}
+
+fn stage_completed_order_customer_summary(
+  store_in: Store,
+  order: OrderRecord,
+) -> Store {
+  case completed_order_customer_id(order.data) {
+    Some(customer_id) ->
+      store.stage_customer_order_summary(
+        store_in,
+        CustomerOrderSummaryRecord(
+          id: order.id,
+          customer_id: Some(customer_id),
+          cursor: None,
+          name: captured_string_field(order.data, "name"),
+          email: captured_string_field(order.data, "email"),
+          created_at: captured_string_field(order.data, "createdAt"),
+          current_total_price: None,
+        ),
+      )
+    None -> store_in
+  }
+}
+
+fn completed_order_customer_id(
+  order_data: CapturedJsonValue,
+) -> Option(String) {
+  case captured_object_field(order_data, "customer") {
+    Some(customer) -> captured_string_field(customer, "id")
+    None -> None
   }
 }
 
