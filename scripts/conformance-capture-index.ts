@@ -532,6 +532,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-cascade-variant-media-clear',
+    scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
+    purpose:
+      'Files API fileDelete and fileUpdate.referencesToRemove cascades that clear ProductVariant media membership after removing product media associations.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-cascade-variant-media-clear.json`,
+      'config/parity-specs/media/media-file-cascade-variant-media-clear.json',
+      'config/parity-requests/media/media-file-cascade-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products with image media attached to their default variants; deletes the products and any detached file left by the update scenario during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-validation-branches',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-validation-branches.ts',

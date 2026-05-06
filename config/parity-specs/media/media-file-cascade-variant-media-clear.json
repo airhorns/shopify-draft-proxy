@@ -1,0 +1,53 @@
+{
+  "scenarioId": "media-file-cascade-variant-media-clear",
+  "operationNames": ["fileDelete", "fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/media/media-file-cascade-variant-media-clear.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-cascade-file-delete.graphql",
+    "variablesCapturePath": "$.deleteScenario.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-delete-mutation-data",
+        "capturePath": "$.deleteScenario.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "file-delete-variant-media-read",
+        "capturePath": "$.deleteScenario.downstreamRead.response.data.productVariant",
+        "proxyPath": "$.data.productVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-cascade-variant-media-read.graphql",
+          "variablesCapturePath": "$.deleteScenario.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "file-update-remove-reference-mutation-data",
+        "capturePath": "$.updateDetachScenario.mutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-cascade-file-update-remove-reference.graphql",
+          "variablesCapturePath": "$.updateDetachScenario.mutation.variables"
+        }
+      },
+      {
+        "name": "file-update-remove-reference-variant-media-read",
+        "capturePath": "$.updateDetachScenario.downstreamRead.response.data.productVariant",
+        "proxyPath": "$.data.productVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-cascade-variant-media-read.graphql",
+          "variablesCapturePath": "$.updateDetachScenario.downstreamRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured against disposable products with image media attached to each default variant. `fileDelete` removes the file/product media association and clears the variant media connection; `fileUpdate.referencesToRemove` keeps the file but removes the product media association and clears the variant media connection. The parity runner rehydrates the captured Shopify product/media/variant relationships through cassette-backed upstream reads, then verifies both supported mutations stage the cascade locally."
+}

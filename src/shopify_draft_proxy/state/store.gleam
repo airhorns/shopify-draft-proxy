@@ -118,6 +118,10 @@ pub const replace_staged_media_for_product = products.replace_staged_media_for_p
 
 pub const get_effective_media_by_product_id = products.get_effective_media_by_product_id
 
+pub const remove_media_ids_from_product_variants = products.remove_media_ids_from_product_variants
+
+pub const remove_media_ids_from_variants_for_products = products.remove_media_ids_from_variants_for_products
+
 pub const upsert_base_files = products.upsert_base_files
 
 pub const upsert_staged_files = products.upsert_staged_files
