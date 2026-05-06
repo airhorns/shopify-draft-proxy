@@ -4,7 +4,7 @@
   "storeDomain": "local-runtime",
   "notes": [
     "Fixture-backed validation contract for product/variant selling-plan group membership roots.",
-    "Live probes against harry-test-heelo.myshopify.com on 2026-04 and unstable returned empty userErrors for duplicate joins, leave-non-member, and 32-group joins; the public enum also lacked DUPLICATE, NOT_A_MEMBER, and TOO_MANY_SELLING_PLAN_GROUPS codes.",
+    "Live probes against harry-test-heelo.myshopify.com on 2026-04 and unstable returned empty userErrors for duplicate joins, leave-non-member, and 32-group joins; the public enum also lacked DUPLICATE, NOT_A_MEMBER, and SELLING_PLAN_GROUPS_TOO_MANY codes.",
     "This local-runtime fixture records the ticket-requested local contract so supported mutations fail atomically without runtime Shopify writes while the public-store discrepancy remains documented in the workpad."
   ],
   "setupProduct": {

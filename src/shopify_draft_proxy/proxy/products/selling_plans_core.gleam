@@ -323,7 +323,7 @@ pub fn selling_plan_group_does_not_exist_error() -> ProductUserError {
   )
 }
 
-const max_selling_plan_group_memberships = 31
+pub const max_selling_plan_group_memberships = 31
 
 @internal
 pub fn selling_plan_group_ids_blank_error() -> ProductUserError {
@@ -348,7 +348,7 @@ pub fn too_many_selling_plan_groups_error() -> ProductUserError {
   ProductUserError(
     ["sellingPlanGroupIds"],
     "Cannot join more than 31 selling plan groups.",
-    Some("TOO_MANY_SELLING_PLAN_GROUPS"),
+    Some("SELLING_PLAN_GROUPS_TOO_MANY"),
   )
 }
 
