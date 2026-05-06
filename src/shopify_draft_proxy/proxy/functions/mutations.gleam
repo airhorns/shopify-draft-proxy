@@ -386,10 +386,22 @@ fn function_does_not_implement_error(
 ) -> function_types.UserError {
   function_types.UserError(
     field: [field_name],
-    message: "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+    message: cart_transform_function_api_mismatch_message,
     code: Some("FUNCTION_DOES_NOT_IMPLEMENT"),
   )
 }
+
+fn function_id_api_mismatch_error(
+  field_name: String,
+) -> function_types.UserError {
+  function_types.UserError(
+    field: [field_name],
+    message: cart_transform_function_api_mismatch_message,
+    code: Some("FUNCTION_NOT_FOUND"),
+  )
+}
+
+const cart_transform_function_api_mismatch_message: String = "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run]."
 
 fn validation_function_does_not_implement_error(
   field_name: String,
@@ -1412,11 +1424,13 @@ fn resolve_cart_transform_function(
     Some(record) ->
       case cart_transform_function_api_supported(record) {
         True -> #(Ok(record), store, identity)
-        False -> #(
-          Error(function_does_not_implement_error(field_name)),
-          store,
-          identity,
-        )
+        False -> {
+          let user_error = case field_name {
+            "functionId" -> function_id_api_mismatch_error(field_name)
+            _ -> function_does_not_implement_error(field_name)
+          }
+          #(Error(user_error), store, identity)
+        }
       }
   }
 }

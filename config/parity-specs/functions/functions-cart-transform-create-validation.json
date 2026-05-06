@@ -45,16 +45,6 @@
         }
       },
       {
-        "name": "cart-transform-create-api-mismatch",
-        "capturePath": "$.cartTransformCreateApiMismatch.response.payload.data.cartTransformCreate",
-        "proxyPath": "$.data.cartTransformCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-api-mismatch.graphql",
-          "variablesCapturePath": "$.cartTransformCreateApiMismatch.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
         "name": "cart-transform-create-both-identifiers",
         "capturePath": "$.cartTransformCreateBoth.response.payload.data.cartTransformCreate",
         "proxyPath": "$.data.cartTransformCreate",
@@ -83,5 +73,5 @@
       }
     ]
   },
-  "notes": "HAR-696 executable parity for cartTransformCreate Function identifier validation. The scenario request documents retain the ticket-specified GraphQL operation names CartTransformCreateConflict, CartTransformCreateApiMismatch, CartTransformCreateBoth, and CartTransforms, while this operationNames list uses registry root names required by conformance discovery. Duplicate and API-mismatch payloads are grounded in the prior live HAR-416 functions capture; the exact both-identifiers payload was freshly captured live on 2026-05-05. The current live store no longer exposes the released validation/cart-transform Function handles, so the fixture records that re-recording blocker while preserving the existing live evidence and a cassette-backed local replay."
+  "notes": "Executable parity for cartTransformCreate Function identifier validation. The scenario request documents retain the ticket-specified GraphQL operation names CartTransformCreateConflict, CartTransformCreateBoth, and CartTransforms, while this operationNames list uses registry root names required by conformance discovery. Duplicate payloads are grounded in prior live functions capture; the exact both-identifiers payload was freshly captured live on 2026-05-05. API-mismatched Function identifier coverage moved to functions-cart-transform-create-api-mismatch-by-identifier so the functionId and functionHandle branches can be compared against fresh live Shopify evidence and a downstream empty cartTransforms read."
 }
