@@ -457,6 +457,8 @@ pub fn delegated_token_lifecycle_test() {
   let token =
     DelegatedAccessTokenRecord(
       id: "gid://shopify/DelegateAccessToken/1",
+      api_client_id: "gid://shopify/App/1",
+      parent_access_token_sha256: Some("parent"),
       access_token_sha256: "abcd",
       access_token_preview: "[redacted]xxxx",
       access_scopes: ["read_products"],

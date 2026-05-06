@@ -1,0 +1,300 @@
+{
+  "scenarioId": "delegate-access-token-destroy-codes",
+  "operationNames": ["delegateAccessTokenCreate", "delegateAccessTokenDestroy"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "mutation-log-replay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "token": "shpat_does_not_exist"
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-token-user-error",
+        "capturePath": "$.evidence.live.expected.missing.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "expectedDifferences": [
+          {
+            "path": "$.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          },
+          {
+            "path": "$.shop.name",
+            "matcher": "any-string",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          }
+        ]
+      },
+      {
+        "name": "create-for-success",
+        "capturePath": "$.evidence.localRuntime.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-current-input-local-lifecycle.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_success",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic raw delegate token once."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          }
+        ]
+      },
+      {
+        "name": "successful-destroy",
+        "capturePath": "$.evidence.live.expected.success.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_success",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          },
+          "variables": {
+            "token": {
+              "fromProxyResponse": "create-for-success",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          },
+          {
+            "path": "$.shop.name",
+            "matcher": "any-string",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          }
+        ]
+      },
+      {
+        "name": "repeat-destroy-not-found",
+        "capturePath": "$.evidence.live.expected.repeat.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_success",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          },
+          "variables": {
+            "token": {
+              "fromProxyResponse": "create-for-success",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          },
+          {
+            "path": "$.shop.name",
+            "matcher": "any-string",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          }
+        ]
+      },
+      {
+        "name": "parent-token-can-only-delete-delegate",
+        "capturePath": "$.evidence.live.expected.parentSelf.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_self",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          },
+          "variables": {
+            "token": "shpat_parent_destroy_self"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          },
+          {
+            "path": "$.shop.name",
+            "matcher": "any-string",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          }
+        ]
+      },
+      {
+        "name": "create-sibling-target",
+        "capturePath": "$.evidence.localRuntime.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-current-input-local-lifecycle.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_siblings",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic raw delegate token once."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          }
+        ]
+      },
+      {
+        "name": "create-sibling-caller",
+        "capturePath": "$.evidence.localRuntime.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-current-input-local-lifecycle.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_siblings",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic raw delegate token once."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          }
+        ]
+      },
+      {
+        "name": "sibling-hierarchy-access-denied",
+        "capturePath": "$.evidence.live.expected.siblingHierarchy.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "Authorization": "Bearer shpat_delegate_proxy_3",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          },
+          "variables": {
+            "token": {
+              "fromProxyResponse": "create-sibling-target",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          },
+          {
+            "path": "$.shop.name",
+            "matcher": "any-string",
+            "reason": "The proxy returns its synthetic local shop while live Shopify returns the disposable shop."
+          }
+        ]
+      },
+      {
+        "name": "create-cross-app-token",
+        "capturePath": "$.evidence.localRuntime.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-current-input-local-lifecycle.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_cross_app",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-a"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic raw delegate token once."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          }
+        ]
+      },
+      {
+        "name": "cross-app-access-denied",
+        "capturePath": "$.evidence.localRuntime.expected.crossApp.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "X-Shopify-Access-Token": "shpat_parent_destroy_cross_app",
+            "x-shopify-draft-proxy-api-client-id": "gid://shopify/App/destroy-codes-b"
+          },
+          "variables": {
+            "token": {
+              "fromProxyResponse": "create-cross-app-token",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shop.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns its synthetic local shop while the local-runtime expected fixture uses the live shop placeholder."
+          },
+          {
+            "path": "$.shop.name",
+            "matcher": "any-string",
+            "reason": "The proxy returns its synthetic local shop while the local-runtime expected fixture uses the live shop placeholder."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-751 replay covers live-captured missing, parent-self, sibling-hierarchy denied, success, and repeat-not-found payloads. Cross-app denial is exercised through the proxy's request api-client identity header because the live harness has one disposable app credential; focused Gleam tests also verify the failed log/no-state branches."
+}

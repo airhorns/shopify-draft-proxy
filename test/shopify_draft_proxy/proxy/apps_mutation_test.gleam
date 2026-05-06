@@ -442,6 +442,8 @@ pub fn app_uninstall_cascades_subscriptions_tokens_and_scopes_test() {
   let token =
     DelegatedAccessTokenRecord(
       id: "gid://shopify/DelegateAccessToken/cascade",
+      api_client_id: "gid://shopify/App/100",
+      parent_access_token_sha256: None,
       access_token_sha256: shopify_sha256_of(raw),
       access_token_preview: "[redacted]cade",
       access_scopes: ["read_products"],
@@ -631,8 +633,31 @@ pub fn delegate_token_create_round_trip_test() {
       outcome.store,
       shopify_sha256_of("shpat_delegate_proxy_1"),
     )
+  assert record.api_client_id == "shopify-draft-proxy-local-app"
+  assert record.parent_access_token_sha256 == None
   assert record.access_scopes == ["read_products"]
   assert record.destroyed_at == None
+}
+
+pub fn delegate_token_create_records_parent_token_hash_test() {
+  let parent = "shpat_parent_proxy"
+  let api_client_id = "gid://shopify/App/header-caller"
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"] }) { delegateAccessToken { accessToken } userErrors { field message code } } }",
+      dict.from_list([
+        #("X-Shopify-Access-Token", parent),
+        #("x-shopify-draft-proxy-api-client-id", api_client_id),
+      ]),
+    )
+  let assert Some(record) =
+    store.find_delegated_access_token_by_hash(
+      outcome.store,
+      shopify_sha256_of("shpat_delegate_proxy_1"),
+    )
+  assert record.parent_access_token_sha256 == Some(shopify_sha256_of(parent))
+  assert record.api_client_id == api_client_id
 }
 
 pub fn delegate_token_create_legacy_access_scopes_fallback_test() {
@@ -701,6 +726,8 @@ pub fn delegate_token_create_rejects_active_delegate_parent_test() {
   let record =
     DelegatedAccessTokenRecord(
       id: "gid://shopify/DelegateAccessToken/parent",
+      api_client_id: "shopify-draft-proxy-local-app",
+      parent_access_token_sha256: Some(shopify_sha256_of("shpat_parent")),
       access_token_sha256: shopify_sha256_of(raw),
       access_token_preview: "[redacted]rent",
       access_scopes: ["read_products"],
@@ -726,6 +753,8 @@ pub fn delegate_token_destroy_marks_destroyed_test() {
   let record =
     DelegatedAccessTokenRecord(
       id: "gid://shopify/DelegateAccessToken/77",
+      api_client_id: "shopify-draft-proxy-local-app",
+      parent_access_token_sha256: None,
       access_token_sha256: shopify_sha256_of(raw),
       access_token_preview: "[redacted]eded",
       access_scopes: ["read_products"],
@@ -750,14 +779,230 @@ pub fn delegate_token_destroy_marks_destroyed_test() {
     == None
 }
 
+pub fn delegate_token_destroy_by_parent_marks_destroyed_with_shop_test() {
+  let raw = "shpat_delegate_proxy_seeded"
+  let parent = "shpat_parent_proxy"
+  let record =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/77",
+      api_client_id: "gid://shopify/App/100",
+      parent_access_token_sha256: Some(shopify_sha256_of(parent)),
+      access_token_sha256: shopify_sha256_of(raw),
+      access_token_preview: "[redacted]eded",
+      access_scopes: ["read_products"],
+      created_at: "2023-12-01T00:00:00Z",
+      expires_in: None,
+      destroyed_at: None,
+    )
+  let #(_, s) = store.stage_delegated_access_token(store.new(), record)
+  let document =
+    "mutation { delegateAccessTokenDestroy(accessToken: \""
+    <> raw
+    <> "\") { status shop { id name } userErrors { field message code } } }"
+  let outcome =
+    run_mutation_outcome_with_headers(
+      s,
+      document,
+      dict.from_list([
+        #("X-Shopify-Access-Token", parent),
+        #("x-shopify-draft-proxy-api-client-id", "gid://shopify/App/100"),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":true,\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\"},\"userErrors\":[]}}}"
+  assert store.find_delegated_access_token_by_hash(
+      outcome.store,
+      shopify_sha256_of(raw),
+    )
+    == None
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Staged,
+      staged_resource_ids: ["gid://shopify/DelegateAccessToken/77"],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_destroy_repeat_returns_not_found_test() {
+  let raw = "shpat_delegate_proxy_seeded"
+  let record =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/77",
+      api_client_id: "shopify-draft-proxy-local-app",
+      parent_access_token_sha256: None,
+      access_token_sha256: shopify_sha256_of(raw),
+      access_token_preview: "[redacted]eded",
+      access_scopes: ["read_products"],
+      created_at: "2023-12-01T00:00:00Z",
+      expires_in: None,
+      destroyed_at: None,
+    )
+  let #(_, s) = store.stage_delegated_access_token(store.new(), record)
+  let document =
+    "mutation { delegateAccessTokenDestroy(accessToken: \""
+    <> raw
+    <> "\") { status userErrors { field message code } } }"
+  let first =
+    run_mutation_outcome_with_headers(
+      s,
+      document,
+      dict.from_list([#("X-Shopify-Access-Token", raw)]),
+    )
+  let second =
+    run_mutation_outcome_with_headers(
+      first.store,
+      document,
+      dict.from_list([#("X-Shopify-Access-Token", raw)]),
+    )
+  assert json.to_string(second.data)
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":false,\"userErrors\":[{\"field\":null,\"message\":\"Access token does not exist.\",\"code\":\"ACCESS_TOKEN_NOT_FOUND\"}]}}}"
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = second.log_drafts
+}
+
 pub fn delegate_token_destroy_unknown_emits_user_error_test() {
-  let body =
-    run_mutation(
+  let outcome =
+    run_mutation_outcome(
       store.new(),
       "mutation { delegateAccessTokenDestroy(accessToken: \"shpat_does_not_exist\") { shop { id } status userErrors { field message code } } }",
     )
-  assert body
+  assert json.to_string(outcome.data)
     == "{\"data\":{\"delegateAccessTokenDestroy\":{\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\"},\"status\":false,\"userErrors\":[{\"field\":null,\"message\":\"Access token does not exist.\",\"code\":\"ACCESS_TOKEN_NOT_FOUND\"}]}}}"
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_destroy_parent_token_returns_can_only_delete_test() {
+  let raw = "shpat_parent_proxy"
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenDestroy(accessToken: \"shpat_parent_proxy\") { status shop { id name } userErrors { field message code } } }",
+      dict.from_list([#("X-Shopify-Access-Token", raw)]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":false,\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\"},\"userErrors\":[{\"field\":null,\"message\":\"Can only delete delegate tokens.\",\"code\":\"CAN_ONLY_DELETE_DELEGATE_TOKENS\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_destroy_cross_app_returns_access_denied_test() {
+  let raw = "shpat_delegate_proxy_seeded"
+  let parent = "shpat_parent_proxy"
+  let record =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/77",
+      api_client_id: "gid://shopify/App/other",
+      parent_access_token_sha256: Some(shopify_sha256_of(parent)),
+      access_token_sha256: shopify_sha256_of(raw),
+      access_token_preview: "[redacted]eded",
+      access_scopes: ["read_products"],
+      created_at: "2023-12-01T00:00:00Z",
+      expires_in: None,
+      destroyed_at: None,
+    )
+  let #(_, s) =
+    store.stage_delegated_access_token(seeded_with_installation(), record)
+  let document =
+    "mutation { delegateAccessTokenDestroy(accessToken: \""
+    <> raw
+    <> "\") { status userErrors { field message code } } }"
+  let outcome =
+    run_mutation_outcome_with_headers(
+      s,
+      document,
+      dict.from_list([#("X-Shopify-Access-Token", parent)]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":false,\"userErrors\":[{\"field\":null,\"message\":\"Access denied.\",\"code\":\"ACCESS_DENIED\"}]}}}"
+  let assert Some(found) =
+    store.find_delegated_access_token_by_hash(
+      outcome.store,
+      shopify_sha256_of(raw),
+    )
+  assert found.destroyed_at == None
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_destroy_outside_hierarchy_returns_access_denied_test() {
+  let target_raw = "shpat_delegate_proxy_target"
+  let sibling_raw = "shpat_delegate_proxy_sibling"
+  let parent = "shpat_parent_proxy"
+  let target =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/target",
+      api_client_id: "gid://shopify/App/100",
+      parent_access_token_sha256: Some(shopify_sha256_of(parent)),
+      access_token_sha256: shopify_sha256_of(target_raw),
+      access_token_preview: "[redacted]rget",
+      access_scopes: ["read_products"],
+      created_at: "2023-12-01T00:00:00Z",
+      expires_in: None,
+      destroyed_at: None,
+    )
+  let sibling =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/sibling",
+      api_client_id: "gid://shopify/App/100",
+      parent_access_token_sha256: Some(shopify_sha256_of(parent)),
+      access_token_sha256: shopify_sha256_of(sibling_raw),
+      access_token_preview: "[redacted]ling",
+      access_scopes: ["read_products"],
+      created_at: "2023-12-01T00:00:00Z",
+      expires_in: None,
+      destroyed_at: None,
+    )
+  let #(_, s) =
+    store.stage_delegated_access_token(seeded_with_installation(), target)
+  let #(_, s) = store.stage_delegated_access_token(s, sibling)
+  let document =
+    "mutation { delegateAccessTokenDestroy(accessToken: \""
+    <> target_raw
+    <> "\") { status userErrors { field message code } } }"
+  let outcome =
+    run_mutation_outcome_with_headers(
+      s,
+      document,
+      dict.from_list([#("Authorization", "Bearer " <> sibling_raw)]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":false,\"userErrors\":[{\"field\":null,\"message\":\"Access denied.\",\"code\":\"ACCESS_DENIED\"}]}}}"
+  let assert Some(found) =
+    store.find_delegated_access_token_by_hash(
+      outcome.store,
+      shopify_sha256_of(target_raw),
+    )
+  assert found.destroyed_at == None
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = outcome.log_drafts
 }
 
 // ----------- appPurchaseOneTimeCreate -----------

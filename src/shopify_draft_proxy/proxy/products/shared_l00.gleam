@@ -1,0 +1,658 @@
+//// Internal products-domain implementation split from proxy/products.gleam.
+
+import gleam/bit_array
+import gleam/dict.{type Dict}
+import gleam/float
+import gleam/int
+import gleam/json.{type Json}
+import gleam/list
+import gleam/option.{type Option, None, Some}
+import gleam/order
+import gleam/result
+import gleam/string
+import shopify_draft_proxy/graphql/ast.{
+  type Definition, type Location, type ObjectField, type Selection,
+  type VariableDefinition, Argument, Directive, Field, InlineFragment, NullValue,
+  ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
+  VariableDefinition, VariableValue,
+}
+import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/parser
+import shopify_draft_proxy/graphql/root_field.{
+  type ResolvedValue, type RootFieldError, BoolVal, FloatVal, IntVal, ListVal,
+  NullVal, ObjectVal, StringVal, get_field_arguments, get_root_fields,
+}
+import shopify_draft_proxy/graphql/source as graphql_source
+import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/graphql_helpers.{
+  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
+  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
+  SrcObject, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  paginate_connection_items, project_graphql_field_value, project_graphql_value,
+  serialize_connection, serialize_empty_connection, src_object,
+}
+import shopify_draft_proxy/proxy/metafields
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome, RequiredArgument,
+  build_null_argument_error, find_argument, single_root_log_draft,
+  validate_required_field_arguments,
+}
+import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response, LiveHybrid, Response,
+}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/search_query_parser
+import shopify_draft_proxy/shopify/resource_ids
+import shopify_draft_proxy/state/iso_timestamp
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+}
+import shopify_draft_proxy/state/types.{
+  type CapturedJsonValue, type ChannelRecord, type CollectionImageRecord,
+  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type InventoryItemRecord, type InventoryLevelRecord,
+  type InventoryLocationRecord, type InventoryMeasurementRecord,
+  type InventoryQuantityRecord, type InventoryShipmentLineItemRecord,
+  type InventoryShipmentRecord, type InventoryShipmentTrackingRecord,
+  type InventoryTransferLineItemRecord,
+  type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
+  type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
+  type ProductCategoryRecord, type ProductCollectionRecord,
+  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOperationRecord, type ProductOperationUserErrorRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type ProductResourceFeedbackRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
+  type ShopResourceFeedbackRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
+  InventoryQuantityRecord, InventoryShipmentLineItemRecord,
+  InventoryShipmentRecord, InventoryShipmentTrackingRecord,
+  InventoryTransferLineItemRecord, InventoryTransferLocationSnapshotRecord,
+  InventoryTransferRecord, InventoryWeightFloat, InventoryWeightInt,
+  InventoryWeightRecord, LocationRecord, ProductCollectionRecord,
+  ProductFeedRecord, ProductMediaRecord, ProductMetafieldRecord,
+  ProductOperationRecord, ProductOperationUserErrorRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
+  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  PublicationRecord, SellingPlanGroupRecord, SellingPlanRecord,
+  ShopResourceFeedbackRecord,
+}
+
+@internal
+pub fn resource_tail(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) -> tail
+    Error(_) -> id
+  }
+}
+
+@internal
+pub fn bool_string(value: Bool) -> String {
+  case value {
+    True -> "true"
+    False -> "false"
+  }
+}
+
+@internal
+pub fn normalize_string_catalog(values: List(String)) -> List(String) {
+  values
+  |> list.filter(fn(value) { string.length(string.trim(value)) > 0 })
+  |> list.fold(dict.new(), fn(seen, value) { dict.insert(seen, value, True) })
+  |> dict.keys()
+  |> list.sort(string.compare)
+}
+
+@internal
+pub fn string_cursor(value: String, _index: Int) -> String {
+  value
+}
+
+@internal
+pub fn serialize_exact_count(field: Selection, count: Int) -> Json {
+  let entries =
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(child) {
+        let key = get_field_response_key(child)
+        case child {
+          Field(name: name, ..) ->
+            case name.value {
+              "count" -> #(key, json.int(count))
+              "precision" -> #(key, json.string("EXACT"))
+              _ -> #(key, json.null())
+            }
+          _ -> #(key, json.null())
+        }
+      },
+    )
+  json.object(entries)
+}
+
+@internal
+pub fn read_identifier_argument(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> Option(Dict(String, ResolvedValue)) {
+  case get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, "identifier") {
+        Ok(ObjectVal(identifier)) -> Some(identifier)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+@internal
+pub fn read_string_argument(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, name) {
+        Ok(StringVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+@internal
+pub fn read_bool_argument(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, name) {
+        Ok(BoolVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+@internal
+pub fn read_string_field(
+  fields: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(fields, name) {
+    Ok(StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+@internal
+pub fn count_source(count: Int) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Count")),
+    #("count", SrcInt(count)),
+    #("precision", SrcString("EXACT")),
+  ])
+}
+
+@internal
+pub fn connection_start_cursor(
+  items: List(a),
+  get_cursor: fn(a, Int) -> String,
+) -> SourceValue {
+  case items {
+    [first, ..] -> SrcString(get_cursor(first, 0))
+    [] -> SrcNull
+  }
+}
+
+@internal
+pub fn connection_end_cursor(
+  items: List(a),
+  get_cursor: fn(a, Int) -> String,
+) -> SourceValue {
+  case list.last(items) {
+    Ok(last) -> SrcString(get_cursor(last, list.length(items) - 1))
+    Error(_) -> SrcNull
+  }
+}
+
+@internal
+pub fn empty_connection_source() -> SourceValue {
+  src_object([
+    #("edges", SrcList([])),
+    #("nodes", SrcList([])),
+    #(
+      "pageInfo",
+      src_object([
+        #("hasNextPage", SrcBool(False)),
+        #("hasPreviousPage", SrcBool(False)),
+        #("startCursor", SrcNull),
+        #("endCursor", SrcNull),
+      ]),
+    ),
+  ])
+}
+
+@internal
+pub fn captured_json_source(value: CapturedJsonValue) -> SourceValue {
+  case value {
+    CapturedNull -> SrcNull
+    CapturedBool(value) -> SrcBool(value)
+    CapturedInt(value) -> SrcInt(value)
+    CapturedFloat(value) -> SrcFloat(value)
+    CapturedString(value) -> SrcString(value)
+    CapturedArray(items) -> SrcList(list.map(items, captured_json_source))
+    CapturedObject(fields) ->
+      SrcObject(
+        fields
+        |> list.map(fn(pair) {
+          let #(key, item) = pair
+          #(key, captured_json_source(item))
+        })
+        |> dict.from_list,
+      )
+  }
+}
+
+@internal
+pub fn legacy_resource_id_from_gid(id: String) -> String {
+  case string.split(id, "/") |> list.last {
+    Ok(tail_with_query) ->
+      case string.split(tail_with_query, "?") {
+        [tail, ..] -> tail
+        [] -> id
+      }
+    Error(_) -> id
+  }
+}
+
+@internal
+pub fn parse_admin_api_version(version: String) -> Option(#(Int, Int)) {
+  case string.split(version, "-") {
+    [year, month] ->
+      case int.parse(year), int.parse(month) {
+        Ok(parsed_year), Ok(parsed_month) -> Some(#(parsed_year, parsed_month))
+        _, _ -> None
+      }
+    _ -> None
+  }
+}
+
+@internal
+pub fn compare_admin_api_versions(version: #(Int, Int), minimum: #(Int, Int)) {
+  let #(year, month) = version
+  let #(minimum_year, minimum_month) = minimum
+  year > minimum_year || { year == minimum_year && month >= minimum_month }
+}
+
+@internal
+pub fn input_list_has_object_missing_field(
+  input: Dict(String, ResolvedValue),
+  list_field: String,
+  required_field: String,
+) -> Bool {
+  case dict.get(input, list_field) {
+    Ok(ListVal(values)) ->
+      list.any(values, fn(value) {
+        case value {
+          ObjectVal(fields) -> !dict.has_key(fields, required_field)
+          _ -> False
+        }
+      })
+    _ -> False
+  }
+}
+
+@internal
+pub fn missing_idempotency_key_error(field: Selection) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The @idempotent directive is required for this mutation but was not provided.",
+      ),
+    ),
+    #("extensions", json.object([#("code", json.string("BAD_REQUEST"))])),
+    #("path", json.array([get_field_response_key(field)], json.string)),
+  ])
+}
+
+@internal
+pub fn non_empty_string(value: String) -> Option(String) {
+  let trimmed = string.trim(value)
+  case string.length(trimmed) > 0 {
+    True -> Some(trimmed)
+    False -> None
+  }
+}
+
+@internal
+pub fn max_input_size_error(
+  length: Int,
+  maximum: Int,
+  path: List(String),
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(length)
+        <> " is greater than the maximum allowed of "
+        <> int.to_string(maximum)
+        <> ".",
+      ),
+    ),
+    #("path", json.array(path, json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+    ),
+  ])
+}
+
+@internal
+pub fn read_arg_bool_default_true(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(args, name) {
+    Ok(BoolVal(False)) -> False
+    _ -> True
+  }
+}
+
+@internal
+pub fn is_decimal_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn find_object_field(
+  fields: List(ObjectField),
+  name: String,
+) -> Option(ObjectField) {
+  case fields {
+    [] -> None
+    [first, ..rest] -> {
+      let ObjectField(name: field_name, ..) = first
+      case field_name.value == name {
+        True -> Some(first)
+        False -> find_object_field(rest, name)
+      }
+    }
+  }
+}
+
+@internal
+pub fn find_variable_definition(
+  definitions: List(VariableDefinition),
+  variable_name: String,
+) -> Option(Location) {
+  case definitions {
+    [] -> None
+    [definition, ..rest] -> {
+      let VariableDefinition(variable: variable, loc: loc, ..) = definition
+      case variable.name.value == variable_name {
+        True -> loc
+        False -> find_variable_definition(rest, variable_name)
+      }
+    }
+  }
+}
+
+@internal
+pub fn resolved_value_to_json(value: ResolvedValue) -> Json {
+  case value {
+    StringVal(value) -> json.string(value)
+    IntVal(value) -> json.int(value)
+    FloatVal(value) -> json.float(value)
+    BoolVal(value) -> json.bool(value)
+    NullVal -> json.null()
+    ListVal(values) -> json.array(values, resolved_value_to_json)
+    ObjectVal(fields) ->
+      json.object(
+        list.map(dict.to_list(fields), fn(entry) {
+          let #(key, value) = entry
+          #(key, resolved_value_to_json(value))
+        }),
+      )
+  }
+}
+
+@internal
+pub fn resolved_value_to_captured(value: ResolvedValue) -> CapturedJsonValue {
+  case value {
+    NullVal -> CapturedNull
+    BoolVal(value) -> CapturedBool(value)
+    IntVal(value) -> CapturedInt(value)
+    FloatVal(value) -> CapturedFloat(value)
+    StringVal(value) -> CapturedString(value)
+    ListVal(values) ->
+      CapturedArray(list.map(values, resolved_value_to_captured))
+    ObjectVal(fields) ->
+      CapturedObject(
+        dict.to_list(fields)
+        |> list.map(fn(pair) {
+          let #(key, value) = pair
+          #(key, resolved_value_to_captured(value))
+        }),
+      )
+  }
+}
+
+@internal
+pub fn read_number_captured_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case dict.get(input, name) {
+    Ok(IntVal(value)) -> Some(CapturedInt(value))
+    Ok(FloatVal(value)) -> Some(CapturedFloat(value))
+    _ -> None
+  }
+}
+
+@internal
+pub fn captured_object_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        let #(key, item) = pair
+        case key == name {
+          True -> Ok(item)
+          False -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+@internal
+pub fn job_source(id: String, done: Bool) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Job")),
+    #("id", SrcString(id)),
+    #("done", SrcBool(done)),
+  ])
+}
+
+@internal
+pub fn read_arg_object_list(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> List(Dict(String, ResolvedValue)) {
+  case dict.get(args, name) {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          ObjectVal(input) -> Ok(input)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+@internal
+pub fn read_arg_string_list(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> List(String) {
+  case dict.get(args, name) {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          StringVal(input) -> Ok(input)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+@internal
+pub fn trimmed_non_empty(value: String) -> Result(String, Nil) {
+  let trimmed = string.trim(value)
+  case string.length(trimmed) > 0 {
+    True -> Ok(trimmed)
+    False -> Error(Nil)
+  }
+}
+
+@internal
+pub fn host_from_origin(origin: String) -> String {
+  let without_scheme = case string.split(origin, "://") {
+    [_, rest] -> rest
+    [rest] -> rest
+    _ -> origin
+  }
+  case string.split(without_scheme, "/") {
+    [host, ..] -> host
+    [] -> without_scheme
+  }
+}
+
+@internal
+pub fn segment_after_store(segments: List(String)) -> Option(String) {
+  case segments {
+    ["store", slug, ..] -> Some(slug)
+    [_, ..rest] -> segment_after_store(rest)
+    [] -> None
+  }
+}
+
+@internal
+pub fn dedupe_preserving_order(values: List(String)) -> List(String) {
+  let #(reversed, _) =
+    list.fold(values, #([], dict.new()), fn(acc, value) {
+      let #(items, seen) = acc
+      case dict.has_key(seen, value) {
+        True -> #(items, seen)
+        False -> #([value, ..items], dict.insert(seen, value, True))
+      }
+    })
+  list.reverse(reversed)
+}
+
+@internal
+pub fn is_known_missing_shopify_gid(id: String) -> Bool {
+  string.contains(id, "/999999999999")
+}
+
+@internal
+pub fn read_object_field(
+  fields: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Dict(String, ResolvedValue)) {
+  case dict.get(fields, name) {
+    Ok(ObjectVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+@internal
+pub fn read_bool_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(input, name) {
+    Ok(BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+@internal
+pub fn read_string_list_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(List(String)) {
+  case dict.get(input, name) {
+    Ok(ListVal(values)) ->
+      Some(
+        list.filter_map(values, fn(value) {
+          case value {
+            StringVal(item) -> Ok(item)
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    _ -> None
+  }
+}
+
+@internal
+pub fn read_list_field_length(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(input, name) {
+    Ok(ListVal(values)) -> Some(list.length(values))
+    _ -> None
+  }
+}
+
+@internal
+pub fn read_object_list_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> List(Dict(String, ResolvedValue)) {
+  case dict.get(input, name) {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          ObjectVal(fields) -> Ok(fields)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+@internal
+pub fn read_int_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(input, name) {
+    Ok(IntVal(value)) -> Some(value)
+    _ -> None
+  }
+}

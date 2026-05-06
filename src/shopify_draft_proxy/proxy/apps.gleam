@@ -30,6 +30,7 @@ import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
@@ -910,6 +911,10 @@ const minimum_one_time_purchase_amount_label = "0.50"
 
 const synthetic_shop_id = "gid://shopify/Shop/1?shopify-draft-proxy=synthetic"
 
+const default_delegate_api_client_id = "shopify-draft-proxy-local-app"
+
+const null_user_error_field_marker = "__shopify_draft_proxy_null_field"
+
 type DecimalAmount {
   DecimalAmount(sign: Int, whole: String, fraction: String)
 }
@@ -1012,6 +1017,7 @@ fn handle_mutation_fields(
                 current_identity,
                 request_path,
                 document,
+                headers,
                 field,
                 fragments,
                 variables,
@@ -1779,6 +1785,7 @@ fn handle_delegate_create(
         identity,
         field,
         fragments,
+        request_headers,
         access_scopes,
         expires_in,
       )
@@ -1903,6 +1910,127 @@ fn bearer_token(
   }
 }
 
+fn caller_api_client_id(
+  store: Store,
+  request_headers: Dict(String, String),
+) -> String {
+  case app_identity.read_requesting_api_client_id(request_headers) {
+    Some(id) -> id
+    None ->
+      case store.get_current_app_installation(store) {
+        Some(installation) -> installation.app_id
+        None -> default_delegate_api_client_id
+      }
+  }
+}
+
+fn delegated_token_hash_exists(store: Store, hash: String) -> Bool {
+  case
+    find_delegated_token_by_hash_any_state(
+      dict.to_list(store.staged_state.delegated_access_tokens),
+      hash,
+    )
+  {
+    True -> True
+    False ->
+      find_delegated_token_by_hash_any_state(
+        dict.to_list(store.base_state.delegated_access_tokens),
+        hash,
+      )
+  }
+}
+
+fn find_delegated_token_by_hash_any_state(
+  tokens: List(#(String, DelegatedAccessTokenRecord)),
+  hash: String,
+) -> Bool {
+  case tokens {
+    [] -> False
+    [#(_, token), ..rest] ->
+      case token.access_token_sha256 == hash {
+        True -> True
+        False -> find_delegated_token_by_hash_any_state(rest, hash)
+      }
+  }
+}
+
+fn access_token_not_found_user_error() -> DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: None,
+    message: "Access token does not exist.",
+    code: Some("ACCESS_TOKEN_NOT_FOUND"),
+  )
+}
+
+fn access_denied_user_error() -> DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: None,
+    message: "Access denied.",
+    code: Some("ACCESS_DENIED"),
+  )
+}
+
+fn can_only_delete_delegate_tokens_user_error() -> DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: None,
+    message: "Can only delete delegate tokens.",
+    code: Some("CAN_ONLY_DELETE_DELEGATE_TOKENS"),
+  )
+}
+
+fn delegate_destroy_user_errors(
+  store: Store,
+  request_headers: Dict(String, String),
+  record: DelegatedAccessTokenRecord,
+  active_token_hash: Option(String),
+) -> List(DelegateAccessTokenUserError) {
+  case record.api_client_id == caller_api_client_id(store, request_headers) {
+    False -> [access_denied_user_error()]
+    True ->
+      case delegate_destroy_in_hierarchy(record, active_token_hash) {
+        True -> []
+        False -> [access_denied_user_error()]
+      }
+  }
+}
+
+fn delegate_destroy_in_hierarchy(
+  record: DelegatedAccessTokenRecord,
+  active_token_hash: Option(String),
+) -> Bool {
+  case active_token_hash {
+    Some(hash) ->
+      record.access_token_sha256 == hash
+      || record.parent_access_token_sha256 == Some(hash)
+      || record.parent_access_token_sha256 == None
+    None -> record.parent_access_token_sha256 == None
+  }
+}
+
+fn failed_delegate_destroy_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(DelegateAccessTokenUserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_delegate_destroy_payload(store, False, errors, field, fragments)
+  let draft =
+    make_log_draft("delegateAccessTokenDestroy", [], store_types.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    store,
+    identity,
+  )
+}
+
 fn failed_delegate_create_result(
   key: String,
   store: Store,
@@ -1942,6 +2070,7 @@ fn stage_delegate_create(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   fragments: FragmentMap,
+  request_headers: Dict(String, String),
   access_scopes: List(String),
   expires_in: Option(Int),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
@@ -1953,6 +2082,9 @@ fn stage_delegate_create(
   let record =
     DelegatedAccessTokenRecord(
       id: token_gid,
+      api_client_id: caller_api_client_id(store, request_headers),
+      parent_access_token_sha256: active_access_token(request_headers)
+        |> option.map(token_hash),
       access_token_sha256: token_hash(raw_token),
       access_token_preview: token_preview(raw_token),
       access_scopes: access_scopes,
@@ -1991,6 +2123,7 @@ fn handle_delegate_destroy(
   identity: SyntheticIdentityRegistry,
   _request_path: String,
   _document: String,
+  request_headers: Dict(String, String),
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1998,6 +2131,8 @@ fn handle_delegate_destroy(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let access_token = graphql_helpers.read_arg_string(args, "accessToken")
+  let active_token_hash =
+    active_access_token(request_headers) |> option.map(token_hash)
   let token = case access_token {
     Some(raw) ->
       store.find_delegated_access_token_by_hash(store, token_hash(raw))
@@ -2005,20 +2140,21 @@ fn handle_delegate_destroy(
   }
   case token {
     None -> {
+      let errors = case access_token, active_token_hash {
+        Some(raw), Some(active_hash) -> {
+          let supplied_hash = token_hash(raw)
+          case
+            supplied_hash == active_hash
+            && !delegated_token_hash_exists(store, supplied_hash)
+          {
+            True -> [can_only_delete_delegate_tokens_user_error()]
+            False -> [access_token_not_found_user_error()]
+          }
+        }
+        _, _ -> [access_token_not_found_user_error()]
+      }
       let payload =
-        project_delegate_destroy_payload(
-          store,
-          False,
-          [
-            DelegateAccessTokenUserError(
-              field: None,
-              message: "Access token does not exist.",
-              code: Some("ACCESS_TOKEN_NOT_FOUND"),
-            ),
-          ],
-          field,
-          fragments,
-        )
+        project_delegate_destroy_payload(store, False, errors, field, fragments)
       let draft =
         make_log_draft("delegateAccessTokenDestroy", [], store_types.Failed)
       #(
@@ -2033,34 +2169,54 @@ fn handle_delegate_destroy(
       )
     }
     Some(record) -> {
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let store_after =
-        store.destroy_delegated_access_token(store, record.id, timestamp)
-      let payload =
-        project_delegate_destroy_payload(
-          store_after,
-          True,
-          [],
-          field,
-          fragments,
+      case
+        delegate_destroy_user_errors(
+          store,
+          request_headers,
+          record,
+          active_token_hash,
         )
-      let draft =
-        make_log_draft(
-          "delegateAccessTokenDestroy",
-          [record.id],
-          store_types.Staged,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [record.id],
-          log_drafts: [draft],
-        ),
-        store_after,
-        identity_after_ts,
-      )
+      {
+        [_, ..] as errors ->
+          failed_delegate_destroy_result(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            errors,
+          )
+        [] -> {
+          let #(timestamp, identity_after_ts) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let store_after =
+            store.destroy_delegated_access_token(store, record.id, timestamp)
+          let payload =
+            project_delegate_destroy_payload(
+              store_after,
+              True,
+              [],
+              field,
+              fragments,
+            )
+          let draft =
+            make_log_draft(
+              "delegateAccessTokenDestroy",
+              [record.id],
+              store_types.Staged,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [record.id],
+              log_drafts: [draft],
+            ),
+            store_after,
+            identity_after_ts,
+          )
+        }
+      }
     }
   }
 }
@@ -3962,9 +4118,13 @@ fn user_errors_source(errors: List(UserError)) -> SourceValue {
 }
 
 fn user_error_to_source(error: UserError) -> SourceValue {
+  let field = case error.field {
+    [marker] if marker == null_user_error_field_marker -> SrcNull
+    parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
+  }
   let base = [
     #("__typename", SrcString("UserError")),
-    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
+    #("field", field),
     #("message", SrcString(error.message)),
   ]
   let full = case error.code {
