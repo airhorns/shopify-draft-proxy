@@ -70,6 +70,15 @@ pub fn translation_user_error(
 }
 
 @internal
+pub fn quantity_rule_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(field, message, code, Some("QuantityRuleUserError"))
+}
+
+@internal
 pub fn user_error_with_typename(
   field: List(String),
   message: String,
@@ -1589,23 +1598,271 @@ pub fn quantity_rules_input_errors(
   store: Store,
   inputs: List(Dict(String, root_field.ResolvedValue)),
 ) -> List(CapturedJsonValue) {
-  inputs
-  |> enumerate_dicts
-  |> list.filter_map(fn(entry) {
-    let #(input, index) = entry
-    let variant_id =
-      graphql_helpers.read_arg_string_nonempty(input, "variantId")
-      |> option.unwrap("")
-    case store.get_effective_variant_by_id(store, variant_id) {
-      Some(_) -> Error(Nil)
-      None ->
-        Ok(user_error(
-          ["quantityRules", int.to_string(index), "variantId"],
-          "Product variant ID does not exist.",
-          "PRODUCT_VARIANT_DOES_NOT_EXIST",
-        ))
+  quantity_rules_input_errors_loop(
+    store,
+    enumerate_dicts(inputs),
+    duplicate_quantity_rule_variant_ids(inputs),
+  )
+}
+
+fn quantity_rules_input_errors_loop(
+  store: Store,
+  entries: List(#(Dict(String, root_field.ResolvedValue), Int)),
+  duplicate_variant_ids: List(String),
+) -> List(CapturedJsonValue) {
+  case entries {
+    [] -> []
+    [entry, ..rest] -> {
+      let #(input, index) = entry
+      let variant_id =
+        graphql_helpers.read_arg_string_nonempty(input, "variantId")
+      let current_errors =
+        list.append(
+          quantity_rule_variant_errors(store, input, index),
+          list.append(
+            quantity_rule_numeric_errors(input, index),
+            quantity_rule_duplicate_variant_errors(
+              variant_id,
+              index,
+              duplicate_variant_ids,
+            ),
+          ),
+        )
+      list.append(
+        current_errors,
+        quantity_rules_input_errors_loop(store, rest, duplicate_variant_ids),
+      )
     }
-  })
+  }
+}
+
+fn quantity_rule_variant_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  let variant_id =
+    graphql_helpers.read_arg_string_nonempty(input, "variantId")
+    |> option.unwrap("")
+  case store.get_effective_variant_by_id(store, variant_id) {
+    Some(_) -> []
+    None -> [
+      quantity_rule_user_error(
+        ["quantityRules", int.to_string(index), "variantId"],
+        "Product variant ID does not exist.",
+        "PRODUCT_VARIANT_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+}
+
+fn quantity_rule_numeric_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  let minimum = graphql_helpers.read_arg_int(input, "minimum")
+  let maximum = graphql_helpers.read_arg_int(input, "maximum")
+  let increment = graphql_helpers.read_arg_int(input, "increment")
+  list.flatten([
+    quantity_rule_minimum_bound_errors(minimum, index),
+    quantity_rule_increment_bound_errors(increment, index),
+    quantity_rule_increment_ceiling_errors(minimum, increment, index),
+    quantity_rule_range_errors(minimum, maximum, index),
+    quantity_rule_minimum_divisibility_errors(minimum, increment, index),
+    quantity_rule_maximum_divisibility_errors(maximum, increment, index),
+  ])
+}
+
+fn quantity_rule_minimum_bound_errors(
+  minimum: Option(Int),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  case minimum {
+    Some(value) ->
+      case value < 1 {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "minimum"],
+            "Minimum must be greater than or equal to one.",
+            "GREATER_THAN_OR_EQUAL_TO",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn quantity_rule_increment_bound_errors(
+  increment: Option(Int),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  case increment {
+    Some(value) ->
+      case value < 1 {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "increment"],
+            "Increment must be greater than or equal to one.",
+            "GREATER_THAN_OR_EQUAL_TO",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn quantity_rule_increment_ceiling_errors(
+  minimum: Option(Int),
+  increment: Option(Int),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  case minimum, increment {
+    Some(minimum_value), Some(increment_value) ->
+      case increment_value > minimum_value {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "increment"],
+            "Increment must be lower than or equal to the minimum.",
+            "INCREMENT_IS_GREATER_THAN_MINIMUM",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn quantity_rule_range_errors(
+  minimum: Option(Int),
+  maximum: Option(Int),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  case minimum, maximum {
+    Some(minimum_value), Some(maximum_value) ->
+      case minimum_value > maximum_value {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "minimum"],
+            "Minimum must be lower than or equal to the maximum.",
+            "MINIMUM_IS_GREATER_THAN_MAXIMUM",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn quantity_rule_minimum_divisibility_errors(
+  minimum: Option(Int),
+  increment: Option(Int),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  case minimum, increment {
+    Some(minimum_value), Some(increment_value) ->
+      case
+        minimum_value >= 1
+        && increment_value >= 1
+        && minimum_value % increment_value != 0
+      {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "minimum"],
+            "Minimum must be a multiple of the increment.",
+            "MINIMUM_NOT_MULTIPLE_OF_INCREMENT",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn quantity_rule_maximum_divisibility_errors(
+  maximum: Option(Int),
+  increment: Option(Int),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  case maximum, increment {
+    Some(maximum_value), Some(increment_value) ->
+      case increment_value >= 1 && maximum_value % increment_value != 0 {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "maximum"],
+            "Maximum must be a multiple of the increment.",
+            "MAXIMUM_NOT_MULTIPLE_OF_INCREMENT",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn quantity_rule_duplicate_variant_errors(
+  variant_id: Option(String),
+  index: Int,
+  duplicate_variant_ids: List(String),
+) -> List(CapturedJsonValue) {
+  case variant_id {
+    Some(id) ->
+      case list.contains(duplicate_variant_ids, id) {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "variantId"],
+            "Quantity rule inputs must be unique by variant id.",
+            "DUPLICATE_INPUT_FOR_VARIANT",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn duplicate_quantity_rule_variant_ids(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(String) {
+  duplicate_quantity_rule_variant_ids_loop(inputs, [], [])
+}
+
+fn duplicate_quantity_rule_variant_ids_loop(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  seen_variant_ids: List(String),
+  duplicate_variant_ids: List(String),
+) -> List(String) {
+  case inputs {
+    [] -> duplicate_variant_ids
+    [input, ..rest] -> {
+      let variant_id =
+        graphql_helpers.read_arg_string_nonempty(input, "variantId")
+      case variant_id {
+        Some(id) ->
+          case list.contains(seen_variant_ids, id) {
+            True ->
+              duplicate_quantity_rule_variant_ids_loop(
+                rest,
+                seen_variant_ids,
+                append_unique_strings(duplicate_variant_ids, [id]),
+              )
+            False ->
+              duplicate_quantity_rule_variant_ids_loop(
+                rest,
+                [id, ..seen_variant_ids],
+                duplicate_variant_ids,
+              )
+          }
+        None ->
+          duplicate_quantity_rule_variant_ids_loop(
+            rest,
+            seen_variant_ids,
+            duplicate_variant_ids,
+          )
+      }
+    }
+  }
 }
 
 @internal
