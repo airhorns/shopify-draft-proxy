@@ -467,6 +467,17 @@ fn create_and_pin(
   #(pinned.store, pinned.identity, json.to_string(pinned.data))
 }
 
+fn create_definition_only(
+  acc: #(store.Store, synthetic_identity.SyntheticIdentityRegistry, String),
+  i: Int,
+) {
+  let #(current_store, current_identity, _) = acc
+  let key = "limit_" <> int.to_string(i)
+  let created =
+    run_mutation(current_store, current_identity, create_definition_query(key))
+  #(created.store, created.identity, json.to_string(created.data))
+}
+
 fn int_range(from start: Int, to stop: Int) -> List(Int) {
   case start > stop {
     True -> []
@@ -919,6 +930,195 @@ pub fn standard_metafield_definition_enable_with_pin_rejects_constrained_templat
   assert result.staged_resource_ids == []
   assert json.to_string(result.data)
     == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_resolves_captured_namespace_key_template_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        standardMetafieldDefinitionEnable(
+          ownerType: PRODUCT,
+          namespace: \"shopify\",
+          key: \"color-pattern\"
+        ) {
+          createdDefinition { namespace key type { name } }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert result.staged_resource_ids == ["gid://shopify/MetafieldDefinition/1"]
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":{\"namespace\":\"shopify\",\"key\":\"color-pattern\",\"type\":{\"name\":\"list.metaobject_reference\"}},\"userErrors\":[]}}}"
+}
+
+pub fn standard_metafield_definition_enable_rejects_unstructured_without_force_test() {
+  let set_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldsSet(metafields: [{
+          ownerId: \"gid://shopify/Product/1\",
+          namespace: \"descriptors\",
+          key: \"subtitle\",
+          type: \"single_line_text_field\",
+          value: \"Existing subtitle\"
+        }]) {
+          metafields { id namespace key }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let enable_result =
+    run_mutation(
+      set_result.store,
+      set_result.identity,
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        ", forceEnable: false",
+      ),
+    )
+
+  assert enable_result.staged_resource_ids == []
+  assert json.to_string(enable_result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Unstructured metafields already exist for this owner type, namespace, and key.\",\"code\":\"UNSTRUCTURED_ALREADY_EXISTS\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_force_true_allows_unstructured_test() {
+  let set_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldsSet(metafields: [{
+          ownerId: \"gid://shopify/Product/1\",
+          namespace: \"descriptors\",
+          key: \"subtitle\",
+          type: \"single_line_text_field\",
+          value: \"Existing subtitle\"
+        }]) {
+          metafields { id namespace key }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let enable_result =
+    run_mutation(
+      set_result.store,
+      set_result.identity,
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        ", forceEnable: true",
+      ),
+    )
+
+  assert enable_result.staged_resource_ids
+    == [
+      "gid://shopify/MetafieldDefinition/2",
+    ]
+  assert string.contains(
+    json.to_string(enable_result.data),
+    "\"userErrors\":[]",
+  )
+}
+
+pub fn standard_metafield_definition_enable_rejects_ineligible_deprecated_condition_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+        ", useAsCollectionCondition: true",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition type is not allowed for smart collection conditions.\",\"code\":\"TYPE_NOT_ALLOWED_FOR_CONDITIONS\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_rejects_invalid_unique_values_capability_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+        ", capabilities: { uniqueValues: { enabled: true } }",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"The capability unique_values is not valid for this definition.\",\"code\":\"INVALID_CAPABILITY\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_rejects_admin_access_for_public_template_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        ", access: { admin: MERCHANT_READ }",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"access\"],\"message\":\"Admin access input is not allowed for this standard metafield definition.\",\"code\":\"ADMIN_ACCESS_INPUT_NOT_ALLOWED\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_translates_deprecated_access_and_filter_args_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        standardMetafieldDefinitionEnable(
+          ownerType: PRODUCT,
+          id: \"gid://shopify/StandardMetafieldDefinitionTemplate/1\",
+          useAsAdminFilter: true,
+          visibleToStorefrontApi: false
+        ) {
+          createdDefinition {
+            access { storefront }
+            capabilities { adminFilterable { enabled eligible status } }
+          }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert result.staged_resource_ids == ["gid://shopify/MetafieldDefinition/1"]
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":{\"access\":{\"storefront\":\"NONE\"},\"capabilities\":{\"adminFilterable\":{\"enabled\":true,\"eligible\":true,\"status\":\"FILTERABLE\"}}},\"userErrors\":[]}}}"
+}
+
+pub fn standard_metafield_definition_enable_rejects_owner_type_definition_limit_test() {
+  let #(full_store, full_identity, _) =
+    list.fold(
+      int_range(from: 1, to: 250),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_definition_only,
+    )
+  let result =
+    run_mutation(
+      full_store,
+      full_identity,
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        "",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition limit reached for owner type.\",\"code\":\"LIMIT_EXCEEDED\"}]}}}"
 }
 
 pub fn non_product_owner_definition_lifecycle_test() {

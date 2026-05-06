@@ -1,0 +1,18 @@
+#graphql
+mutation OrderCustomerSetErrorPaths($orderId: ID!, $customerId: ID!) {
+  orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+    order {
+      id
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

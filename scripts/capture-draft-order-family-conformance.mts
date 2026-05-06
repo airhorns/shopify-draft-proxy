@@ -127,6 +127,15 @@ const draftOrderUpdateDocument = await readText('config/parity-requests/orders/d
 const draftOrderDuplicateDocument = await readText(
   'config/parity-requests/orders/draftOrderDuplicate-parity-plan.graphql',
 );
+const draftOrderDuplicateLifecycleCreateDocument = await readText(
+  'config/parity-requests/orders/draftOrderDuplicate-lifecycle-create.graphql',
+);
+const draftOrderDuplicateLifecycleCompleteDocument = await readText(
+  'config/parity-requests/orders/draftOrderDuplicate-lifecycle-complete.graphql',
+);
+const draftOrderDuplicateLifecycleDocument = await readText(
+  'config/parity-requests/orders/draftOrderDuplicate-resets-lifecycle.graphql',
+);
 const draftOrderDeleteDocument = await readText('config/parity-requests/orders/draftOrderDelete-parity-plan.graphql');
 const draftOrderCreateFromOrderDocument = await readText(
   'config/parity-requests/orders/draftOrderCreateFromOrder-parity-plan.graphql',
@@ -351,6 +360,75 @@ async function captureDraftOrderDuplicate(): Promise<void> {
   });
 }
 
+async function createDraftOrderDuplicateLifecycleSource(label: string): Promise<CapturedMutation & { id: string }> {
+  const variables = cloneRecord(draftOrderCreateBaseVariables);
+  applyDraftOrderSeedReferences(variables, draftOrderSeedReferences);
+  const input = readRecord(variables, 'input');
+  if (!input) {
+    throw new Error('draftOrderCreate parity variables are missing input.');
+  }
+  input['email'] = `hermes-draft-order-duplicate-lifecycle-${label}-${stamp}@example.com`;
+  input['note'] = `draft order duplicate lifecycle ${label} setup`;
+  input['tags'] = ['parity-capture', 'draft-order-duplicate-lifecycle', label];
+
+  const response = await runGraphql<JsonRecord>(draftOrderDuplicateLifecycleCreateDocument, variables);
+  const id = draftOrderIdFromPayload(response, 'draftOrderCreate');
+  return {
+    id,
+    variables,
+    mutation: {
+      response,
+    },
+  };
+}
+
+async function captureDraftOrderDuplicateResetsLifecycle(): Promise<void> {
+  const openSource = await createDraftOrderDuplicateLifecycleSource('open');
+  const openDuplicateVariables = { id: openSource.id };
+  const openDuplicateResponse = await runGraphql<JsonRecord>(
+    draftOrderDuplicateLifecycleDocument,
+    openDuplicateVariables,
+  );
+
+  const completedSource = await createDraftOrderDuplicateLifecycleSource('completed');
+  const completeVariables = { id: completedSource.id };
+  const completeResponse = await runGraphql<JsonRecord>(
+    draftOrderDuplicateLifecycleCompleteDocument,
+    completeVariables,
+  );
+  const completedDuplicateVariables = { id: completedSource.id };
+  const completedDuplicateResponse = await runGraphql<JsonRecord>(
+    draftOrderDuplicateLifecycleDocument,
+    completedDuplicateVariables,
+  );
+
+  await writeJson(path.join(fixtureDir, 'draft-order-duplicate-resets-lifecycle.json'), {
+    openSource: {
+      variables: openSource.variables,
+      response: openSource.mutation.response,
+    },
+    openDuplicate: {
+      variables: openDuplicateVariables,
+      response: openDuplicateResponse,
+    },
+    completedSource: {
+      create: {
+        variables: completedSource.variables,
+        response: completedSource.mutation.response,
+      },
+      complete: {
+        variables: completeVariables,
+        response: completeResponse,
+      },
+      duplicate: {
+        variables: completedDuplicateVariables,
+        response: completedDuplicateResponse,
+      },
+    },
+    upstreamCalls: [],
+  });
+}
+
 async function captureDraftOrderDelete(): Promise<void> {
   const setup = await createDraftOrder('delete');
   const variables = cloneRecord(draftOrderDeleteBaseVariables);
@@ -411,6 +489,7 @@ async function captureDraftOrderCreateFromOrder(): Promise<void> {
 await captureDraftOrderDetail();
 await captureDraftOrderUpdate();
 await captureDraftOrderDuplicate();
+await captureDraftOrderDuplicateResetsLifecycle();
 await captureDraftOrderDelete();
 await captureDraftOrderCreateFromOrder();
 
@@ -425,6 +504,7 @@ console.log(
         path.join(fixtureDir, 'draft-order-detail.json'),
         path.join(fixtureDir, 'draft-order-update-parity.json'),
         path.join(fixtureDir, 'draft-order-duplicate-parity.json'),
+        path.join(fixtureDir, 'draft-order-duplicate-resets-lifecycle.json'),
         path.join(fixtureDir, 'draft-order-delete-parity.json'),
         path.join(fixtureDir, 'draft-order-create-from-order-parity.json'),
       ],

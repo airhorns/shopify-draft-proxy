@@ -2203,7 +2203,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'draft-orders',
     captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',
-    purpose: 'Draft order create/update/delete/complete and downstream read behavior.',
+    purpose: 'Draft order create/update/delete/complete, duplicate lifecycle reset, and downstream read behavior.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}draft-order-*.json`],
     cleanupBehavior: 'Creates disposable draft orders and deletes/completes/cancels them per branch.',
