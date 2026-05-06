@@ -10,19 +10,22 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Location, type Selection}
+import shopify_draft_proxy/graphql/ast.{type Location, type Selection, Field}
 
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, ListVal, ObjectVal,
+  type ResolvedValue, ListVal, ObjectVal, get_field_arguments,
 }
 import shopify_draft_proxy/graphql/source as graphql_source
 
 import shopify_draft_proxy/proxy/customers/inputs as customer_inputs
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
-  default_selected_field_options, get_selected_child_fields,
-  project_graphql_field_value, project_graphql_value, src_object,
+  type FragmentMap, type SourceValue, SerializeConnectionConfig, SrcList,
+  SrcNull, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_field_response_key, get_selected_child_fields, paginate_connection_items,
+  project_graphql_field_value, project_graphql_value, serialize_connection,
+  src_object,
 }
 
 import shopify_draft_proxy/proxy/products/inventory_core.{
@@ -38,9 +41,9 @@ import shopify_draft_proxy/proxy/products/inventory_core.{
   inventory_quantity_bounds_errors, inventory_set_quantity_bounds_errors,
   normalize_inventory_item_id, optional_weight_source,
   product_set_available_quantity, product_set_inventory_level_id,
-  product_set_inventory_location, quantity_problem, read_inventory_move_terminal,
-  read_inventory_quantities_available_total, read_inventory_weight_input,
-  read_quantity_field, read_variant_weight_input,
+  product_set_inventory_location, quantity_problem, quantity_source,
+  read_inventory_move_terminal, read_inventory_quantities_available_total,
+  read_inventory_weight_input, read_quantity_field, read_variant_weight_input,
   upsert_product_set_quantity_group, valid_inventory_adjust_quantity_name,
   valid_staged_inventory_quantity_name, valid_weight_unit,
   validate_inventory_move_ledger_document_uri,
@@ -64,7 +67,7 @@ import shopify_draft_proxy/proxy/products/products_core.{
 import shopify_draft_proxy/proxy/products/shared.{
   bool_string, connection_page_info_source, dedupe_preserving_order,
   input_list_has_object_missing_field, missing_idempotency_key_error,
-  nullable_field_user_errors_source, read_bool_field,
+  nullable_field_user_errors_source, read_arg_string_list, read_bool_field,
   read_include_inactive_argument, read_int_field, read_non_empty_string_field,
   read_numeric_field, read_object_field, read_object_list_field,
   read_string_argument, read_string_field, resource_id_matches,
@@ -156,15 +159,7 @@ pub fn serialize_inventory_item_level_field(
       case find_inventory_level(item.inventory_levels, location_id) {
         Some(level) ->
           case include_inactive || inventory_level_is_active(level) {
-            True ->
-              project_graphql_value(
-                inventory_level_source(level),
-                get_selected_child_fields(
-                  field,
-                  default_selected_field_options(),
-                ),
-                fragments,
-              )
+            True -> project_inventory_level(level, field, variables, fragments)
             False -> json.null()
           }
         None -> json.null()
@@ -192,6 +187,78 @@ pub fn inventory_levels_connection_source(
     #("nodes", SrcList(list.map(levels, inventory_level_source))),
     #("pageInfo", connection_page_info_source(levels, inventory_level_cursor)),
   ])
+}
+
+fn project_inventory_level(
+  level: InventoryLevelRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let source = inventory_level_source(level)
+  let entries =
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.map(fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "quantities" ->
+              project_graphql_value(
+                SrcList(list.map(
+                  inventory_level_selected_quantities(
+                    level,
+                    selection,
+                    variables,
+                  ),
+                  quantity_source,
+                )),
+                get_selected_child_fields(
+                  selection,
+                  default_selected_field_options(),
+                ),
+                fragments,
+              )
+            _ -> project_graphql_field_value(source, selection, fragments)
+          }
+        _ -> project_graphql_field_value(source, selection, fragments)
+      }
+      #(key, value)
+    })
+  json.object(entries)
+}
+
+fn inventory_level_selected_quantities(
+  level: InventoryLevelRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) {
+  let names = inventory_level_quantity_names(field, variables)
+  case names {
+    [] -> level.quantities
+    _ ->
+      names
+      |> list.filter_map(fn(requested_name) {
+        case
+          list.find(level.quantities, fn(quantity) {
+            quantity.name == requested_name
+          })
+        {
+          Ok(quantity) -> Ok(quantity)
+          Error(_) -> Error(Nil)
+        }
+      })
+  }
+}
+
+fn inventory_level_quantity_names(
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+) -> List(String) {
+  case get_field_arguments(field, variables) {
+    Ok(args) -> read_arg_string_list(args, "names")
+    Error(_) -> []
+  }
 }
 
 @internal
@@ -752,12 +819,29 @@ pub fn serialize_inventory_item_levels_field(
       item.inventory_levels,
       read_include_inactive_argument(field, variables),
     )
-  project_graphql_field_value(
-    src_object([
-      #("inventoryLevels", inventory_levels_connection_source(levels)),
-    ]),
+
+  let window =
+    paginate_connection_items(
+      levels,
+      field,
+      variables,
+      inventory_level_cursor,
+      default_connection_window_options(),
+    )
+
+  serialize_connection(
     field,
-    fragments,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: inventory_level_cursor,
+      serialize_node: fn(level, node_field, _index) {
+        project_inventory_level(level, node_field, variables, fragments)
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
   )
 }
 

@@ -195,6 +195,7 @@ pub fn shop_features_json(record: types.ShopFeaturesRecord) -> Json {
       json.string(record.paypal_express_subscription_gateway_status),
     ),
     #("reports", json.bool(record.reports)),
+    #("discountsByMarketEnabled", json.bool(record.discounts_by_market_enabled)),
     #("sellsSubscriptions", json.bool(record.sells_subscriptions)),
     #("showMetrics", json.bool(record.show_metrics)),
     #("storefront", json.bool(record.storefront)),
@@ -1287,10 +1288,29 @@ pub fn metaobject_field_definition_json(
     #("required", optional_bool(record.required)),
     #("type", metaobject_definition_type_json(record.type_)),
     #(
+      "capabilities",
+      metaobject_field_definition_capabilities_json(record.capabilities),
+    ),
+    #(
       "validations",
       json.array(
         record.validations,
         metaobject_field_definition_validation_json,
+      ),
+    ),
+  ])
+}
+
+@internal
+pub fn metaobject_field_definition_capabilities_json(
+  record: types.MetaobjectFieldDefinitionCapabilitiesRecord,
+) -> Json {
+  json.object([
+    #(
+      "adminFilterable",
+      optional_to_json(
+        record.admin_filterable,
+        metaobject_definition_capability_json,
       ),
     ),
   ])

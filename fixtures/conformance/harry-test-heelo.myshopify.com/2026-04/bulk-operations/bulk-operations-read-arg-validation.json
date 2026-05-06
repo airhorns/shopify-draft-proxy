@@ -1,0 +1,298 @@
+{
+  "scenarioId": "bulk-operations-read-arg-validation",
+  "capturedAt": "2026-05-06T22:07:35.100Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "missingWindow": {
+      "operationName": "BulkOperationsMissingWindowValidation",
+      "query": "#graphql\nquery BulkOperationsMissingWindowValidation {\n  bulkOperations {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "you must provide one of first or last",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["bulkOperations"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstAndLast": {
+      "operationName": "BulkOperationsFirstAndLastValidation",
+      "query": "#graphql\nquery BulkOperationsFirstAndLastValidation {\n  bulkOperations(first: 1, last: 1) {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "providing both first and last is not supported",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["bulkOperations"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidCreatedAt": {
+      "operationName": "BulkOperationsInvalidCreatedAtValidation",
+      "query": "#graphql\nquery BulkOperationsInvalidCreatedAtValidation {\n  bulkOperations(first: 1, query: \"created_at:not-a-date\") {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid timestamp for query filter `created_at`.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "BAD_REQUEST"
+            },
+            "path": ["bulkOperations"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidStatusExpired": {
+      "operationName": "BulkOperationsInvalidStatusExpiredValidation",
+      "query": "#graphql\nquery BulkOperationsInvalidStatusExpiredValidation {\n  bulkOperations(first: 1, query: \"status:EXPIRED\") {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["bulkOperations"],
+              "query": "status:EXPIRED",
+              "parsed": {
+                "field": "status",
+                "match_all": "EXPIRED"
+              },
+              "warnings": [
+                {
+                  "field": "status",
+                  "message": "Input `EXPIRED` is not an accepted value.",
+                  "code": "invalid_value"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "invalidStatusUnknown": {
+      "operationName": "BulkOperationsInvalidStatusUnknownValidation",
+      "query": "#graphql\nquery BulkOperationsInvalidStatusUnknownValidation {\n  bulkOperations(first: 1, query: \"status:NOT_A_STATUS\") {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["bulkOperations"],
+              "query": "status:NOT_A_STATUS",
+              "parsed": {
+                "field": "status",
+                "match_all": "NOT_A_STATUS"
+              },
+              "warnings": [
+                {
+                  "field": "status",
+                  "message": "Input `NOT_A_STATUS` is not an accepted value.",
+                  "code": "invalid_value"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "invalidOperationType": {
+      "operationName": "BulkOperationsInvalidOperationTypeValidation",
+      "query": "#graphql\nquery BulkOperationsInvalidOperationTypeValidation {\n  bulkOperations(first: 1, query: \"operation_type:EXPORT\") {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["bulkOperations"],
+              "query": "operation_type:EXPORT",
+              "parsed": {
+                "field": "operation_type",
+                "match_all": "EXPORT"
+              },
+              "warnings": [
+                {
+                  "field": "operation_type",
+                  "message": "Input `EXPORT` is not an accepted value.",
+                  "code": "invalid_value"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "malformedInlineId": {
+      "operationName": "BulkOperationMalformedInlineIdValidation",
+      "query": "#graphql\nquery BulkOperationMalformedInlineIdValidation {\n  bulkOperation(id: \"not-a-gid\") {\n    id\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid global id 'not-a-gid'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "path": ["query BulkOperationMalformedInlineIdValidation", "bulkOperation", "id"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "CoercionError"
+            }
+          }
+        ]
+      }
+    },
+    "nonBulkOperationGid": {
+      "operationName": "BulkOperationNonBulkOperationGidValidation",
+      "query": "#graphql\nquery BulkOperationNonBulkOperationGidValidation {\n  bulkOperation(id: \"gid://shopify/Product/1\") {\n    id\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Invalid id: gid://shopify/Product/1",
+            "locations": [
+              {
+                "line": 3,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["bulkOperation"]
+          }
+        ],
+        "data": {
+          "bulkOperation": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

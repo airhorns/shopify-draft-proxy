@@ -1,0 +1,803 @@
+{
+  "scenarioId": "online-store-article-media-navigation-follow-through",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T22:16:31.252Z",
+  "source": "live-shopify-disposable-capture",
+  "interactions": [
+    {
+      "name": "schema-boundaries",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreArticleMediaNavigationSchema {\n    pageType: __type(name: \"Page\") {\n      fields { name }\n    }\n    articleType: __type(name: \"Article\") {\n      fields { name }\n    }\n  }\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageType": {
+            "fields": [
+              {
+                "name": "body"
+              },
+              {
+                "name": "bodySummary"
+              },
+              {
+                "name": "createdAt"
+              },
+              {
+                "name": "defaultCursor"
+              },
+              {
+                "name": "events"
+              },
+              {
+                "name": "handle"
+              },
+              {
+                "name": "id"
+              },
+              {
+                "name": "isPublished"
+              },
+              {
+                "name": "metafield"
+              },
+              {
+                "name": "metafields"
+              },
+              {
+                "name": "publishedAt"
+              },
+              {
+                "name": "templateSuffix"
+              },
+              {
+                "name": "title"
+              },
+              {
+                "name": "translations"
+              },
+              {
+                "name": "updatedAt"
+              }
+            ]
+          },
+          "articleType": {
+            "fields": [
+              {
+                "name": "author"
+              },
+              {
+                "name": "blog"
+              },
+              {
+                "name": "body"
+              },
+              {
+                "name": "comments"
+              },
+              {
+                "name": "commentsCount"
+              },
+              {
+                "name": "createdAt"
+              },
+              {
+                "name": "defaultCursor"
+              },
+              {
+                "name": "events"
+              },
+              {
+                "name": "handle"
+              },
+              {
+                "name": "id"
+              },
+              {
+                "name": "image"
+              },
+              {
+                "name": "isPublished"
+              },
+              {
+                "name": "metafield"
+              },
+              {
+                "name": "metafields"
+              },
+              {
+                "name": "publishedAt"
+              },
+              {
+                "name": "summary"
+              },
+              {
+                "name": "tags"
+              },
+              {
+                "name": "templateSuffix"
+              },
+              {
+                "name": "title"
+              },
+              {
+                "name": "translations"
+              },
+              {
+                "name": "updatedAt"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "article-create-media-metafield",
+      "request": {
+        "query": "mutation OnlineStoreArticleMedia($article: ArticleCreateInput!, $blog: ArticleBlogInput) {\n  articleCreate(article: $article, blog: $blog) {\n    article {\n      id\n      title\n      blog {\n        id\n      }\n      image {\n        altText\n        url\n        width\n        height\n      }\n      metafield(namespace: \"online_store_conformance\", key: \"hero\") {\n        namespace\n        key\n        type\n        value\n        jsonValue\n        ownerType\n      }\n      metafields(first: 5, namespace: \"online_store_conformance\") {\n        nodes {\n          namespace\n          key\n          type\n          value\n          jsonValue\n          ownerType\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Online Store Article Media Blog 20260506221627"
+          },
+          "article": {
+            "title": "Online Store Article Media 20260506221627",
+            "body": "<p>Online store article media body</p>",
+            "summary": "<p>Online store article media summary</p>",
+            "author": {
+              "name": "Online Store Media Author"
+            },
+            "isPublished": true,
+            "image": {
+              "altText": "Online store conformance hero",
+              "url": "https://placehold.co/64x64/png"
+            },
+            "metafields": [
+              {
+                "namespace": "online_store_conformance",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "created hero"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683156144434",
+              "title": "Online Store Article Media 20260506221627",
+              "blog": {
+                "id": "gid://shopify/Blog/120992006450"
+              },
+              "image": {
+                "altText": "Online store conformance hero",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png.png?v=1778105788",
+                "width": 64,
+                "height": 64
+              },
+              "metafield": {
+                "namespace": "online_store_conformance",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "created hero",
+                "jsonValue": "created hero",
+                "ownerType": "ARTICLE"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "namespace": "online_store_conformance",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "created hero",
+                    "jsonValue": "created hero",
+                    "ownerType": "ARTICLE"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "article-update-media-metafield",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleMediaUpdate($id: ID!, $article: ArticleUpdateInput!) {\n    articleUpdate(id: $id, article: $article) {\n      article {\n        id\n        title\n        image {\n          id\n          altText\n          url\n          width\n          height\n        }\n        metafield(namespace: \"online_store_conformance\", key: \"hero\") {\n          id\n          namespace\n          key\n          type\n          value\n          jsonValue\n          ownerType\n        }\n        metafields(first: 5, namespace: \"online_store_conformance\") {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            jsonValue\n            ownerType\n          }\n          pageInfo { hasNextPage hasPreviousPage }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683156144434",
+          "article": {
+            "image": {
+              "altText": "Online store conformance hero updated",
+              "url": "https://placehold.co/80x80/png"
+            },
+            "metafields": [
+              {
+                "namespace": "online_store_conformance",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "updated hero"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/683156144434",
+              "title": "Online Store Article Media 20260506221627",
+              "image": {
+                "id": "gid://shopify/ArticleImage/297142321458",
+                "altText": "Online store conformance hero updated",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png_d7d58908-e8cd-4780-b4a0-4b5bf62b0273.png?v=1778105789",
+                "width": 80,
+                "height": 80
+              },
+              "metafield": {
+                "id": "gid://shopify/Metafield/43116126732594",
+                "namespace": "online_store_conformance",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "updated hero",
+                "jsonValue": "updated hero",
+                "ownerType": "ARTICLE"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43116126732594",
+                    "namespace": "online_store_conformance",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updated hero",
+                    "jsonValue": "updated hero",
+                    "ownerType": "ARTICLE"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "article-read-after-update",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreArticleMediaRead($id: ID!) {\n    article(id: $id) {\n      id\n      title\n      image {\n        id\n        altText\n        url\n        width\n        height\n      }\n      metafield(namespace: \"online_store_conformance\", key: \"hero\") {\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        ownerType\n      }\n      metafields(first: 5, namespace: \"online_store_conformance\") {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          jsonValue\n          ownerType\n        }\n        pageInfo { hasNextPage hasPreviousPage }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683156144434"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "article": {
+            "id": "gid://shopify/Article/683156144434",
+            "title": "Online Store Article Media 20260506221627",
+            "image": {
+              "id": "gid://shopify/ArticleImage/297142321458",
+              "altText": "Online store conformance hero updated",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png_d7d58908-e8cd-4780-b4a0-4b5bf62b0273.png?v=1778105789",
+              "width": 80,
+              "height": 80
+            },
+            "metafield": {
+              "id": "gid://shopify/Metafield/43116126732594",
+              "namespace": "online_store_conformance",
+              "key": "hero",
+              "type": "single_line_text_field",
+              "value": "updated hero",
+              "jsonValue": "updated hero",
+              "ownerType": "ARTICLE"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/43116126732594",
+                  "namespace": "online_store_conformance",
+                  "key": "hero",
+                  "type": "single_line_text_field",
+                  "value": "updated hero",
+                  "jsonValue": "updated hero",
+                  "ownerType": "ARTICLE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "navigation-page-create",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNavigationPageCreate($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page { id title handle }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "Online Store Navigation Page 20260506221627",
+            "body": "<p>Online store navigation page body</p>",
+            "isPublished": true
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159639077170",
+              "title": "Online Store Navigation Page 20260506221627",
+              "handle": "online-store-navigation-page-20260506221627"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "navigation-menu-create",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNavigationMenuCreate($title: String!, $handle: String!, $items: [MenuItemCreateInput!]!) {\n    menuCreate(title: $title, handle: $handle, items: $items) {\n      menu {\n        id\n        title\n        handle\n        isDefault\n        items {\n          id\n          title\n          type\n          resourceId\n          url\n          items { id title type resourceId url }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "title": "Online Store Navigation 20260506221627",
+          "handle": "online-store-navigation-20260506221627",
+          "items": [
+            {
+              "title": "Online Store Page Link",
+              "type": "PAGE",
+              "resourceId": "gid://shopify/Page/159639077170"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "menuCreate": {
+            "menu": {
+              "id": "gid://shopify/Menu/308401733938",
+              "title": "Online Store Navigation 20260506221627",
+              "handle": "online-store-navigation-20260506221627",
+              "isDefault": false,
+              "items": [
+                {
+                  "id": "gid://shopify/MenuItem/774764560690",
+                  "title": "Online Store Page Link",
+                  "type": "PAGE",
+                  "resourceId": "gid://shopify/Page/159639077170",
+                  "url": "/pages/online-store-navigation-page-20260506221627",
+                  "items": []
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "navigation-menu-read-after-create",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreNavigationMenuRead($id: ID!) {\n    menu(id: $id) {\n      id\n      title\n      handle\n      isDefault\n      items {\n        id\n        title\n        type\n        resourceId\n        url\n        items { id title type resourceId url }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Menu/308401733938"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "menu": {
+            "id": "gid://shopify/Menu/308401733938",
+            "title": "Online Store Navigation 20260506221627",
+            "handle": "online-store-navigation-20260506221627",
+            "isDefault": false,
+            "items": [
+              {
+                "id": "gid://shopify/MenuItem/774764560690",
+                "title": "Online Store Page Link",
+                "type": "PAGE",
+                "resourceId": "gid://shopify/Page/159639077170",
+                "url": "/pages/online-store-navigation-page-20260506221627",
+                "items": []
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "navigation-menus-catalog-by-handle",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreNavigationMenusCatalog($query: String!) {\n    menus(first: 5, query: $query) {\n      nodes {\n        id\n        title\n        handle\n        isDefault\n      }\n      pageInfo { hasNextPage hasPreviousPage }\n    }\n  }\n",
+        "variables": {
+          "query": "handle:online-store-navigation-20260506221627"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "menus": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Menu/291567599922",
+                "title": "Main menu",
+                "handle": "main-menu",
+                "isDefault": true
+              },
+              {
+                "id": "gid://shopify/Menu/291567632690",
+                "title": "Footer menu",
+                "handle": "footer",
+                "isDefault": true
+              },
+              {
+                "id": "gid://shopify/Menu/291567665458",
+                "title": "Customer account main menu",
+                "handle": "customer-account-main-menu",
+                "isDefault": true
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["menus"],
+              "query": "handle:online-store-navigation-20260506221627",
+              "parsed": {
+                "field": "handle",
+                "match_all": "online-store-navigation-20260506221627"
+              },
+              "warnings": [
+                {
+                  "field": "handle",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "navigation-menu-update",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNavigationMenuUpdate($id: ID!, $title: String!, $handle: String, $items: [MenuItemUpdateInput!]!) {\n    menuUpdate(id: $id, title: $title, handle: $handle, items: $items) {\n      menu {\n        id\n        title\n        handle\n        isDefault\n        items {\n          id\n          title\n          type\n          resourceId\n          url\n          items { id title type resourceId url }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Menu/308401733938",
+          "title": "Online Store Navigation Updated 20260506221627",
+          "handle": "online-store-navigation-20260506221627",
+          "items": [
+            {
+              "title": "Online Store Page Link Updated",
+              "type": "PAGE",
+              "resourceId": "gid://shopify/Page/159639077170"
+            },
+            {
+              "title": "Online Store External Link",
+              "type": "HTTP",
+              "url": "https://example.com/online-store-conformance"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "menuUpdate": {
+            "menu": {
+              "id": "gid://shopify/Menu/308401733938",
+              "title": "Online Store Navigation Updated 20260506221627",
+              "handle": "online-store-navigation-20260506221627",
+              "isDefault": false,
+              "items": [
+                {
+                  "id": "gid://shopify/MenuItem/774764593458",
+                  "title": "Online Store Page Link Updated",
+                  "type": "PAGE",
+                  "resourceId": "gid://shopify/Page/159639077170",
+                  "url": "/pages/online-store-navigation-page-20260506221627",
+                  "items": []
+                },
+                {
+                  "id": "gid://shopify/MenuItem/774764626226",
+                  "title": "Online Store External Link",
+                  "type": "HTTP",
+                  "resourceId": null,
+                  "url": "https://example.com/online-store-conformance",
+                  "items": []
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "navigation-menu-delete",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreNavigationMenuDelete($id: ID!) {\n    menuDelete(id: $id) {\n      deletedMenuId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Menu/308401733938"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "menuDelete": {
+            "deletedMenuId": "gid://shopify/Menu/308401733938",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "navigation-menu-read-after-delete",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreNavigationMenuRead($id: ID!) {\n    menu(id: $id) {\n      id\n      title\n      handle\n      isDefault\n      items {\n        id\n        title\n        type\n        resourceId\n        url\n        items { id title type resourceId url }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Menu/308401733938"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "menu": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleMediaArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683156144434"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683156144434",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleMediaPageCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159639077170"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159639077170",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleMediaBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120992006450"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120992006450",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "schemaEvidence": {
+    "pageHasOnlineStoreUrlField": false,
+    "articleHasSeoField": false
+  },
+  "articleEvidence": {
+    "createImageHost": "cdn.shopify.com",
+    "updateImageHost": "cdn.shopify.com",
+    "updateReadImageMatches": true,
+    "updateReadMetafieldMatches": true
+  },
+  "menuEvidence": {
+    "createPageItemUrlPattern": "/pages/<page-handle>",
+    "createPageItemResourceType": "Page",
+    "updateFirstItemUrlPattern": "/pages/<page-handle>",
+    "updateSecondItemUrl": "https://example.com/online-store-conformance",
+    "readAfterDelete": null
+  }
+}
