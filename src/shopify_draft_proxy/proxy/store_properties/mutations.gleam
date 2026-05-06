@@ -2179,7 +2179,7 @@ fn stage_publishable_mutation(
   )
 }
 
-fn hydrate_shop_baseline_if_needed(
+pub fn hydrate_shop_baseline_if_needed(
   store: Store,
   upstream: UpstreamContext,
 ) -> Store {
