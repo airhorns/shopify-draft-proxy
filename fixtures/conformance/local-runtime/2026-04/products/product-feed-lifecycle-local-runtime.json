@@ -27,7 +27,44 @@
       "data": {
         "productFullSync": {
           "id": "gid://shopify/ProductFeed/US-EN",
+          "job": {
+            "id": "gid://shopify/Job/2",
+            "done": false,
+            "query": {
+              "__typename": "QueryRoot"
+            }
+          },
           "userErrors": []
+        }
+      }
+    }
+  },
+  "syncUnknown": {
+    "response": {
+      "data": {
+        "productFullSync": {
+          "id": null,
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "ProductFeed does not exist",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "syncJob": {
+    "response": {
+      "data": {
+        "job": {
+          "id": "gid://shopify/Job/2",
+          "done": false,
+          "query": {
+            "__typename": "QueryRoot"
+          }
         }
       }
     }

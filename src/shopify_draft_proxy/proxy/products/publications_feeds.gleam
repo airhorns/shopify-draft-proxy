@@ -37,7 +37,7 @@ import shopify_draft_proxy/proxy/products/publications_core.{
   missing_variant_relationship_ids, product_feed_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, empty_connection_source, mutation_rejected_result,
+  count_source, empty_connection_source, job_source, mutation_rejected_result,
   mutation_result, nullable_field_user_errors_source, read_arg_object_list,
   read_int_field, read_object_field, read_object_list_field,
   read_string_argument, read_string_field, read_string_list_field,
@@ -283,14 +283,20 @@ pub fn product_feed_delete_payload(
 @internal
 pub fn product_full_sync_payload(
   id: Option(String),
+  job_id: Option(String),
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
+  let job_value = case job_id {
+    Some(id) -> job_source(id, False)
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductFullSyncPayload")),
       #("id", graphql_helpers.option_string_source(id)),
+      #("job", job_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -662,42 +668,61 @@ pub fn handle_product_full_sync(
   case id {
     Some(feed_id) ->
       case store.get_effective_product_feed_by_id(store, feed_id) {
-        Some(_) ->
-          mutation_result(
-            key,
-            product_full_sync_payload(Some(feed_id), [], field, fragments),
-            store,
-            identity,
-            [feed_id],
-          )
-        None ->
+        Some(_) -> {
+          let #(job_id, next_identity) =
+            synthetic_identity.make_synthetic_gid(identity, "Job")
           mutation_result(
             key,
             product_full_sync_payload(
+              Some(feed_id),
+              Some(job_id),
+              [],
+              field,
+              fragments,
+            ),
+            store,
+            next_identity,
+            [feed_id, job_id],
+          )
+        }
+        None ->
+          mutation_rejected_result(
+            key,
+            product_full_sync_payload(
+              None,
               None,
               [
-                ProductUserError(["id"], "ProductFeed does not exist", None),
+                ProductUserError(
+                  ["id"],
+                  "ProductFeed does not exist",
+                  Some("NOT_FOUND"),
+                ),
               ],
               field,
               fragments,
             ),
             store,
             identity,
-            [],
           )
       }
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         product_full_sync_payload(
           None,
-          [ProductUserError(["id"], "ProductFeed does not exist", None)],
+          None,
+          [
+            ProductUserError(
+              ["id"],
+              "ProductFeed does not exist",
+              Some("NOT_FOUND"),
+            ),
+          ],
           field,
           fragments,
         ),
         store,
         identity,
-        [],
       )
   }
 }
