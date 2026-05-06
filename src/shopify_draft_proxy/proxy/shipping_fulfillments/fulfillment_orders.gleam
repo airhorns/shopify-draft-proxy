@@ -1363,72 +1363,94 @@ pub fn handle_fulfillment_order_merge(
   let key = get_field_response_key(field)
   let args = resolved_args(field, variables)
   let ids = fulfillment_order_merge_ids(args)
-  case ids {
-    [primary_id, ..] ->
-      case
-        store.get_effective_fulfillment_order_by_id(draft_store, primary_id)
-      {
-        Some(primary) -> {
-          let total =
-            ids
-            |> list.fold(0, fn(sum, id) {
-              sum
-              + case
-                store.get_effective_fulfillment_order_by_id(draft_store, id)
-              {
-                Some(order) ->
-                  first_fulfillment_order_line_item_total(order.data)
-                None -> 0
-              }
-            })
-          let merged =
-            update_fulfillment_order_fields(primary, [
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #(
-                "supportedActions",
-                captured_action_list([
-                  "CREATE_FULFILLMENT",
-                  "REPORT_PROGRESS",
-                  "MOVE",
-                  "HOLD",
-                  "SPLIT",
-                ]),
-              ),
-              #(
-                "lineItems",
-                fulfillment_order_line_items_with_quantity(
-                  primary.data,
-                  total,
-                  False,
-                ),
-              ),
-            ])
-          let #(merged, next_store) =
-            store.stage_upsert_fulfillment_order(draft_store, merged)
-          let next_store = close_merge_siblings(next_store, ids, primary_id)
-          #(
-            shipping_types.MutationFieldResult(
-              key: key,
-              payload: fulfillment_order_payload_json(field, fragments, [
-                #("__typename", SrcString("FulfillmentOrderMergePayload")),
-                #(
-                  "fulfillmentOrderMerges",
-                  SrcList([
-                    src_object([
-                      #("fulfillmentOrder", fulfillment_order_source(merged)),
+  case validate_fulfillment_order_merge_inputs(draft_store, args, ids) {
+    [_, ..] as user_errors ->
+      fulfillment_order_merge_user_error_result(
+        draft_store,
+        identity,
+        field,
+        fragments,
+        user_errors,
+      )
+    [] ->
+      case ids {
+        [primary_id, ..] ->
+          case
+            store.get_effective_fulfillment_order_by_id(draft_store, primary_id)
+          {
+            Some(primary) -> {
+              let total =
+                ids
+                |> list.fold(0, fn(sum, id) {
+                  sum
+                  + case
+                    store.get_effective_fulfillment_order_by_id(draft_store, id)
+                  {
+                    Some(order) ->
+                      first_fulfillment_order_line_item_total(order.data)
+                    None -> 0
+                  }
+                })
+              let merged =
+                update_fulfillment_order_fields(primary, [
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #(
+                    "supportedActions",
+                    captured_action_list([
+                      "CREATE_FULFILLMENT",
+                      "REPORT_PROGRESS",
+                      "MOVE",
+                      "HOLD",
+                      "SPLIT",
                     ]),
+                  ),
+                  #(
+                    "lineItems",
+                    fulfillment_order_line_items_with_quantity(
+                      primary.data,
+                      total,
+                      False,
+                    ),
+                  ),
+                ])
+              let #(merged, next_store) =
+                store.stage_upsert_fulfillment_order(draft_store, merged)
+              let next_store = close_merge_siblings(next_store, ids, primary_id)
+              #(
+                shipping_types.MutationFieldResult(
+                  key: key,
+                  payload: fulfillment_order_payload_json(field, fragments, [
+                    #("__typename", SrcString("FulfillmentOrderMergePayload")),
+                    #(
+                      "fulfillmentOrderMerges",
+                      SrcList([
+                        src_object([
+                          #(
+                            "fulfillmentOrder",
+                            fulfillment_order_source(merged),
+                          ),
+                        ]),
+                      ]),
+                    ),
+                    #("userErrors", SrcList([])),
                   ]),
+                  errors: [],
+                  staged_resource_ids: [merged.id],
                 ),
-                #("userErrors", SrcList([])),
-              ]),
-              errors: [],
-              staged_resource_ids: [merged.id],
-            ),
-            next_store,
-            identity,
-          )
-        }
-        None ->
+                next_store,
+                identity,
+              )
+            }
+            None ->
+              fulfillment_order_missing_mutation_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderMergePayload",
+              )
+          }
+        _ ->
           fulfillment_order_missing_mutation_result(
             draft_store,
             identity,
@@ -1437,13 +1459,169 @@ pub fn handle_fulfillment_order_merge(
             "FulfillmentOrderMergePayload",
           )
       }
-    _ ->
-      fulfillment_order_missing_mutation_result(
-        draft_store,
-        identity,
-        field,
-        fragments,
-        "FulfillmentOrderMergePayload",
-      )
   }
+}
+
+fn validate_fulfillment_order_merge_inputs(
+  draft_store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  ids: List(String),
+) -> List(SourceValue) {
+  case fulfillment_order_merge_missing_order_errors(draft_store, ids) {
+    [_, ..] as errors -> errors
+    [] ->
+      case fulfillment_order_merge_line_item_quantity_errors(args) {
+        [_, ..] as errors -> errors
+        [] -> fulfillment_order_merge_status_errors(draft_store, ids)
+      }
+  }
+}
+
+fn fulfillment_order_merge_missing_order_errors(
+  draft_store: Store,
+  ids: List(String),
+) -> List(SourceValue) {
+  case
+    ids
+    |> list.any(fn(id) {
+      case store.get_effective_fulfillment_order_by_id(draft_store, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  {
+    True -> [
+      fulfillment_order_merge_user_error(
+        SrcList([SrcString("base")]),
+        "Fulfillment order does not exist.",
+        SrcString("FULFILLMENT_ORDER_NOT_FOUND"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn fulfillment_order_merge_line_item_quantity_errors(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  read_object_array(args, "fulfillmentOrderMergeInputs")
+  |> list.index_fold([], fn(errors, input, input_index) {
+    let intent_errors =
+      read_object_array(input, "mergeIntents")
+      |> list.index_fold([], fn(intent_errors, intent, intent_index) {
+        let line_item_errors =
+          read_object_array(intent, "fulfillmentOrderLineItems")
+          |> list.index_fold(
+            [],
+            fn(line_item_errors, line_item, line_item_index) {
+              case
+                fulfillment_order_merge_line_item_quantity_error(
+                  line_item,
+                  input_index,
+                  intent_index,
+                  line_item_index,
+                )
+              {
+                Some(error) -> list.append(line_item_errors, [error])
+                None -> line_item_errors
+              }
+            },
+          )
+        list.append(intent_errors, line_item_errors)
+      })
+    list.append(errors, intent_errors)
+  })
+}
+
+fn fulfillment_order_merge_line_item_quantity_error(
+  line_item: Dict(String, root_field.ResolvedValue),
+  input_index: Int,
+  intent_index: Int,
+  line_item_index: Int,
+) -> Option(SourceValue) {
+  let field =
+    SrcList([
+      SrcString("fulfillmentOrderMergeInputs"),
+      SrcString(int.to_string(input_index)),
+      SrcString("mergeIntents"),
+      SrcString(int.to_string(intent_index)),
+      SrcString("fulfillmentOrderLineItems"),
+      SrcString(int.to_string(line_item_index)),
+      SrcString("quantity"),
+    ])
+  case dict.get(line_item, "quantity") {
+    Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
+      Some(fulfillment_order_merge_user_error(
+        field,
+        "Line item quantity must be greater than 0.",
+        SrcString("GREATER_THAN"),
+      ))
+    Ok(root_field.IntVal(_)) -> None
+    Ok(_) | Error(_) ->
+      Some(fulfillment_order_merge_user_error(
+        field,
+        "Line item quantity is invalid.",
+        SrcString("INVALID_LINE_ITEM_QUANTITY"),
+      ))
+  }
+}
+
+fn fulfillment_order_merge_status_errors(
+  draft_store: Store,
+  ids: List(String),
+) -> List(SourceValue) {
+  case
+    ids
+    |> list.any(fn(id) {
+      case store.get_effective_fulfillment_order_by_id(draft_store, id) {
+        Some(order) -> order.status != "OPEN"
+        None -> False
+      }
+    })
+  {
+    True -> [
+      fulfillment_order_merge_user_error(
+        SrcList([SrcString("base")]),
+        "Fulfillment order is not actionable.",
+        SrcNull,
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn fulfillment_order_merge_user_error(
+  field: SourceValue,
+  message: String,
+  code: SourceValue,
+) -> SourceValue {
+  src_object([
+    #("field", field),
+    #("message", SrcString(message)),
+    #("code", code),
+  ])
+}
+
+fn fulfillment_order_merge_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(SourceValue),
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  #(
+    shipping_types.MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString("FulfillmentOrderMergePayload")),
+        #("fulfillmentOrderMerges", SrcNull),
+        #("userErrors", SrcList(user_errors)),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
 }
