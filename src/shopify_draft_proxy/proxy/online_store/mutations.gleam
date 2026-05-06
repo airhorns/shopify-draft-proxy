@@ -17,6 +17,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome,
 }
 import shopify_draft_proxy/proxy/online_store/serializers
+import shopify_draft_proxy/proxy/online_store/server_pixel_validation
 import shopify_draft_proxy/proxy/online_store/types as online_store_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -1962,59 +1963,131 @@ fn update_server_pixel_endpoint(
       "serverPixel",
     ))
   let args = graphql_helpers.field_args(field, variables)
-  let address = case mode {
-    "arn" -> serializers.input_string(args, "arn")
-    _ ->
-      case
-        serializers.input_string(args, "pubSubProject"),
-        serializers.input_string(args, "pubSubTopic")
-      {
-        Some(p), Some(t) -> Some(p <> "/" <> t)
-        _, _ -> None
+  let #(address, validation_errors) = server_pixel_endpoint_address(mode, args)
+  case validation_errors {
+    [_, ..] ->
+      integration_validation_error_payload(
+        outcome,
+        field,
+        fragments,
+        root,
+        "serverPixel",
+        validation_errors,
+      )
+    [] ->
+      case existing {
+        Some(existing) -> {
+          let record =
+            OnlineStoreIntegrationRecord(
+              ..existing,
+              data: serializers.maybe_insert_string(
+                existing.data,
+                "webhookEndpointAddress",
+                address,
+              ),
+            )
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(outcome.store, record)
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "serverPixel",
+            Some(record),
+            [],
+            store,
+            outcome.identity,
+            [record.id],
+          )
+        }
+        None ->
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "serverPixel",
+            None,
+            [serializers.integration_not_found_error("serverPixel")],
+            outcome.store,
+            outcome.identity,
+            [],
+          )
       }
   }
-  case existing {
-    Some(existing) -> {
-      let record =
-        OnlineStoreIntegrationRecord(
-          ..existing,
-          data: serializers.maybe_insert_string(
-            existing.data,
-            "webhookEndpointAddress",
-            address,
-          ),
-        )
-      let #(_, store) =
-        store.upsert_staged_online_store_integration(outcome.store, record)
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        root,
-        "serverPixel",
-        Some(record),
-        [],
-        store,
-        outcome.identity,
-        [record.id],
-      )
+}
+
+fn server_pixel_endpoint_address(
+  mode: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(Option(String), List(graphql_helpers.SourceValue)) {
+  case mode {
+    "arn" -> {
+      let arn = serializers.input_string(args, "arn")
+      case arn {
+        Some(value) ->
+          case server_pixel_validation.valid_eventbridge_arn(value) {
+            True -> #(Some(value), [])
+            False -> #(None, [eventbridge_endpoint_error()])
+          }
+        _ -> #(None, [eventbridge_endpoint_error()])
+      }
     }
-    None ->
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        root,
-        "serverPixel",
-        None,
-        [serializers.integration_not_found_error("serverPixel")],
-        outcome.store,
-        outcome.identity,
-        [],
-      )
+    _ -> {
+      let project = serializers.input_string(args, "pubSubProject")
+      let topic = serializers.input_string(args, "pubSubTopic")
+      let errors =
+        list.append(
+          pubsub_endpoint_blank_errors(project, "pubSubProject"),
+          pubsub_endpoint_blank_errors(topic, "pubSubTopic"),
+        )
+      case project, topic, errors {
+        Some(p), Some(t), [] -> #(Some(p <> "/" <> t), [])
+        _, _, _ -> #(None, errors)
+      }
+    }
   }
+}
+
+fn pubsub_endpoint_blank_errors(
+  value: Option(String),
+  field: String,
+) -> List(graphql_helpers.SourceValue) {
+  case value {
+    Some(value) ->
+      case server_pixel_validation.non_blank(value) {
+        True -> []
+        False -> [pubsub_endpoint_error(field)]
+      }
+    _ -> [pubsub_endpoint_error(field)]
+  }
+}
+
+fn eventbridge_endpoint_error() -> graphql_helpers.SourceValue {
+  server_pixel_endpoint_error(
+    "arn",
+    "EventBridge server pixel endpoint is invalid",
+    "EVENT_BRIDGE_ERROR",
+  )
+}
+
+fn pubsub_endpoint_error(field: String) -> graphql_helpers.SourceValue {
+  server_pixel_endpoint_error(
+    field,
+    "Pub/Sub server pixel endpoint is invalid",
+    "PUB_SUB_ERROR",
+  )
+}
+
+fn server_pixel_endpoint_error(
+  field: String,
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  serializers.integration_user_error("serverPixel", [field], message, code)
 }
 
 fn create_storefront_token(

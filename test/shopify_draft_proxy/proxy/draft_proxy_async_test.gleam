@@ -45,6 +45,11 @@ import shopify_draft_proxy/state/store
 @target(javascript)
 import shopify_draft_proxy/state/store/types as store_types
 
+@target(erlang)
+pub fn no_erlang_async_tests_test() {
+  Nil
+}
+
 @target(javascript)
 const synthetic_one: String = "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
 
