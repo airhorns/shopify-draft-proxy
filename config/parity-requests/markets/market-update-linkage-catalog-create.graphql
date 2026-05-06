@@ -1,0 +1,19 @@
+mutation MarketUpdateLinkageCatalogCreate($input: CatalogCreateInput!) {
+  catalogCreate(input: $input) {
+    catalog {
+      id
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

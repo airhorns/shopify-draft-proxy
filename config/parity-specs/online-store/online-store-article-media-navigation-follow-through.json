@@ -1,0 +1,52 @@
+{
+  "scenarioId": "online-store-article-media-navigation-follow-through",
+  "operationNames": ["article", "articleCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "schema-introspection",
+    "payload-shape",
+    "downstream-read-parity",
+    "navigation-follow-through",
+    "coverage-boundary"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-article-media-navigation-follow-through.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/online-store-content-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-article-media.graphql",
+    "variablesCapturePath": "$.interactions[1].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "article image and metafield create payload matches captured stable fields",
+        "capturePath": "$.interactions[1].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": [
+          "$.article.title",
+          "$.article.image.altText",
+          "$.article.metafield.namespace",
+          "$.article.metafield.key",
+          "$.article.metafield.type",
+          "$.article.metafield.value",
+          "$.article.metafield.jsonValue",
+          "$.article.metafield.ownerType",
+          "$.article.metafields.nodes[0].namespace",
+          "$.article.metafields.nodes[0].key",
+          "$.article.metafields.nodes[0].type",
+          "$.article.metafields.nodes[0].value",
+          "$.article.metafields.nodes[0].jsonValue",
+          "$.article.metafields.nodes[0].ownerType",
+          "$.article.metafields.pageInfo.hasNextPage",
+          "$.article.metafields.pageInfo.hasPreviousPage",
+          "$.userErrors"
+        ]
+      }
+    ]
+  },
+  "notes": "Disposable live capture records supported Article image/metafield create behavior, Article image/metafield update/read-after-update evidence, Page onlineStoreUrl and Article seo schema boundaries, and page-to-menu navigation follow-through evidence. Runtime tests enforce local Article image/metafield behavior without runtime Shopify writes. Menu follow-through evidence is retained as captured navigation evidence only; menu roots remain unimplemented until a dedicated navigation model covers menu lifecycle and catalog behavior."
+}

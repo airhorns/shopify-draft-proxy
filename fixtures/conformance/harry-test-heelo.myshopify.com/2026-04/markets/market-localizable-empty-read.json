@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-04-25T16:19:30.000Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "query": "#graphql\nquery MarketLocalizableEmptyRead($resourceId: ID!, $resourceIds: [ID!]!, $first: Int!, $marketId: ID!) {\n  marketLocalizableResource(resourceId: $resourceId) {\n    resourceId\n    marketLocalizableContent { key value digest }\n    marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } }\n  }\n  marketLocalizableResources(first: $first, resourceType: METAFIELD) {\n    edges { cursor node { resourceId marketLocalizableContent { key value digest } } }\n    nodes { resourceId }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    edges { cursor node { resourceId marketLocalizableContent { key value digest } } }\n    nodes { resourceId }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+  "query": "#graphql\nquery MarketLocalizableEmptyRead($resourceId: ID!, $resourceIds: [ID!]!, $first: Int!, $marketId: ID!) {\n  marketLocalizableResource(resourceId: $resourceId) {\n    resourceId\n    marketLocalizableContent {\n      key\n      value\n      digest\n    }\n    marketLocalizations(marketId: $marketId) {\n      key\n      value\n      updatedAt\n      outdated\n      market {\n        id\n        name\n      }\n    }\n  }\n  marketLocalizableResources(first: $first, resourceType: METAFIELD) {\n    edges {\n      cursor\n      node {\n        resourceId\n        marketLocalizableContent {\n          key\n          value\n          digest\n        }\n      }\n    }\n    nodes {\n      resourceId\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  marketLocalizableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    edges {\n      cursor\n      node {\n        resourceId\n        marketLocalizableContent {\n          key\n          value\n          digest\n        }\n      }\n    }\n    nodes {\n      resourceId\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
   "variables": {
     "resourceId": "gid://shopify/Metafield/999999999999",
     "resourceIds": ["gid://shopify/Metafield/999999999999"],
@@ -41,7 +41,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1877,
             "restoreRate": 100
           }
         }
@@ -57,7 +57,7 @@
         "first": 5,
         "marketId": "gid://shopify/Market/92276719922"
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "captured live market localizable empty read",
       "response": {
         "status": 200,
         "body": {
@@ -90,7 +90,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1877,
                 "restoreRate": 100
               }
             }

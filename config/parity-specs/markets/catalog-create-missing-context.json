@@ -11,15 +11,20 @@
     "variablesCapturePath": "$.cases[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "CatalogCreate validation evidence for missing context input. The proxy must return catalog null and an INVALID CatalogUserError rooted at input.context without staging a MarketCatalog.",
+  "notes": "CatalogCreate validation evidence for missing context input. Current Shopify Admin GraphQL 2026-04 rejects the variable-bound input before resolver execution with top-level INVALID_VARIABLE for missing context.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "missing-context-catalog-create-data",
-        "capturePath": "$.cases[0].response.payload.data",
-        "proxyPath": "$.data"
+        "name": "missing-context-error-message",
+        "capturePath": "$.cases[0].response.payload.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "missing-context-error-extensions",
+        "capturePath": "$.cases[0].response.payload.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
       }
     ]
   }

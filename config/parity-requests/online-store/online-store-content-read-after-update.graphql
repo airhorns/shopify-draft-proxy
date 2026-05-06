@@ -1,4 +1,4 @@
-query OnlineStoreContentReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: ID!) {
+query OnlineStoreContentReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: ID!, $articleQuery: String!) {
   blog(id: $blogId) {
     id
     title
@@ -34,7 +34,7 @@ query OnlineStoreContentReadAfterUpdate($blogId: ID!, $pageId: ID!, $articleId: 
       title
     }
   }
-  articles(first: 5, query: "har-303") {
+  articles(first: 5, query: $articleQuery) {
     nodes {
       id
       title

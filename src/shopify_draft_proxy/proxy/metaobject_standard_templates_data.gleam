@@ -5,9 +5,11 @@ import gleam/dict
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/state/types.{
   type MetaobjectDefinitionCapabilitiesRecord,
+  type MetaobjectFieldDefinitionCapabilitiesRecord,
   type MetaobjectFieldDefinitionRecord, MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionTypeRecord,
-  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionValidationRecord,
+  MetaobjectFieldDefinitionCapabilitiesRecord, MetaobjectFieldDefinitionRecord,
+  MetaobjectFieldDefinitionValidationRecord,
 }
 
 pub type StandardMetaobjectTemplate {
@@ -20,6 +22,12 @@ pub type StandardMetaobjectTemplate {
     capabilities: MetaobjectDefinitionCapabilitiesRecord,
     field_definitions: List(MetaobjectFieldDefinitionRecord),
     has_thumbnail_field: Option(Bool),
+  )
+}
+
+fn default_field_capabilities() -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: Some(MetaobjectDefinitionCapabilityRecord(False)),
   )
 }
 
@@ -49,6 +57,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -57,6 +66,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("multi_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -65,6 +75,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(False),
           MetaobjectDefinitionTypeRecord("list.link", Some("LINK")),
+          default_field_capabilities(),
           [],
         ),
       ],
@@ -94,6 +105,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -107,6 +119,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -141,6 +154,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -154,6 +168,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -188,6 +203,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -201,6 +217,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -235,6 +252,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -243,6 +261,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(False),
           MetaobjectDefinitionTypeRecord("color", Some("COLOR")),
+          default_field_capabilities(),
           [],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -251,6 +270,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(False),
           MetaobjectDefinitionTypeRecord("file_reference", Some("REFERENCE")),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "file_type_options",
@@ -269,6 +289,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "list.product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -289,6 +310,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -323,6 +345,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -336,6 +359,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -370,6 +394,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -383,6 +408,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -417,6 +443,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -430,6 +457,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -464,6 +492,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -477,6 +506,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -511,6 +541,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -524,6 +555,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -558,6 +590,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -571,6 +604,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -605,6 +639,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -618,6 +653,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -652,6 +688,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -665,6 +702,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -697,6 +735,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -710,6 +749,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -744,6 +784,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -757,6 +798,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -791,6 +833,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -804,6 +847,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -838,6 +882,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -851,6 +896,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -885,6 +931,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -898,6 +945,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -932,6 +980,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -945,6 +994,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -979,6 +1029,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -992,6 +1043,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1026,6 +1078,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1039,6 +1092,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1073,6 +1127,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1086,6 +1141,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1120,6 +1176,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1133,6 +1190,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1167,6 +1225,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1180,6 +1239,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1214,6 +1274,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1227,6 +1288,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1261,6 +1323,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1274,6 +1337,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
@@ -1308,6 +1372,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
           None,
           Some(True),
           MetaobjectDefinitionTypeRecord("single_line_text_field", Some("TEXT")),
+          default_field_capabilities(),
           [MetaobjectFieldDefinitionValidationRecord("max", Some("255"))],
         ),
         MetaobjectFieldDefinitionRecord(
@@ -1321,6 +1386,7 @@ pub fn templates() -> List(StandardMetaobjectTemplate) {
             "product_taxonomy_value_reference",
             Some("REFERENCE"),
           ),
+          default_field_capabilities(),
           [
             MetaobjectFieldDefinitionValidationRecord(
               "product_taxonomy_attribute_handle",
