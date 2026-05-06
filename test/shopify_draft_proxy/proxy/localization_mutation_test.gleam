@@ -425,6 +425,28 @@ pub fn translations_register_persists_valid_rows_alongside_user_errors_test() {
   assert list.length(stored) == 1
 }
 
+pub fn translations_register_rejects_primary_locale_test() {
+  let s =
+    seed_shop_locale(store.new(), "en", True, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"en\", key: \"title\", value: \"Hello\", translatableContentDigest: \"abc\" }]) { translations { key value locale } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"locale\"],\"message\":\"Locale cannot be the same as the shop primary locale\",\"code\":\"SAME_LOCALE_AS_SHOP_PRIMARY\"}]}}}"
+  let stored =
+    store.list_effective_translations(
+      register.store,
+      "gid://shopify/Product/1",
+      "en",
+      None,
+    )
+  assert stored == []
+}
+
 pub fn translations_register_blank_resource_id_returns_error_test() {
   let body =
     run(
@@ -532,6 +554,54 @@ pub fn translations_remove_noop_success_returns_null_translations_test() {
 
   assert json.to_string(remove.data)
     == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[]}}}"
+}
+
+pub fn translations_remove_unknown_key_noops_without_user_errors_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let remove =
+    run_outcome(
+      s,
+      "mutation { translationsRemove(resourceId: \"gid://shopify/Product/1\", translationKeys: [\"bogus_key\"], locales: [\"fr\"]) { translations { key } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(remove.data)
+    == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[]}}}"
+}
+
+pub fn translations_remove_disabled_locale_removes_orphan_translation_test() {
+  let #(_, seeded_translation_store) =
+    store.stage_translation(
+      store.new()
+        |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc"),
+      TranslationRecord(
+        resource_id: "gid://shopify/Product/1",
+        key: "title",
+        locale: "it",
+        value: "Ciao",
+        translatable_content_digest: "abc",
+        market_id: None,
+        updated_at: "1970-01-01T00:00:00Z",
+        outdated: False,
+      ),
+    )
+  let remove =
+    run_outcome(
+      seeded_translation_store,
+      "mutation { translationsRemove(resourceId: \"gid://shopify/Product/1\", translationKeys: [\"title\"], locales: [\"it\"]) { translations { key value locale } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(remove.data)
+    == "{\"data\":{\"translationsRemove\":{\"translations\":[{\"key\":\"title\",\"value\":\"Ciao\",\"locale\":\"it\"}],\"userErrors\":[]}}}"
+  let stored =
+    store.list_effective_translations(
+      remove.store,
+      "gid://shopify/Product/1",
+      "it",
+      None,
+    )
+  assert stored == []
 }
 
 pub fn translations_remove_accepts_market_ids_and_clears_market_read_test() {
