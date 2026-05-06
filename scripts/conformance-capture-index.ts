@@ -990,6 +990,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variant-relationship-bulk-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-variant-relationship-bulk-update-validation-conformance.ts',
+    purpose:
+      'productVariantRelationshipBulkUpdate parent/child semantics validation for parent-as-child, quantity bounds, duplicate inputs, exactly-one-parent-id, and update-not-child branches.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variant-relationship-bulk-update-validation.json`,
+      'config/parity-specs/products/productVariantRelationshipBulkUpdate-validation.json',
+      'config/parity-requests/products/productVariantRelationshipBulkUpdate-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable parent/child products, marks the parent variant as requiring components, captures validation probes, then deletes the products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'selling-plan-groups',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
