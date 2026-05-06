@@ -165,6 +165,7 @@ fn handle_mutation_field(
             outcome,
             field,
             variables,
+            upstream,
             root,
             "blog",
             "deletedBlogId",
@@ -174,6 +175,7 @@ fn handle_mutation_field(
             outcome,
             field,
             variables,
+            upstream,
             root,
             "page",
             "deletedPageId",
@@ -183,6 +185,7 @@ fn handle_mutation_field(
             outcome,
             field,
             variables,
+            upstream,
             root,
             "article",
             "deletedArticleId",
@@ -1058,6 +1061,7 @@ fn delete_content(
   outcome: MutationOutcome,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
   root: String,
   kind: String,
   deleted_key: String,
@@ -1066,20 +1070,23 @@ fn delete_content(
   let id =
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store, staged_ids) = case id {
-    Some(id) ->
-      case store.get_effective_online_store_content_by_id(outcome.store, id) {
+    Some(id) -> {
+      let hydrated_store =
+        hydrate_content_for_delete(outcome.store, kind, id, upstream)
+      case store.get_effective_online_store_content_by_id(hydrated_store, id) {
         Some(_) -> {
           let #(store, staged_ids) =
-            cascade_delete_content(outcome.store, kind, id)
+            cascade_delete_content(hydrated_store, kind, id)
           #(SrcString(id), [], store, staged_ids)
         }
         None -> #(
           SrcNull,
           [serializers.user_error(["id"], "Content does not exist")],
-          outcome.store,
+          hydrated_store,
           [],
         )
       }
+    }
     None -> #(
       SrcNull,
       [serializers.user_error(["id"], "Content does not exist")],
@@ -1110,6 +1117,161 @@ fn delete_content(
       },
     ),
   )
+}
+
+fn hydrate_content_for_delete(
+  store_in: Store,
+  kind: String,
+  id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_online_store_content_by_id(store_in, id) {
+    Some(_) -> store_in
+    None ->
+      case kind {
+        "article" -> hydrate_article_delete_cascade(store_in, upstream, id)
+        "blog" -> hydrate_blog_delete_cascade(store_in, upstream, id)
+        _ -> store_in
+      }
+  }
+}
+
+fn hydrate_article_delete_cascade(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> Store {
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "OnlineStoreArticleDeleteCascadeHydrate",
+      online_store_types.online_store_article_delete_cascade_hydrate_query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      serializers.json_get(value, "data")
+      |> option.then(serializers.json_get(_, "article"))
+      |> option.map(fn(article) {
+        let records = article_records_with_comments(article, None)
+        store.upsert_base_online_store_content(store_in, records)
+      })
+      |> option.unwrap(store_in)
+    Error(_) -> store_in
+  }
+}
+
+fn hydrate_blog_delete_cascade(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> Store {
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "OnlineStoreBlogDeleteCascadeHydrate",
+      online_store_types.online_store_blog_delete_cascade_hydrate_query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      serializers.json_get(value, "data")
+      |> option.then(serializers.json_get(_, "blog"))
+      |> option.map(fn(blog) {
+        let blog_record =
+          content_record_from_commit(blog, "blog", None)
+          |> content_record_to_list
+        let article_records =
+          connection_nodes(blog, "articles")
+          |> list.flat_map(fn(article) {
+            article_records_with_comments(article, Some(id))
+          })
+        store.upsert_base_online_store_content(
+          store_in,
+          list.append(blog_record, article_records),
+        )
+      })
+      |> option.unwrap(store_in)
+    Error(_) -> store_in
+  }
+}
+
+fn article_records_with_comments(
+  article: commit.JsonValue,
+  parent_id: Option(String),
+) -> List(OnlineStoreContentRecord) {
+  let article_record =
+    content_record_from_commit(
+      article,
+      "article",
+      option.or(parent_id, article_parent_blog_id(article)),
+    )
+    |> content_record_to_list
+  let article_id = json_get_string(article, "id")
+  let comments =
+    connection_nodes(article, "comments")
+    |> list.filter_map(fn(comment) {
+      case comment_record_from_commit_with_parent(comment, article_id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(article_record, comments)
+}
+
+fn content_record_to_list(
+  record: Option(OnlineStoreContentRecord),
+) -> List(OnlineStoreContentRecord) {
+  case record {
+    Some(record) -> [record]
+    None -> []
+  }
+}
+
+fn content_record_from_commit(
+  value: commit.JsonValue,
+  kind: String,
+  parent_id: Option(String),
+) -> Option(OnlineStoreContentRecord) {
+  case json_get_string(value, "id") {
+    Some(id) ->
+      Some(OnlineStoreContentRecord(
+        id: id,
+        kind: kind,
+        cursor: None,
+        parent_id: parent_id,
+        created_at: json_get_string(value, "createdAt"),
+        updated_at: json_get_string(value, "updatedAt"),
+        data: captured_json_from_commit(value),
+      ))
+    None -> None
+  }
+}
+
+fn article_parent_blog_id(value: commit.JsonValue) -> Option(String) {
+  serializers.json_get(value, "blog")
+  |> option.then(json_get_string(_, "id"))
+}
+
+fn connection_nodes(
+  value: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  serializers.json_get(value, key)
+  |> option.then(serializers.json_get(_, "nodes"))
+  |> option.map(fn(nodes) {
+    case nodes {
+      commit.JsonArray(items) -> items
+      _ -> []
+    }
+  })
+  |> option.unwrap([])
 }
 
 fn cascade_delete_content(
@@ -1329,13 +1491,23 @@ fn hydrate_comment(
 fn comment_record_from_commit(
   value: commit.JsonValue,
 ) -> Option(OnlineStoreContentRecord) {
+  comment_record_from_commit_with_parent(
+    value,
+    comment_parent_article_id(value),
+  )
+}
+
+fn comment_record_from_commit_with_parent(
+  value: commit.JsonValue,
+  parent_id: Option(String),
+) -> Option(OnlineStoreContentRecord) {
   case json_get_string(value, "id") {
     Some(id) ->
       Some(OnlineStoreContentRecord(
         id: id,
         kind: "comment",
         cursor: None,
-        parent_id: comment_parent_article_id(value),
+        parent_id: parent_id,
         created_at: json_get_string(value, "createdAt"),
         updated_at: json_get_string(value, "updatedAt"),
         data: captured_json_from_commit(value),

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "article-delete-cascades-comments",
+  "operationNames": ["article", "articleDelete", "comments"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "downstream-read-parity", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/article-delete-cascades-comments.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/article-delete-cascades-comments.graphql",
+    "variablesCapturePath": "$.articleDelete.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "articleDelete silently deletes the article",
+        "capturePath": "$.articleDelete.response.data.articleDelete",
+        "proxyPath": "$.data.articleDelete"
+      },
+      {
+        "name": "article and child comment are absent after articleDelete",
+        "capturePath": "$.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-delete-cascades-comments-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.readAfterDelete.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture creates a disposable blog/article plus one REST-created article comment, records the pre-delete article/comment graph as the parity cassette, deletes the article through Admin GraphQL, then proves article(id:) and filtered comments(first:) no longer expose the cascaded comment. The direct comment(id:) branch remains runtime-test-backed because the public Admin API returned a known internal-error response for missing comments after delete instead of a stable null payload. Proxy replay hydrates the existing upstream article/comment graph through the cassette before staging the supported articleDelete locally."
+}
