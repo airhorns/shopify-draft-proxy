@@ -1,0 +1,275 @@
+{
+  "capturedAt": "2026-05-06T11:30:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "storeDomain": "local-runtime.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime parity fixture for fulfillmentOrdersSetFulfillmentDeadline validation and atomicity. The order graph is hydrated through the normal LiveHybrid cassette path; unknown fulfillment order access is represented by a null fulfillmentOrder hydrate response.",
+  "initialOrder": {
+    "variables": {
+      "id": "gid://shopify/Order/deadline-validation"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/deadline-validation",
+            "name": "#DEADLINE-VALIDATION",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "fulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/deadline-open-a",
+                  "status": "OPEN",
+                  "fulfillBy": null
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/deadline-open-b",
+                  "status": "OPEN",
+                  "fulfillBy": null
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/deadline-closed",
+                  "status": "CLOSED",
+                  "fulfillBy": null
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/deadline-cancelled",
+                  "status": "CANCELLED",
+                  "fulfillBy": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknownOnly": {
+    "variables": {
+      "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9999999"],
+      "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+    }
+  },
+  "mixedValidUnknown": {
+    "variables": {
+      "fulfillmentOrderIds": [
+        "gid://shopify/FulfillmentOrder/deadline-open-a",
+        "gid://shopify/FulfillmentOrder/9999999"
+      ],
+      "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+    }
+  },
+  "closed": {
+    "variables": {
+      "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-closed"],
+      "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+    }
+  },
+  "cancelled": {
+    "variables": {
+      "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-cancelled"],
+      "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+    }
+  },
+  "happyPath": {
+    "variables": {
+      "fulfillmentOrderIds": [
+        "gid://shopify/FulfillmentOrder/deadline-open-a",
+        "gid://shopify/FulfillmentOrder/deadline-open-b"
+      ],
+      "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+    }
+  },
+  "expected": {
+    "unknownOnly": {
+      "data": {
+        "fulfillmentOrdersSetFulfillmentDeadline": {
+          "success": false,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "The fulfillment orders could not be found.",
+              "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+            }
+          ]
+        }
+      }
+    },
+    "mixedValidUnknown": {
+      "data": {
+        "fulfillmentOrdersSetFulfillmentDeadline": {
+          "success": false,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "The fulfillment orders could not be found.",
+              "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+            }
+          ]
+        }
+      }
+    },
+    "afterMixedOrderRead": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/deadline-validation",
+          "name": "#DEADLINE-VALIDATION",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-open-a",
+                "status": "OPEN",
+                "fulfillBy": null
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-open-b",
+                "status": "OPEN",
+                "fulfillBy": null
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-closed",
+                "status": "CLOSED",
+                "fulfillBy": null
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-cancelled",
+                "status": "CANCELLED",
+                "fulfillBy": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    "closed": {
+      "data": {
+        "fulfillmentOrdersSetFulfillmentDeadline": {
+          "success": false,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
+              "code": null
+            }
+          ]
+        }
+      }
+    },
+    "cancelled": {
+      "data": {
+        "fulfillmentOrdersSetFulfillmentDeadline": {
+          "success": false,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
+              "code": null
+            }
+          ]
+        }
+      }
+    },
+    "happyPath": {
+      "data": {
+        "fulfillmentOrdersSetFulfillmentDeadline": {
+          "success": true,
+          "userErrors": []
+        }
+      }
+    },
+    "afterHappyOrderRead": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/deadline-validation",
+          "name": "#DEADLINE-VALIDATION",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-open-a",
+                "status": "OPEN",
+                "fulfillBy": "2026-12-01T00:00:00Z"
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-open-b",
+                "status": "OPEN",
+                "fulfillBy": "2026-12-01T00:00:00Z"
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-closed",
+                "status": "CLOSED",
+                "fulfillBy": null
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/deadline-cancelled",
+                "status": "CANCELLED",
+                "fulfillBy": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentOrdersSetDeadlineValidationOrderRead",
+      "variables": {
+        "id": "gid://shopify/Order/deadline-validation"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/deadline-validation",
+              "name": "#DEADLINE-VALIDATION",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/deadline-open-a",
+                    "status": "OPEN",
+                    "fulfillBy": null
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/deadline-open-b",
+                    "status": "OPEN",
+                    "fulfillBy": null
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/deadline-closed",
+                    "status": "CLOSED",
+                    "fulfillBy": null
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/deadline-cancelled",
+                    "status": "CANCELLED",
+                    "fulfillBy": null
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9999999"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": null
+          }
+        }
+      }
+    }
+  ]
+}
