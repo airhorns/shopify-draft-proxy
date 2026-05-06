@@ -434,6 +434,8 @@ pub const get_effective_backup_region = admin_platform.get_effective_backup_regi
 
 pub const upsert_base_admin_platform_generic_nodes = admin_platform.upsert_base_admin_platform_generic_nodes
 
+pub const upsert_staged_admin_platform_generic_nodes = admin_platform.upsert_staged_admin_platform_generic_nodes
+
 pub const get_effective_admin_platform_generic_node_by_id = admin_platform.get_effective_admin_platform_generic_node_by_id
 
 pub const upsert_base_admin_platform_taxonomy_categories = admin_platform.upsert_base_admin_platform_taxonomy_categories

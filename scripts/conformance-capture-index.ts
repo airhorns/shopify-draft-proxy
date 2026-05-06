@@ -2025,6 +2025,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-product-membership-job-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-product-membership-job-conformance.mts',
+    purpose:
+      'collectionAddProductsV2 and collectionRemoveProducts smart collection guards, async Job payload/readback, unknown productIds acceptance, and productIds cap validation.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-product-membership-job-parity.json`,
+      'config/parity-specs/products/collection-product-membership-job-parity.json',
+      'config/parity-requests/products/collection-product-membership-job-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable smart and custom collections, records validation/job branches, and deletes both collections during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-publications',
     scriptPath: 'scripts/capture-collection-mutation-conformance.mts',
     purpose: 'Collection publication behavior covered by the collection mutation harness when enabled.',

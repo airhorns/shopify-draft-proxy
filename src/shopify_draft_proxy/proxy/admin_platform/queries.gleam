@@ -1070,11 +1070,34 @@ fn serialize_job(
       case id {
         "" -> json.null()
         _ ->
-          project_selection(
-            job_source(id, !is_local_product_full_sync_job(store, id)),
-            field,
-            fragments,
-          )
+          case
+            store.get_effective_admin_platform_generic_node_by_id(store, id)
+          {
+            Some(record) ->
+              case record.typename {
+                "Job" ->
+                  project_graphql_value(
+                    captured_json_source_with_typename(
+                      record.data,
+                      record.typename,
+                    ),
+                    selection_children(field),
+                    fragments,
+                  )
+                _ ->
+                  project_selection(
+                    job_source(id, !is_local_product_full_sync_job(store, id)),
+                    field,
+                    fragments,
+                  )
+              }
+            None ->
+              project_selection(
+                job_source(id, !is_local_product_full_sync_job(store, id)),
+                field,
+                fragments,
+              )
+          }
       }
     _ -> json.null()
   }

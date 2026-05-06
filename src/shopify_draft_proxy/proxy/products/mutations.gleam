@@ -1195,6 +1195,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  document,
                 )
               let draft =
                 single_root_log_draft(
@@ -1205,13 +1206,26 @@ pub fn handle_mutation_fields(
                   "stage-locally",
                   Some("Staged collectionAddProducts locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "collectionAddProductsV2" -> {
@@ -1222,6 +1236,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  document,
                 )
               let draft =
                 single_root_log_draft(
@@ -1232,13 +1247,26 @@ pub fn handle_mutation_fields(
                   "stage-locally",
                   Some("Staged collectionAddProductsV2 locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "collectionCreate" -> {
@@ -1276,6 +1304,7 @@ pub fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  document,
                 )
               let draft =
                 single_root_log_draft(
@@ -1286,13 +1315,26 @@ pub fn handle_mutation_fields(
                   "stage-locally",
                   Some("Staged collectionRemoveProducts locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "collectionReorderProducts" -> {
