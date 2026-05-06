@@ -1,0 +1,98 @@
+{
+  "scenarioId": "order-edit-commit-history-and-fulfillment-orders",
+  "operationNames": ["orderEditBegin", "orderEditSetQuantity", "orderEditAddVariant", "orderEditCommit", "order"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-commit-history-and-fulfillment-orders.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditCommit-history-fulfillment-begin.graphql",
+    "variablesCapturePath": "$.begin.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live captured order edit commit scenario proving the edited order event, fulfillment-order remaining quantities, and current order totals/tax lines after a set-quantity plus add-variant edit. Volatile Shopify/proxy allocated IDs and event timestamps are excluded; selected payload values are otherwise compared strictly.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-user-errors",
+        "capturePath": "$.begin.response.payload.data.orderEditBegin.userErrors",
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      },
+      {
+        "name": "set-quantity-user-errors",
+        "capturePath": "$.setQuantity.response.payload.data.orderEditSetQuantity.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-history-fulfillment-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": 1,
+            "restock": false
+          }
+        },
+        "proxyPath": "$.data.orderEditSetQuantity.userErrors"
+      },
+      {
+        "name": "add-variant-user-errors",
+        "capturePath": "$.addVariant.response.payload.data.orderEditAddVariant.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-history-fulfillment-addVariant.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "quantity": 2,
+            "allowDuplicates": true
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant.userErrors"
+      },
+      {
+        "name": "commit-success",
+        "capturePath": "$.commit.response.payload.data.orderEditCommit.successMessages",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-history-fulfillment-commit.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": "order edit commit history fulfillment capture"
+          }
+        },
+        "proxyPath": "$.data.orderEditCommit.successMessages"
+      },
+      {
+        "name": "downstream-history-fulfillment-orders-and-totals",
+        "capturePath": "$.downstreamRead.response.payload.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-history-fulfillment-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.originalOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order",
+        "excludedPaths": [
+          "$.updatedAt",
+          "$.lineItems.nodes[*].id",
+          "$.events.nodes[*].id",
+          "$.events.nodes[*].createdAt",
+          "$.fulfillmentOrders.nodes[*].id",
+          "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+          "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].lineItem.id"
+        ]
+      }
+    ]
+  }
+}

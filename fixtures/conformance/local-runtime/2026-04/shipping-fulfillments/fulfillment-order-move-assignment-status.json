@@ -1,0 +1,338 @@
+{
+  "capturedAt": "2026-05-06T12:15:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "storeDomain": "local-runtime.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime fixture for fulfillmentOrderMove assignment-status independence. Fulfillment-order state is earned through ShippingFulfillmentOrderHydrate cassette reads, and destination-location state is earned through the locationsAvailableForDeliveryProfilesConnection cassette read.",
+  "setup": {
+    "hydrate": {
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/move-assignment-source",
+                  "name": "Move assignment source",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/move-assignment-destination",
+                  "name": "Move assignment destination",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cancellationRequested": {
+    "move": {
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested",
+        "newLocationId": "gid://shopify/Location/move-assignment-destination",
+        "fulfillmentOrderLineItems": null
+      }
+    }
+  },
+  "cancellationRejected": {
+    "move": {
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected",
+        "newLocationId": "gid://shopify/Location/move-assignment-destination",
+        "fulfillmentOrderLineItems": null
+      }
+    }
+  },
+  "submitted": {
+    "move": {
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted",
+        "newLocationId": "gid://shopify/Location/move-assignment-destination",
+        "fulfillmentOrderLineItems": null
+      }
+    }
+  },
+  "expected": {
+    "cancellationRequestedMove": {
+      "data": {
+        "fulfillmentOrderMove": {
+          "movedFulfillmentOrder": {
+            "assignedLocation": {
+              "location": {
+                "id": "gid://shopify/Location/move-assignment-destination"
+              }
+            }
+          },
+          "originalFulfillmentOrder": {
+            "assignedLocation": {
+              "location": {
+                "id": "gid://shopify/Location/move-assignment-destination"
+              }
+            }
+          },
+          "remainingFulfillmentOrder": null,
+          "userErrors": []
+        }
+      }
+    },
+    "cancellationRejectedMove": {
+      "data": {
+        "fulfillmentOrderMove": {
+          "movedFulfillmentOrder": {
+            "assignedLocation": {
+              "location": {
+                "id": "gid://shopify/Location/move-assignment-destination"
+              }
+            }
+          },
+          "originalFulfillmentOrder": {
+            "assignedLocation": {
+              "location": {
+                "id": "gid://shopify/Location/move-assignment-destination"
+              }
+            }
+          },
+          "remainingFulfillmentOrder": null,
+          "userErrors": []
+        }
+      }
+    },
+    "submittedMove": {
+      "data": {
+        "fulfillmentOrderMove": {
+          "movedFulfillmentOrder": null,
+          "originalFulfillmentOrder": null,
+          "remainingFulfillmentOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+              "code": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentOrderMoveAssignmentStatusHydrate",
+      "variables": {
+        "first": 10
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/move-assignment-source",
+                  "name": "Move assignment source",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/move-assignment-destination",
+                  "name": "Move assignment destination",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "assignmentStatus": "CANCELLATION_REQUESTED",
+              "fulfillAt": null,
+              "fulfillBy": null,
+              "updatedAt": "2026-05-06T12:15:00Z",
+              "supportedActions": [
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Move assignment source",
+                "location": {
+                  "id": "gid://shopify/Location/move-assignment-source",
+                  "name": "Move assignment source"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/move-assignment-cancellation-requested",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/move-assignment-cancellation-requested",
+                      "title": "Move assignment cancellation requested",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/move-assignment-cancellation-requested",
+                "name": "#MOVE-ASSIGNMENT-REQUESTED",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "assignmentStatus": "CANCELLATION_REJECTED",
+              "fulfillAt": null,
+              "fulfillBy": null,
+              "updatedAt": "2026-05-06T12:15:00Z",
+              "supportedActions": [
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Move assignment source",
+                "location": {
+                  "id": "gid://shopify/Location/move-assignment-source",
+                  "name": "Move assignment source"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/move-assignment-cancellation-rejected",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/move-assignment-cancellation-rejected",
+                      "title": "Move assignment cancellation rejected",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/move-assignment-cancellation-rejected",
+                "name": "#MOVE-ASSIGNMENT-REJECTED",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted",
+              "status": "OPEN",
+              "requestStatus": "SUBMITTED",
+              "assignmentStatus": "CANCELLATION_REQUESTED",
+              "fulfillAt": null,
+              "fulfillBy": null,
+              "updatedAt": "2026-05-06T12:15:00Z",
+              "supportedActions": [
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Move assignment source",
+                "location": {
+                  "id": "gid://shopify/Location/move-assignment-source",
+                  "name": "Move assignment source"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/move-assignment-submitted",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/move-assignment-submitted",
+                      "title": "Move assignment submitted",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/move-assignment-submitted",
+                "name": "#MOVE-ASSIGNMENT-SUBMITTED",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

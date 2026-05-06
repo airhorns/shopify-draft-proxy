@@ -1,0 +1,121 @@
+{
+  "scenarioId": "online-store/article-update-validation",
+  "operationNames": ["blogCreate", "articleCreate", "articleUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-article-update-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify articleUpdate validation behavior for ambiguous author.name plus author.userId, missing author user references, and image alt text without a URL when the article has no existing image. The parity runner creates a local blog and article setup, then reuses the synthetic article ID for validation targets. Public Admin API schema rejects authorV2 and inline blog on ArticleUpdateInput before resolver execution in current captured versions, so those non-executable branches stay covered by targeted runtime tests rather than parity targets.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable article blog reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate setup creates an article without an image",
+        "capturePath": "$.interactions[1].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[1].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[1].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[1].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article.title", "$.article.handle", "$.article.image", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate with author name and userId returns AMBIGUOUS_AUTHOR",
+        "capturePath": "$.interactions[2].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup creates an article without an image",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[2].request.variables.article.author.name"
+                },
+                "userId": {
+                  "fromCapturePath": "$.interactions[2].request.variables.article.author.userId"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate with unknown author user returns NOT_FOUND",
+        "capturePath": "$.interactions[3].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup creates an article without an image",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "author": {
+                "userId": {
+                  "fromCapturePath": "$.interactions[3].request.variables.article.author.userId"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate with image alt text and no URL returns INVALID",
+        "capturePath": "$.interactions[4].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup creates an article without an image",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "image": {
+                "altText": {
+                  "fromCapturePath": "$.interactions[4].request.variables.article.image.altText"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      }
+    ]
+  }
+}

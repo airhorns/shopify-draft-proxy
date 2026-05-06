@@ -158,6 +158,20 @@ pub fn serialize_product_option_value_node_by_id(
   )
 }
 
+pub fn serialize_product_operation_node_by_id(
+  store: Store,
+  id: String,
+  selection: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  product_serializers.serialize_product_operation_node_by_id(
+    store,
+    id,
+    selection,
+    fragments,
+  )
+}
+
 pub fn serialize_selling_plan_node_by_id(
   store: Store,
   id: String,

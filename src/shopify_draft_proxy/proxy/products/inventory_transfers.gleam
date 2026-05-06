@@ -21,8 +21,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 
 import shopify_draft_proxy/proxy/products/inventory_core.{
-  find_inventory_level, inventory_quantity_amount, location_source,
-  replace_inventory_level, variant_inventory_levels,
+  find_inventory_level, inventory_level_is_active, inventory_quantity_amount,
+  location_source, replace_inventory_level, variant_inventory_levels,
   write_inventory_quantity_amount,
 }
 import shopify_draft_proxy/proxy/products/inventory_shipments_handlers.{
@@ -42,9 +42,9 @@ import shopify_draft_proxy/proxy/products/products_core.{
 }
 import shopify_draft_proxy/proxy/products/shared.{
   connection_page_info_source, count_source, empty_connection_source,
-  mutation_error_result, mutation_result, read_int_field, read_object_list_field,
-  read_string_argument, read_string_field, read_string_list_field,
-  user_errors_source,
+  mutation_error_result, mutation_rejected_result, mutation_result,
+  read_int_field, read_object_list_field, read_string_argument,
+  read_string_field, read_string_list_field, user_errors_source,
 }
 
 import shopify_draft_proxy/state/store.{type Store}
@@ -54,9 +54,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type InventoryLevelRecord, type InventoryTransferLineItemRecord,
   type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
-  type ProductVariantRecord, InventoryLevelRecord,
+  type ProductVariantRecord, type StorePropertyRecord, InventoryLevelRecord,
   InventoryTransferLineItemRecord, InventoryTransferLocationSnapshotRecord,
-  InventoryTransferRecord,
+  InventoryTransferRecord, StorePropertyBool,
 }
 
 // ===== from inventory_transfers_l00 =====
@@ -329,6 +329,61 @@ pub fn inventory_transfer_not_found_error() -> ProductUserError {
 }
 
 @internal
+pub fn inventory_transfer_location_not_found_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The location selected can't be found.",
+    Some("LOCATION_NOT_FOUND"),
+  )
+}
+
+@internal
+pub fn inventory_transfer_same_location_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The origin location cannot be the same as the destination location.",
+    Some("TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"),
+  )
+}
+
+@internal
+pub fn inventory_transfer_item_not_found_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The inventory item could not be found.",
+    Some("ITEM_NOT_FOUND"),
+  )
+}
+
+@internal
+pub fn inventory_transfer_duplicate_item_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The inventory item is already present in the list. Each item must be unique.",
+    Some("DUPLICATE_ITEM"),
+  )
+}
+
+@internal
+pub fn inventory_transfer_negative_quantity_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The quantity can't be negative.",
+    Some("INVALID_QUANTITY"),
+  )
+}
+
+@internal
 pub fn inventory_transfer_line_item_update_source(
   update: InventoryTransferLineItemUpdate,
 ) -> SourceValue {
@@ -344,12 +399,14 @@ pub fn inventory_transfer_line_item_update_source(
 pub fn validate_inventory_transfer_line_items(
   store: Store,
   inputs: List(InventoryTransferLineItemInput),
+  origin_location_id: Option(String),
 ) -> List(ProductUserError) {
   inputs
   |> enumerate_items()
   |> list.flat_map(fn(pair) {
     let #(input, index) = pair
     let path = ["input", "lineItems", int.to_string(index)]
+    let item_field = list.append(path, ["inventoryItemId"])
     let item_errors = case input.inventory_item_id {
       Some(inventory_item_id) ->
         case
@@ -363,45 +420,159 @@ pub fn validate_inventory_transfer_line_items(
               Some(item) -> item.tracked == Some(True)
               None -> False
             }
-            case tracked {
-              True -> []
-              False -> [
+            let active_errors = case origin_location_id {
+              Some(origin_id) ->
+                case
+                  find_inventory_level(
+                    variant_inventory_levels(variant),
+                    origin_id,
+                  )
+                {
+                  Some(level) ->
+                    case inventory_level_is_active(level) {
+                      True -> []
+                      False -> [
+                        inventory_transfer_item_not_found_error(item_field),
+                      ]
+                    }
+                  None -> [inventory_transfer_item_not_found_error(item_field)]
+                }
+              None -> []
+            }
+            case tracked, active_errors {
+              True, [] -> []
+              True, errors -> errors
+              False, _ -> [
                 ProductUserError(
-                  list.append(path, ["inventoryItemId"]),
+                  item_field,
                   "The inventory item does not track inventory.",
                   Some("UNTRACKED_ITEM"),
                 ),
               ]
             }
           }
-          None -> [
-            ProductUserError(
-              list.append(path, ["inventoryItemId"]),
-              "The inventory item can't be found.",
-              Some("ITEM_NOT_FOUND"),
-            ),
-          ]
+          None -> [inventory_transfer_item_not_found_error(item_field)]
         }
-      None -> [
-        ProductUserError(
-          list.append(path, ["inventoryItemId"]),
-          "The inventory item can't be found.",
-          Some("ITEM_NOT_FOUND"),
-        ),
-      ]
+      None -> [inventory_transfer_item_not_found_error(item_field)]
+    }
+    let duplicate_errors = case input.inventory_item_id {
+      Some(inventory_item_id) ->
+        case
+          inventory_transfer_input_item_count(inputs, inventory_item_id) > 1
+        {
+          True -> [inventory_transfer_duplicate_item_error(item_field)]
+          False -> []
+        }
+      None -> []
     }
     let quantity_errors = case input.quantity {
-      Some(quantity) if quantity > 0 -> []
-      _ -> [
-        ProductUserError(
-          list.append(path, ["quantity"]),
-          "Quantity must be greater than 0.",
-          Some("INVALID_QUANTITY"),
+      Some(quantity) if quantity < 0 -> [
+        inventory_transfer_negative_quantity_error(
+          list.append(path, [
+            "quantity",
+          ]),
         ),
       ]
+      _ -> []
     }
-    list.append(item_errors, quantity_errors)
+    list.append(list.append(item_errors, duplicate_errors), quantity_errors)
   })
+}
+
+@internal
+pub fn inventory_transfer_input_item_count(
+  inputs: List(InventoryTransferLineItemInput),
+  inventory_item_id: String,
+) -> Int {
+  inputs
+  |> list.filter(fn(input) {
+    input.inventory_item_id == Some(inventory_item_id)
+  })
+  |> list.length
+}
+
+@internal
+pub fn validate_inventory_transfer_locations(
+  store: Store,
+  origin_location_id: Option(String),
+  destination_location_id: Option(String),
+  origin_field: List(String),
+  destination_field: List(String),
+) -> List(ProductUserError) {
+  let same_location_errors = case origin_location_id, destination_location_id {
+    Some(origin), Some(destination) if origin == destination -> [
+      inventory_transfer_same_location_error(destination_field),
+    ]
+    _, _ -> []
+  }
+  let origin_errors = case origin_location_id {
+    Some(id) ->
+      case inventory_transfer_location_known(store, id) {
+        True -> []
+        False -> [inventory_transfer_location_not_found_error(origin_field)]
+      }
+    None -> []
+  }
+  let destination_errors = case destination_location_id {
+    Some(id) ->
+      case inventory_transfer_location_known(store, id) {
+        True -> []
+        False -> [
+          inventory_transfer_location_not_found_error(destination_field),
+        ]
+      }
+    None -> []
+  }
+  list.append(
+    same_location_errors,
+    list.append(origin_errors, destination_errors),
+  )
+}
+
+@internal
+pub fn inventory_transfer_location_known(
+  store: Store,
+  location_id: String,
+) -> Bool {
+  case store.get_effective_store_property_location_by_id(store, location_id) {
+    Some(location) ->
+      inventory_transfer_store_property_location_active(location)
+    None ->
+      case store.get_effective_location_by_id(store, location_id) {
+        Some(location) -> option.unwrap(location.is_active, True)
+        None ->
+          store.list_effective_product_variants(store)
+          |> list.any(fn(variant) {
+            variant_inventory_levels(variant)
+            |> list.any(fn(level) { level.location.id == location_id })
+          })
+      }
+  }
+}
+
+@internal
+pub fn inventory_transfer_store_property_location_active(
+  location: StorePropertyRecord,
+) -> Bool {
+  case dict.get(location.data, "isActive") {
+    Ok(StorePropertyBool(False)) -> False
+    _ -> True
+  }
+}
+
+@internal
+pub fn inventory_transfer_line_origin_location_id(
+  store: Store,
+  origin_location_id: Option(String),
+) -> Option(String) {
+  case origin_location_id {
+    Some(id) ->
+      case inventory_transfer_location_known(store, id) {
+        True -> Some(id)
+        False -> None
+      }
+    None -> None
+  }
 }
 
 @internal
@@ -521,8 +692,26 @@ pub fn make_inventory_transfer_record(
   SyntheticIdentityRegistry,
 ) {
   let line_item_inputs = read_inventory_transfer_line_item_inputs(input)
+  let origin_location_id = read_string_field(input, "originLocationId")
+  let destination_location_id =
+    read_string_field(input, "destinationLocationId")
+  let line_origin_location_id =
+    inventory_transfer_line_origin_location_id(store, origin_location_id)
   let user_errors =
-    validate_inventory_transfer_line_items(store, line_item_inputs)
+    list.append(
+      validate_inventory_transfer_locations(
+        store,
+        origin_location_id,
+        destination_location_id,
+        ["input", "originLocationId"],
+        ["input", "destinationLocationId"],
+      ),
+      validate_inventory_transfer_line_items(
+        store,
+        line_item_inputs,
+        line_origin_location_id,
+      ),
+    )
   case user_errors {
     [] -> {
       let #(id, identity_after_id) =
@@ -553,12 +742,12 @@ pub fn make_inventory_transfer_record(
           date_created: date_created,
           origin: make_inventory_transfer_location_snapshot(
             store,
-            read_string_field(input, "originLocationId"),
+            origin_location_id,
             next_identity,
           ),
           destination: make_inventory_transfer_location_snapshot(
             store,
-            read_string_field(input, "destinationLocationId"),
+            destination_location_id,
             next_identity,
           ),
           line_items: line_items,
@@ -965,7 +1154,7 @@ pub fn handle_inventory_transfer_create(
           )
         }
         errors ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_transfer_payload(
               store,
@@ -979,12 +1168,11 @@ pub fn handle_inventory_transfer_create(
             ),
             store,
             identity_after_transfer,
-            [],
           )
       }
     }
     _, errors ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         inventory_transfer_payload(
           store,
@@ -998,7 +1186,6 @@ pub fn handle_inventory_transfer_create(
         ),
         store,
         identity_after_transfer,
-        [],
       )
   }
 }
@@ -1036,6 +1223,30 @@ pub fn handle_inventory_transfer_edit(
       let input =
         graphql_helpers.read_arg_object(args, "input")
         |> option.unwrap(dict.new())
+      let origin_location_id = case read_string_field(input, "originId") {
+        Some(id) -> Some(id)
+        None ->
+          transfer.origin
+          |> option.map(fn(origin) { origin.id })
+          |> option.flatten
+      }
+      let destination_location_id = case
+        read_string_field(input, "destinationId")
+      {
+        Some(id) -> Some(id)
+        None ->
+          transfer.destination
+          |> option.map(fn(destination) { destination.id })
+          |> option.flatten
+      }
+      let user_errors =
+        validate_inventory_transfer_locations(
+          store,
+          origin_location_id,
+          destination_location_id,
+          ["input", "originId"],
+          ["input", "destinationId"],
+        )
       let next_transfer =
         InventoryTransferRecord(
           ..transfer,
@@ -1051,43 +1262,63 @@ pub fn handle_inventory_transfer_edit(
             |> option.unwrap(transfer.tags),
           date_created: read_string_field(input, "dateCreated")
             |> option.unwrap(transfer.date_created),
-          origin: case read_string_field(input, "originId") {
-            Some(id) ->
+          origin: case origin_location_id {
+            Some(_) ->
               make_inventory_transfer_location_snapshot(
                 store,
-                Some(id),
+                origin_location_id,
                 identity,
               )
             None -> transfer.origin
           },
-          destination: case read_string_field(input, "destinationId") {
-            Some(id) ->
+          destination: case destination_location_id {
+            Some(_) ->
               make_inventory_transfer_location_snapshot(
                 store,
-                Some(id),
+                destination_location_id,
                 identity,
               )
             None -> transfer.destination
           },
         )
-      let #(_, next_store) =
-        store.upsert_staged_inventory_transfer(store, next_transfer)
-      mutation_result(
-        key,
-        inventory_transfer_payload(
-          next_store,
-          "InventoryTransferEditPayload",
-          "inventoryTransfer",
-          Some(next_transfer),
-          [],
-          [],
-          field,
-          fragments,
-        ),
-        next_store,
-        identity,
-        inventory_transfer_staged_ids(next_transfer),
-      )
+      case user_errors {
+        [] -> {
+          let #(_, next_store) =
+            store.upsert_staged_inventory_transfer(store, next_transfer)
+          mutation_result(
+            key,
+            inventory_transfer_payload(
+              next_store,
+              "InventoryTransferEditPayload",
+              "inventoryTransfer",
+              Some(next_transfer),
+              [],
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            identity,
+            inventory_transfer_staged_ids(next_transfer),
+          )
+        }
+        errors ->
+          mutation_rejected_result(
+            key,
+            inventory_transfer_payload(
+              store,
+              "InventoryTransferEditPayload",
+              "inventoryTransfer",
+              Some(transfer),
+              [],
+              errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+          )
+      }
     }
   }
 }
@@ -1125,8 +1356,18 @@ pub fn handle_inventory_transfer_set_items(
       )
     Some(transfer) -> {
       let line_item_inputs = read_inventory_transfer_line_item_inputs(input)
+      let origin_location_id =
+        transfer.origin
+        |> option.map(fn(origin) { origin.id })
+        |> option.flatten
+      let line_origin_location_id =
+        inventory_transfer_line_origin_location_id(store, origin_location_id)
       let user_errors =
-        validate_inventory_transfer_line_items(store, line_item_inputs)
+        validate_inventory_transfer_line_items(
+          store,
+          line_item_inputs,
+          line_origin_location_id,
+        )
       let prior_items = transfer.line_items
       let #(updated_line_items, identity_after_items) =
         make_inventory_transfer_line_items_reusing_ids(
@@ -1212,7 +1453,7 @@ pub fn handle_inventory_transfer_set_items(
           }
         }
         errors ->
-          mutation_result(
+          mutation_rejected_result(
             key,
             inventory_transfer_payload(
               store,
@@ -1226,7 +1467,6 @@ pub fn handle_inventory_transfer_set_items(
             ),
             store,
             identity_after_items,
-            [],
           )
       }
     }

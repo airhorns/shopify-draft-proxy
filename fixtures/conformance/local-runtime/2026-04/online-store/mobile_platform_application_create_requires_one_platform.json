@@ -1,0 +1,40 @@
+{
+  "fixtureKind": "local-runtime-mobile-platform-application-create-requires-one-platform",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for mobilePlatformApplicationCreate exact-platform validation.",
+  "expected": {
+    "primary": {
+      "data": {
+        "neither": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["mobilePlatformApplication"],
+              "message": "Specify either android or apple, not both."
+            }
+          ]
+        },
+        "both": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["mobilePlatformApplication"],
+              "message": "Specify either android or apple, not both."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "Core mobile platform application create behavior",
+    "notes": [
+      "The supported proxy mutation must model this guardrail locally rather than writing to Shopify at runtime."
+    ]
+  },
+  "upstreamCalls": []
+}

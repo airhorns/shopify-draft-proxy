@@ -1,6 +1,6 @@
 {
   "scenarioId": "product-feed-lifecycle-local-runtime",
-  "operationNames": ["productFeed", "productFeeds", "productFeedCreate", "productFeedDelete", "productFullSync"],
+  "operationNames": ["productFeed", "productFeeds", "productFeedCreate", "productFeedDelete", "productFullSync", "job"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "runtime-staging",
@@ -34,6 +34,31 @@
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.productFeedCreate.productFeed.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "productFullSync unknown feed payload",
+        "capturePath": "$.syncUnknown.response.data.productFullSync",
+        "proxyPath": "$.data.productFullSync",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-sync-local-runtime.graphql",
+          "variables": {
+            "id": "gid://shopify/ProductFeed/999999999"
+          }
+        }
+      },
+      {
+        "name": "productFullSync job poll",
+        "capturePath": "$.syncJob.response.data.job",
+        "proxyPath": "$.data.job",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-sync-job-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "productFullSync payload",
+              "path": "$.data.productFullSync.job.id"
             }
           }
         }
@@ -79,5 +104,5 @@
       }
     ]
   },
-  "notes": "HAR-431 local-runtime parity evidence for the product feed lifecycle. The live harry-test-heelo shop still blocks productFeedCreate success with channel configuration errors, so this fixture records the executable local contract: create an ACTIVE feed, acknowledge productFullSync, expose productFeed/productFeeds read-after-write, delete the staged feed, and preserve null/empty reads afterward without runtime Shopify writes."
+  "notes": "Local-runtime parity evidence for the product feed lifecycle. The live harry-test-heelo shop still blocks productFeedCreate success with channel configuration errors, so this fixture records the executable local contract: create an ACTIVE feed, reject an unknown productFullSync feed id, return a pollable job for known productFullSync, expose productFeed/productFeeds read-after-write, delete the staged feed, and preserve null/empty reads afterward without runtime Shopify writes."
 }

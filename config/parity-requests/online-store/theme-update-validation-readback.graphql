@@ -1,0 +1,17 @@
+query ThemeUpdateValidationReadback($renamedId: ID!, $blankId: ID!, $lockedId: ID!) {
+  renamed: theme(id: $renamedId) {
+    id
+    name
+    role
+  }
+  blank: theme(id: $blankId) {
+    id
+    name
+    role
+  }
+  locked: theme(id: $lockedId) {
+    id
+    name
+    role
+  }
+}

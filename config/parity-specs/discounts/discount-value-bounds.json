@@ -1,0 +1,47 @@
+{
+  "scenarioId": "discount-value-bounds",
+  "operationNames": ["discountCodeBasicCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-value-bounds.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-value-bounds.graphql",
+    "variablesCapturePath": "$.cases.bounds.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 value bounds for code-basic customerGets values. Shopify rejects percentage values outside 0.0..1.0 with VALUE_OUTSIDE_RANGE and rejects negative fixed amounts with LESS_THAN_OR_EQUAL_TO. Contrary to an older assumption, percentage 0 and fixed amount 0 are accepted by Shopify in this capture; the proxy preserves that behavior and only synthetic created IDs differ. Non-numeric Decimal variables are rejected before resolver execution with INVALID_VARIABLE.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-value-bounds-data",
+        "capturePath": "$.cases.bounds.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.percentageZero.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy creates a stable synthetic discount node ID instead of Shopify's live ID for the captured zero-percentage success branch."
+          },
+          {
+            "path": "$.amountZero.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy creates a stable synthetic discount node ID instead of Shopify's live ID for the captured zero-amount success branch."
+          }
+        ]
+      },
+      {
+        "name": "discount-value-bounds-non-numeric-errors",
+        "capturePath": "$.cases.nonNumeric.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-value-bounds-non-numeric.graphql",
+          "variablesCapturePath": "$.cases.nonNumeric.variables"
+        }
+      }
+    ]
+  }
+}

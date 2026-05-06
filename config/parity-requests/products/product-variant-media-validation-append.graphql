@@ -1,0 +1,23 @@
+mutation ProductVariantMediaValidationAppend($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+  productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+    product {
+      id
+    }
+    productVariants {
+      id
+      media(first: 10) {
+        nodes {
+          id
+          alt
+          mediaContentType
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "capturedAt": "2026-05-06T03:55:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "liveGatewaySideEffects": false,
+  "notes": "Gateway-affecting draft order completion is represented by deterministic local-runtime replay. The generic parity runner earns draft-order state through replayed draftOrderCreate requests and covers the no-gateway pending baseline plus unknown paymentGatewayId validation without upstream writes.",
+  "draftOrderCompletePaymentGatewayPaths": {
+    "expected": {
+      "noGatewayCreate": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1",
+              "name": "#D1",
+              "status": "OPEN",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "noGatewayPending": {
+        "data": {
+          "draftOrderComplete": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1",
+              "status": "COMPLETED",
+              "order": {
+                "id": "gid://shopify/Order/4",
+                "displayFinancialStatus": "PENDING",
+                "paymentGatewayNames": [],
+                "transactions": []
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "unknownGatewayCreate": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/7",
+              "name": "#D2",
+              "status": "OPEN",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "unknownGateway": {
+        "data": {
+          "draftOrderComplete": {
+            "draftOrder": null,
+            "userErrors": [
+              {
+                "field": ["paymentGatewayId"],
+                "message": "payment_gateway_not_found",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

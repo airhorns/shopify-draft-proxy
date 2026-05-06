@@ -76,6 +76,24 @@
         }
       },
       {
+        "name": "plan-create-zero-recurring-interval",
+        "capturePath": "$.scenarios.planCreateZeroRecurringInterval.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreateZeroRecurringInterval.variables"
+        }
+      },
+      {
+        "name": "plan-create-anchor-mismatch",
+        "capturePath": "$.scenarios.planCreateAnchorMismatch.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreateAnchorMismatch.variables"
+        }
+      },
+      {
         "name": "group-update-options-too-long",
         "capturePath": "$.scenarios.groupUpdateOptionsTooLong.response.data.sellingPlanGroupUpdate",
         "proxyPath": "$.data.sellingPlanGroupUpdate",
@@ -209,8 +227,64 @@
             }
           }
         }
+      },
+      {
+        "name": "plan-update-zero-recurring-interval",
+        "capturePath": "$.scenarios.planUpdateZeroRecurringInterval.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "billingPolicy": {
+                    "fromCapturePath": "$.scenarios.planUpdateZeroRecurringInterval.variables.input.sellingPlansToUpdate[0].billingPolicy"
+                  },
+                  "deliveryPolicy": {
+                    "fromCapturePath": "$.scenarios.planUpdateZeroRecurringInterval.variables.input.sellingPlansToUpdate[0].deliveryPolicy"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-anchor-mismatch",
+        "capturePath": "$.scenarios.planUpdateAnchorMismatch.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "billingPolicy": {
+                    "fromCapturePath": "$.scenarios.planUpdateAnchorMismatch.variables.input.sellingPlansToUpdate[0].billingPolicy"
+                  },
+                  "deliveryPolicy": {
+                    "fromCapturePath": "$.scenarios.planUpdateAnchorMismatch.variables.input.sellingPlansToUpdate[0].deliveryPolicy"
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Live 2025-01 selling-plan group input validation capture for group-level option/position limits, nested selling plan option/pricing-policy/position validation, required update ids, and billing/delivery policy kind compatibility. The primary request creates one disposable group so update validation targets can replay against a locally known synthetic group without pre-seeding parity state."
+  "notes": "Live 2025-01 selling-plan group input validation capture for group-level option/position limits, nested selling plan option/pricing-policy/position validation, required update ids, billing/delivery policy kind compatibility, recurring interval counts, and recurring anchor schedule compatibility. The primary request creates one disposable group so update validation targets can replay against a locally known synthetic group without pre-seeding parity state."
 }

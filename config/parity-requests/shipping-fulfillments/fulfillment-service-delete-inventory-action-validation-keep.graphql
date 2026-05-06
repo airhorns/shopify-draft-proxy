@@ -1,0 +1,9 @@
+mutation FulfillmentServiceDeleteInventoryActionValidationKeep($id: ID!) {
+  fulfillmentServiceDelete(id: $id, inventoryAction: KEEP) {
+    deletedId
+    userErrors {
+      field
+      message
+    }
+  }
+}

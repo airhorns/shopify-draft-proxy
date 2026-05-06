@@ -1,0 +1,20 @@
+query FulfillmentOrderHoldInputArgumentsRead($id: ID!, $first: Int!) {
+  fulfillmentOrder(id: $id) {
+    status
+    fulfillmentHolds {
+      handle
+      externalId
+      __draftProxyNotifyMerchant
+    }
+  }
+  manualHoldsFulfillmentOrders(first: $first) {
+    nodes {
+      status
+      fulfillmentHolds {
+        handle
+        externalId
+        __draftProxyNotifyMerchant
+      }
+    }
+  }
+}

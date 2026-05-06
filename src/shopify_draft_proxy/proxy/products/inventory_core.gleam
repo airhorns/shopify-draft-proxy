@@ -75,6 +75,7 @@ pub fn location_source(location: LocationRecord) -> SourceValue {
     #("__typename", SrcString("Location")),
     #("id", SrcString(location.id)),
     #("name", SrcString(location.name)),
+    #("isActive", graphql_helpers.option_bool_source(location.is_active)),
   ])
 }
 

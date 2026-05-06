@@ -10,7 +10,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Location, type ObjectField, type Selection, Argument, Field, ObjectField,
-  ObjectValue,
+  ObjectValue, SelectionSet,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/root_field
@@ -18,12 +18,12 @@ import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
-  get_document_fragments, get_field_response_key, src_object,
+  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcObject,
+  SrcString, get_document_fragments, get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/metaobject_definitions/serializers.{
-  metaobject_definition_source, metaobject_source, project_selection,
-  project_selection_with_metaobject,
+  metaobject_definition_source, project_selection, project_source_field,
+  serialize_metaobject_mutation_selection,
 }
 import shopify_draft_proxy/proxy/metaobject_definitions/types as metaobject_definition_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -1012,24 +1012,25 @@ fn handle_metaobject_upsert(
       metaobject_definition_types.read_object_arg(args, "handle"),
     )
   let input = read_upsert_payload_input(args)
-  let handle_is_blank = case handle {
-    Some(h) -> string.trim(h) == ""
-    None -> False
+  let handle_errors = case handle {
+    Some(h) ->
+      case string.trim(h) {
+        "" -> []
+        _ ->
+          metaobject_definition_types.validate_explicit_metaobject_handle_with_field(
+            h,
+            ["handle", "handle"],
+            False,
+          )
+      }
+    None -> []
   }
-  case type_, handle, handle_is_blank {
-    Some(_), Some(_), True -> {
-      let err =
-        metaobject_definition_types.UserError(
-          Some(["handle", "handle"]),
-          "Handle can't be blank",
-          "BLANK",
-          None,
-          None,
-        )
+  case type_, handle, handle_errors {
+    Some(_), Some(_), [_, ..] -> {
       #(
         MutationFieldResult(
           key,
-          metaobject_payload(store, field, fragments, None, [err]),
+          metaobject_payload(store, field, fragments, None, handle_errors),
           [],
           [],
           [],
@@ -1038,7 +1039,7 @@ fn handle_metaobject_upsert(
         identity,
       )
     }
-    Some(t), Some(h), False -> {
+    Some(t), Some(h), [] -> {
       // Pattern 2: hydrate the definition for cold LiveHybrid upserts; the
       // upsert write itself remains local and Snapshot mode stays local.
       let store =
@@ -2224,15 +2225,36 @@ fn metaobject_payload(
   metaobject: Option(MetaobjectRecord),
   user_errors: List(metaobject_definition_types.UserError),
 ) -> Json {
-  let source =
-    src_object([
-      #("metaobject", case metaobject {
-        Some(record) -> metaobject_source(store, record)
-        None -> SrcNull
-      }),
+  let source_fields =
+    dict.from_list([
       #("userErrors", SrcList(list.map(user_errors, user_error_source))),
     ])
-  project_selection_with_metaobject(store, source, field, fragments)
+  let source = SrcObject(source_fields)
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      json.object(
+        list.map(selections, fn(selection) {
+          let key = get_field_response_key(selection)
+          case selection {
+            Field(name: name, ..) if name.value == "metaobject" ->
+              case metaobject {
+                Some(record) -> #(
+                  key,
+                  serialize_metaobject_mutation_selection(
+                    store,
+                    record,
+                    selection,
+                    fragments,
+                  ),
+                )
+                None -> #(key, json.null())
+              }
+            _ -> project_source_field(source_fields, selection, fragments)
+          }
+        }),
+      )
+    _ -> project_selection(source, field, fragments)
+  }
 }
 
 fn definition_delete_result(

@@ -27,6 +27,7 @@
 ////   their local types.
 
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -1039,7 +1040,11 @@ type PathSegment {
 /// name itself) and matches the shape Shopify emits in
 /// `extensions.problems[]`.
 type ValueProblem {
-  ValueProblem(path: List(PathSegment), explanation: String)
+  ValueProblem(
+    path: List(PathSegment),
+    explanation: String,
+    message: Option(String),
+  )
 }
 
 fn validate_literal_bound_args(
@@ -1127,8 +1132,8 @@ fn collect_literal_unknown_field_errors(
                   find_schema_input_field(io.input_fields, field_name.value)
                 {
                   None ->
-                    case io.name == "ValidationUpdateInput" {
-                      True -> [
+                    case io.name {
+                      "ValidationUpdateInput" -> [
                         build_unknown_input_object_field_error(
                           field_name.value,
                           io.name,
@@ -1137,7 +1142,16 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
-                      False -> []
+                      "OnlineStoreThemeInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
+                      _ -> []
                     }
                   Some(schema_field) ->
                     collect_literal_unknown_field_errors(
@@ -1373,7 +1387,11 @@ fn collect_value_problems_inner(
     mutation_schema.NonNullType(of: inner) ->
       case resolved {
         root_field.NullVal -> [
-          ValueProblem(path: path, explanation: "Expected value to not be null"),
+          ValueProblem(
+            path: path,
+            explanation: "Expected value to not be null",
+            message: None,
+          ),
         ]
         _ ->
           collect_value_problems_inner(
@@ -1400,46 +1418,87 @@ fn collect_value_problems_inner(
         _ -> []
       }
     mutation_schema.NamedType(name: type_name) ->
-      case enum_value_problems(type_name, resolved, path) {
+      case scalar_value_problems(type_name, resolved, path) {
         [_, ..] as problems -> problems
         [] ->
-          case mutation_schema_lookup.get_input_object(schema, type_name) {
-            None -> []
-            Some(io) ->
-              case resolved {
-                root_field.ObjectVal(fields) ->
-                  list.append(
-                    list.flat_map(io.input_fields, fn(field) {
-                      let field_path =
-                        list.append(path, [StringSegment(field.name)])
-                      let required =
-                        mutation_schema.is_non_null(field.type_)
-                        && option.is_none(field.default_value)
-                        && inside_list
-                      case dict.get(fields, field.name), required {
-                        Error(_), True -> [
-                          ValueProblem(
-                            path: field_path,
-                            explanation: "Expected value to not be null",
-                          ),
-                        ]
-                        Error(_), False -> []
-                        Ok(child), _ ->
-                          collect_value_problems_inner(
-                            child,
-                            field.type_,
-                            schema,
-                            field_path,
-                            inside_list:,
-                          )
-                      }
-                    }),
-                    collect_unknown_variable_fields(fields, io, path),
-                  )
-                _ -> []
+          case enum_value_problems(type_name, resolved, path) {
+            [_, ..] as problems -> problems
+            [] ->
+              case mutation_schema_lookup.get_input_object(schema, type_name) {
+                None -> []
+                Some(io) ->
+                  case resolved {
+                    root_field.ObjectVal(fields) ->
+                      list.append(
+                        list.flat_map(io.input_fields, fn(field) {
+                          let field_path =
+                            list.append(path, [StringSegment(field.name)])
+                          let required =
+                            mutation_schema.is_non_null(field.type_)
+                            && option.is_none(field.default_value)
+                            && inside_list
+                          case dict.get(fields, field.name), required {
+                            Error(_), True -> [
+                              ValueProblem(
+                                path: field_path,
+                                explanation: "Expected value to not be null",
+                                message: None,
+                              ),
+                            ]
+                            Error(_), False -> []
+                            Ok(child), _ ->
+                              collect_value_problems_inner(
+                                child,
+                                field.type_,
+                                schema,
+                                field_path,
+                                inside_list:,
+                              )
+                          }
+                        }),
+                        collect_unknown_variable_fields(fields, io, path),
+                      )
+                    _ -> []
+                  }
               }
           }
       }
+  }
+}
+
+fn scalar_value_problems(
+  type_name: String,
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case type_name {
+    "Decimal" -> decimal_value_problems(resolved, path)
+    _ -> []
+  }
+}
+
+fn decimal_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved {
+    root_field.StringVal(value) ->
+      case float.parse(value) {
+        Ok(_) -> []
+        Error(_) ->
+          case int.parse(value) {
+            Ok(_) -> []
+            Error(_) -> [
+              ValueProblem(
+                path: path,
+                explanation: "invalid decimal '" <> value <> "'",
+                message: Some("invalid decimal '" <> value <> "'"),
+              ),
+            ]
+          }
+      }
+    root_field.IntVal(_) | root_field.FloatVal(_) -> []
+    _ -> []
   }
 }
 
@@ -1456,6 +1515,13 @@ fn collect_unknown_variable_fields(
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
           explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "OnlineStoreThemeInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
         ))
       _, None -> Error(Nil)
     }
@@ -1496,6 +1562,45 @@ fn build_unknown_input_object_field_error(
   )
 }
 
+fn build_input_object_argument_not_accepted_error(
+  field_name: String,
+  input_object_type: String,
+  path: List(PathSegment),
+  field_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "InputObject '"
+        <> input_object_type
+        <> "' doesn't accept argument '"
+        <> field_name
+        <> "'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", path_segments_to_json(path)),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentNotAccepted")),
+          #("name", json.string(input_object_type)),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
 fn enum_value_problems(
   type_name: String,
   resolved: root_field.ResolvedValue,
@@ -1512,6 +1617,7 @@ fn enum_value_problems(
               <> value
               <> "\" to be one of: "
               <> string.join(allowed, ", "),
+            message: None,
           ),
         ]
       }
@@ -1532,6 +1638,7 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "PRICE_DESC",
     ]),
     #("CountryCode", country_code_values()),
+    #("WeightUnit", ["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"]),
     #("FulfillmentEventStatus", [
       "LABEL_PURCHASED",
       "LABEL_PRINTED",
@@ -1544,6 +1651,11 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "DELIVERED",
       "FAILURE",
       "CARRIER_PICKED_UP",
+    ]),
+    #("ResourceFeedbackState", ["ACCEPTED", "REQUIRES_ACTION"]),
+    #("PublicationCreateInputPublicationDefaultState", [
+      "EMPTY",
+      "ALL_PRODUCTS",
     ]),
     #("TaxExemption", tax_exemption_values()),
   ])
@@ -1678,10 +1790,16 @@ fn build_invalid_variable_problems_error(
             "problems",
             json.preprocessed_array(
               list.map(problems, fn(p) {
-                json.object([
+                let fields = [
                   #("path", path_segments_to_json(p.path)),
                   #("explanation", json.string(p.explanation)),
-                ])
+                ]
+                let fields = case p.message {
+                  Some(message) ->
+                    list.append(fields, [#("message", json.string(message))])
+                  None -> fields
+                }
+                json.object(fields)
               }),
             ),
           ),

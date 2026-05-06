@@ -1,0 +1,74 @@
+{
+  "scenarioId": "metaobject-definition-create-field-validations",
+  "operationNames": ["metaobjectDefinitionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/definition-create-field-validations.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+    "variablesCapturePath": "$.reservedHandle.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "reserved-field-key",
+        "capturePath": "$.reservedHandle.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate"
+      },
+      {
+        "name": "duplicate-field-key",
+        "capturePath": "$.duplicateKey.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.duplicateKey.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-display-name-key",
+        "capturePath": "$.missingDisplayNameKey.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.missingDisplayNameKey.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "hyphen-field-key",
+        "capturePath": "$.hyphenKey.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.hyphenKey.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "too-many-field-definitions",
+        "capturePath": "$.tooManyFields.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.tooManyFields.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
