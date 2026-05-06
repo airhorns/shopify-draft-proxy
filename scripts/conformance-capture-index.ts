@@ -3543,6 +3543,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-items-refs-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-items-refs-validation-conformance.ts',
+    purpose:
+      'Discount customerGets/customerBuys product, variant, and collection reference validation guardrails and success branches.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [`${CAPTURE_ROOT}discount-items-refs-validation.json`],
+    cleanupBehavior: 'Deletes temporary discounts, products, and collection after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-basic-disallowed-discount-on-quantity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-basic-disallowed-discount-on-quantity-conformance.ts',

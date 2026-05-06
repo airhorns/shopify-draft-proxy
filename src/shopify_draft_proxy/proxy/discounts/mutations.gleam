@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
   single_root_log_draft, validate_required_field_arguments,
 }
+import shopify_draft_proxy/proxy/products
 
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
@@ -124,6 +125,12 @@ pub fn process_mutation(
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let operation_path = get_operation_path_label(document)
+      let store =
+        products.hydrate_products_for_live_hybrid_mutation(
+          store,
+          variables,
+          upstream,
+        )
       handle_mutation_fields(
         store,
         identity,
