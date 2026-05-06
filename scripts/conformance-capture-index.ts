@@ -2982,6 +2982,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-update-deactivated-multi-field',
+    scriptPath: 'scripts/capture-gift-card-update-deactivated-multi-field-conformance.ts',
+    purpose:
+      'Gift-card update validation for deactivated cards when multiple blocked public fields are supplied in the same input.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-update-deactivated-multi-field.json`,
+      'config/parity-specs/gift-cards/gift-card-update-deactivated-multi-field.json',
+      'config/parity-requests/gift-cards/gift-card-update-deactivated-multi-field.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer plus one gift card, deactivates the gift card, records multi-field validation branches, and deletes the setup customer.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract.',
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-update-noop',
     scriptPath: 'scripts/capture-gift-card-update-noop-conformance.ts',
     purpose:
