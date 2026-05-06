@@ -1422,6 +1422,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-update-capability-invariants',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-capability-invariants-conformance.ts',
+    purpose:
+      'metaobjectDefinitionUpdate public capability-disable behavior and renderable enable field-reference validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects', 'read_translations', 'write_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinitionUpdate-capability-invariants.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-capability-invariants.json',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; source-backed conservative local disable guards are covered by focused Gleam runtime tests.',
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-delete-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-delete-cascade-conformance.ts',
