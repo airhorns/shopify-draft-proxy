@@ -1,0 +1,151 @@
+{
+  "scenarioId": "market-localization-money-metafield-remove",
+  "operationNames": [
+    "marketLocalizableResource",
+    "markets",
+    "marketLocalizationsRegister",
+    "marketLocalizationsRemove"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "local-staging", "market-localization-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-localization-money-metafield-remove-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "money-metafield-read-before-register",
+        "capturePath": "$.cases[0].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource"
+      },
+      {
+        "name": "money-metafield-register-two-markets",
+        "capturePath": "$.cases[1].response.payload.data.marketLocalizationsRegister",
+        "proxyPath": "$.data.marketLocalizationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-register.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizations[0].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits wall-clock timestamps; local staging emits deterministic synthetic timestamps."
+          },
+          {
+            "path": "$.marketLocalizations[1].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits wall-clock timestamps; local staging emits deterministic synthetic timestamps."
+          }
+        ]
+      },
+      {
+        "name": "money-metafield-read-first-after-register",
+        "capturePath": "$.cases[2].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[2].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizations[0].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits wall-clock timestamps; local staging emits deterministic synthetic timestamps."
+          }
+        ]
+      },
+      {
+        "name": "money-metafield-read-second-after-register",
+        "capturePath": "$.cases[3].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[3].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizations[0].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits wall-clock timestamps; local staging emits deterministic synthetic timestamps."
+          }
+        ]
+      },
+      {
+        "name": "money-metafield-remove-first-market",
+        "capturePath": "$.cases[4].response.payload.data.marketLocalizationsRemove",
+        "proxyPath": "$.data.marketLocalizationsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-remove.graphql",
+          "variablesCapturePath": "$.cases[4].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizations[0].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns the deleted record's live timestamp; local staging returns the staged timestamp."
+          }
+        ]
+      },
+      {
+        "name": "money-metafield-read-first-after-partial-remove",
+        "capturePath": "$.cases[5].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[5].variables"
+        }
+      },
+      {
+        "name": "money-metafield-read-second-after-partial-remove",
+        "capturePath": "$.cases[6].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[6].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizations[0].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits wall-clock timestamps; local staging emits deterministic synthetic timestamps."
+          }
+        ]
+      },
+      {
+        "name": "money-metafield-remove-second-market",
+        "capturePath": "$.cases[7].response.payload.data.marketLocalizationsRemove",
+        "proxyPath": "$.data.marketLocalizationsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-remove.graphql",
+          "variablesCapturePath": "$.cases[7].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.marketLocalizations[0].updatedAt",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns the deleted record's live timestamp; local staging returns the staged timestamp."
+          }
+        ]
+      },
+      {
+        "name": "money-metafield-read-second-after-final-remove",
+        "capturePath": "$.cases[8].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-money-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[8].variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence creates a disposable product-owned money metafield definition and metafield. Shopify exposes the money metafield `value` as market-localizable content, accepts two market-specific money localizations, returns deleted rows from marketLocalizationsRemove, and removes only tuples whose market ID is included. The public money-metafield resource exposes one market-localizable key; multi-key deletion is covered by the runtime test fixture."
+}

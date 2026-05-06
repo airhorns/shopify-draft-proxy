@@ -1,0 +1,29 @@
+query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {
+  marketLocalizableResource(resourceId: $resourceId) {
+    resourceId
+    marketLocalizableContent {
+      key
+      value
+      digest
+    }
+    marketLocalizations(marketId: $marketId) {
+      key
+      value
+      updatedAt
+      outdated
+      market {
+        id
+        name
+      }
+    }
+  }
+  markets(first: $marketsFirst) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+  }
+}

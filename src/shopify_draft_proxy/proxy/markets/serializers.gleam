@@ -2666,6 +2666,7 @@ pub fn empty_price_connection() -> CapturedJsonValue {
 pub fn market_localizable_resource_payload(
   store: Store,
   resource_id: String,
+  market_id: Option(String),
 ) -> CapturedJsonValue {
   case store.find_effective_metafield_by_id(store, resource_id) {
     Some(metafield) ->
@@ -2682,6 +2683,12 @@ pub fn market_localizable_resource_payload(
           "marketLocalizations",
           CapturedArray(
             store.list_effective_market_localizations(store, resource_id)
+            |> list.filter(fn(record) {
+              case market_id {
+                Some(id) -> record.market_id == id
+                None -> True
+              }
+            })
             |> list.map(fn(record) {
               market_localization_payload(store, record)
             }),
@@ -2976,15 +2983,19 @@ pub fn root_payload_for_field(
         "marketLocalizableResource" -> {
           let args = graphql_helpers.field_args(field, variables)
           case graphql_helpers.read_arg_string_nonempty(args, "resourceId") {
-            Some(resource_id) ->
+            Some(resource_id) -> {
+              let market_id =
+                market_localizations_market_id_arg(field, variables)
               project_record(
                 field,
                 fragments,
                 captured_json_source(market_localizable_resource_payload(
                   store,
                   resource_id,
+                  market_id,
                 )),
               )
+            }
             None -> json.null()
           }
         }
@@ -2993,6 +3004,30 @@ pub fn root_payload_for_field(
         _ -> json.null()
       }
     _ -> json.null()
+  }
+}
+
+fn market_localizations_market_id_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.find_map(fn(child) {
+      case child {
+        Field(name: name, ..) if name.value == "marketLocalizations" -> {
+          let args = graphql_helpers.field_args(child, variables)
+          case graphql_helpers.read_arg_string_nonempty(args, "marketId") {
+            Some(id) -> Ok(id)
+            None -> Error(Nil)
+          }
+        }
+        _ -> Error(Nil)
+      }
+    })
+  {
+    Ok(id) -> Some(id)
+    Error(_) -> None
   }
 }
 
