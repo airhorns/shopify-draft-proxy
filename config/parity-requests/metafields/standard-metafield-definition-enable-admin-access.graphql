@@ -1,0 +1,17 @@
+mutation StandardMetafieldDefinitionEnableAdminAccess {
+  standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+    access: { admin: MERCHANT_READ }
+  ) {
+    createdDefinition {
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,16 @@
+mutation DraftOrderDuplicateLifecycleComplete($id: ID!) {
+  draftOrderComplete(id: $id) {
+    draftOrder {
+      id
+      status
+      completedAt
+      order {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1397,6 +1397,16 @@ pub fn marketing_record_json(record: types.MarketingRecord) -> Json {
 }
 
 @internal
+pub fn marketing_channel_definition_json(
+  record: types.MarketingChannelDefinitionRecord,
+) -> Json {
+  json.object([
+    #("handle", json.string(record.handle)),
+    #("apiClientIds", json.array(record.api_client_ids, json.string)),
+  ])
+}
+
+@internal
 pub fn marketing_engagement_json(
   record: types.MarketingEngagementRecord,
 ) -> Json {

@@ -136,6 +136,25 @@ request guard contract and avoid adding a checked-in parity spec for the public
 2026-04 probe until a future live target reproduces the intended branch across
 the affected roots.
 
+## Current: Selling-plan product membership guardrails can diverge from public Admin probes
+
+Internal source notes for product and variant selling-plan group join/leave roots
+require validation before staging: blank group ID lists, duplicate IDs within one
+request, too many post-join memberships, and leave requests for groups that are
+not direct members should all return payload `userErrors` without changing local
+membership state. The local runtime models that guard contract and covers it with
+`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
+plus focused product mutation tests.
+
+A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
+2026-04, and `unstable` did not expose the same branches: duplicate joins,
+leave-non-member requests, and 32-group joins returned empty `userErrors`, and
+the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
+`NOT_A_MEMBER`, and `TOO_MANY_SELLING_PLAN_GROUPS`. Treat the checked-in
+local-runtime parity fixture as the current internal guardrail contract, and
+re-capture against a target that reproduces the internal package behavior before
+changing those codes/messages or replacing the fixture with live evidence.
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
@@ -271,6 +290,17 @@ Live write capture on this host settled five concrete validation slices:
 - `productChangeStatus(productId: null, status: ARCHIVED)` does **not** reach mutation-scoped `userErrors`; Shopify returns a top-level GraphQL argument-validation error (`argumentLiteralsIncompatible`) for the null literal instead
 
 The local proxy can safely mirror the unknown-id `productCreate` / `productUpdate` / `productDelete` cases in `snapshot` mode because there is no upstream hydration path to preserve, and `productChangeStatus` can mirror the captured unknown-id slice more broadly because staging a phantom status-only row is lower-value than keeping the live error parity honest. By contrast, for supported staged writes in `passthrough` / `live-hybrid`, the proxy still needs the sparse-update/sparse-delete escape hatch for real upstream products that have not been hydrated yet. Treat those different behaviors as intentional architectural splits, not as evidence that the live validation slices were wrong.
+
+### Current: Product bundle validation has public-schema traps
+
+The `productBundleCreate-validation` fixture captured bundle validation behavior on Admin GraphQL 2025-01 at `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productBundleCreate-validation.json`.
+
+- Missing component products return `field: null` with `Failed to locate the following products: [<numeric id>]`; the userError is not indexed to `["input", "components", i, "productId"]` on the captured public API.
+- A valid component mapping with `quantity: 0` is accepted and returns a `ProductBundleOperation` in `CREATED` status with `product: null`; `productOperation(id:)` immediately reads it back as `ACTIVE` with `product: null`.
+- The captured maximum component quantity is 2000. `quantity: 2001` returns `Quantity cannot be greater than 2000...`.
+- `quantityOption` entries must have at least two values, but the public 2025-01 resolver accepted a blank quantity option name and a quantity option value with `quantity: 0` once two values were present.
+- Submitting more option selections than the component product's real options returned the same mapping error as other invalid or missing component option mappings.
+- The configured public 2025-01 schema rejected `ProductBundleCreateInput.consolidatedOptions` as an undefined field before resolver validation, even though local schema metadata has that field. Keep consolidated-option local guardrails runtime-test-backed until a live API version/store exposes the resolver branch.
 
 ## Current: Order-domain traps must not override current endpoint docs
 

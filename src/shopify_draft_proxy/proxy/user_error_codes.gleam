@@ -1,5 +1,7 @@
 pub const invalid = "INVALID"
 
+pub const order_invoice_send_unsuccessful = "ORDER_INVOICE_SEND_UNSUCCESSFUL"
+
 pub const duplicate_fulfillment_hold_handle = "DUPLICATE_FULFILLMENT_HOLD_HANDLE"
 
 pub const duplicated_fulfillment_order_line_items = "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
@@ -11,6 +13,8 @@ pub const fulfillment_order_not_splittable = "FULFILLMENT_ORDER_NOT_SPLITTABLE"
 pub const greater_than_zero = "GREATER_THAN_ZERO"
 
 pub const not_found = "NOT_FOUND"
+
+pub const not_permitted = "NOT_PERMITTED"
 
 pub const processed_at_invalid = "PROCESSED_AT_INVALID"
 

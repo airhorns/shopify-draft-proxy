@@ -1,46 +1,28 @@
 //// Products-domain submodule: selling_plans_core.
 //// Combines layered files: selling_plans_l00, selling_plans_l01, selling_plans_l02, selling_plans_l03, selling_plans_l04.
 
-import gleam/bit_array
 import gleam/dict.{type Dict}
-import gleam/float
+
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/order
-import gleam/result
-import gleam/string
-import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Location, type ObjectField, type Selection,
-  type VariableDefinition, Argument, Directive, Field, InlineFragment, NullValue,
-  ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
-  VariableDefinition, VariableValue,
-}
-import shopify_draft_proxy/graphql/parse_operation
-import shopify_draft_proxy/graphql/parser
-import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, type RootFieldError, BoolVal, FloatVal, IntVal, ListVal,
-  NullVal, ObjectVal, StringVal, get_field_arguments, get_root_fields,
-}
-import shopify_draft_proxy/graphql/source as graphql_source
-import shopify_draft_proxy/proxy/commit
+
+import shopify_draft_proxy/graphql/ast.{type Selection}
+
+import shopify_draft_proxy/graphql/root_field.{type ResolvedValue}
+
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
-  SrcObject, SrcString, default_connection_page_info_options,
+  type FragmentMap, type SourceValue, SerializeConnectionConfig, SrcList,
+  SrcString, default_connection_page_info_options,
   default_connection_window_options, default_selected_field_options,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_field_value, project_graphql_value,
-  serialize_connection, serialize_empty_connection, src_object,
+  get_selected_child_fields, paginate_connection_items, project_graphql_value,
+  serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/metafields
-import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, RequiredArgument,
-  build_null_argument_error, find_argument, single_root_log_draft,
-  validate_required_field_arguments,
+
+import shopify_draft_proxy/proxy/products/product_types.{
+  type ProductUserError, ProductUserError,
 }
-import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products/products_core.{
   existing_group_app_id, existing_group_description,
   existing_group_merchant_code, existing_group_name, existing_group_position,
@@ -52,56 +34,19 @@ import shopify_draft_proxy/proxy/products/shared.{
   read_number_captured_field, read_object_field, read_object_list_field,
   read_string_argument, read_string_field, read_string_list_field,
 }
-import shopify_draft_proxy/proxy/products/types.{
-  type ProductUserError, ProductUserError,
-} as product_types
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   existing_group_options, option_to_result, optional_captured_int,
   optional_captured_string,
 }
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
-import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
-import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/shopify/resource_ids
-import shopify_draft_proxy/state/iso_timestamp
+
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type ChannelRecord, type CollectionImageRecord,
-  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
-  type InventoryItemRecord, type InventoryLevelRecord,
-  type InventoryLocationRecord, type InventoryMeasurementRecord,
-  type InventoryQuantityRecord, type InventoryShipmentLineItemRecord,
-  type InventoryShipmentRecord, type InventoryShipmentTrackingRecord,
-  type InventoryTransferLineItemRecord,
-  type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
-  type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
-  type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
-  type ProductOperationRecord, type ProductOperationUserErrorRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
-  type ProductResourceFeedbackRecord, type ProductSeoRecord,
-  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
-  type ShopResourceFeedbackRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
-  InventoryQuantityRecord, InventoryShipmentLineItemRecord,
-  InventoryShipmentRecord, InventoryShipmentTrackingRecord,
-  InventoryTransferLineItemRecord, InventoryTransferLocationSnapshotRecord,
-  InventoryTransferRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, LocationRecord, ProductCollectionRecord,
-  ProductFeedRecord, ProductMediaRecord, ProductMetafieldRecord,
-  ProductOperationRecord, ProductOperationUserErrorRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
-  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  PublicationRecord, SellingPlanGroupRecord, SellingPlanRecord,
-  ShopResourceFeedbackRecord,
+  type CapturedJsonValue, type SellingPlanGroupRecord, type SellingPlanRecord,
+  CapturedArray, CapturedNull, CapturedObject, CapturedString,
+  SellingPlanGroupRecord, SellingPlanRecord,
 }
 
 // ===== from selling_plans_l00 =====
@@ -378,9 +323,72 @@ pub fn selling_plan_group_does_not_exist_error() -> ProductUserError {
   )
 }
 
+const max_selling_plan_group_memberships = 31
+
+@internal
+pub fn selling_plan_group_ids_blank_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Selling plan group IDs can't be blank",
+    Some("BLANK"),
+  )
+}
+
+@internal
+pub fn duplicate_selling_plan_group_ids_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Selling plan group IDs contains duplicate values.",
+    Some("DUPLICATE"),
+  )
+}
+
+@internal
+pub fn too_many_selling_plan_groups_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Cannot join more than 31 selling plan groups.",
+    Some("TOO_MANY_SELLING_PLAN_GROUPS"),
+  )
+}
+
+@internal
+pub fn selling_plan_group_not_member_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Selling plan group is not a member.",
+    Some("NOT_A_MEMBER"),
+  )
+}
+
 // ===== from selling_plans_l02 =====
 @internal
 pub fn update_product_selling_plan_group_membership(
+  store: Store,
+  product_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> #(Store, List(ProductUserError), List(String)) {
+  case
+    validate_product_selling_plan_group_membership(
+      store,
+      product_id,
+      group_ids,
+      join,
+    )
+  {
+    [_, ..] as errors -> #(store, errors, [])
+    [] ->
+      apply_product_selling_plan_group_membership(
+        store,
+        product_id,
+        group_ids,
+        join,
+      )
+  }
+}
+
+fn apply_product_selling_plan_group_membership(
   store: Store,
   product_id: String,
   group_ids: List(String),
@@ -429,6 +437,31 @@ pub fn update_variant_selling_plan_group_membership(
   group_ids: List(String),
   join: Bool,
 ) -> #(Store, List(ProductUserError), List(String)) {
+  case
+    validate_variant_selling_plan_group_membership(
+      store,
+      variant_id,
+      group_ids,
+      join,
+    )
+  {
+    [_, ..] as errors -> #(store, errors, [])
+    [] ->
+      apply_variant_selling_plan_group_membership(
+        store,
+        variant_id,
+        group_ids,
+        join,
+      )
+  }
+}
+
+fn apply_variant_selling_plan_group_membership(
+  store: Store,
+  variant_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> #(Store, List(ProductUserError), List(String)) {
   let #(next_store, errors, staged_ids) =
     list.fold(group_ids, #(store, [], []), fn(acc, group_id) {
       let #(current_store, current_errors, current_ids) = acc
@@ -466,6 +499,102 @@ pub fn update_variant_selling_plan_group_membership(
       }
     })
   #(next_store, errors, staged_ids)
+}
+
+fn validate_product_selling_plan_group_membership(
+  store: Store,
+  product_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> List(ProductUserError) {
+  validate_selling_plan_group_membership(store, group_ids, join, fn(group) {
+    list.contains(group.product_ids, product_id)
+  })
+}
+
+fn validate_variant_selling_plan_group_membership(
+  store: Store,
+  variant_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> List(ProductUserError) {
+  validate_selling_plan_group_membership(store, group_ids, join, fn(group) {
+    list.contains(group.product_variant_ids, variant_id)
+  })
+}
+
+fn validate_selling_plan_group_membership(
+  store: Store,
+  group_ids: List(String),
+  join: Bool,
+  is_member: fn(SellingPlanGroupRecord) -> Bool,
+) -> List(ProductUserError) {
+  case group_ids {
+    [] -> [selling_plan_group_ids_blank_error()]
+    _ ->
+      case has_duplicate_strings(group_ids) {
+        True -> [duplicate_selling_plan_group_ids_error()]
+        False -> {
+          let groups =
+            list.map(group_ids, fn(group_id) {
+              store.get_effective_selling_plan_group_by_id(store, group_id)
+            })
+          case list.any(groups, option.is_none) {
+            True -> [selling_plan_group_does_not_exist_error()]
+            False -> {
+              let known_groups =
+                list.filter_map(groups, fn(group) { group |> option_to_result })
+              case join {
+                True ->
+                  validate_join_selling_plan_group_memberships(
+                    store,
+                    known_groups,
+                    is_member,
+                  )
+                False ->
+                  validate_leave_selling_plan_group_memberships(
+                    known_groups,
+                    is_member,
+                  )
+              }
+            }
+          }
+        }
+      }
+  }
+}
+
+fn validate_join_selling_plan_group_memberships(
+  store: Store,
+  groups_to_join: List(SellingPlanGroupRecord),
+  is_member: fn(SellingPlanGroupRecord) -> Bool,
+) -> List(ProductUserError) {
+  let current_count =
+    store.list_effective_selling_plan_groups(store)
+    |> list.filter(is_member)
+    |> list.length
+  let new_count =
+    groups_to_join
+    |> list.filter(fn(group) { !is_member(group) })
+    |> list.length
+  case current_count + new_count > max_selling_plan_group_memberships {
+    True -> [too_many_selling_plan_groups_error()]
+    False -> []
+  }
+}
+
+fn validate_leave_selling_plan_group_memberships(
+  groups_to_leave: List(SellingPlanGroupRecord),
+  is_member: fn(SellingPlanGroupRecord) -> Bool,
+) -> List(ProductUserError) {
+  case list.any(groups_to_leave, fn(group) { !is_member(group) }) {
+    True -> [selling_plan_group_not_member_error()]
+    False -> []
+  }
+}
+
+fn has_duplicate_strings(values: List(String)) -> Bool {
+  list.length(values) != list.length(dedupe_preserving_order(values))
 }
 
 @internal

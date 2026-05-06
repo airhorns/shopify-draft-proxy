@@ -1,0 +1,91 @@
+mutation MarketingActivityCreateExternalValidation(
+  $unknownChannelInput: MarketingActivityCreateExternalInput!
+  $currencyMismatchInput: MarketingActivityCreateExternalInput!
+  $remoteSeedInput: MarketingActivityCreateExternalInput!
+  $duplicateRemoteIdInput: MarketingActivityCreateExternalInput!
+  $utmSeedInput: MarketingActivityCreateExternalInput!
+  $duplicateUtmCampaignInput: MarketingActivityCreateExternalInput!
+  $urlSeedInput: MarketingActivityCreateExternalInput!
+  $duplicateUrlParameterValueInput: MarketingActivityCreateExternalInput!
+) {
+  unknownChannel: marketingActivityCreateExternal(input: $unknownChannelInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  currencyMismatch: marketingActivityCreateExternal(input: $currencyMismatchInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  remoteSeed: marketingActivityCreateExternal(input: $remoteSeedInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateRemoteId: marketingActivityCreateExternal(input: $duplicateRemoteIdInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  utmSeed: marketingActivityCreateExternal(input: $utmSeedInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateUtmCampaign: marketingActivityCreateExternal(input: $duplicateUtmCampaignInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  urlSeed: marketingActivityCreateExternal(input: $urlSeedInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateUrlParameterValue: marketingActivityCreateExternal(input: $duplicateUrlParameterValueInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

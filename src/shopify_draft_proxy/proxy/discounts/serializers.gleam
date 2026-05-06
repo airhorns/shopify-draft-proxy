@@ -9,53 +9,35 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
-import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/ast.{type Selection}
+
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SelectedFieldOptions, SrcBool, SrcFloat,
-  SrcInt, SrcList, SrcNull, SrcObject, SrcString, field_locations_json,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  type FragmentMap, type SourceValue, SrcBool, SrcInt, SrcList, SrcNull,
+  SrcObject, SrcString, field_locations_json, get_field_response_key,
   project_graphql_value,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
-  single_root_log_draft, validate_required_field_arguments,
-}
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
+
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountBulkOperationRecord, type DiscountRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord, CapturedArray,
-  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
-  CapturedString, DiscountBulkOperationRecord, DiscountRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
+  type DiscountRecord, type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
+  DiscountRecord, ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 
 @internal
 pub const discount_function_app_id: String = "347082227713"
 
 import shopify_draft_proxy/proxy/discounts/queries.{
-  child_fields, compare_discount_timestamp,
-  discount_matches_positive_search_term, discount_matches_type_filter,
-  discount_node_source, discount_record_timestamp, filter_discounts,
-  get_effective_discount_bulk_operation, handle_discount_query,
-  handle_query_request, is_discount_query_root,
-  local_has_discount_bulk_creation_id, local_has_discount_id,
-  local_has_staged_discounts, process, reverse_order, root_query_payload,
-  serialize_count, serialize_discount_connection, serialize_page_info,
-  should_passthrough_in_live_hybrid, sort_discounts, sort_discounts_by_timestamp,
+  child_fields, discount_record_timestamp,
 }
+
 import shopify_draft_proxy/proxy/discounts/types as discount_types
 
 @internal
@@ -548,6 +530,11 @@ pub fn validate_discount_input(
   }
   let errors = case discount_type {
     "bxgy" -> list.append(errors, validate_bxgy_input(input_name, input))
+    "basic" ->
+      list.append(
+        errors,
+        basic_disallowed_discount_on_quantity_errors(input_name, input),
+      )
     _ -> errors
   }
   let errors =
@@ -2016,6 +2003,27 @@ pub fn bxgy_disallowed_value_errors(
         False -> errors
       }
     }
+    None -> []
+  }
+}
+
+@internal
+pub fn basic_disallowed_discount_on_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_value_fields(input) {
+    Some(fields) ->
+      case dict.has_key(fields, "discountOnQuantity") {
+        True -> [
+          discount_types.user_error(
+            [input_name, "customerGets", "value", "discountOnQuantity"],
+            "discountOnQuantity field is only permitted with bxgy discounts.",
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
     None -> []
   }
 }

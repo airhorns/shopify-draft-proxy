@@ -1,0 +1,16 @@
+mutation ProductBundleCreateValidation($input: ProductBundleCreateInput!) {
+  productBundleCreate(input: $input) {
+    productBundleOperation {
+      __typename
+      id
+      status
+      product {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

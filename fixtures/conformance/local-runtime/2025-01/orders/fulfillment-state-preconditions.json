@@ -1,0 +1,265 @@
+{
+  "scenarioId": "fulfillment-state-preconditions",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T02:30:25.000Z",
+  "notes": "Deterministic local-runtime evidence for fulfillmentCancel and fulfillmentTrackingInfoUpdate state preconditions. Each mutation starts cold and earns fulfillment state through cassette-backed OrdersFulfillmentHydrate reads; rejected branches must return INVALID-style userErrors without staging local mutations, while the tracking happy path still stages locally.",
+  "cancelAlreadyCancelled": {
+    "variables": {
+      "id": "gid://shopify/Fulfillment/6189145325801"
+    },
+    "response": {
+      "data": {
+        "fulfillmentCancel": {
+          "fulfillment": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "fulfillment_cannot_be_cancelled",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    },
+    "log": {
+      "entries": []
+    }
+  },
+  "trackingAlreadyCancelled": {
+    "variables": {
+      "fulfillmentId": "gid://shopify/Fulfillment/6189145325801",
+      "notifyCustomer": false,
+      "trackingInfoInput": {
+        "number": "PRECONDITION-CANCELLED-TRACK",
+        "url": "https://example.com/track/PRECONDITION-CANCELLED-TRACK",
+        "company": "Hermes"
+      }
+    },
+    "response": {
+      "data": {
+        "fulfillmentTrackingInfoUpdate": {
+          "fulfillment": null,
+          "userErrors": [
+            {
+              "field": ["fulfillmentId"],
+              "message": "fulfillment_is_cancelled",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cancelDelivered": {
+    "variables": {
+      "id": "gid://shopify/Fulfillment/7770000000001"
+    },
+    "response": {
+      "data": {
+        "fulfillmentCancel": {
+          "fulfillment": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "fulfillment_already_delivered",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "trackingHappyPath": {
+    "variables": {
+      "fulfillmentId": "gid://shopify/Fulfillment/6189151518953",
+      "notifyCustomer": false,
+      "trackingInfoInput": {
+        "number": "PRECONDITION-HAPPY-TRACK",
+        "url": "https://example.com/track/PRECONDITION-HAPPY-TRACK",
+        "company": "Hermes"
+      }
+    },
+    "response": {
+      "data": {
+        "fulfillmentTrackingInfoUpdate": {
+          "fulfillment": {
+            "id": "gid://shopify/Fulfillment/6189151518953",
+            "status": "SUCCESS",
+            "trackingInfo": [
+              {
+                "number": "PRECONDITION-HAPPY-TRACK",
+                "url": "https://example.com/track/PRECONDITION-HAPPY-TRACK",
+                "company": "Hermes"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersFulfillmentHydrate",
+      "variables": {
+        "id": "gid://shopify/Fulfillment/6189145325801"
+      },
+      "query": "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/6189145325801",
+              "order": {
+                "id": "gid://shopify/Order/6834528944361",
+                "name": "#1330",
+                "email": null,
+                "phone": null,
+                "createdAt": "2026-04-24T23:51:30Z",
+                "updatedAt": "2026-04-25T00:06:32Z",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "cancelReason": null,
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "PARTIALLY_FULFILLED",
+                "note": "merchant realistic draft order create parity probe",
+                "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/6189151518953",
+                    "status": "SUCCESS",
+                    "displayStatus": "FULFILLED",
+                    "createdAt": "2026-04-25T00:06:31Z",
+                    "updatedAt": "2026-04-25T00:06:32Z",
+                    "trackingInfo": [
+                      {
+                        "number": "PRECONDITION-ORIGINAL-TRACK",
+                        "url": "https://example.com/track/PRECONDITION-ORIGINAL-TRACK",
+                        "company": "Hermes"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/Fulfillment/6189145325801",
+                    "status": "CANCELLED",
+                    "displayStatus": "CANCELED",
+                    "createdAt": "2026-04-24T23:57:45Z",
+                    "updatedAt": "2026-04-24T23:57:45Z",
+                    "trackingInfo": [
+                      {
+                        "number": "HERMES-UPDATE-20260424235744",
+                        "url": "https://example.com/track/HERMES-UPDATE-20260424235744",
+                        "company": "Hermes"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersFulfillmentHydrate",
+      "variables": {
+        "id": "gid://shopify/Fulfillment/7770000000001"
+      },
+      "query": "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7770000000001",
+              "order": {
+                "id": "gid://shopify/Order/7770000000001",
+                "name": "#DELIVERED",
+                "email": "delivered-fulfillment-precondition@example.com",
+                "phone": null,
+                "createdAt": "2026-04-25T00:00:00Z",
+                "updatedAt": "2026-04-25T01:00:00Z",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "cancelReason": null,
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "FULFILLED",
+                "note": "Delivered fulfillment precondition local-runtime fixture",
+                "tags": ["fulfillment-state-preconditions", "local-runtime"],
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/7770000000001",
+                    "status": "SUCCESS",
+                    "displayStatus": "DELIVERED",
+                    "createdAt": "2026-04-25T00:30:00Z",
+                    "updatedAt": "2026-04-25T01:00:00Z",
+                    "trackingInfo": [
+                      {
+                        "number": "DELIVERED-ORIGINAL-TRACK",
+                        "url": "https://example.com/track/DELIVERED-ORIGINAL-TRACK",
+                        "company": "Hermes"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersFulfillmentHydrate",
+      "variables": {
+        "id": "gid://shopify/Fulfillment/6189151518953"
+      },
+      "query": "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/6189151518953",
+              "order": {
+                "id": "gid://shopify/Order/6834528944361",
+                "name": "#1330",
+                "email": null,
+                "phone": null,
+                "createdAt": "2026-04-24T23:51:30Z",
+                "updatedAt": "2026-04-25T00:06:32Z",
+                "closed": false,
+                "closedAt": null,
+                "cancelledAt": null,
+                "cancelReason": null,
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "PARTIALLY_FULFILLED",
+                "note": "merchant realistic draft order create parity probe",
+                "tags": ["draft-order-create", "merchant-realistic", "parity-probe"],
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/6189151518953",
+                    "status": "SUCCESS",
+                    "displayStatus": "FULFILLED",
+                    "createdAt": "2026-04-25T00:06:31Z",
+                    "updatedAt": "2026-04-25T00:06:32Z",
+                    "trackingInfo": [
+                      {
+                        "number": "PRECONDITION-ORIGINAL-TRACK",
+                        "url": "https://example.com/track/PRECONDITION-ORIGINAL-TRACK",
+                        "company": "Hermes"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+mutation StandardMetafieldDefinitionEnableForceFalse {
+  standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+    forceEnable: false
+  ) {
+    createdDefinition {
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

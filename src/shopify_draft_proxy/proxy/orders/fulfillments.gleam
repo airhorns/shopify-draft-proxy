@@ -6,33 +6,24 @@
 //// effects are modeled together.
 
 import gleam/dict.{type Dict}
-import gleam/float
+
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{
-  type ObjectField, type Selection, Field, NullValue, ObjectField, ObjectValue,
-  SelectionSet, VariableValue,
-}
-import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/commit
+
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SelectedFieldOptions, SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt,
-  SrcList, SrcNull, SrcObject, SrcString, default_connection_window_options,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  get_selected_child_fields, paginate_connection_items,
-  project_graphql_field_value, project_graphql_value, resolved_value_to_source,
-  serialize_connection, source_to_json, src_object,
+  type FragmentMap, get_field_response_key,
 }
-import shopify_draft_proxy/proxy/metafields
+
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
-  find_argument, single_root_log_draft, validate_required_field_arguments,
+  type LogDraft, RequiredArgument, single_root_log_draft,
+  validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/orders/common.{
   captured_bool_field, captured_int_field, captured_object_field,
@@ -42,40 +33,32 @@ import shopify_draft_proxy/proxy/orders/common.{
   find_order_with_fulfillment_order, fulfillment_hold_handle_max_length,
   fulfillment_order_line_items, fulfillment_source_line_item_id,
   fulfillment_source_line_item_title, max_fulfillment_holds_per_api_client,
-  nullable_user_error, option_to_result, optional_captured_number,
-  optional_captured_string, order_fulfillment_holds, order_fulfillment_orders,
-  order_fulfillments, read_object, read_object_list, read_optional_int,
-  read_string, replace_captured_object_fields, selection_children,
+  nullable_user_error, optional_captured_number, optional_captured_string,
+  order_fulfillment_holds, order_fulfillment_orders, order_fulfillments,
+  read_object, read_object_list, read_optional_int, read_string,
+  replace_captured_object_fields, selection_children,
   serialize_captured_selection, serialize_user_error, upsert_captured_fields,
+  user_error,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{
+  maybe_hydrate_order_for_fulfillment_order,
   serialize_fulfillment_mutation_payload, update_order_fulfillment,
 }
 import shopify_draft_proxy/proxy/orders/order_types.{
   type RequestedFulfillmentLineItem, RequestedFulfillmentLineItem,
 }
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
+
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/user_error_codes
-import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/state/iso_timestamp
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
-  type CustomerRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type OrderRecord,
-  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
-  AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CustomerOrderSummaryRecord, CustomerRecord, DraftOrderRecord,
-  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
+  type CapturedJsonValue, type OrderRecord, CapturedArray, CapturedBool,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, OrderRecord,
 }
 
 @internal
@@ -103,6 +86,7 @@ pub fn handle_fulfillment_create_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -133,71 +117,98 @@ pub fn handle_fulfillment_create_mutation(
       let args = field_arguments(field, variables)
       case read_object(args, "fulfillment") {
         Some(input) -> {
-          let fulfillment_order_id =
-            read_object_list(input, "lineItemsByFulfillmentOrder")
-            |> list.find_map(fn(item) {
-              read_string(item, "fulfillmentOrderId") |> option_to_result
-            })
-            |> option.from_result
-          case fulfillment_order_id {
-            Some(fulfillment_order_id) ->
+          let groups =
+            fulfillment_create_line_items_by_fulfillment_order_inputs(input)
+          let hydrated_store =
+            hydrate_store_for_fulfillment_create(store, groups, upstream)
+          case first_fulfillment_create_match(hydrated_store, groups) {
+            Some(match) -> {
+              let #(fulfillment_order_id, order, fulfillment_order) = match
               case
-                find_order_with_fulfillment_order(store, fulfillment_order_id)
+                fulfillment_create_has_missing_fulfillment_order(
+                  hydrated_store,
+                  groups,
+                )
               {
-                Some(match) -> {
-                  let #(order, fulfillment_order) = match
-                  let requested_line_items =
-                    requested_fulfillment_line_items(input)
-                  let #(fulfillment, next_identity) =
-                    build_fulfillment_from_order(
-                      identity,
-                      input,
-                      fulfillment_order,
-                    )
-                  let updated_order =
-                    order
-                    |> replace_order_fulfillment_order(
-                      fulfillment_order_id,
-                      close_fulfillment_order(
-                        fulfillment_order,
-                        requested_line_items,
-                      ),
-                    )
-                    |> append_order_fulfillment(fulfillment)
-                  let next_store = store.stage_order(store, updated_order)
-                  let payload =
-                    serialize_fulfillment_create_payload(
-                      field,
-                      Some(fulfillment),
-                      [],
-                      fragments,
-                    )
-                  let draft =
-                    single_root_log_draft(
-                      "fulfillmentCreate",
-                      [
-                        captured_string_field(fulfillment, "id")
-                        |> option.unwrap(""),
-                      ],
-                      store_types.Staged,
-                      "orders",
-                      "stage-locally",
-                      Some(
-                        "Locally staged fulfillmentCreate in shopify-draft-proxy.",
-                      ),
-                    )
-                  #(
+                True ->
+                  fulfillment_create_invalid_result(
                     key,
-                    payload,
-                    next_store,
-                    next_identity,
-                    [updated_order.id],
-                    [],
-                    [draft],
+                    hydrated_store,
+                    identity,
                   )
+                False -> {
+                  let precondition_errors =
+                    fulfillment_create_precondition_errors(
+                      hydrated_store,
+                      groups,
+                    )
+                  case precondition_errors {
+                    [_, ..] -> {
+                      let payload =
+                        serialize_fulfillment_create_payload(
+                          field,
+                          None,
+                          precondition_errors,
+                          fragments,
+                        )
+                      #(key, payload, hydrated_store, identity, [], [], [])
+                    }
+                    [] -> {
+                      let requested_line_items =
+                        requested_fulfillment_line_items(input)
+                      let #(fulfillment, next_identity) =
+                        build_fulfillment_from_order(
+                          identity,
+                          input,
+                          fulfillment_order,
+                        )
+                      let updated_order =
+                        order
+                        |> replace_order_fulfillment_order(
+                          fulfillment_order_id,
+                          close_fulfillment_order(
+                            fulfillment_order,
+                            requested_line_items,
+                          ),
+                        )
+                        |> append_order_fulfillment(fulfillment)
+                      let next_store =
+                        store.stage_order(hydrated_store, updated_order)
+                      let payload =
+                        serialize_fulfillment_create_payload(
+                          field,
+                          Some(fulfillment),
+                          [],
+                          fragments,
+                        )
+                      let draft =
+                        single_root_log_draft(
+                          "fulfillmentCreate",
+                          [
+                            captured_string_field(fulfillment, "id")
+                            |> option.unwrap(""),
+                          ],
+                          store_types.Staged,
+                          "orders",
+                          "stage-locally",
+                          Some(
+                            "Locally staged fulfillmentCreate in shopify-draft-proxy.",
+                          ),
+                        )
+                      #(
+                        key,
+                        payload,
+                        next_store,
+                        next_identity,
+                        [updated_order.id],
+                        [],
+                        [draft],
+                      )
+                    }
+                  }
                 }
-                None -> fulfillment_create_invalid_result(key, store, identity)
               }
+            }
             None -> fulfillment_create_invalid_result(key, store, identity)
           }
         }
@@ -205,6 +216,217 @@ pub fn handle_fulfillment_create_mutation(
       }
     }
   }
+}
+
+@internal
+pub fn hydrate_store_for_fulfillment_create(
+  store: Store,
+  groups: List(#(Int, Dict(String, root_field.ResolvedValue))),
+  upstream: UpstreamContext,
+) -> Store {
+  groups
+  |> list.fold(store, fn(current_store, group_input) {
+    let #(_, group) = group_input
+    case read_string(group, "fulfillmentOrderId") {
+      Some(fulfillment_order_id) ->
+        maybe_hydrate_order_for_fulfillment_order(
+          current_store,
+          fulfillment_order_id,
+          upstream,
+        )
+      None -> current_store
+    }
+  })
+}
+
+@internal
+pub fn fulfillment_create_line_items_by_fulfillment_order_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Int, Dict(String, root_field.ResolvedValue))) {
+  read_object_list(input, "lineItemsByFulfillmentOrder")
+  |> list.index_map(fn(group, index) { #(index, group) })
+}
+
+@internal
+pub fn first_fulfillment_create_match(
+  store: Store,
+  groups: List(#(Int, Dict(String, root_field.ResolvedValue))),
+) -> Option(#(String, OrderRecord, CapturedJsonValue)) {
+  groups
+  |> list.find_map(fn(group_input) {
+    let #(_, group) = group_input
+    case read_string(group, "fulfillmentOrderId") {
+      Some(fulfillment_order_id) ->
+        case find_order_with_fulfillment_order(store, fulfillment_order_id) {
+          Some(match) -> {
+            let #(order, fulfillment_order) = match
+            Ok(#(fulfillment_order_id, order, fulfillment_order))
+          }
+          None -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+@internal
+pub fn fulfillment_create_has_missing_fulfillment_order(
+  store: Store,
+  groups: List(#(Int, Dict(String, root_field.ResolvedValue))),
+) -> Bool {
+  groups
+  |> list.any(fn(group_input) {
+    let #(_, group) = group_input
+    case read_string(group, "fulfillmentOrderId") {
+      Some(fulfillment_order_id) ->
+        case find_order_with_fulfillment_order(store, fulfillment_order_id) {
+          Some(_) -> False
+          None -> True
+        }
+      None -> True
+    }
+  })
+}
+
+@internal
+pub fn fulfillment_create_precondition_errors(
+  store: Store,
+  groups: List(#(Int, Dict(String, root_field.ResolvedValue))),
+) -> List(#(List(String), String, Option(String))) {
+  groups
+  |> list.flat_map(fn(group_input) {
+    let #(group_index, group) = group_input
+    case read_string(group, "fulfillmentOrderId") {
+      Some(fulfillment_order_id) ->
+        case find_order_with_fulfillment_order(store, fulfillment_order_id) {
+          Some(match) -> {
+            let #(order, fulfillment_order) = match
+            fulfillment_create_group_precondition_errors(
+              order,
+              fulfillment_order,
+              group_index,
+              group,
+            )
+          }
+          None -> []
+        }
+      None -> []
+    }
+  })
+}
+
+@internal
+pub fn fulfillment_create_group_precondition_errors(
+  order: OrderRecord,
+  fulfillment_order: CapturedJsonValue,
+  group_index: Int,
+  group: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case captured_string_field(fulfillment_order, "status") {
+    Some("CLOSED") -> [
+      user_error(
+        ["fulfillment"],
+        fulfillment_create_unfulfillable_status_message(
+          fulfillment_order,
+          "CLOSED",
+        ),
+        None,
+      ),
+    ]
+    _ ->
+      case fulfillment_create_order_is_cancelled(order) {
+        True -> [
+          user_error(
+            ["input", "lineItemsByFulfillmentOrder"],
+            "cannot_fulfill_cancelled_order",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        False ->
+          fulfillment_create_line_item_quantity_errors(
+            fulfillment_order,
+            group_index,
+            group,
+          )
+      }
+  }
+}
+
+fn fulfillment_create_unfulfillable_status_message(
+  fulfillment_order: CapturedJsonValue,
+  status: String,
+) -> String {
+  let id =
+    captured_string_field(fulfillment_order, "id")
+    |> option.then(resource_ids.shopify_gid_tail)
+    |> option.unwrap("")
+  "Fulfillment order "
+  <> id
+  <> " has an unfulfillable status= "
+  <> string.lowercase(status)
+  <> "."
+}
+
+@internal
+pub fn fulfillment_create_order_is_cancelled(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedString(value)) -> value != ""
+    _ -> False
+  }
+}
+
+@internal
+pub fn fulfillment_create_line_item_quantity_errors(
+  fulfillment_order: CapturedJsonValue,
+  _group_index: Int,
+  group: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  read_object_list(group, "fulfillmentOrderLineItems")
+  |> list.filter_map(fn(line_item_input) {
+    case
+      read_string(line_item_input, "id"),
+      read_optional_int(line_item_input, "quantity")
+    {
+      Some(line_item_id), Some(quantity) ->
+        case
+          fulfillment_order_line_item_by_id(fulfillment_order, line_item_id)
+        {
+          Some(line_item) -> {
+            let remaining_quantity =
+              captured_int_field(line_item, "remainingQuantity")
+              |> option.or(captured_int_field(line_item, "totalQuantity"))
+              |> option.unwrap(0)
+            case quantity > remaining_quantity {
+              True ->
+                Ok(user_error(
+                  ["fulfillment"],
+                  "Invalid fulfillment order line item quantity requested.",
+                  None,
+                ))
+              False -> Error(Nil)
+            }
+          }
+          None -> Error(Nil)
+        }
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+@internal
+pub fn fulfillment_order_line_item_by_id(
+  fulfillment_order: CapturedJsonValue,
+  id: String,
+) -> Option(CapturedJsonValue) {
+  fulfillment_order_line_items(fulfillment_order)
+  |> list.find_map(fn(line_item) {
+    case captured_string_field(line_item, "id") == Some(id) {
+      True -> Ok(line_item)
+      False -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 @internal

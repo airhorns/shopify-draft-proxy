@@ -7,32 +7,23 @@
 
 import gleam/dict.{type Dict}
 import gleam/float
-import gleam/int
+
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
+
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{
-  type ObjectField, type Selection, Field, NullValue, ObjectField, ObjectValue,
-  SelectionSet, VariableValue,
-}
-import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/commit
+
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SelectedFieldOptions, SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt,
-  SrcList, SrcNull, SrcObject, SrcString, default_connection_window_options,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  get_selected_child_fields, paginate_connection_items,
-  project_graphql_field_value, project_graphql_value, resolved_value_to_source,
-  serialize_connection, source_to_json, src_object,
+  type FragmentMap, get_field_response_key,
 }
-import shopify_draft_proxy/proxy/metafields
+
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
-  find_argument, single_root_log_draft, validate_required_field_arguments,
+  type LogDraft, RequiredArgument, single_root_log_draft,
+  validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/orders/common.{
   captured_bool_field, captured_money_amount, captured_money_presentment_amount,
@@ -44,37 +35,27 @@ import shopify_draft_proxy/proxy/orders/common.{
   order_presentment_currency_code, order_transactions, read_bool, read_number,
   read_object, read_string, read_string_arg, replace_captured_object_fields,
   selection_children, serialize_captured_selection, serialize_job,
-  serialize_order_mutation_user_error, serialize_user_error,
+  serialize_order_mutation_user_error, serialize_user_error, valid_email_address,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
 import shopify_draft_proxy/proxy/orders/order_types.{
-  type OrderMutationUserError, OrderMutationUserError, UserErrorField,
+  type OrderMutationUserError, UserErrorField,
 }
 import shopify_draft_proxy/proxy/orders/serializers.{
   order_returns, serialize_order_mutation_payload, serialize_order_node,
 }
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
+
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/user_error_codes
-import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/state/iso_timestamp
+
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
-  type CustomerRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type OrderRecord,
-  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
-  AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CustomerOrderSummaryRecord, CustomerRecord, DraftOrderRecord,
-  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
+  type CapturedJsonValue, type OrderRecord, CapturedArray, CapturedBool,
+  CapturedNull, CapturedObject, CapturedString, OrderRecord,
 }
 
 @internal
@@ -591,16 +572,28 @@ pub fn handle_order_invoice_send(
           let hydrated_store =
             maybe_hydrate_order_by_id(store, order_id, upstream)
           case store.get_order_by_id(hydrated_store, order_id) {
-            Some(order) -> #(
-              key,
-              serialize_order_mutation_payload(
-                field,
-                Some(order),
+            Some(order) -> {
+              let user_errors =
+                order_invoice_send_email_user_errors(
+                  args,
+                  hydrated_store,
+                  order,
+                )
+              let payload_order = case user_errors {
+                [] -> Some(order)
+                _ -> None
+              }
+              #(
+                key,
+                serialize_order_mutation_payload(
+                  field,
+                  payload_order,
+                  user_errors,
+                  fragments,
+                ),
                 [],
-                fragments,
-              ),
-              [],
-            )
+              )
+            }
             None -> #(
               key,
               serialize_order_mutation_payload(
@@ -630,6 +623,93 @@ pub fn handle_order_invoice_send(
       }
     }
   }
+}
+
+fn order_invoice_send_email_user_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  store: Store,
+  order: OrderRecord,
+) -> List(OrderMutationUserError) {
+  case explicit_invoice_email_to(args) {
+    Some(email) ->
+      case string.trim(email) {
+        "" -> [
+          order_invoice_send_email_error(
+            "No recipient email address was provided",
+          ),
+        ]
+        trimmed ->
+          case valid_email_address(trimmed) {
+            True -> []
+            False -> [order_invoice_send_email_error("To is invalid")]
+          }
+      }
+    None ->
+      case resolved_order_invoice_email(store, order) {
+        Some(_) -> []
+        None -> [
+          order_invoice_send_email_error(
+            "No recipient email address was provided",
+          ),
+        ]
+      }
+  }
+}
+
+fn explicit_invoice_email_to(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case dict.get(args, "email") {
+    Ok(root_field.ObjectVal(email_input)) ->
+      Some(read_string(email_input, "to") |> option.unwrap(""))
+    _ -> None
+  }
+}
+
+fn resolved_order_invoice_email(
+  store: Store,
+  order: OrderRecord,
+) -> Option(String) {
+  captured_string_field(order.data, "email")
+  |> option.then(non_blank_string)
+  |> option.or(order_customer_email(store, order))
+}
+
+fn order_customer_email(store: Store, order: OrderRecord) -> Option(String) {
+  case captured_object_field(order.data, "customer") {
+    Some(customer) ->
+      captured_string_field(customer, "email")
+      |> option.then(non_blank_string)
+      |> option.or(customer_record_email(store, customer))
+    None -> None
+  }
+}
+
+fn customer_record_email(
+  store: Store,
+  customer: CapturedJsonValue,
+) -> Option(String) {
+  use customer_id <- option.then(captured_string_field(customer, "id"))
+  use record <- option.then(store.get_effective_customer_by_id(
+    store,
+    customer_id,
+  ))
+  record.email |> option.then(non_blank_string)
+}
+
+fn non_blank_string(value: String) -> Option(String) {
+  case string.trim(value) {
+    "" -> None
+    trimmed -> Some(trimmed)
+  }
+}
+
+fn order_invoice_send_email_error(message: String) -> OrderMutationUserError {
+  order_mutation_user_error(
+    [],
+    message,
+    Some(user_error_codes.order_invoice_send_unsuccessful),
+  )
 }
 
 @internal

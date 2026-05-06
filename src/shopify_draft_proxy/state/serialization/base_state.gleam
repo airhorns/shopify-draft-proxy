@@ -15,8 +15,8 @@ import shopify_draft_proxy/state/serialization/shared/decoders.{
   draft_order_decoder, draft_order_variant_catalog_decoder,
   flow_signature_decoder, flow_trigger_decoder, gift_card_configuration_decoder,
   gift_card_decoder, locale_decoder, market_decoder, market_localization_decoder,
-  marketing_engagement_decoder, marketing_record_decoder,
-  metafield_definition_decoder, metaobject_decoder,
+  marketing_channel_definition_decoder, marketing_engagement_decoder,
+  marketing_record_decoder, metafield_definition_decoder, metaobject_decoder,
   metaobject_definition_decoder, order_decoder, price_list_decoder,
   product_metafield_decoder, saved_search_decoder, segment_decoder,
   shipping_package_decoder, shop_decoder, shop_locale_decoder,
@@ -44,7 +44,8 @@ import shopify_draft_proxy/state/serialization/shared/serializers.{
   draft_order_variant_catalog_json, file_json, flow_signature_json,
   flow_trigger_json, fulfillment_json, fulfillment_order_json,
   fulfillment_service_json, gift_card_configuration_json, gift_card_json,
-  locale_json, market_json, market_localization_json, marketing_engagement_json,
+  locale_json, market_json, market_localization_json,
+  marketing_channel_definition_json, marketing_engagement_json,
   marketing_record_json, metafield_definition_json, metaobject_definition_json,
   metaobject_json, online_store_content_kind_json,
   online_store_integration_kind_json, order_json, order_mandate_payment_json,
@@ -438,6 +439,13 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
     #(
       "marketingEventOrder",
       json.array(state.marketing_event_order, json.string),
+    ),
+    #(
+      "marketingChannelDefinitions",
+      dict_to_json(
+        state.marketing_channel_definitions,
+        marketing_channel_definition_json,
+      ),
     ),
     #(
       "marketingEngagements",
@@ -910,6 +918,10 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     marketing_record_decoder(),
   )
   use marketing_event_order <- string_list_field("marketingEventOrder")
+  use marketing_channel_definitions <- dict_field(
+    "marketingChannelDefinitions",
+    marketing_channel_definition_decoder(),
+  )
   use marketing_engagements <- dict_field(
     "marketingEngagements",
     marketing_engagement_decoder(),
@@ -1131,6 +1143,7 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     marketing_activity_order: marketing_activity_order,
     marketing_events: marketing_events,
     marketing_event_order: marketing_event_order,
+    marketing_channel_definitions: marketing_channel_definitions,
     marketing_engagements: marketing_engagements,
     marketing_engagement_order: marketing_engagement_order,
     deleted_marketing_activity_ids: deleted_marketing_activity_ids,

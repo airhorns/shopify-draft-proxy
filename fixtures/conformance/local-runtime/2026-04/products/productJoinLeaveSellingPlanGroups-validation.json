@@ -1,0 +1,152 @@
+{
+  "fixtureKind": "local-runtime-product-join-leave-selling-plan-groups-validation",
+  "apiVersion": "2026-04",
+  "storeDomain": "local-runtime",
+  "notes": [
+    "Fixture-backed validation contract for product/variant selling-plan group membership roots.",
+    "Live probes against harry-test-heelo.myshopify.com on 2026-04 and unstable returned empty userErrors for duplicate joins, leave-non-member, and 32-group joins; the public enum also lacked DUPLICATE, NOT_A_MEMBER, and TOO_MANY_SELLING_PLAN_GROUPS codes.",
+    "This local-runtime fixture records the ticket-requested local contract so supported mutations fail atomically without runtime Shopify writes while the public-store discrepancy remains documented in the workpad."
+  ],
+  "setupProduct": {
+    "variables": {
+      "input": {
+        "title": "Selling plan membership validation product",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "setupGroup": {
+    "variables": {
+      "input": {
+        "name": "Selling plan membership validation group",
+        "options": ["Delivery frequency"],
+        "sellingPlansToCreate": [
+          {
+            "name": "Monthly delivery",
+            "options": ["Monthly"],
+            "position": 1,
+            "category": "SUBSCRIPTION",
+            "billingPolicy": {
+              "recurring": {
+                "interval": "MONTH",
+                "intervalCount": 1,
+                "minCycles": 1,
+                "maxCycles": 12
+              }
+            },
+            "deliveryPolicy": {
+              "recurring": {
+                "interval": "MONTH",
+                "intervalCount": 1,
+                "cutoff": 0
+              }
+            },
+            "inventoryPolicy": {
+              "reserve": "ON_FULFILLMENT"
+            },
+            "pricingPolicies": [
+              {
+                "fixed": {
+                  "adjustmentType": "PERCENTAGE",
+                  "adjustmentValue": {
+                    "percentage": 10
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "sellingPlanGroupCreate": {
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "blankProductJoin": {
+    "response": {
+      "data": {
+        "productJoinSellingPlanGroups": {
+          "userErrors": [
+            {
+              "field": ["sellingPlanGroupIds"],
+              "message": "Selling plan group IDs can't be blank",
+              "code": "BLANK"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "duplicateProductJoin": {
+    "response": {
+      "data": {
+        "productJoinSellingPlanGroups": {
+          "userErrors": [
+            {
+              "field": ["sellingPlanGroupIds"],
+              "message": "Selling plan group IDs contains duplicate values.",
+              "code": "DUPLICATE"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "duplicateVariantJoin": {
+    "response": {
+      "data": {
+        "productVariantJoinSellingPlanGroups": {
+          "userErrors": [
+            {
+              "field": ["sellingPlanGroupIds"],
+              "message": "Selling plan group IDs contains duplicate values.",
+              "code": "DUPLICATE"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "productLeaveNonMember": {
+    "response": {
+      "data": {
+        "productLeaveSellingPlanGroups": {
+          "userErrors": [
+            {
+              "field": ["sellingPlanGroupIds"],
+              "message": "Selling plan group is not a member.",
+              "code": "NOT_A_MEMBER"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "variantLeaveNonMember": {
+    "response": {
+      "data": {
+        "productVariantLeaveSellingPlanGroups": {
+          "userErrors": [
+            {
+              "field": ["sellingPlanGroupIds"],
+              "message": "Selling plan group is not a member.",
+              "code": "NOT_A_MEMBER"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
