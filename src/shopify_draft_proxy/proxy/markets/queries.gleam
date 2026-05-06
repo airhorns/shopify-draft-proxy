@@ -317,15 +317,15 @@ pub fn hydrate_mutation_preconditions(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Store {
-  case upstream.transport, mutation_needs_preflight(fields) {
-    Some(_), True ->
+  case upstream.transport, preflight_query_for_fields(fields) {
+    Some(_), Some(preflight_query) ->
       case
         upstream_query.fetch_sync(
           upstream.origin,
           upstream.transport,
           upstream.headers,
           "MarketsMutationPreflightHydrate",
-          "query MarketsMutationPreflightHydrate { __typename }",
+          preflight_query,
           variables_to_json(variables),
         )
       {
@@ -334,6 +334,88 @@ pub fn hydrate_mutation_preconditions(
       }
     _, _ -> store_in
   }
+}
+
+fn preflight_query_for_fields(fields: List(Selection)) -> Option(String) {
+  case mutation_needs_price_list_preflight(fields) {
+    True -> Some(price_list_mutation_preflight_query)
+    False ->
+      case mutation_needs_preflight(fields) {
+        True -> Some("query MarketsMutationPreflightHydrate { __typename }")
+        False -> None
+      }
+  }
+}
+
+const price_list_mutation_preflight_query: String = "
+query MarketsMutationPreflightHydrate($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    quantityRules(first: 20) {
+      edges {
+        cursor
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant { id }
+        }
+      }
+    }
+    prices(first: 20) {
+      edges {
+        cursor
+        node {
+          price { amount currencyCode }
+          compareAtPrice { amount currencyCode }
+          originType
+          variant { id sku product { id title } }
+          quantityPriceBreaks(first: 20) {
+            edges {
+              cursor
+              node {
+                minimumQuantity
+                price { amount currencyCode }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  products(first: 10) {
+    nodes {
+      id
+      title
+      variants(first: 20) {
+        nodes { id title sku }
+      }
+    }
+  }
+}
+"
+
+fn mutation_needs_price_list_preflight(fields: List(Selection)) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) ->
+        case name.value {
+          "priceListFixedPricesByProductUpdate"
+          | "quantityPricingByVariantUpdate"
+          | "quantityRulesAdd"
+          | "quantityRulesDelete" -> True
+          _ -> False
+        }
+      _ -> False
+    }
+  })
 }
 
 fn mutation_needs_preflight(fields: List(Selection)) -> Bool {

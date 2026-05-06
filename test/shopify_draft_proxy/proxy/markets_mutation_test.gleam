@@ -84,6 +84,180 @@ pub fn price_list_create_rejects_invalid_parent_adjustment_type_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"type\"],\"message\":\"Type is invalid\",\"code\":\"INVALID\"}]}}}"
 }
 
+pub fn quantity_rules_add_validates_numeric_inputs_test() {
+  let #(proxy, price_list_id, variant_id) = quantity_rules_subject()
+  let #(Response(status: minimum_status, body: minimum_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        price_list_id,
+        variant_id,
+        "minimum: 0, increment: 1",
+      ),
+    )
+  let #(Response(status: increment_status, body: increment_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        price_list_id,
+        variant_id,
+        "minimum: 1, increment: 0",
+      ),
+    )
+  let #(Response(status: range_status, body: range_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        price_list_id,
+        variant_id,
+        "minimum: 10, maximum: 5, increment: 1",
+      ),
+    )
+  let #(
+    Response(status: minimum_multiple_status, body: minimum_multiple_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        price_list_id,
+        variant_id,
+        "minimum: 5, increment: 3",
+      ),
+    )
+  let #(
+    Response(status: maximum_multiple_status, body: maximum_multiple_body, ..),
+    _,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        price_list_id,
+        variant_id,
+        "minimum: 6, maximum: 10, increment: 3",
+      ),
+    )
+
+  assert minimum_status == 200
+  assert increment_status == 200
+  assert range_status == 200
+  assert minimum_multiple_status == 200
+  assert maximum_multiple_status == 200
+  assert string.contains(
+    json.to_string(minimum_body),
+    "\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"minimum\"],\"message\":\"Minimum must be greater than or equal to one.\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"",
+  )
+  assert string.contains(
+    json.to_string(minimum_body),
+    "\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"increment\"],\"message\":\"Increment must be lower than or equal to the minimum.\",\"code\":\"INCREMENT_IS_GREATER_THAN_MINIMUM\"",
+  )
+  assert string.contains(
+    json.to_string(increment_body),
+    "\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"increment\"],\"message\":\"Increment must be greater than or equal to one.\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"",
+  )
+  assert string.contains(
+    json.to_string(range_body),
+    "\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"minimum\"],\"message\":\"Minimum must be lower than or equal to the maximum.\",\"code\":\"MINIMUM_IS_GREATER_THAN_MAXIMUM\"",
+  )
+  assert string.contains(
+    json.to_string(minimum_multiple_body),
+    "\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"minimum\"],\"message\":\"Minimum must be a multiple of the increment.\",\"code\":\"MINIMUM_NOT_MULTIPLE_OF_INCREMENT\"",
+  )
+  assert string.contains(
+    json.to_string(maximum_multiple_body),
+    "\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"maximum\"],\"message\":\"Maximum must be a multiple of the increment.\",\"code\":\"MAXIMUM_NOT_MULTIPLE_OF_INCREMENT\"",
+  )
+}
+
+pub fn quantity_rules_add_rejects_duplicate_variant_ids_test() {
+  let #(proxy, price_list_id, variant_id) = quantity_rules_subject()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { quantityRulesAdd(priceListId: \""
+        <> price_list_id
+        <> "\", quantityRules: [{ variantId: \""
+        <> variant_id
+        <> "\", minimum: 2, increment: 1 }, { variantId: \""
+        <> variant_id
+        <> "\", minimum: 4, increment: 1 }]) { quantityRules { minimum increment productVariant { id } } userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[],\"userErrors\":[{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"variantId\"],\"message\":\"Quantity rule inputs must be unique by variant id.\",\"code\":\"DUPLICATE_INPUT_FOR_VARIANT\"},{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"1\",\"variantId\"],\"message\":\"Quantity rule inputs must be unique by variant id.\",\"code\":\"DUPLICATE_INPUT_FOR_VARIANT\"}]}}}"
+}
+
+pub fn quantity_rules_add_rejects_unknown_price_list_test() {
+  let #(proxy, _, variant_id) = quantity_rules_subject()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        "gid://shopify/PriceList/999",
+        variant_id,
+        "minimum: 2, maximum: 10, increment: 2",
+      ),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[],\"userErrors\":[{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"priceListId\"],\"message\":\"Price list does not exist.\",\"code\":\"PRICE_LIST_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn quantity_rules_add_still_stages_valid_rules_test() {
+  let #(proxy, price_list_id, variant_id) = quantity_rules_subject()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        price_list_id,
+        variant_id,
+        "minimum: 2, maximum: 10, increment: 2",
+      ),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[{\"minimum\":2,\"maximum\":10,\"increment\":2,\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/4\"}}],\"userErrors\":[]}}}"
+}
+
+fn quantity_rules_subject() -> #(DraftProxy, String, String) {
+  let #(Response(status: product_status, body: product_body, ..), proxy) =
+    graphql(
+      "mutation { productCreate(product: { title: \"Rule Product\" }) { product { id variants(first: 1) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: price_status, body: price_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListCreate(input: { name: \"USD\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 0 } } }) { priceList { id } userErrors { field message code } } }",
+    )
+
+  assert product_status == 200
+  assert price_status == 200
+  assert string.contains(
+    json.to_string(product_body),
+    "\"id\":\"gid://shopify/ProductVariant/4\"",
+  )
+  assert json.to_string(price_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/7\"},\"userErrors\":[]}}}"
+  #(proxy, "gid://shopify/PriceList/7", "gid://shopify/ProductVariant/4")
+}
+
+fn quantity_rules_add_mutation(
+  price_list_id: String,
+  variant_id: String,
+  quantity_rule_fields: String,
+) -> String {
+  "mutation { quantityRulesAdd(priceListId: \""
+  <> price_list_id
+  <> "\", quantityRules: [{ variantId: \""
+  <> variant_id
+  <> "\", "
+  <> quantity_rule_fields
+  <> " }]) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field message code } } }"
+}
+
 pub fn web_presence_create_subfolder_root_urls_include_all_locales_and_shop_domain_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
