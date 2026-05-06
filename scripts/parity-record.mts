@@ -1,12 +1,12 @@
 // Parity cassette recorder.
 //
 // Boots the Gleam-port DraftProxy in LiveHybrid mode pointed at a local
-// recording HTTP server, plays the parity spec's primary + target requests
+// recording SyncTransport, plays the parity spec's primary + target requests
 // through it, and rewrites the capture file with an `upstreamCalls`
 // cassette: every upstream GraphQL call the proxy makes while serving the
 // spec, in order, with its (operationName, variables, response) tuple.
 //
-// The recording server forwards each intercepted upstream call to the real
+// The recording transport forwards each intercepted upstream call to the real
 // Shopify Admin GraphQL endpoint using the existing OAuth flow
 // (scripts/shopify-conformance-auth.mts) and stores the response so it can
 // be replayed later by the Gleam parity runner.
@@ -23,11 +23,9 @@ import 'dotenv/config';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
-import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -54,6 +52,8 @@ type SpecTarget = {
   name?: string;
   proxyRequest?: SpecTargetRequest;
 };
+
+type RecordedResponse = { status: number; body: Record<string, unknown> };
 
 type ParitySpec = {
   scenarioId: string;
@@ -154,14 +154,14 @@ function loadDocumentAndVariables(
   }
 
   let variables: Record<string, unknown> = {};
-  if (request.variablesPath) {
+  if (request.variablesCapturePath) {
+    variables = (resolveJsonPath(capture, request.variablesCapturePath) ?? {}) as Record<string, unknown>;
+  } else if (request.variablesPath) {
     const variablesPath = resolve(repoRoot, request.variablesPath);
     if (!existsSync(variablesPath)) {
       throw new Error(`Spec references missing variables: ${request.variablesPath}`);
     }
     variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as Record<string, unknown>;
-  } else if (request.variablesCapturePath) {
-    variables = (resolveJsonPath(capture, request.variablesCapturePath) ?? {}) as Record<string, unknown>;
   }
   return { document, variables };
 }
@@ -209,6 +209,61 @@ function resolveJsonPath(value: unknown, path: string): unknown {
     }
   }
   return cursor;
+}
+
+function requireJsonPath(value: unknown, path: string, context: string): unknown {
+  const resolved = resolveJsonPath(value, path);
+  if (resolved === undefined) {
+    throw new Error(`${context} did not resolve JSONPath: ${path}`);
+  }
+  return resolved;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function substituteVariables(
+  template: unknown,
+  context: {
+    capture: unknown;
+    primaryResponse?: RecordedResponse;
+    previousResponse?: RecordedResponse;
+    responsesByName: Map<string, RecordedResponse>;
+  },
+): unknown {
+  if (Array.isArray(template)) {
+    return template.map((item) => substituteVariables(item, context));
+  }
+  if (!isPlainObject(template)) {
+    return template;
+  }
+
+  const entries = Object.entries(template);
+  if (entries.length === 1) {
+    const [[key, value]] = entries;
+    if (key === 'fromPrimaryProxyPath' && typeof value === 'string') {
+      if (!context.primaryResponse) throw new Error(`fromPrimaryProxyPath used before primary response: ${value}`);
+      return requireJsonPath(context.primaryResponse.body, value, 'primary response');
+    }
+    if (key === 'fromPreviousProxyPath' && typeof value === 'string') {
+      if (!context.previousResponse) throw new Error(`fromPreviousProxyPath used before previous response: ${value}`);
+      return requireJsonPath(context.previousResponse.body, value, 'previous response');
+    }
+    if (key === 'fromCapturePath' && typeof value === 'string') {
+      return requireJsonPath(context.capture, value, 'capture');
+    }
+  }
+
+  const responseName = template.fromProxyResponse;
+  const responsePath = template.path;
+  if (typeof responseName === 'string' && typeof responsePath === 'string') {
+    const named = context.responsesByName.get(responseName);
+    if (!named) throw new Error(`fromProxyResponse target not found: ${responseName}`);
+    return requireJsonPath(named.body, responsePath, `proxy response '${responseName}'`);
+  }
+
+  return Object.fromEntries(entries.map(([key, value]) => [key, substituteVariables(value, context)]));
 }
 
 function setJsonPath(root: Record<string, unknown>, path: string, value: unknown): void {
@@ -306,105 +361,67 @@ async function ensureGleamBuild(): Promise<void> {
   }
 }
 
-type RecorderHandle = {
-  origin: string;
-  calls: RecordedCall[];
-  close: () => Promise<void>;
-};
-
-async function startRecorder(opts: {
-  adminOrigin: string;
-  apiVersion: string;
-  accessToken: string;
-}): Promise<RecorderHandle> {
-  const calls: RecordedCall[] = [];
-  const headers = buildAdminAuthHeaders(opts.accessToken);
-
-  const server: Server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    void handleRequest(req, res, opts, headers, calls);
-  });
-
-  await new Promise<void>((resolveListen, rejectListen) => {
-    server.once('error', rejectListen);
-    server.listen(0, '127.0.0.1', () => resolveListen());
-  });
-  const address = server.address();
-  if (!address || typeof address === 'string') {
-    throw new Error('Recorder server failed to bind');
-  }
-  const origin = `http://127.0.0.1:${address.port}`;
-
-  return {
-    origin,
-    calls,
-    close: () =>
-      new Promise<void>((res, rej) => {
-        server.close((err) => (err ? rej(err) : res()));
-      }),
-  };
-}
-
-async function handleRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  opts: { adminOrigin: string; apiVersion: string },
-  authHeaders: Record<string, string>,
-  calls: RecordedCall[],
+async function installRecordingSyncTransport(
+  proxy: {
+    installSyncTransport: (send: (request: Record<string, unknown>) => unknown) => void;
+  },
+  opts: {
+    adminOrigin: string;
+    apiVersion: string;
+    authHeaders: Record<string, string>;
+    calls: RecordedCall[];
+  },
 ): Promise<void> {
-  try {
-    if (!req.url || req.method !== 'POST') {
-      res.statusCode = 405;
-      res.end();
-      return;
-    }
-    const body = await readBody(req);
-    let parsed: { query?: string; variables?: Record<string, unknown>; operationName?: string };
+  const [{ Ok, Error, toList }, { HttpOutcome, CommitTransportError }] = await Promise.all([
+    import(pathToFileURL(resolve(repoRoot, 'build/dev/javascript/prelude.mjs')).href),
+    import(
+      pathToFileURL(resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/commit.mjs'))
+        .href
+    ),
+  ]);
+
+  proxy.installSyncTransport((request: Record<string, unknown>) => {
     try {
-      parsed = JSON.parse(body) as typeof parsed;
-    } catch {
-      res.statusCode = 400;
-      res.end('invalid json');
-      return;
+      const body = String(request.body ?? '');
+      const parsed = JSON.parse(body || '{}') as {
+        operationName?: string;
+        query?: string;
+        variables?: Record<string, unknown>;
+      };
+      const url = `${opts.adminOrigin}/admin/api/${opts.apiVersion}/graphql.json`;
+      const args = ['-sS', '-X', 'POST'];
+      for (const [key, value] of Object.entries(opts.authHeaders)) {
+        args.push('-H', `${key}: ${value}`);
+      }
+      for (const [key, value] of gleamHeaderEntries(request.headers)) {
+        args.push('-H', `${key}: ${value}`);
+      }
+      args.push('--data-binary', body, '-w', '\n%{http_code}', url);
+      const output = execFileSync('curl', args, { encoding: 'utf8' });
+      const split = output.lastIndexOf('\n');
+      const responseBody = split >= 0 ? output.slice(0, split) : output;
+      const statusRaw = split >= 0 ? output.slice(split + 1).trim() : '200';
+      const status = Number.parseInt(statusRaw, 10);
+      const statusCode = Number.isFinite(status) ? status : 200;
+      const responsePayload = JSON.parse(responseBody || '{}') as unknown;
+      opts.calls.push({
+        operationName: parsed.operationName ?? extractOperationName(parsed.query ?? '') ?? '',
+        variables: parsed.variables ?? {},
+        query: parsed.query ?? '',
+        response: { status: statusCode, body: responsePayload },
+      });
+      return new Ok(new HttpOutcome(statusCode, responseBody, toList([])));
+    } catch (err) {
+      return new Error(new CommitTransportError((err as Error).message));
     }
-
-    const query = parsed.query ?? '';
-    const variables = parsed.variables ?? {};
-    const operationName = parsed.operationName ?? extractOperationName(query) ?? '';
-
-    const result = await runAdminGraphqlRequest(
-      {
-        adminOrigin: opts.adminOrigin,
-        apiVersion: opts.apiVersion,
-        headers: authHeaders,
-      },
-      query,
-      variables,
-    );
-
-    calls.push({
-      operationName,
-      variables,
-      query,
-      response: { status: result.status, body: result.payload },
-    });
-
-    res.statusCode = result.status;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(result.payload));
-  } catch (err) {
-    logError(`[parity-record] recorder error: ${(err as Error).message}`);
-    res.statusCode = 502;
-    res.end(JSON.stringify({ errors: [{ message: 'recorder error' }] }));
-  }
+  });
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((res, rej) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => res(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', rej);
-  });
+function gleamHeaderEntries(value: unknown): [string, string][] {
+  if (!value || typeof (value as { toArray?: unknown }).toArray !== 'function') return [];
+  return ((value as { toArray: () => unknown[] }).toArray() as unknown[])
+    .filter(Array.isArray)
+    .map((entry) => [String(entry[0]), String(entry[1])]);
 }
 
 function extractOperationName(query: string): string | undefined {
@@ -427,64 +444,67 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
 
   await ensureGleamBuild();
 
-  const recorder = await startRecorder({
-    adminOrigin: opts.adminOrigin,
-    apiVersion: opts.apiVersion,
-    accessToken: opts.accessToken,
-  });
-
+  const calls: RecordedCall[] = [];
   let rewriteCaptureNow: (() => void) | null = null;
   try {
     const shim = await import(shimEntrypoint);
     const proxy = shim.createDraftProxy({
       readMode: 'live-hybrid',
       port: 4000,
-      shopifyAdminOrigin: recorder.origin,
+      shopifyAdminOrigin: opts.adminOrigin,
     });
 
-    type RecordedResponse = { status: number; body: Record<string, unknown> };
     const responsesByName = new Map<string, RecordedResponse>();
-
-    type RequestPlan = {
-      name: string;
-      document: string;
-      variables: Record<string, unknown>;
-    };
-    const requests: RequestPlan[] = [];
+    await installRecordingSyncTransport(proxy, {
+      adminOrigin: opts.adminOrigin,
+      apiVersion: opts.apiVersion,
+      authHeaders: buildAdminAuthHeaders(opts.accessToken),
+      calls,
+    });
 
     const primary = loadDocumentAndVariables(spec.proxyRequest, capture);
-    if (primary) {
-      requests.push({ name: 'primary', document: primary.document, variables: primary.variables });
-    }
     const targetsWithOwnRequest: { target: SpecTarget; requestName: string }[] = [];
     for (const target of spec.comparison?.targets ?? []) {
       if (target.proxyRequest && target.proxyRequest.documentPath) {
-        const loaded = loadDocumentAndVariables(target.proxyRequest, capture);
-        if (loaded) {
-          const requestName = target.name ?? `target-${requests.length}`;
-          requests.push({ name: requestName, document: loaded.document, variables: loaded.variables });
-          targetsWithOwnRequest.push({ target, requestName });
-        }
+        const requestName = target.name ?? `target-${targetsWithOwnRequest.length + 1}`;
+        targetsWithOwnRequest.push({ target, requestName });
       }
     }
 
-    if (requests.length === 0) {
+    const requestCount = (primary ? 1 : 0) + targetsWithOwnRequest.length;
+    if (requestCount === 0) {
       throw new Error(`Spec ${spec.scenarioId} has no executable requests (no proxyRequest with documentPath).`);
     }
 
-    log(`[parity-record] recording ${spec.scenarioId} (${requests.length} request(s))`);
-    for (const req of requests) {
-      const response = (await proxy.processGraphQLRequest({
-        query: req.document,
-        variables: req.variables,
+    log(`[parity-record] recording ${spec.scenarioId} (${requestCount} request(s))`);
+    let primaryResponse: RecordedResponse | undefined;
+    let previousResponse: RecordedResponse | undefined;
+    if (primary) {
+      const variables = substituteVariables(primary.variables, { capture, responsesByName }) as Record<string, unknown>;
+      primaryResponse = (await proxy.processGraphQLRequest({
+        query: primary.document,
+        variables,
       })) as RecordedResponse;
-      responsesByName.set(req.name, response);
-      if (response.status >= 400) {
-        const bodyPreview = JSON.stringify(response.body).slice(0, 200);
-        log(`[parity-record]   ${req.name}: status=${response.status} body=${bodyPreview}`);
-      } else {
-        log(`[parity-record]   ${req.name}: status=${response.status}`);
-      }
+      responsesByName.set('primary', primaryResponse);
+      previousResponse = primaryResponse;
+      logRecordedResponse('primary', primaryResponse);
+    }
+    for (const { target, requestName } of targetsWithOwnRequest) {
+      const loaded = loadDocumentAndVariables(target.proxyRequest, capture);
+      if (!loaded) continue;
+      const variables = substituteVariables(loaded.variables, {
+        capture,
+        primaryResponse,
+        previousResponse,
+        responsesByName,
+      }) as Record<string, unknown>;
+      const response = (await proxy.processGraphQLRequest({
+        query: loaded.document,
+        variables,
+      })) as RecordedResponse;
+      responsesByName.set(requestName, response);
+      previousResponse = response;
+      logRecordedResponse(requestName, response);
     }
 
     // Intentionally do NOT rewrite captured response data with the
@@ -506,17 +526,25 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
       // diagnostic logging.
     }
 
-    rewriteCaptureNow = () => rewriteCapture(captureFile, recorder.calls, []);
+    rewriteCaptureNow = () => rewriteCapture(captureFile, calls, []);
   } finally {
-    await recorder.close();
   }
 
   if (rewriteCaptureNow) {
     rewriteCaptureNow();
   } else {
-    rewriteCapture(captureFile, recorder.calls, []);
+    rewriteCapture(captureFile, calls, []);
   }
-  log(`[parity-record] wrote ${recorder.calls.length} upstreamCalls to ${relative(repoRoot, captureFile)}`);
+  log(`[parity-record] wrote ${calls.length} upstreamCalls to ${relative(repoRoot, captureFile)}`);
+}
+
+function logRecordedResponse(name: string, response: RecordedResponse): void {
+  if (response.status >= 400) {
+    const bodyPreview = JSON.stringify(response.body).slice(0, 200);
+    log(`[parity-record]   ${name}: status=${response.status} body=${bodyPreview}`);
+  } else {
+    log(`[parity-record]   ${name}: status=${response.status}`);
+  }
 }
 
 async function main(): Promise<void> {
