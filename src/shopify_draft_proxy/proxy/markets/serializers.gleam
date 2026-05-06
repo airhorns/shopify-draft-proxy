@@ -23,6 +23,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, single_root_log_draft,
 }
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -94,8 +95,8 @@ pub fn markets_log_draft(
   staged_ids: List(String),
 ) -> LogDraft {
   let status = case staged_ids {
-    [] -> store.Failed
-    [_, ..] -> store.Staged
+    [] -> store_types.Failed
+    [_, ..] -> store_types.Staged
   }
   single_root_log_draft(
     root_name,

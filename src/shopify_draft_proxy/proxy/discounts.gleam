@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -847,8 +848,8 @@ fn handle_mutation_fields(
                   name.value,
                   result.staged_resource_ids,
                   case result.staged_resource_ids {
-                    [] -> store.Failed
-                    _ -> store.Staged
+                    [] -> store_types.Failed
+                    _ -> store_types.Staged
                   },
                   "discounts",
                   "stage-locally",

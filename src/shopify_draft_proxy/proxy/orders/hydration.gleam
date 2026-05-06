@@ -51,6 +51,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -165,7 +166,7 @@ pub fn handle_fulfillment_mutation(
                 single_root_log_draft(
                   root_name,
                   [id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(

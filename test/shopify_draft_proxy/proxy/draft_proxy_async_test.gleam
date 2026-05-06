@@ -42,6 +42,8 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 @target(javascript)
 import shopify_draft_proxy/state/store
+@target(javascript)
+import shopify_draft_proxy/state/store/types as store_types
 
 @target(javascript)
 const synthetic_one: String = "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
@@ -51,7 +53,7 @@ const authoritative_one: String = "gid://shopify/SavedSearch/12345"
 
 @target(javascript)
 fn empty_capability() -> store.Capability {
-  store.Capability(
+  store_types.Capability(
     operation_name: Some("savedSearchCreate"),
     domain: "saved-searches",
     execution: "stage-locally",
@@ -64,7 +66,7 @@ fn entry_factory(
   query: String,
   staged: List(String),
 ) -> store.MutationLogEntry {
-  store.MutationLogEntry(
+  store_types.MutationLogEntry(
     id: id,
     received_at: "2026-04-29T12:00:00.000Z",
     operation_name: Some("savedSearchCreate"),
@@ -72,9 +74,9 @@ fn entry_factory(
     query: query,
     variables: dict.new(),
     staged_resource_ids: staged,
-    status: store.Staged,
-    interpreted: store.InterpretedMetadata(
-      operation_type: store.Mutation,
+    status: store_types.Staged,
+    interpreted: store_types.InterpretedMetadata(
+      operation_type: store_types.Mutation,
       operation_name: Some("savedSearchCreate"),
       root_fields: ["savedSearchCreate"],
       primary_root_field: Some("savedSearchCreate"),
@@ -212,7 +214,7 @@ pub fn run_commit_async_succeeds_for_staged_entry_test() -> Promise(Nil) {
     let log = store.get_log(after)
     case log {
       [updated] -> {
-        assert updated.status == store.Committed
+        assert updated.status == store_types.Committed
         Nil
       }
       _ -> panic as "expected single log entry after commit"
@@ -239,7 +241,7 @@ pub fn run_commit_async_propagates_failure_test() -> Promise(Nil) {
     let log = store.get_log(after)
     case log {
       [updated] -> {
-        assert updated.status == store.Failed
+        assert updated.status == store_types.Failed
         Nil
       }
       _ -> panic as "expected single log entry after failure"

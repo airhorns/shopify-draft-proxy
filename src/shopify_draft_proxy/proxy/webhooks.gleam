@@ -64,6 +64,7 @@ import shopify_draft_proxy/search_query_parser.{
 }
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -1010,8 +1011,8 @@ fn handle_create(
               "webhookSubscriptionCreate",
               staged_ids,
               case user_errors {
-                [] -> store.Staged
-                _ -> store.Failed
+                [] -> store_types.Staged
+                _ -> store_types.Failed
               },
               "webhooks",
               "stage-locally",
@@ -1123,8 +1124,8 @@ fn handle_update(
           "webhookSubscriptionUpdate",
           staged_ids,
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "webhooks",
           "stage-locally",
@@ -1206,8 +1207,8 @@ fn handle_delete(
           "webhookSubscriptionDelete",
           [],
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "webhooks",
           "stage-locally",
