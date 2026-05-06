@@ -577,6 +577,77 @@ pub fn web_pixel_create_without_settings_needs_configuration_test() {
     == "{\"data\":{\"webPixelCreate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\",\"settings\":null},\"userErrors\":[]}}}"
 }
 
+pub fn mobile_platform_application_update_applies_apple_input_test() {
+  let create_query =
+    "mutation { mobilePlatformApplicationCreate(input: { apple: { appId: \"com.example.old\", universalLinksEnabled: false, sharedWebCredentialsEnabled: true, appClipsEnabled: false, appClipApplicationId: \"com.example.old.Clip\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } } userErrors { code field message } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+
+  let update_query =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"com.example.new\", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: true, appClipApplicationId: \"com.example.new.Clip\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } } userErrors { code field message } } }"
+  let #(update_body, proxy) = run_graphql(proxy, update_query)
+  assert update_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"appId\":\"com.example.new\",\"universalLinksEnabled\":true,\"sharedWebCredentialsEnabled\":false,\"appClipsEnabled\":true,\"appClipApplicationId\":\"com.example.new.Clip\"},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { mobilePlatformApplication(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\") { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } } }"
+  let #(read_body, _) = run_graphql(proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"appId\":\"com.example.new\",\"universalLinksEnabled\":true,\"sharedWebCredentialsEnabled\":false,\"appClipsEnabled\":true,\"appClipApplicationId\":\"com.example.new.Clip\"}}}"
+}
+
+pub fn mobile_platform_application_update_applies_android_input_test() {
+  let create_query =
+    "mutation { mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.old\", appLinksEnabled: false, sha256CertFingerprints: [\"AA:BB\"] } }) { mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } userErrors { code field message } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+
+  let update_query =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { android: { applicationId: \"com.example.new\", appLinksEnabled: true, sha256CertFingerprints: [\"CC:DD\", \"EE:FF\"] } }) { mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } userErrors { code field message } } }"
+  let #(update_body, proxy) = run_graphql(proxy, update_query)
+  assert update_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"applicationId\":\"com.example.new\",\"appLinksEnabled\":true,\"sha256CertFingerprints\":[\"CC:DD\",\"EE:FF\"]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { mobilePlatformApplication(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\") { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } }"
+  let #(read_body, _) = run_graphql(proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"applicationId\":\"com.example.new\",\"appLinksEnabled\":true,\"sha256CertFingerprints\":[\"CC:DD\",\"EE:FF\"]}}}"
+}
+
+pub fn mobile_platform_application_update_validation_errors_test() {
+  let create_android =
+    "mutation { mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.android\", appLinksEnabled: true, sha256CertFingerprints: [\"AA:BB\"] } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(_, android_proxy) = run_graphql(proxy(), create_android)
+
+  let mismatch =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"com.example.ios\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(mismatch_body, android_proxy) = run_graphql(android_proxy, mismatch)
+  assert mismatch_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"INVALID\",\"field\":[\"mobilePlatformApplication\"],\"message\":\"Mobile platform application platform is invalid\"}]}}}"
+
+  let blank_android =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { android: { applicationId: \"\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(blank_android_body, android_proxy) =
+    run_graphql(android_proxy, blank_android)
+  assert blank_android_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"android\",\"applicationId\"],\"message\":\"Application ID can't be blank\"}]}}}"
+
+  let create_apple =
+    "mutation { mobilePlatformApplicationCreate(input: { apple: { appId: \"com.example.apple\", universalLinksEnabled: true, sharedWebCredentialsEnabled: true } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(_, apple_proxy) = run_graphql(proxy(), create_apple)
+
+  let blank_apple =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"  \" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(blank_apple_body, _) = run_graphql(apple_proxy, blank_apple)
+  assert blank_apple_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"apple\",\"appId\"],\"message\":\"App ID can't be blank\"}]}}}"
+
+  let read_query =
+    "query { mobilePlatformApplication(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\") { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } }"
+  let #(read_body, _) = run_graphql(android_proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"applicationId\":\"com.example.android\",\"appLinksEnabled\":true,\"sha256CertFingerprints\":[\"AA:BB\"]}}}"
+}
+
 pub fn web_pixel_update_and_delete_errors_use_web_pixel_user_error_test() {
   let update_query =
     "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/missing\", webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { __typename code field message } } }"
