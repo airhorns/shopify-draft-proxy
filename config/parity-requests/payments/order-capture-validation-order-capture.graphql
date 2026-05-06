@@ -1,0 +1,29 @@
+mutation OrderCaptureValidation($input: OrderCaptureInput!) {
+  orderCapture(input: $input) {
+    transaction {
+      id
+      kind
+      status
+      gateway
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      parentTransaction {
+        id
+        kind
+        status
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

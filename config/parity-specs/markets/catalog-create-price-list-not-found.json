@@ -1,0 +1,51 @@
+{
+  "scenarioId": "catalog-create-price-list-not-found",
+  "operationNames": ["catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-relation-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture proves catalogCreate rejects an unknown priceListId after resolving a real market context.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-create-price-list-not-found",
+        "capturePath": "$.cases[1].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[1].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[1].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromCapturePath": "$.cases[1].variables.input.priceListId"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

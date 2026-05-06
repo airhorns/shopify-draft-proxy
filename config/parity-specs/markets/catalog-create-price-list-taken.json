@@ -1,0 +1,92 @@
+{
+  "scenarioId": "catalog-create-price-list-taken",
+  "operationNames": ["priceListCreate", "catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-relation-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable price list and first catalog attachment, then proves a second catalogCreate using the same priceListId returns Shopify's TAKEN CatalogUserError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-setup",
+        "capturePath": "$.cases[2].response.payload.data.priceListCreate.userErrors",
+        "proxyPath": "$.data.priceListCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "catalog-setup",
+        "capturePath": "$.cases[3].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[3].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[3].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "price-list-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "catalog-create-price-list-taken",
+        "capturePath": "$.cases[4].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[4].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[4].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "price-list-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

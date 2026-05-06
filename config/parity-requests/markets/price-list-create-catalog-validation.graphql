@@ -1,0 +1,20 @@
+#graphql
+mutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {
+  priceListCreate(input: $input) {
+    priceList {
+      id
+      currency
+      parent {
+        adjustment {
+          type
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
