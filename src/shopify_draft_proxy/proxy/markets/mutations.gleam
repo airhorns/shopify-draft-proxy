@@ -16,11 +16,12 @@ import shopify_draft_proxy/proxy/markets/queries
 import shopify_draft_proxy/proxy/markets/serializers.{
   append_unique_strings, assigned_market_country_codes, captured_field,
   captured_json_source, captured_object_upsert, captured_string_field,
-  catalog_create_input_errors, catalog_data, delete_fixed_price_nodes,
-  delete_quantity_rule_nodes, enumerate_dicts, market_connection_from_ids,
+  catalog_create_input_errors, catalog_data, catalog_update_input_errors,
+  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
+  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
   market_data, market_handle_in_use, market_localization_payload,
   market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
-  optional_captured_string, price_list_data,
+  optional_captured_string, price_edges, price_list_currency, price_list_data,
   price_list_fixed_prices_by_product_user_error, price_list_input_errors,
   product_level_fixed_price_errors, product_payloads, project_record,
   quantity_pricing_input_errors, quantity_rule_delete_errors,
@@ -29,7 +30,8 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   read_explicit_market_handle, read_market_region_inputs, read_price_list_id,
   result_to_option, string_array, translation_user_error,
   upsert_fixed_price_nodes, upsert_quantity_price_break_nodes,
-  upsert_quantity_rule_nodes, user_error, valid_currency, variant_payloads,
+  upsert_quantity_rule_nodes, user_error, user_error_with_typename,
+  valid_currency, variant_payloads,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome,
@@ -41,10 +43,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type MarketLocalizableContentRecord,
-  type MarketLocalizationRecord, type ProductMetafieldRecord,
-  type ShopDomainRecord, CapturedArray, CapturedBool, CapturedNull,
-  CapturedObject, CapturedString, CatalogRecord, MarketLocalizationRecord,
-  MarketRecord, PriceListRecord, WebPresenceRecord,
+  type MarketLocalizationRecord, type PriceListRecord,
+  type ProductMetafieldRecord, type ShopDomainRecord, CapturedArray,
+  CapturedBool, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  MarketLocalizationRecord, MarketRecord, PriceListRecord, WebPresenceRecord,
 }
 
 @internal
@@ -60,6 +62,9 @@ pub fn is_markets_mutation_root(name: String) -> Bool {
     | "priceListCreate"
     | "priceListUpdate"
     | "priceListDelete"
+    | "priceListFixedPricesAdd"
+    | "priceListFixedPricesUpdate"
+    | "priceListFixedPricesDelete"
     | "priceListFixedPricesByProductUpdate"
     | "quantityPricingByVariantUpdate"
     | "quantityRulesAdd"
@@ -206,6 +211,30 @@ fn handle_market_mutation(
       ))
     "priceListDelete" ->
       Some(handle_price_list_delete(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesAdd" ->
+      Some(handle_price_list_fixed_prices_add(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesUpdate" ->
+      Some(handle_price_list_fixed_prices_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+      ))
+    "priceListFixedPricesDelete" ->
+      Some(handle_price_list_fixed_prices_delete(
         store,
         identity,
         field,
@@ -703,24 +732,42 @@ fn handle_catalog_update(
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(existing) -> {
-          let data = catalog_data(store, id, input, Some(existing.data))
-          let #(_, next_store) =
-            store.upsert_staged_catalog(
-              store,
-              CatalogRecord(id, existing.cursor, data),
-            )
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "catalogUpdate",
-            "catalog",
-            data,
-            [],
-            next_store,
-            identity,
-            [id],
-          )
+          let errors = catalog_update_input_errors(store, input, id)
+          case errors {
+            [] -> {
+              let data = catalog_data(store, id, input, Some(existing.data))
+              let #(_, next_store) =
+                store.upsert_staged_catalog(
+                  store,
+                  CatalogRecord(id, existing.cursor, data),
+                )
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogUpdate",
+                "catalog",
+                data,
+                [],
+                next_store,
+                identity,
+                [id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogUpdate",
+                "catalog",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           not_found_mutation_result(
@@ -1065,6 +1112,184 @@ fn handle_price_list_delete(
   }
 }
 
+fn handle_price_list_fixed_prices_add(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let price_inputs = read_arg_object_array(args, "prices")
+  let errors =
+    price_list_fixed_price_target_errors(price_list_id, price_list)
+    |> list.append(case price_list {
+      Some(existing) ->
+        fixed_price_input_errors(store, existing, price_inputs, "prices")
+      None -> []
+    })
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let updated = upsert_fixed_price_nodes(existing, store, price_inputs)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      fixed_prices_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesAdd",
+        updated,
+        mutation_variant_ids(price_inputs),
+        [],
+        next_store,
+        identity,
+      )
+    }
+    _, _ ->
+      fixed_prices_error_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesAdd",
+        errors,
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_fixed_prices_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let #(price_inputs, price_input_field) = read_fixed_price_update_inputs(args)
+  let delete_variant_ids =
+    read_arg_string_array(args, "variantIdsToDelete") |> option.unwrap([])
+  let errors =
+    price_list_fixed_price_target_errors(price_list_id, price_list)
+    |> list.append(case price_list {
+      Some(existing) ->
+        fixed_price_input_errors(
+          store,
+          existing,
+          price_inputs,
+          price_input_field,
+        )
+        |> list.append(fixed_price_not_fixed_errors(
+          existing,
+          price_inputs,
+          price_input_field,
+        ))
+        |> list.append(fixed_price_delete_variant_errors(
+          store,
+          delete_variant_ids,
+          "variantIdsToDelete",
+        ))
+      None -> []
+    })
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let deleted_variant_ids =
+        fixed_price_variant_ids_in_request_order(existing, delete_variant_ids)
+      let updated =
+        existing
+        |> upsert_fixed_price_nodes(store, price_inputs)
+        |> delete_fixed_price_nodes(delete_variant_ids)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      let changed_variant_ids =
+        mutation_variant_ids(price_inputs)
+        |> append_unique_strings(deleted_variant_ids)
+      fixed_prices_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesUpdate",
+        updated,
+        changed_variant_ids,
+        deleted_variant_ids,
+        next_store,
+        identity,
+      )
+    }
+    _, _ ->
+      fixed_prices_error_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesUpdate",
+        errors,
+        store,
+        identity,
+      )
+  }
+}
+
+fn handle_price_list_fixed_prices_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let price_list_id = read_price_list_id(args)
+  let price_list =
+    option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
+  let variant_ids =
+    read_arg_string_array(args, "variantIds") |> option.unwrap([])
+  let errors =
+    price_list_fixed_price_target_errors(price_list_id, price_list)
+    |> list.append(case price_list {
+      Some(_) ->
+        fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
+      None -> []
+    })
+
+  case price_list, errors {
+    Some(existing), [] -> {
+      let deleted_variant_ids =
+        fixed_price_variant_ids_in_request_order(existing, variant_ids)
+      let updated = delete_fixed_price_nodes(existing, variant_ids)
+      let #(_, next_store) = store.upsert_staged_price_list(store, updated)
+      fixed_prices_payload_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesDelete",
+        updated,
+        [],
+        deleted_variant_ids,
+        next_store,
+        identity,
+      )
+    }
+    _, _ ->
+      fixed_prices_error_result(
+        key,
+        field,
+        fragments,
+        "priceListFixedPricesDelete",
+        errors,
+        store,
+        identity,
+      )
+  }
+}
+
 fn handle_price_list_fixed_prices_by_product_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1172,6 +1397,319 @@ fn handle_price_list_fixed_prices_by_product_update(
         [],
       )
   }
+}
+
+fn read_fixed_price_update_inputs(
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(List(Dict(String, root_field.ResolvedValue)), String) {
+  let prices = read_arg_object_array(args, "prices")
+  case prices {
+    [] -> #(read_arg_object_array(args, "pricesToAdd"), "pricesToAdd")
+    _ -> #(prices, "prices")
+  }
+}
+
+fn price_list_fixed_price_target_errors(
+  price_list_id: Option(String),
+  price_list: Option(PriceListRecord),
+) -> List(CapturedJsonValue) {
+  case price_list_id, price_list {
+    Some(_), Some(_) -> []
+    _, _ -> [
+      price_list_price_user_error(
+        ["priceListId"],
+        "Price list not found.",
+        "PRICE_LIST_NOT_FOUND",
+      ),
+    ]
+  }
+}
+
+fn fixed_price_input_errors(
+  store: Store,
+  price_list: PriceListRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  fixed_price_variant_errors(store, inputs, field_name)
+  |> list.append(fixed_price_currency_errors(price_list, inputs, field_name))
+  |> list.append(fixed_price_duplicate_errors(inputs, field_name))
+}
+
+fn fixed_price_variant_errors(
+  store: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    let variant_id =
+      graphql_helpers.read_arg_string_nonempty(input, "variantId")
+      |> option.unwrap("")
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(price_list_price_user_error(
+          [field_name, int.to_string(index), "variantId"],
+          "Variant not found.",
+          "VARIANT_NOT_FOUND",
+        ))
+    }
+  })
+}
+
+fn fixed_price_delete_variant_errors(
+  store: Store,
+  variant_ids: List(String),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  variant_ids
+  |> enumerate_strings
+  |> list.filter_map(fn(entry) {
+    let #(variant_id, index) = entry
+    case store.get_effective_variant_by_id(store, variant_id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(price_list_price_user_error(
+          [field_name, int.to_string(index)],
+          "Variant not found.",
+          "VARIANT_NOT_FOUND",
+        ))
+    }
+  })
+}
+
+fn fixed_price_currency_errors(
+  price_list: PriceListRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let expected_currency = price_list_currency(price_list)
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    let currency =
+      graphql_helpers.read_arg_object(input, "price")
+      |> option.then(graphql_helpers.read_arg_string_nonempty(_, "currencyCode"))
+    case currency {
+      Some(actual) ->
+        case actual == expected_currency {
+          True -> Error(Nil)
+          False ->
+            Ok(price_list_price_user_error(
+              [field_name, int.to_string(index), "price", "currencyCode"],
+              "Currency must match price list currency.",
+              "PRICES_TO_ADD_CURRENCY_MISMATCH",
+            ))
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn fixed_price_duplicate_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let #(_, errors) =
+    inputs
+    |> enumerate_dicts
+    |> list.fold(#([], []), fn(acc, entry) {
+      let #(seen_ids, current_errors) = acc
+      let #(input, index) = entry
+      case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
+        Some(variant_id) ->
+          case list.contains(seen_ids, variant_id) {
+            True -> #(
+              seen_ids,
+              list.append(current_errors, [
+                price_list_price_user_error(
+                  [field_name, int.to_string(index), "variantId"],
+                  "Duplicate variant ID in input.",
+                  "DUPLICATE_ID_IN_INPUT",
+                ),
+              ]),
+            )
+            False -> #(list.append(seen_ids, [variant_id]), current_errors)
+          }
+        None -> #(seen_ids, current_errors)
+      }
+    })
+  errors
+}
+
+fn fixed_price_not_fixed_errors(
+  price_list: PriceListRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let fixed_variant_ids = fixed_price_variant_ids(price_list)
+  inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    case graphql_helpers.read_arg_string_nonempty(input, "variantId") {
+      Some(variant_id) ->
+        case list.contains(fixed_variant_ids, variant_id) {
+          True -> Error(Nil)
+          False ->
+            Ok(price_list_price_user_error(
+              [field_name, int.to_string(index), "variantId"],
+              "Price is not fixed.",
+              "PRICE_NOT_FIXED",
+            ))
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn fixed_price_variant_ids(price_list: PriceListRecord) -> List(String) {
+  price_edges(price_list.data)
+  |> list.filter_map(fn(edge) {
+    fixed_price_edge_variant_id(edge) |> option_to_result
+  })
+}
+
+fn fixed_price_variant_ids_in_request_order(
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+) -> List(String) {
+  let fixed_variant_ids = fixed_price_variant_ids(price_list)
+  variant_ids
+  |> list.filter(fn(variant_id) { list.contains(fixed_variant_ids, variant_id) })
+}
+
+fn fixed_prices_payload_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  price_list: PriceListRecord,
+  fixed_variant_ids: List(String),
+  deleted_variant_ids: List(String),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  let payload = case root_name {
+    "priceListFixedPricesAdd" ->
+      CapturedObject([
+        #(
+          "prices",
+          fixed_price_nodes_for_variant_ids(price_list, fixed_variant_ids),
+        ),
+        #("userErrors", CapturedArray([])),
+      ])
+    "priceListFixedPricesUpdate" ->
+      CapturedObject([
+        #("priceList", price_list.data),
+        #(
+          "pricesAdded",
+          fixed_price_nodes_for_variant_ids(price_list, fixed_variant_ids),
+        ),
+        #("deletedFixedPriceVariantIds", string_array(deleted_variant_ids)),
+        #("userErrors", CapturedArray([])),
+      ])
+    "priceListFixedPricesDelete" ->
+      CapturedObject([
+        #("deletedFixedPriceVariantIds", string_array(deleted_variant_ids)),
+        #("userErrors", CapturedArray([])),
+      ])
+    _ ->
+      CapturedObject([
+        #("priceList", price_list.data),
+        #("userErrors", CapturedArray([])),
+      ])
+  }
+  MutationFieldResult(
+    key: key,
+    payload: project_record(field, fragments, captured_json_source(payload)),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [price_list.id],
+    log_drafts: [markets_log_draft(root_name, [price_list.id])],
+  )
+}
+
+fn fixed_price_nodes_for_variant_ids(
+  price_list: PriceListRecord,
+  variant_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedArray(
+    price_edges(price_list.data)
+    |> list.filter_map(fn(edge) {
+      use variant_id <- result.try(
+        fixed_price_edge_variant_id(edge) |> option_to_result,
+      )
+      case list.contains(variant_ids, variant_id) {
+        True -> captured_field(edge, "node") |> option_to_result
+        False -> Error(Nil)
+      }
+    }),
+  )
+}
+
+fn fixed_prices_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  root_name: String,
+  errors: List(CapturedJsonValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
+  mutation_payload_result(
+    key,
+    field,
+    fragments,
+    root_name,
+    fixed_prices_error_payload(root_name, errors),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn fixed_prices_error_payload(
+  root_name: String,
+  errors: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case root_name {
+    "priceListFixedPricesAdd" ->
+      CapturedObject([
+        #("prices", CapturedNull),
+        #("userErrors", CapturedArray(errors)),
+      ])
+    "priceListFixedPricesUpdate" ->
+      CapturedObject([
+        #("priceList", CapturedNull),
+        #("pricesAdded", CapturedNull),
+        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("userErrors", CapturedArray(errors)),
+      ])
+    "priceListFixedPricesDelete" ->
+      CapturedObject([
+        #("deletedFixedPriceVariantIds", CapturedNull),
+        #("userErrors", CapturedArray(errors)),
+      ])
+    _ -> CapturedObject([#("userErrors", CapturedArray(errors))])
+  }
+}
+
+fn price_list_price_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(
+    field,
+    message,
+    code,
+    Some("PriceListPriceUserError"),
+  )
 }
 
 fn handle_quantity_pricing_by_variant_update(
