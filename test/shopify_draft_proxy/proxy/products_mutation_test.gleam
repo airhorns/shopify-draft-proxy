@@ -128,6 +128,149 @@ fn assert_variant_relationship_user_error(
   assert entry.staged_resource_ids == []
 }
 
+pub fn publication_create_rejects_target_validation_errors_test() {
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\", channelId: \\\"gid://shopify/Channel/999\\\" }) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "INVALID",
+    "[\"input\"]",
+    "Only one of catalog or channel can be provided",
+  )
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: {}) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "BLANK",
+    "[\"input\",\"catalogId\"]",
+    "Catalog can't be blank",
+  )
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\" }) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "NOT_FOUND",
+    "[\"input\",\"catalogId\"]",
+    "Catalog not found",
+  )
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: { channelId: \\\"gid://shopify/Channel/999\\\" }) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "NOT_FOUND",
+    "[\"input\",\"channelId\"]",
+    "Channel not found",
+  )
+}
+
+pub fn publication_update_rejects_target_validation_errors_test() {
+  let create_query =
+    "mutation { publicationCreate(input: { name: \\\"Seed\\\" }) { publication { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let update_both_query =
+    "mutation { publicationUpdate(id: \\\"gid://shopify/Publication/2\\\", input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\", channelId: \\\"gid://shopify/Channel/999\\\" }) { publication { id } userErrors { field message code } } }"
+  let #(Response(status: both_status, body: both_body, ..), both_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_both_query))
+  let both_serialized = json.to_string(both_body)
+  assert both_status == 200
+  assert string.contains(both_serialized, "\"publication\":null")
+  assert string.contains(both_serialized, "\"code\":\"INVALID\"")
+  assert string.contains(both_serialized, "\"field\":[\"input\"]")
+  assert string.contains(
+    both_serialized,
+    "\"message\":\"Only one of catalog or channel can be provided\"",
+  )
+
+  let update_catalog_query =
+    "mutation { publicationUpdate(id: \\\"gid://shopify/Publication/2\\\", input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\" }) { publication { id } userErrors { field message code } } }"
+  let #(Response(status: catalog_status, body: catalog_body, ..), next_proxy) =
+    draft_proxy.process_request(
+      both_proxy,
+      graphql_request(update_catalog_query),
+    )
+  let catalog_serialized = json.to_string(catalog_body)
+  assert catalog_status == 200
+  assert string.contains(catalog_serialized, "\"publication\":null")
+  assert string.contains(catalog_serialized, "\"code\":\"NOT_FOUND\"")
+  assert string.contains(
+    catalog_serialized,
+    "\"field\":[\"input\",\"catalogId\"]",
+  )
+
+  let assert [_, both_entry, catalog_entry] = store.get_log(next_proxy.store)
+  assert both_entry.status == store_types.Failed
+  assert catalog_entry.status == store_types.Failed
+}
+
+pub fn publication_delete_rejects_default_online_store_publication_test() {
+  let query =
+    "mutation { publicationDelete(id: \\\"gid://shopify/Publication/1\\\") { deletedId userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(body, "\"deletedId\":null")
+  assert string.contains(body, "\"code\":\"CANNOT_DELETE_DEFAULT_PUBLICATION\"")
+  assert string.contains(body, "\"field\":[\"id\"]")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn publication_create_rejects_invalid_default_state_enum_test() {
+  let body =
+    json.to_string(
+      json.object([
+        #(
+          "query",
+          json.string(
+            "mutation($input: PublicationCreateInput!) { publicationCreate(input: $input) { publication { id } userErrors { field message code } } }",
+          ),
+        ),
+        #(
+          "variables",
+          json.object([
+            #("input", json.object([#("defaultState", json.string("BANANAS"))])),
+          ]),
+        ),
+      ]),
+    )
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Expected \\\"BANANAS\\\" to be one of: EMPTY, ALL_PRODUCTS",
+  )
+  assert store.get_log(next_proxy.store) == []
+}
+
+fn assert_publication_user_error(
+  query: String,
+  root_name: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(body, "\"" <> root_name <> "\":{")
+  assert string.contains(body, "\"publication\":null")
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
 fn graphql_document_request(query: String) -> Request {
   Request(
     method: "POST",

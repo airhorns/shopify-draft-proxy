@@ -1546,6 +1546,10 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "FAILURE",
       "CARRIER_PICKED_UP",
     ]),
+    #("PublicationCreateInputPublicationDefaultState", [
+      "EMPTY",
+      "ALL_PRODUCTS",
+    ]),
     #("TaxExemption", tax_exemption_values()),
   ])
 }
