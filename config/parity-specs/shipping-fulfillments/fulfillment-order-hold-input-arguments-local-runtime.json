@@ -1,0 +1,108 @@
+{
+  "scenarioId": "fulfillment-order-hold-input-arguments-local-runtime",
+  "operationNames": ["fulfillmentOrderHold"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "mutation-log-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/shipping-fulfillments/fulfillment-order-hold-input-arguments-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-input-arguments-hold.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.firstHold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-hold-input-argument-payload",
+        "capturePath": "$.cases.firstHold.response.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "selectedPaths": [
+          "$.fulfillmentHold.handle",
+          "$.fulfillmentHold.externalId",
+          "$.fulfillmentHold.__draftProxyNotifyMerchant",
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.fulfillmentHolds[0].handle",
+          "$.fulfillmentOrder.fulfillmentHolds[0].externalId",
+          "$.fulfillmentOrder.fulfillmentHolds[0].__draftProxyNotifyMerchant",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "second-hold-input-argument-payload",
+        "capturePath": "$.cases.secondHold.response.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-input-arguments-hold.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.secondHold.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentHold.handle",
+          "$.fulfillmentHold.externalId",
+          "$.fulfillmentHold.__draftProxyNotifyMerchant",
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.fulfillmentHolds[0].handle",
+          "$.fulfillmentOrder.fulfillmentHolds[0].externalId",
+          "$.fulfillmentOrder.fulfillmentHolds[0].__draftProxyNotifyMerchant",
+          "$.fulfillmentOrder.fulfillmentHolds[1].handle",
+          "$.fulfillmentOrder.fulfillmentHolds[1].externalId",
+          "$.fulfillmentOrder.fulfillmentHolds[1].__draftProxyNotifyMerchant",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "after-second-hold-downstream-read",
+        "capturePath": "$.cases.afterSecondRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-input-arguments-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.afterSecondRead.variables"
+        },
+        "selectedPaths": [
+          "$.fulfillmentOrder.status",
+          "$.fulfillmentOrder.fulfillmentHolds[0].handle",
+          "$.fulfillmentOrder.fulfillmentHolds[0].externalId",
+          "$.fulfillmentOrder.fulfillmentHolds[0].__draftProxyNotifyMerchant",
+          "$.fulfillmentOrder.fulfillmentHolds[1].handle",
+          "$.fulfillmentOrder.fulfillmentHolds[1].externalId",
+          "$.fulfillmentOrder.fulfillmentHolds[1].__draftProxyNotifyMerchant",
+          "$.manualHoldsFulfillmentOrders.nodes[0].status",
+          "$.manualHoldsFulfillmentOrders.nodes[0].fulfillmentHolds[0].handle",
+          "$.manualHoldsFulfillmentOrders.nodes[0].fulfillmentHolds[0].externalId",
+          "$.manualHoldsFulfillmentOrders.nodes[0].fulfillmentHolds[0].__draftProxyNotifyMerchant",
+          "$.manualHoldsFulfillmentOrders.nodes[0].fulfillmentHolds[1].handle",
+          "$.manualHoldsFulfillmentOrders.nodes[0].fulfillmentHolds[1].externalId",
+          "$.manualHoldsFulfillmentOrders.nodes[0].fulfillmentHolds[1].__draftProxyNotifyMerchant"
+        ]
+      },
+      {
+        "name": "hold-input-argument-mutation-log",
+        "capturePath": "$.cases.afterSecondHoldLog.log",
+        "proxyLogPath": "$",
+        "selectedPaths": [
+          "$.entries[0].operationName",
+          "$.entries[0].status",
+          "$.entries[0].variables.fulfillmentHold.externalId",
+          "$.entries[0].variables.fulfillmentHold.notifyMerchant",
+          "$.entries[1].operationName",
+          "$.entries[1].status",
+          "$.entries[1].variables.fulfillmentHold.externalId",
+          "$.entries[1].variables.fulfillmentHold.notifyMerchant"
+        ]
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for fulfillmentOrderHold optional input arguments. The scenario hydrates one captured fulfillment order through cassette replay, stages a true notifyMerchant/externalId hold, stages a second false/null hold, then verifies mutation payloads, downstream held-order reads, and the staged mutation log without runtime Shopify writes."
+}
