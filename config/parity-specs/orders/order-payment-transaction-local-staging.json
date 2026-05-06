@@ -84,6 +84,26 @@
         }
       },
       {
+        "name": "post-final-capture-rejected",
+        "capturePath": "$.paymentCaptureFlow.expected.postFinalCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-capture-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "1.00",
+              "currency": "CAD"
+            }
+          }
+        }
+      },
+      {
         "name": "capture-downstream-order-read",
         "capturePath": "$.paymentCaptureFlow.expected.readAfterFinal",
         "proxyPath": "$",
@@ -125,5 +145,5 @@
       }
     ]
   },
-  "notes": "Promoted from captured-fixture to executable strict local parity for order payment staging. The primary replay creates a synthetic authorized order, then compares over-capture validation, partial and final orderCapture staging, downstream financial/transaction reads, void-after-capture validation, and missing idempotency-key mandate validation. Successful transactionVoid and idempotent mandate-payment branches are split into sibling scenarios because they require mutually exclusive order payment state."
+  "notes": "Promoted from captured-fixture to executable strict local parity for order payment staging. The primary replay creates a synthetic authorized order, then compares over-capture validation, partial and final orderCapture staging, post-final-capture rejection, downstream financial/transaction reads, void-after-capture validation, and missing idempotency-key mandate validation. Successful transactionVoid and idempotent mandate-payment branches are split into sibling scenarios because they require mutually exclusive order payment state."
 }

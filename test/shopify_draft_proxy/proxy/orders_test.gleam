@@ -6352,7 +6352,7 @@ fn order_payment_transaction(
 
 fn order_payment_order(transaction: root_field.ResolvedValue) {
   order_create_test_order([
-    #("currency", root_field.StringVal("CAD")),
+    #("currency", root_field.StringVal("USD")),
     #("transactions", root_field.ListVal([transaction])),
     #(
       "lineItems",
@@ -6406,7 +6406,7 @@ fn capture_payment_order(
             #("id", root_field.StringVal(order_id)),
             #("parentTransactionId", root_field.StringVal(auth_id)),
             #("amount", root_field.FloatVal(25.0)),
-            #("currency", root_field.StringVal("CAD")),
+            #("currency", root_field.StringVal("USD")),
             #("finalCapture", root_field.BoolVal(True)),
           ]),
         ),
