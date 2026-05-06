@@ -1674,7 +1674,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-capability-invariants.json`,
       'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-capability-invariants.json',
-      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-*.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-read.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-update.graphql',
     ],
     cleanupBehavior:
       'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
@@ -2180,7 +2183,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/catalog-context-update-removes-only.json',
       'config/parity-specs/markets/catalog-context-update-market-taken.json',
       'config/parity-specs/markets/catalog-context-update-catalog-not-found.json',
-      'config/parity-requests/markets/catalog-context-update-*.graphql',
+      'config/parity-requests/markets/catalog-context-update-catalog-create.graphql',
+      'config/parity-requests/markets/catalog-context-update-catalog-not-found.graphql',
+      'config/parity-requests/markets/catalog-context-update-market-create.graphql',
+      'config/parity-requests/markets/catalog-context-update-market-taken.graphql',
+      'config/parity-requests/markets/catalog-context-update-no-args.graphql',
+      'config/parity-requests/markets/catalog-context-update-read.graphql',
+      'config/parity-requests/markets/catalog-context-update-removes-only.graphql',
+      'config/parity-requests/markets/catalog-context-update-unknown-id-validation.graphql',
     ],
     cleanupBehavior:
       'Creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order.',
@@ -2454,6 +2464,50 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-content-lifecycle',
+    scriptPath: 'scripts/capture-online-store-content-lifecycle-conformance.ts',
+    purpose:
+      'Online store blog, page, and article lifecycle success paths, downstream read-after-write behavior, empty reads, counts, and unknown-comment guardrails.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-lifecycle.json`,
+      'config/parity-specs/online-store/online-store-content-lifecycle.json',
+      'config/parity-requests/online-store/online-store-content-article-create.graphql',
+      'config/parity-requests/online-store/online-store-content-comment-unknown.graphql',
+      'config/parity-requests/online-store/online-store-content-create.graphql',
+      'config/parity-requests/online-store/online-store-content-delete.graphql',
+      'config/parity-requests/online-store/online-store-content-read-after-update.graphql',
+      'config/parity-requests/online-store/online-store-content-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog, page, and article; records lifecycle reads/writes; deletes all created content during the scenario and retries cleanup for any remaining record.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-article-media-navigation-follow-through',
+    scriptPath: 'scripts/capture-online-store-article-media-navigation-follow-through-conformance.ts',
+    purpose:
+      'Article image/metafield create/update/read behavior, Page/Article schema boundaries, and page-backed menu navigation follow-through evidence.',
+    requiredAuthScopes: [
+      'read_content',
+      'write_content',
+      'read_online_store_navigation',
+      'write_online_store_navigation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-media-navigation-follow-through.json`,
+      'config/parity-specs/online-store/online-store-article-media-navigation-follow-through.json',
+      'config/parity-requests/online-store/online-store-article-media.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable blog, article, page, and menu records; deletes the menu during the scenario, then deletes remaining article/page/blog records in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Menu evidence is captured for future navigation modeling; the executable parity target covers the locally supported article image/metafield create payload.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-content-search',
     scriptPath: 'scripts/capture-online-store-content-search-conformance.ts',
     purpose: 'Online store article, blog, and page search filter behavior.',
@@ -2527,7 +2581,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}comment-delete-true-destroy.json`,
       'config/parity-specs/online-store/comment-delete-true-destroy.json',
-      'config/parity-requests/online-store/comment-delete-true-destroy-*.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-approve.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-delete.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-read.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable blog/article and one REST article comment, approves and deletes the comment during the scenario, then deletes the article and blog in cleanup.',
@@ -2913,7 +2969,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
       'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
-      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body*.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql',
     ],
     cleanupBehavior:
       'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',
