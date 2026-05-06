@@ -13,11 +13,17 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ e
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-item-update-parity.json');
-const { runGraphql } = createAdminGraphqlClient({
+const validationOutputPath = path.join(outputDir, 'inventory-item-update-validation.json');
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+async function runGraphqlPayload(query, variables) {
+  const { payload } = await runGraphqlRaw(query, variables);
+  return payload;
+}
 
 const createMutation = `#graphql
   mutation InventoryItemUpdateConformanceCreate($product: ProductCreateInput!) {
@@ -63,6 +69,42 @@ const createMutation = `#graphql
   }
 `;
 
+const validationCreateMutation = `#graphql
+  mutation InventoryItemUpdateValidationCreate($product: ProductCreateInput!) {
+    productCreate(product: $product) {
+      product {
+        id
+        title
+        tracksInventory
+        variants(first: 1) {
+          nodes {
+            id
+            inventoryQuantity
+            inventoryItem {
+              id
+              tracked
+              requiresShipping
+              countryCodeOfOrigin
+              provinceCodeOfOrigin
+              harmonizedSystemCode
+              measurement {
+                weight {
+                  unit
+                  value
+                }
+              }
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const inventoryItemUpdateMutation = `#graphql
   mutation InventoryItemUpdateParityPlan($id: ID!, $input: InventoryItemInput!) {
     inventoryItemUpdate(id: $id, input: $input) {
@@ -88,6 +130,20 @@ const inventoryItemUpdateMutation = `#graphql
             tracksInventory
           }
         }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const inventoryItemUpdateValidationMutation = `#graphql
+  mutation InventoryItemUpdateValidation($id: ID!, $input: InventoryItemInput!) {
+    inventoryItemUpdate(id: $id, input: $input) {
+      inventoryItem {
+        id
       }
       userErrors {
         field
@@ -163,7 +219,15 @@ const fixture = {
   validation: null,
 };
 
-let productId = null;
+const validationFixture = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
+  captures: {},
+  upstreamCalls: [],
+};
+
+let productIds = [];
 
 try {
   const createVariables = {
@@ -177,7 +241,10 @@ try {
   const createdVariant = createdProduct?.variants?.nodes?.[0] ?? null;
   const inventoryItemId = createdVariant?.inventoryItem?.id ?? null;
   const variantId = createdVariant?.id ?? null;
-  productId = createdProduct?.id ?? null;
+  const productId = createdProduct?.id ?? null;
+  if (productId) {
+    productIds.push(productId);
+  }
 
   if (!productId || !inventoryItemId || !variantId) {
     throw new Error(
@@ -230,9 +297,119 @@ try {
 
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: true, outputPath }, null, 2));
+
+  const validationCreateVariables = {
+    product: {
+      title: `hermes-inventory-item-update-validation-${Date.now()}`,
+      status: 'DRAFT',
+    },
+  };
+  const validationCreateResponse = await runGraphql(validationCreateMutation, validationCreateVariables);
+  const validationProduct = validationCreateResponse.data?.productCreate?.product ?? null;
+  const validationVariant = validationProduct?.variants?.nodes?.[0] ?? null;
+  const validationInventoryItem = validationVariant?.inventoryItem ?? null;
+  const validationInventoryItemId = validationInventoryItem?.id ?? null;
+  const validationProductId = validationProduct?.id ?? null;
+  if (validationProductId) {
+    productIds.push(validationProductId);
+  }
+  if (!validationProductId || !validationInventoryItemId) {
+    throw new Error(
+      `Inventory item update validation capture failed to create a usable temporary product: ${JSON.stringify(validationCreateResponse, null, 2)}`,
+    );
+  }
+
+  const validationCases = {
+    negativeCost: {
+      id: validationInventoryItemId,
+      input: {
+        cost: '-5.00',
+      },
+    },
+    negativeWeightValue: {
+      id: validationInventoryItemId,
+      input: {
+        measurement: {
+          weight: {
+            unit: 'KILOGRAMS',
+            value: -1,
+          },
+        },
+      },
+    },
+    invalidWeightUnit: {
+      id: validationInventoryItemId,
+      input: {
+        measurement: {
+          weight: {
+            unit: 'STONES',
+            value: 1,
+          },
+        },
+      },
+    },
+    invalidCountry: {
+      id: validationInventoryItemId,
+      input: {
+        countryCodeOfOrigin: 'ZZ',
+      },
+    },
+    invalidHsCode: {
+      id: validationInventoryItemId,
+      input: {
+        harmonizedSystemCode: '12',
+      },
+    },
+  };
+
+  const validationCaptures = {
+    productCreate: {
+      variables: validationCreateVariables,
+      response: validationCreateResponse,
+    },
+  };
+  for (const [name, variables] of Object.entries(validationCases)) {
+    validationCaptures[name] = {
+      variables,
+      response: await runGraphqlPayload(inventoryItemUpdateValidationMutation, variables),
+    };
+  }
+
+  validationFixture.captures = validationCaptures;
+  validationFixture.upstreamCalls = [
+    {
+      operationName: 'ProductsHydrateNodes',
+      variables: {
+        ids: [validationInventoryItemId],
+      },
+      query: 'hand-synthesized from checked-in inventory item validation capture evidence',
+      response: {
+        status: 200,
+        body: {
+          data: {
+            nodes: [
+              {
+                ...validationInventoryItem,
+                variant: {
+                  id: validationVariant.id,
+                  inventoryQuantity: validationVariant.inventoryQuantity,
+                  product: {
+                    id: validationProduct.id,
+                    title: validationProduct.title,
+                    tracksInventory: validationProduct.tracksInventory,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+  await writeFile(validationOutputPath, `${JSON.stringify(validationFixture, null, 2)}\n`);
+  console.log(JSON.stringify({ ok: true, outputPath, validationOutputPath }, null, 2));
 } finally {
-  if (productId) {
+  for (const productId of productIds.reverse()) {
     await runGraphql(deleteMutation, { input: { id: productId } }).catch(() => null);
   }
   await rm(path.join('pending', 'inventory-item-update-conformance-scope-blocker.md'), { force: true }).catch(

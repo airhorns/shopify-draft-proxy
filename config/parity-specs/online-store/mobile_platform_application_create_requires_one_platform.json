@@ -1,0 +1,33 @@
+{
+  "scenarioId": "mobile-platform-application-create-requires-one-platform",
+  "operationNames": ["mobilePlatformApplicationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/mobile_platform_application_create_requires_one_platform.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/mobile_platform_application_create_requires_one_platform.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "requires-exactly-one-platform",
+        "capturePath": "$.expected.primary.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for the Core mobile platform application create guardrail: inputs must specify exactly one of android or apple and must not stage a local record when that contract is violated."
+}

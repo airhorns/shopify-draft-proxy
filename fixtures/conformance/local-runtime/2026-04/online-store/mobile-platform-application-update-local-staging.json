@@ -1,0 +1,161 @@
+{
+  "fixtureKind": "local-runtime-mobile-platform-application-update",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T11:25:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for mobilePlatformApplicationUpdate staging, validation, and read-after-write behavior.",
+  "expected": {
+    "create": {
+      "data": {
+        "appleCreate": {
+          "mobilePlatformApplication": {
+            "__typename": "AppleApplication",
+            "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic",
+            "appId": "com.example.apple.old",
+            "universalLinksEnabled": false,
+            "sharedWebCredentialsEnabled": true,
+            "appClipsEnabled": false,
+            "appClipApplicationId": "com.example.apple.old.Clip"
+          },
+          "userErrors": []
+        },
+        "androidCreate": {
+          "mobilePlatformApplication": {
+            "__typename": "AndroidApplication",
+            "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic",
+            "applicationId": "com.example.android.old",
+            "appLinksEnabled": false,
+            "sha256CertFingerprints": ["AA:BB"]
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "appleUpdate": {
+      "data": {
+        "mobilePlatformApplicationUpdate": {
+          "mobilePlatformApplication": {
+            "__typename": "AppleApplication",
+            "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic",
+            "appId": "com.example.apple.new",
+            "universalLinksEnabled": true,
+            "sharedWebCredentialsEnabled": false,
+            "appClipsEnabled": true,
+            "appClipApplicationId": "com.example.apple.new.Clip"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "appleRead": {
+      "data": {
+        "mobilePlatformApplication": {
+          "__typename": "AppleApplication",
+          "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic",
+          "appId": "com.example.apple.new",
+          "universalLinksEnabled": true,
+          "sharedWebCredentialsEnabled": false,
+          "appClipsEnabled": true,
+          "appClipApplicationId": "com.example.apple.new.Clip"
+        }
+      }
+    },
+    "androidUpdate": {
+      "data": {
+        "mobilePlatformApplicationUpdate": {
+          "mobilePlatformApplication": {
+            "__typename": "AndroidApplication",
+            "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic",
+            "applicationId": "com.example.android.new",
+            "appLinksEnabled": true,
+            "sha256CertFingerprints": ["CC:DD", "EE:FF"]
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "androidRead": {
+      "data": {
+        "mobilePlatformApplication": {
+          "__typename": "AndroidApplication",
+          "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic",
+          "applicationId": "com.example.android.new",
+          "appLinksEnabled": true,
+          "sha256CertFingerprints": ["CC:DD", "EE:FF"]
+        }
+      }
+    },
+    "validation": {
+      "data": {
+        "platformMismatch": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["mobilePlatformApplication"],
+              "message": "Mobile platform application platform is invalid"
+            }
+          ]
+        },
+        "missing": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Mobile platform application not found"
+            }
+          ]
+        },
+        "blankAndroid": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["mobilePlatformApplication", "android", "applicationId"],
+              "message": "Application ID can't be blank"
+            }
+          ]
+        },
+        "blankApple": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["mobilePlatformApplication", "apple", "appId"],
+              "message": "App ID can't be blank"
+            }
+          ]
+        }
+      }
+    },
+    "readAfterValidation": {
+      "data": {
+        "apple": {
+          "__typename": "AppleApplication",
+          "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic",
+          "appId": "com.example.apple.new",
+          "universalLinksEnabled": true,
+          "sharedWebCredentialsEnabled": false,
+          "appClipsEnabled": true,
+          "appClipApplicationId": "com.example.apple.new.Clip"
+        },
+        "android": {
+          "__typename": "AndroidApplication",
+          "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic",
+          "applicationId": "com.example.android.new",
+          "appLinksEnabled": true,
+          "sha256CertFingerprints": ["CC:DD", "EE:FF"]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "Core mobile platform application update behavior and local-runtime replay",
+    "notes": [
+      "The scenario earns state by replaying mobilePlatformApplicationCreate before update and read targets.",
+      "Supported mobilePlatformApplicationUpdate branches are local-only and use an empty cassette."
+    ]
+  },
+  "upstreamCalls": []
+}

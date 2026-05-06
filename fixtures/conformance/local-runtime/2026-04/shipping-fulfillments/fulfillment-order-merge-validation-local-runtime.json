@@ -1,0 +1,540 @@
+{
+  "capturedAt": "2026-05-06T12:40:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "storeDomain": "local-runtime.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime parity fixture for fulfillmentOrderMerge validation. The order graph is hydrated through the normal LiveHybrid cassette path; expected validation payloads mirror the Shopify resolver/source behavior documented for missing fulfillment orders, invalid quantities, and non-open merge targets.",
+  "initialOrder": {
+    "variables": {
+      "id": "gid://shopify/Order/merge-validation"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/merge-validation",
+            "name": "#MERGE-VALIDATION",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "fulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/merge-open-a",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "fulfillBy": null,
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-a-line",
+                        "totalQuantity": 2,
+                        "remainingQuantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/merge-open-a",
+                          "title": "Merge validation A",
+                          "quantity": 2,
+                          "fulfillableQuantity": 2
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/merge-open-b",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "fulfillBy": null,
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-b-line",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/merge-open-b",
+                          "title": "Merge validation B",
+                          "quantity": 1,
+                          "fulfillableQuantity": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/merge-closed",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "fulfillBy": null,
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/merge-closed-line",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/merge-closed",
+                          "title": "Merge validation closed",
+                          "quantity": 1,
+                          "fulfillableQuantity": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/merge-cancelled",
+                  "status": "CANCELLED",
+                  "requestStatus": "UNSUBMITTED",
+                  "fulfillBy": null,
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/merge-cancelled-line",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/merge-cancelled",
+                          "title": "Merge validation cancelled",
+                          "quantity": 1,
+                          "fulfillableQuantity": 1
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "missing": {
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-a"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9999999"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "zeroQuantity": {
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-a",
+                "fulfillmentOrderLineItems": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-a-line",
+                    "quantity": 0
+                  }
+                ]
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "invalidQuantity": {
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-a",
+                "fulfillmentOrderLineItems": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-a-line",
+                    "quantity": "one"
+                  }
+                ]
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "closed": {
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-a"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-closed"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "cancelled": {
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-a"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-cancelled"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "happyPath": {
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-a"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/merge-open-b"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "missing": {
+      "data": {
+        "fulfillmentOrderMerge": {
+          "fulfillmentOrderMerges": null,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "Fulfillment order does not exist.",
+              "code": "FULFILLMENT_ORDER_NOT_FOUND"
+            }
+          ]
+        }
+      }
+    },
+    "zeroQuantity": {
+      "data": {
+        "fulfillmentOrderMerge": {
+          "fulfillmentOrderMerges": null,
+          "userErrors": [
+            {
+              "field": [
+                "fulfillmentOrderMergeInputs",
+                "0",
+                "mergeIntents",
+                "0",
+                "fulfillmentOrderLineItems",
+                "0",
+                "quantity"
+              ],
+              "message": "Line item quantity must be greater than 0.",
+              "code": "GREATER_THAN"
+            }
+          ]
+        }
+      }
+    },
+    "invalidQuantity": {
+      "data": {
+        "fulfillmentOrderMerge": {
+          "fulfillmentOrderMerges": null,
+          "userErrors": [
+            {
+              "field": [
+                "fulfillmentOrderMergeInputs",
+                "0",
+                "mergeIntents",
+                "0",
+                "fulfillmentOrderLineItems",
+                "0",
+                "quantity"
+              ],
+              "message": "Line item quantity is invalid.",
+              "code": "INVALID_LINE_ITEM_QUANTITY"
+            }
+          ]
+        }
+      }
+    },
+    "closed": {
+      "data": {
+        "fulfillmentOrderMerge": {
+          "fulfillmentOrderMerges": null,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "Fulfillment order is not actionable.",
+              "code": null
+            }
+          ]
+        }
+      }
+    },
+    "cancelled": {
+      "data": {
+        "fulfillmentOrderMerge": {
+          "fulfillmentOrderMerges": null,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "Fulfillment order is not actionable.",
+              "code": null
+            }
+          ]
+        }
+      }
+    },
+    "happyPath": {
+      "data": {
+        "fulfillmentOrderMerge": {
+          "fulfillmentOrderMerges": [
+            {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/merge-open-a",
+                "status": "OPEN",
+                "fulfillBy": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-a-line",
+                      "totalQuantity": 3,
+                      "remainingQuantity": 3
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    },
+    "afterHappyOrderRead": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/merge-validation",
+          "name": "#MERGE-VALIDATION",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/merge-open-a",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillBy": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-a-line",
+                      "totalQuantity": 3,
+                      "remainingQuantity": 3,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/merge-open-a",
+                        "title": "Merge validation A",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/merge-open-b",
+                "status": "CLOSED",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillBy": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-b-line",
+                      "totalQuantity": 0,
+                      "remainingQuantity": 0,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/merge-open-b",
+                        "title": "Merge validation B",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/merge-closed",
+                "status": "CLOSED",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillBy": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/merge-closed-line",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/merge-closed",
+                        "title": "Merge validation closed",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/merge-cancelled",
+                "status": "CANCELLED",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillBy": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/merge-cancelled-line",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/merge-cancelled",
+                        "title": "Merge validation cancelled",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentOrderMergeValidationOrderRead",
+      "variables": {
+        "id": "gid://shopify/Order/merge-validation"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/merge-validation",
+              "name": "#MERGE-VALIDATION",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/merge-open-a",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-a-line",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/merge-open-a",
+                            "title": "Merge validation A",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/merge-open-b",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/merge-open-b-line",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/merge-open-b",
+                            "title": "Merge validation B",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/merge-closed",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/merge-closed-line",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/merge-closed",
+                            "title": "Merge validation closed",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/merge-cancelled",
+                    "status": "CANCELLED",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/merge-cancelled-line",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/merge-cancelled",
+                            "title": "Merge validation cancelled",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -36,8 +36,8 @@ import shopify_draft_proxy/proxy/products/products_handlers.{
   product_source_with_store,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  dedupe_preserving_order, mutation_error_result, mutation_result,
-  read_arg_object_list, read_arg_string_list, read_string_field,
+  dedupe_preserving_order, mutation_error_result, mutation_rejected_result,
+  mutation_result, read_arg_object_list, read_arg_string_list, read_string_field,
   user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{option_to_result}
@@ -372,12 +372,7 @@ pub fn handle_product_variant_media_mutation(
               store.get_effective_variant_by_id(response_store, variant_id)
               |> option_to_result
             })
-          let staged_ids = case user_errors {
-            [] -> [product_id, ..dedupe_preserving_order(updated_variant_ids)]
-            _ -> []
-          }
-          mutation_result(
-            key,
+          let payload =
             product_variant_media_payload(
               response_store,
               Some(product),
@@ -385,11 +380,16 @@ pub fn handle_product_variant_media_mutation(
               user_errors,
               field,
               fragments,
-            ),
-            response_store,
-            identity,
-            staged_ids,
-          )
+            )
+          case user_errors {
+            [] ->
+              mutation_result(key, payload, response_store, identity, [
+                product_id,
+                ..dedupe_preserving_order(updated_variant_ids)
+              ])
+            _ ->
+              mutation_rejected_result(key, payload, response_store, identity)
+          }
         }
       }
   }

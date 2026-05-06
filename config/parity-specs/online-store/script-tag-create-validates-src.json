@@ -27,5 +27,5 @@
       }
     ]
   },
-  "notes": "HAR-577 covers the Core ScriptTag model validation behavior specified by the ticket for blank, oversize, and non-http(s) src inputs. A live probe on 2026-04 showed Admin URL scalar coercion rejects blank and non-URL inline literals before scriptTagCreate reaches model validation, so this executable parity scenario is local-runtime-backed and compares the required coded userError shape without staging local state."
+  "notes": "Covers the Core ScriptTag model validation behavior for blank, oversize, malformed, and secure-src-enforced non-HTTPS src inputs. A live probe on 2026-04 showed Admin URL scalar coercion rejects blank and non-URL inline literals before scriptTagCreate reaches model validation, so this executable parity scenario is local-runtime-backed and compares the required coded userError shape without staging local state."
 }

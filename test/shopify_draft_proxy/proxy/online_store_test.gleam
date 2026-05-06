@@ -10,7 +10,9 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
-  AccessScopeRecord, AppInstallationRecord, AppRecord,
+  type CapturedJsonValue, AccessScopeRecord, AppInstallationRecord, AppRecord,
+  CapturedArray, CapturedInt, CapturedObject, CapturedString,
+  OnlineStoreIntegrationRecord,
 }
 
 const comment_id: String = "gid://shopify/Comment/har-587"
@@ -44,6 +46,20 @@ fn proxy_with_comment(status: String) -> DraftProxy {
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
+fn seed_staff_member(proxy: DraftProxy, staff_member_id: String) -> DraftProxy {
+  let record =
+    types.AdminPlatformGenericNodeRecord(
+      id: staff_member_id,
+      typename: "StaffMember",
+      data: types.CapturedObject([
+        #("id", types.CapturedString(staff_member_id)),
+      ]),
+    )
+  let seeded_store =
+    store.upsert_base_admin_platform_generic_nodes(proxy.store, [record])
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
 fn graphql_request(query: String) -> Request {
   Request(
     method: "POST",
@@ -63,11 +79,132 @@ fn meta_state_request() -> Request {
   Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
 }
 
+fn meta_log_request() -> Request {
+  Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+}
+
 fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
   let #(Response(status: status, body: body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(query))
   assert status == 200
   #(json.to_string(body), proxy)
+}
+
+fn proxy_with_basic_article() -> DraftProxy {
+  let #(blog_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { blogCreate(blog: { title: \"Article Validation Blog\" }) { blog { id title } userErrors { field message code } } }",
+    )
+  assert blog_body
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation Blog\"},\"userErrors\":[]}}}"
+
+  let #(article_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleCreate(article: { title: \"Article Validation\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Author Name\" } }) { article { id title author { name } image } userErrors { field message code } } }",
+    )
+  assert article_body
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"image\":null},\"userErrors\":[]}}}"
+  proxy
+}
+
+pub fn content_create_rejects_publishing_with_future_publish_date_test() {
+  let page_query =
+    "mutation { pageCreate(page: { title: \"Future Page\", isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { page { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: page_status, body: page_body, ..), page_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(page_query))
+  assert page_status == 200
+  assert json.to_string(page_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  assert store.list_effective_online_store_content(page_proxy.store, "page")
+    |> list.length
+    == 0
+  let assert [page_log] = store.get_log(page_proxy.store)
+  assert page_log.status == store_types.Failed
+  assert page_log.staged_resource_ids == []
+
+  let proxy = draft_proxy.new()
+  let blog_query =
+    "mutation { blogCreate(blog: { title: \"Future Articles\" }) { blog { id } userErrors { field message code } } }"
+  let #(Response(status: blog_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(blog_query))
+  assert blog_status == 200
+  let article_query =
+    "mutation { articleCreate(article: { title: \"Future Article\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Future Author\" }, isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { article { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: article_status, body: article_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(article_query))
+  assert article_status == 200
+  assert json.to_string(article_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+  let assert [blog_log, article_log] = store.get_log(proxy.store)
+  assert blog_log.status == store_types.Staged
+  assert article_log.status == store_types.Failed
+  assert article_log.staged_resource_ids == []
+}
+
+pub fn content_update_rejects_publishing_with_future_publish_date_test() {
+  let proxy = draft_proxy.new()
+  let create_page =
+    "mutation { pageCreate(page: { title: \"Draft Page\", isPublished: false, publishDate: \"2099-01-01T00:00:00Z\" }) { page { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: create_page_status, body: create_page_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_page))
+  assert create_page_status == 200
+  assert json.to_string(create_page_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"publishedAt\":\"2099-01-01T00:00:00Z\"},\"userErrors\":[]}}}"
+
+  let update_page =
+    "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { page { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: update_page_status, body: update_page_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_page))
+  assert update_page_status == 200
+  assert json.to_string(update_page_body)
+    == "{\"data\":{\"pageUpdate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  let assert [page_record] =
+    store.list_effective_online_store_content(proxy.store, "page")
+  assert page_record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
+  let assert [page_create_log, page_update_log] = store.get_log(proxy.store)
+  assert page_create_log.status == store_types.Staged
+  assert page_update_log.status == store_types.Failed
+  assert page_update_log.staged_resource_ids == []
+
+  let proxy = draft_proxy.new()
+  let create_blog =
+    "mutation { blogCreate(blog: { title: \"Draft Articles\" }) { blog { id } userErrors { field message code } } }"
+  let #(Response(status: create_blog_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_blog))
+  assert create_blog_status == 200
+  let create_article =
+    "mutation { articleCreate(article: { title: \"Draft Article\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Future Author\" }, isPublished: false, publishDate: \"2099-01-01T00:00:00Z\" }) { article { id publishedAt } userErrors { field message code } } }"
+  let #(
+    Response(status: create_article_status, body: create_article_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(create_article))
+  assert create_article_status == 200
+  assert json.to_string(create_article_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"publishedAt\":\"2099-01-01T00:00:00Z\"},\"userErrors\":[]}}}"
+
+  let update_article =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { article { id publishedAt } userErrors { field message code } } }"
+  let #(
+    Response(status: update_article_status, body: update_article_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(update_article))
+  assert update_article_status == 200
+  assert json.to_string(update_article_body)
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  let assert [article_record] =
+    store.list_effective_online_store_content(proxy.store, "article")
+  assert article_record.id
+    == "gid://shopify/Article/3?shopify-draft-proxy=synthetic"
+  let assert [_blog_log, article_create_log, article_update_log] =
+    store.get_log(proxy.store)
+  assert article_create_log.status == store_types.Staged
+  assert article_update_log.status == store_types.Failed
+  assert article_update_log.staged_resource_ids == []
 }
 
 pub fn comment_moderation_uses_core_status_enum_values_test() {
@@ -139,6 +276,13 @@ pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test(
 fn read_state(proxy: DraftProxy) -> String {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_state_request())
+  assert status == 200
+  json.to_string(body)
+}
+
+fn read_log(proxy: DraftProxy) -> String {
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, meta_log_request())
   assert status == 200
   json.to_string(body)
 }
@@ -219,6 +363,45 @@ fn proxy_with_current_app_scopes(scopes: List(String)) -> DraftProxy {
   let seeded_store =
     store.upsert_base_app_installation(store.new(), installation, app)
   DraftProxy(..proxy(), store: seeded_store)
+}
+
+fn captured_object_merge(
+  data: CapturedJsonValue,
+  entries: List(#(String, CapturedJsonValue)),
+) -> CapturedJsonValue {
+  case data {
+    CapturedObject(existing) -> CapturedObject(list.append(entries, existing))
+    _ -> CapturedObject(entries)
+  }
+}
+
+fn proxy_with_web_pixel_extension_declaration(proxy: DraftProxy) -> DraftProxy {
+  let assert [record] =
+    store.list_effective_online_store_integrations(proxy.store, "webPixel")
+  let record =
+    OnlineStoreIntegrationRecord(
+      ..record,
+      data: captured_object_merge(record.data, [
+        #("runtimeContexts", CapturedArray([CapturedString("LAX")])),
+        #(
+          "settingsDefinition",
+          CapturedObject([
+            #(
+              "accountID",
+              CapturedObject([
+                #("type", CapturedString("String")),
+                #("min", CapturedInt(3)),
+                #("max", CapturedInt(12)),
+                #("regex", CapturedString("^[a-z]+$")),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let #(_, seeded_store) =
+    store.upsert_staged_online_store_integration(proxy.store, record)
+  DraftProxy(..proxy, store: seeded_store)
 }
 
 pub fn storefront_access_token_create_returns_unique_token_scopes_and_shop_test() {
@@ -305,17 +488,66 @@ pub fn web_pixel_duplicate_create_returns_taken_error_test() {
     == "{\"data\":{\"webPixelCreate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"TAKEN\",\"field\":null,\"message\":\"Web pixel is taken.\"}]}}}"
 }
 
+pub fn mobile_platform_application_create_validates_platform_input_without_staging_test() {
+  let query =
+    "mutation { neither: mobilePlatformApplicationCreate(input: {}) { mobilePlatformApplication { __typename } userErrors { code field message } } blankAndroid: mobilePlatformApplicationCreate(input: { android: { applicationId: \"\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } blankApple: mobilePlatformApplicationCreate(input: { apple: { appId: \"   \" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } both: mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.app\" }, apple: { appId: \"1234567890.com.example.app\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"neither\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"INVALID\",\"field\":[\"mobilePlatformApplication\"],\"message\":\"Specify either android or apple, not both.\"}]},\"blankAndroid\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"android\",\"applicationId\"],\"message\":\"Application can't be blank\"}]},\"blankApple\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"apple\",\"appId\"],\"message\":\"App can't be blank\"}]},\"both\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"INVALID\",\"field\":[\"mobilePlatformApplication\"],\"message\":\"Specify either android or apple, not both.\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "mobilePlatformApplication",
+    )
+    |> list.length
+    == 0
+  let logs = store.get_log(proxy.store)
+  assert list.length(logs) == 4
+  assert list.all(logs, fn(log) {
+    log.status == store_types.Failed && log.staged_resource_ids == []
+  })
+}
+
+pub fn mobile_platform_application_create_rejects_duplicate_platform_test() {
+  let android =
+    "mutation { mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.app\", appLinksEnabled: true } }) { mobilePlatformApplication { __typename ... on AndroidApplication { applicationId appLinksEnabled } } userErrors { code field message } } }"
+  let #(android_body, proxy) = run_graphql(proxy(), android)
+  assert android_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"applicationId\":\"com.example.app\",\"appLinksEnabled\":true},\"userErrors\":[]}}}"
+
+  let #(android_duplicate_body, proxy) = run_graphql(proxy, android)
+  assert android_duplicate_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"TAKEN\",\"field\":[\"mobilePlatformApplication\",\"android\"],\"message\":\"Android has already been taken\"}]}}}"
+
+  let apple =
+    "mutation { mobilePlatformApplicationCreate(input: { apple: { appId: \"1234567890.com.example.app\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { appId } } userErrors { code field message } } }"
+  let #(apple_body, proxy) = run_graphql(proxy, apple)
+  assert apple_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"appId\":\"1234567890.com.example.app\"},\"userErrors\":[]}}}"
+
+  let #(apple_duplicate_body, proxy) = run_graphql(proxy, apple)
+  assert apple_duplicate_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"TAKEN\",\"field\":[\"mobilePlatformApplication\",\"apple\"],\"message\":\"Apple has already been taken\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "mobilePlatformApplication",
+    )
+    |> list.length
+    == 2
+}
+
 pub fn script_tag_create_validates_src_without_staging_test() {
   let too_long_src = "https://example.test/" <> string.repeat("a", times: 260)
   let query =
-    "mutation { missing: scriptTagCreate(input: {}) { scriptTag { id } userErrors { __typename code field message } } blank: scriptTagCreate(input: { src: \"   \" }) { scriptTag { id } userErrors { __typename code field message } } invalid: scriptTagCreate(input: { src: \"not-a-url\" }) { scriptTag { id } userErrors { __typename code field message } } tooLong: scriptTagCreate(input: { src: \""
+    "mutation { missing: scriptTagCreate(input: {}) { scriptTag { id } userErrors { __typename code field message } } blank: scriptTagCreate(input: { src: \"   \" }) { scriptTag { id } userErrors { __typename code field message } } invalid: scriptTagCreate(input: { src: \"not-a-url\" }) { scriptTag { id } userErrors { __typename code field message } } http: scriptTagCreate(input: { src: \"http://example.test/app.js\" }) { scriptTag { id } userErrors { __typename code field message } } tooLong: scriptTagCreate(input: { src: \""
     <> too_long_src
     <> "\" }) { scriptTag { id } userErrors { __typename code field message } } }"
   let #(Response(status: status, body: body, ..), proxy) =
     draft_proxy.process_request(proxy(), graphql_request(query))
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"missing\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"blank\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"invalid\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]},\"tooLong\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"TOO_LONG\",\"field\":[\"input\",\"src\"],\"message\":\"Source is too long (maximum is 255 characters)\"}]}}}"
+    == "{\"data\":{\"missing\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"blank\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"invalid\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]},\"http\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]},\"tooLong\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"TOO_LONG\",\"field\":[\"input\",\"src\"],\"message\":\"Source is too long (maximum is 255 characters)\"}]}}}"
   assert store.list_effective_online_store_integrations(
       proxy.store,
       "scriptTag",
@@ -326,13 +558,14 @@ pub fn script_tag_create_validates_src_without_staging_test() {
 
 pub fn script_tag_create_defaults_display_scope_to_online_store_test() {
   let query =
-    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\" }) { scriptTag { id src displayScope cache } userErrors { code field message } } }"
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\" }) { scriptTag { id src displayScope event cache } userErrors { code field message } } }"
   let #(body, proxy) = run_graphql(proxy(), query)
   assert body
-    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ONLINE_STORE\",\"cache\":false},\"userErrors\":[]}}}"
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ONLINE_STORE\",\"event\":\"onload\",\"cache\":false},\"userErrors\":[]}}}"
 
   let state = read_state(proxy)
   assert string.contains(state, "\"displayScope\":\"online_store\"")
+  assert string.contains(state, "\"event\":\"onload\"")
 }
 
 pub fn script_tag_create_rejects_invalid_display_scope_test() {
@@ -352,6 +585,7 @@ pub fn script_tag_create_rejects_invalid_display_scope_test() {
 }
 
 pub fn script_tag_update_validates_changed_fields_only_test() {
+  let too_long_src = "https://example.test/" <> string.repeat("a", times: 260)
   let create_query =
     "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\", displayScope: ALL }) { scriptTag { id src displayScope } userErrors { code field message } } }"
   let #(create_body, proxy) = run_graphql(proxy(), create_query)
@@ -359,16 +593,24 @@ pub fn script_tag_update_validates_changed_fields_only_test() {
     == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\"},\"userErrors\":[]}}}"
 
   let invalid_update =
-    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"ftp://cdn.example.test/app.js\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } }"
+    "mutation { blank: scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } tooLong: scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \""
+    <> too_long_src
+    <> "\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } invalid: scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"ftp://cdn.example.test/app.js\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } http: scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"http://example.test/app.js\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } display: scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { displayScope: \"STOREFRONT\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } }"
   let #(invalid_body, proxy) = run_graphql(proxy, invalid_update)
   assert invalid_body
-    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]}}}"
+    == "{\"data\":{\"blank\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"src\"],\"message\":\"Source can't be blank\"}]},\"tooLong\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"TOO_LONG\",\"field\":[\"src\"],\"message\":\"Source is too long (maximum is 255 characters)\"}]},\"invalid\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"src\"],\"message\":\"Source is invalid\"}]},\"http\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"src\"],\"message\":\"Source is invalid\"}]},\"display\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INCLUSION\",\"field\":[\"displayScope\"],\"message\":\"Display scope is not included in the list\"}]}}}"
 
   let valid_update =
-    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { cache: true }) { scriptTag { id src displayScope cache } userErrors { code field message } } }"
-  let #(valid_body, _) = run_graphql(proxy, valid_update)
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { cache: true, event: \"onstart\" }) { scriptTag { id src displayScope event cache } userErrors { code field message } } }"
+  let #(valid_body, proxy) = run_graphql(proxy, valid_update)
   assert valid_body
-    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\",\"cache\":true},\"userErrors\":[]}}}"
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\",\"event\":\"onload\",\"cache\":true},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { scriptTag(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\") { id src displayScope event cache } }"
+  let #(read_body, _) = run_graphql(proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\",\"event\":\"onload\",\"cache\":true}}}"
 }
 
 pub fn web_pixel_create_without_settings_needs_configuration_test() {
@@ -377,6 +619,77 @@ pub fn web_pixel_create_without_settings_needs_configuration_test() {
   let #(body, _) = run_graphql(proxy(), query)
   assert body
     == "{\"data\":{\"webPixelCreate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\",\"settings\":null},\"userErrors\":[]}}}"
+}
+
+pub fn mobile_platform_application_update_applies_apple_input_test() {
+  let create_query =
+    "mutation { mobilePlatformApplicationCreate(input: { apple: { appId: \"com.example.old\", universalLinksEnabled: false, sharedWebCredentialsEnabled: true, appClipsEnabled: false, appClipApplicationId: \"com.example.old.Clip\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } } userErrors { code field message } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+
+  let update_query =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"com.example.new\", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: true, appClipApplicationId: \"com.example.new.Clip\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } } userErrors { code field message } } }"
+  let #(update_body, proxy) = run_graphql(proxy, update_query)
+  assert update_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"appId\":\"com.example.new\",\"universalLinksEnabled\":true,\"sharedWebCredentialsEnabled\":false,\"appClipsEnabled\":true,\"appClipApplicationId\":\"com.example.new.Clip\"},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { mobilePlatformApplication(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\") { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } } }"
+  let #(read_body, _) = run_graphql(proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"appId\":\"com.example.new\",\"universalLinksEnabled\":true,\"sharedWebCredentialsEnabled\":false,\"appClipsEnabled\":true,\"appClipApplicationId\":\"com.example.new.Clip\"}}}"
+}
+
+pub fn mobile_platform_application_update_applies_android_input_test() {
+  let create_query =
+    "mutation { mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.old\", appLinksEnabled: false, sha256CertFingerprints: [\"AA:BB\"] } }) { mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } userErrors { code field message } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+
+  let update_query =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { android: { applicationId: \"com.example.new\", appLinksEnabled: true, sha256CertFingerprints: [\"CC:DD\", \"EE:FF\"] } }) { mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } userErrors { code field message } } }"
+  let #(update_body, proxy) = run_graphql(proxy, update_query)
+  assert update_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"applicationId\":\"com.example.new\",\"appLinksEnabled\":true,\"sha256CertFingerprints\":[\"CC:DD\",\"EE:FF\"]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { mobilePlatformApplication(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\") { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } }"
+  let #(read_body, _) = run_graphql(proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"applicationId\":\"com.example.new\",\"appLinksEnabled\":true,\"sha256CertFingerprints\":[\"CC:DD\",\"EE:FF\"]}}}"
+}
+
+pub fn mobile_platform_application_update_validation_errors_test() {
+  let create_android =
+    "mutation { mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.android\", appLinksEnabled: true, sha256CertFingerprints: [\"AA:BB\"] } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(_, android_proxy) = run_graphql(proxy(), create_android)
+
+  let mismatch =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"com.example.ios\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(mismatch_body, android_proxy) = run_graphql(android_proxy, mismatch)
+  assert mismatch_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"INVALID\",\"field\":[\"mobilePlatformApplication\"],\"message\":\"Mobile platform application platform is invalid\"}]}}}"
+
+  let blank_android =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { android: { applicationId: \"\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(blank_android_body, android_proxy) =
+    run_graphql(android_proxy, blank_android)
+  assert blank_android_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"android\",\"applicationId\"],\"message\":\"Application ID can't be blank\"}]}}}"
+
+  let create_apple =
+    "mutation { mobilePlatformApplicationCreate(input: { apple: { appId: \"com.example.apple\", universalLinksEnabled: true, sharedWebCredentialsEnabled: true } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(_, apple_proxy) = run_graphql(proxy(), create_apple)
+
+  let blank_apple =
+    "mutation { mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\", input: { apple: { appId: \"  \" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(blank_apple_body, _) = run_graphql(apple_proxy, blank_apple)
+  assert blank_apple_body
+    == "{\"data\":{\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"apple\",\"appId\"],\"message\":\"App ID can't be blank\"}]}}}"
+
+  let read_query =
+    "query { mobilePlatformApplication(id: \"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\") { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } }"
+  let #(read_body, _) = run_graphql(android_proxy, read_query)
+  assert read_body
+    == "{\"data\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"id\":\"gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic\",\"applicationId\":\"com.example.android\",\"appLinksEnabled\":true,\"sha256CertFingerprints\":[\"AA:BB\"]}}}"
 }
 
 pub fn web_pixel_update_and_delete_errors_use_web_pixel_user_error_test() {
@@ -391,6 +704,77 @@ pub fn web_pixel_update_and_delete_errors_use_web_pixel_user_error_test() {
   let #(delete_body, _) = run_graphql(proxy, delete_query)
   assert delete_body
     == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]}}}"
+}
+
+pub fn web_pixel_update_rejects_invalid_configuration_json_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"not json\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_CONFIGURATION_JSON\",\"field\":[\"settings\"]}]}}}"
+}
+
+pub fn web_pixel_update_rejects_invalid_runtime_context_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+  let proxy = proxy_with_web_pixel_extension_declaration(proxy)
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{}\", runtimeContext: \"STRICT\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_RUNTIME_CONTEXT\",\"field\":[\"webPixel\",\"runtimeContext\"]}]}}}"
+}
+
+pub fn web_pixel_update_rejects_invalid_declared_settings_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+  let proxy = proxy_with_web_pixel_extension_declaration(proxy)
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":123}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_SETTINGS\",\"field\":[\"settings\"]}]}}}"
+}
+
+pub fn web_pixel_update_rejects_setting_range_and_regex_violations_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+  let proxy = proxy_with_web_pixel_extension_declaration(proxy)
+
+  let range_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":\\\"ab\\\"}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(range_body, proxy) = run_graphql(proxy, range_query)
+  assert range_body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_SETTINGS\",\"field\":[\"settings\"]}]}}}"
+
+  let regex_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":\\\"ABC\\\"}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(regex_body, _) = run_graphql(proxy, regex_query)
+  assert regex_body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_SETTINGS\",\"field\":[\"settings\"]}]}}}"
+}
+
+pub fn web_pixel_update_parses_settings_and_derives_status_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { code field } } }"
+  let #(create_body, proxy) = run_graphql(proxy(), create_query)
+  assert create_body
+    == "{\"data\":{\"webPixelCreate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\",\"settings\":null},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":\\\"abc\\\"}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\",\"settings\":{\"accountID\":\"abc\"},\"status\":\"CONNECTED\"},\"userErrors\":[]}}}"
 }
 
 pub fn online_store_integration_missing_ids_return_not_found_codes_test() {
@@ -437,6 +821,136 @@ pub fn server_pixel_state_keeps_webhook_endpoint_address_test() {
   let state = read_state(proxy)
   assert string.contains(state, "onlineStoreServerPixels")
   assert string.contains(state, "webhookEndpointAddress")
+}
+
+pub fn server_pixel_endpoint_updates_stage_valid_addresses_test() {
+  let #(create_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { code field message } } }",
+    )
+  assert create_body
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+
+  let arn = "arn:aws:events:us-east-1:123456789012:event-bus/local"
+  let #(eventbridge_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { eventBridgeServerPixelUpdate(arn: \""
+        <> arn
+        <> "\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert eventbridge_body
+    == "{\"data\":{\"eventBridgeServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":\"arn:aws:events:us-east-1:123456789012:event-bus/local\"},\"userErrors\":[]}}}"
+
+  let #(pubsub_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert pubsub_body
+    == "{\"data\":{\"pubSubServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":\"project/topic\"},\"userErrors\":[]}}}"
+
+  let state = read_state(proxy)
+  assert string.contains(state, "\"webhookEndpointAddress\":\"project/topic\"")
+  let log = read_log(proxy)
+  assert string.contains(log, "eventBridgeServerPixelUpdate")
+  assert string.contains(log, "pubSubServerPixelUpdate")
+}
+
+pub fn server_pixel_eventbridge_endpoint_update_rejects_invalid_arn_test() {
+  let #(create_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert create_body
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    "mutation { malformed: eventBridgeServerPixelUpdate(arn: \"not-an-arn\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } blank: eventBridgeServerPixelUpdate(arn: \"\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: invalid_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_update))
+  assert status == 200
+  let serialized = json.to_string(invalid_body)
+  assert string.contains(serialized, "\"message\":\"Invalid ARN 'not-an-arn'\"")
+  assert string.contains(serialized, "\"message\":\"Invalid ARN ''\"")
+  assert string.contains(
+    serialized,
+    "\"path\":[\"mutation\",\"eventBridgeServerPixelUpdate\",\"arn\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+
+  let state = read_state(proxy)
+  assert string.contains(state, "not-an-arn") == False
+  assert string.contains(state, "\"webhookEndpointAddress\":null")
+}
+
+pub fn server_pixel_pubsub_endpoint_update_rejects_blank_fields_test() {
+  let #(create_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert create_body
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    "mutation { blankProject: pubSubServerPixelUpdate(pubSubProject: \"\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } blankTopic: pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \" \") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } bothBlank: pubSubServerPixelUpdate(pubSubProject: \"\", pubSubTopic: \"\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: invalid_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_update))
+  assert status == 200
+  let serialized = json.to_string(invalid_body)
+  assert string.contains(
+    serialized,
+    "\"message\":\"pubSubProject can't be blank\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"pubSubTopic can't be blank\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_FIELD_ARGUMENTS\"")
+  assert string.contains(serialized, "\"path\":[\"pubSubServerPixelUpdate\"]")
+
+  let state = read_state(proxy)
+  assert string.contains(state, "/topic") == False
+  assert string.contains(state, "project/") == False
+  assert string.contains(state, "\"webhookEndpointAddress\":null")
+}
+
+pub fn server_pixel_endpoint_update_missing_arguments_use_schema_errors_test() {
+  let #(Response(status: eventbridge_status, body: eventbridge_body, ..), _) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { eventBridgeServerPixelUpdate { serverPixel { id } userErrors { code field message } } }",
+      ),
+    )
+  assert eventbridge_status == 200
+  assert json.to_string(eventbridge_body)
+    == "{\"errors\":[{\"message\":\"Field 'eventBridgeServerPixelUpdate' is missing required arguments: arn\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"eventBridgeServerPixelUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"eventBridgeServerPixelUpdate\",\"arguments\":\"arn\"}}]}"
+
+  let #(Response(status: pubsub_status, body: pubsub_body, ..), _) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { pubSubServerPixelUpdate(pubSubProject: \"project\") { serverPixel { id } userErrors { code field message } } }",
+      ),
+    )
+  assert pubsub_status == 200
+  assert json.to_string(pubsub_body)
+    == "{\"errors\":[{\"message\":\"Field 'pubSubServerPixelUpdate' is missing required arguments: pubSubTopic\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"pubSubServerPixelUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"pubSubServerPixelUpdate\",\"arguments\":\"pubSubTopic\"}}]}"
+}
+
+pub fn server_pixel_endpoint_updates_require_existing_pixel_test() {
+  let query =
+    "mutation { eventBridge: eventBridgeServerPixelUpdate(arn: \"arn:aws:events:us-east-1:123456789012:event-bus/missing\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } pubsub: pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }"
+  let #(body, _) = run_graphql(proxy(), query)
+  assert body
+    == "{\"data\":{\"eventBridge\":{\"serverPixel\":null,\"userErrors\":[{\"__typename\":\"ServerPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"pubsub\":{\"serverPixel\":null,\"userErrors\":[{\"__typename\":\"ServerPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]}}}"
 }
 
 pub fn content_create_missing_or_blank_title_returns_blank_user_error_test() {
@@ -684,6 +1198,60 @@ pub fn blog_handles_slugify_dedupe_and_reject_taken_updates_test() {
     == 2
 }
 
+pub fn blog_update_commentable_maps_to_comment_policy_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { blogCreate(blog: { title: \"Commentable Blog\", commentPolicy: CLOSED }) { blog { id title commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Commentable Blog\",\"commentPolicy\":\"CLOSED\"},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { commentable: MODERATE }) { blog { id commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"blogUpdate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"MODERATED\"},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id commentPolicy } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"MODERATED\"}}}"
+}
+
+pub fn blog_update_invalid_commentable_reports_commentable_field_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { blogCreate(blog: { title: \"Invalid Commentable Blog\", commentPolicy: CLOSED }) { blog { id commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"CLOSED\"},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { commentable: INVALID_VALUE }) { blog { id commentPolicy } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"blogUpdate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"commentable\"],\"message\":\"Commentable is not included in the list\",\"code\":\"INCLUSION\"}]}}}"
+
+  let read_query =
+    "query { blog(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\") { id commentPolicy } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"commentPolicy\":\"CLOSED\"}}}"
+}
+
 pub fn article_handles_dedupe_per_blog_and_reject_taken_updates_test() {
   let proxy = draft_proxy.new()
   let create_blog =
@@ -885,6 +1453,79 @@ pub fn article_create_with_blog_id_and_author_name_still_stages_test() {
     == ["gid://shopify/Article/3?shopify-draft-proxy=synthetic"]
 }
 
+pub fn article_update_validates_author_blog_and_image_before_staging_test() {
+  let proxy = proxy_with_basic_article()
+  let ambiguous_author =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { author: { name: \"Alice\" }, authorV2: { userId: \"gid://shopify/StaffMember/1\" } }) { article { id title } userErrors { field message code } } }"
+  let #(ambiguous_author_body, proxy) = run_graphql(proxy, ambiguous_author)
+  assert ambiguous_author_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"author\"],\"message\":\"You must specify either an author name or an author user, not both.\",\"code\":\"AMBIGUOUS_AUTHOR\"},{\"field\":[\"article\",\"authorV2\"],\"message\":\"You must specify either an author name or an author user, not both.\",\"code\":\"AMBIGUOUS_AUTHOR\"}]}}}"
+
+  let unknown_author =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { authorV2: { userId: \"gid://shopify/StaffMember/9999\" } }) { article { id title } userErrors { field message code } } }"
+  let #(unknown_author_body, proxy) = run_graphql(proxy, unknown_author)
+  assert unknown_author_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"authorV2\",\"userId\"],\"message\":\"Author must exist\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let ambiguous_blog =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { title: \"Inline Blog\" } }) { article { id title } userErrors { field message code } } }"
+  let #(ambiguous_blog_body, proxy) = run_graphql(proxy, ambiguous_blog)
+  assert ambiguous_blog_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"blogId\"],\"message\":\"You must specify either a blogId or a blog, not both.\",\"code\":\"AMBIGUOUS_BLOG\"},{\"field\":[\"article\",\"blog\"],\"message\":\"You must specify either a blogId or a blog, not both.\",\"code\":\"AMBIGUOUS_BLOG\"}]}}}"
+
+  let missing_image_url =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { image: { altText: \"Alt only\" } }) { article { id title image } userErrors { field message code } } }"
+  let #(missing_image_url_body, proxy) = run_graphql(proxy, missing_image_url)
+  assert missing_image_url_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"image\"],\"message\":\"Cannot update image alt text without an existing image or providing a new image URL\",\"code\":\"INVALID\"}]}}}"
+
+  let #(article_body, _) =
+    run_graphql(
+      proxy,
+      "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id title author { name } image } }",
+    )
+  assert article_body
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"image\":null}}}"
+}
+
+pub fn article_update_validates_public_author_shape_before_staging_test() {
+  let proxy = proxy_with_basic_article()
+  let ambiguous_author =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { author: { name: \"Alice\", userId: \"gid://shopify/StaffMember/1\" } }) { article { id title } userErrors { field message code } } }"
+  let #(ambiguous_author_body, proxy) = run_graphql(proxy, ambiguous_author)
+  assert ambiguous_author_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Can't update an article author if both author name and user ID are supplied.\",\"code\":\"AMBIGUOUS_AUTHOR\"}]}}}"
+
+  let unknown_author =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { author: { userId: \"gid://shopify/StaffMember/9999\" } }) { article { id title } userErrors { field message code } } }"
+  let #(unknown_author_body, proxy) = run_graphql(proxy, unknown_author)
+  assert unknown_author_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"User must exist if a user ID is supplied.\",\"code\":\"AUTHOR_MUST_EXIST\"}]}}}"
+
+  let #(article_body, _) =
+    run_graphql(
+      proxy,
+      "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id title author { name } image } }",
+    )
+  assert article_body
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"image\":null}}}"
+}
+
+pub fn article_update_accepts_existing_staff_author_user_test() {
+  let staff_id = "gid://shopify/StaffMember/1"
+  let proxy = proxy_with_basic_article() |> seed_staff_member(staff_id)
+  let update =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { title: \"Article Validation Updated\", authorV2: { userId: \""
+    <> staff_id
+    <> "\" } }) { article { id title } userErrors { field message code } } }"
+  let #(update_body, proxy) = run_graphql(proxy, update)
+  assert update_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation Updated\"},\"userErrors\":[]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 1
+}
+
 pub fn theme_publish_demotes_previous_main_and_filters_main_reads_test() {
   let proxy = draft_proxy.new()
   let first_id =
@@ -949,6 +1590,115 @@ pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
+}
+
+pub fn theme_update_rejects_role_input_at_schema_layer_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Role fixture\", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { role: MAIN }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(
+    update_json,
+    "\"message\":\"InputObject 'OnlineStoreThemeInput' doesn't accept argument 'role'\"",
+  )
+  assert string.contains(update_json, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(update_json, "\"argumentName\":\"role\"")
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Role fixture\"}}}"
+}
+
+pub fn theme_update_rejects_locked_theme_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Locked fixture\", role: LOCKED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { name: \"Renamed\" }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Locked themes cannot be modified.\",\"code\":\"CANNOT_UPDATE_LOCKED_THEME\"}]}}}"
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"LOCKED\",\"name\":\"Locked fixture\"}}}"
+}
+
+pub fn theme_update_rejects_blank_name_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Blank fixture\", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { name: \"   \" }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name can't be blank\",\"code\":\"INVALID\"}]}}}"
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Blank fixture\"}}}"
+}
+
+pub fn theme_update_valid_name_rename_still_stages_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Original fixture\", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { name: \"Renamed fixture\" }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"themeUpdate\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Renamed fixture\"},\"userErrors\":[]}}}"
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Renamed fixture\"}}}"
 }
 
 pub fn theme_files_upsert_uses_body_checksum_size_and_validates_filename_test() {

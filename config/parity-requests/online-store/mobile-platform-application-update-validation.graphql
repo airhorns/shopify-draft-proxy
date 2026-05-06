@@ -1,0 +1,45 @@
+mutation MobilePlatformApplicationUpdateValidation($appleId: ID!, $androidId: ID!, $missingId: ID!) {
+  platformMismatch: mobilePlatformApplicationUpdate(
+    id: $androidId
+    input: { apple: { appId: "com.example.wrong-platform" } }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  missing: mobilePlatformApplicationUpdate(id: $missingId, input: { apple: { appId: "com.example.missing" } }) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  blankAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "" } }) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  blankApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "  " } }) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

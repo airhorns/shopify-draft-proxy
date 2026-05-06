@@ -180,7 +180,7 @@
               {
                 "field": ["input", "paymentTermsId"],
                 "message": "Payment terms do not exist",
-                "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+                "code": "payment_terms_deletion_unsuccessful"
               }
             ]
           }

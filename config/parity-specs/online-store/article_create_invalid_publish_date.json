@@ -1,0 +1,56 @@
+{
+  "scenarioId": "online-store/article-create-invalid-publish-date",
+  "operationNames": ["blogCreate", "articleCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-invalid-publish-date.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify's articleCreate validation when a future publishDate is supplied with isPublished true. A setup blog is created first so the article request reaches publish-date validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable article blog reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate rejects publishing with a future publishDate",
+        "capturePath": "$.interactions[2].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[2].request.variables.article.author.name"
+                }
+              },
+              "isPublished": true,
+              "publishDate": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.publishDate"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      }
+    ]
+  }
+}

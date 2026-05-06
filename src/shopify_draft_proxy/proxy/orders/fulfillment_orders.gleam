@@ -35,9 +35,9 @@ import shopify_draft_proxy/proxy/orders/common.{
   has_pending_cancellation_request, inferred_nullable_user_error,
   max_fulfillment_holds_per_api_client, nullable_user_error, option_is_in,
   option_to_result, optional_captured_string, order_fulfillment_holds,
-  order_fulfillment_orders, read_object_list, read_string, read_string_argument,
-  read_string_list, replace_captured_object_fields, selection_children,
-  serialize_captured_selection, user_error_field_source,
+  order_fulfillment_orders, read_bool, read_object_list, read_string,
+  read_string_argument, read_string_list, replace_captured_object_fields,
+  selection_children, serialize_captured_selection, user_error_field_source,
 }
 
 import shopify_draft_proxy/proxy/orders/fulfillments.{
@@ -1979,6 +1979,17 @@ pub fn apply_fulfillment_order_hold(
           fulfillment_hold_input,
           "reasonNotes",
         )),
+      ),
+      #(
+        "externalId",
+        optional_captured_string(read_string(
+          fulfillment_hold_input,
+          "externalId",
+        )),
+      ),
+      #(
+        "__draftProxyNotifyMerchant",
+        CapturedBool(read_bool(fulfillment_hold_input, "notifyMerchant", False)),
       ),
       #("displayReason", CapturedString("Other")),
       #("heldByRequestingApp", CapturedBool(True)),

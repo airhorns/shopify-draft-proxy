@@ -1,0 +1,266 @@
+{
+  "capturedAt": "2026-05-06T05:20:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "notes": "Deterministic local-runtime evidence for paymentTermsDelete owner cleanup. The draft-order branch earns owner state through cassette-backed paymentTermsCreate hydration; the order branch earns owner state through orderCreate. Both branches delete locally staged payment terms and assert downstream owner paymentTerms reads return null.",
+  "draft": {
+    "owner": {
+      "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade",
+      "name": "#DRAFT-CASCADE"
+    },
+    "paymentTermsCreate": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "create": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/1",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/2",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "cursor:gid://shopify/PaymentSchedule/2",
+                  "endCursor": "cursor:gid://shopify/PaymentSchedule/2"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "delete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/1",
+            "userErrors": []
+          }
+        }
+      },
+      "readAfterDelete": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade",
+            "name": "#DRAFT-CASCADE",
+            "paymentTerms": null
+          }
+        }
+      }
+    }
+  },
+  "order": {
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "email": "payment-terms-delete-cascade-order@example.com",
+          "currency": "USD",
+          "presentmentCurrency": "CAD",
+          "lineItems": [
+            {
+              "title": "Payment terms delete cascade order",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "42.50",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "missingDelete": {
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999"
+        }
+      }
+    },
+    "expected": {
+      "orderCreate": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/5",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "create": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/8",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/9",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "cursor:gid://shopify/PaymentSchedule/9",
+                  "endCursor": "cursor:gid://shopify/PaymentSchedule/9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "delete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/8",
+            "userErrors": []
+          }
+        }
+      },
+      "readAfterDelete": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/5",
+            "paymentTerms": null
+          }
+        }
+      },
+      "missingDelete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["input", "paymentTermsId"],
+                "message": "Payment terms do not exist",
+                "code": "payment_terms_deletion_unsuccessful"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade"
+      },
+      "query": "payment terms owner hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade",
+              "name": "#DRAFT-CASCADE",
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/stale-owner-data"
+              },
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

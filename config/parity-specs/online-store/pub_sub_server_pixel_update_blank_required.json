@@ -1,0 +1,100 @@
+{
+  "scenarioId": "pub-sub-server-pixel-update-blank-required",
+  "operationNames": ["pubSubServerPixelUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "user-errors-parity", "side-effect-boundary", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/pub_sub_server_pixel_update_blank_required.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_blank_project.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-project-message",
+        "capturePath": "$.expected.blankProject.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "blank-project-extensions",
+        "capturePath": "$.expected.blankProject.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      },
+      {
+        "name": "blank-project-path",
+        "capturePath": "$.expected.blankProject.response.errors[0].path",
+        "proxyPath": "$.errors[0].path"
+      },
+      {
+        "name": "blank-topic-message",
+        "capturePath": "$.expected.blankTopic.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_blank_topic.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "blank-topic-extensions",
+        "capturePath": "$.expected.blankTopic.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_blank_topic.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "blank-topic-path",
+        "capturePath": "$.expected.blankTopic.response.errors[0].path",
+        "proxyPath": "$.errors[0].path",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_blank_topic.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-project-message",
+        "capturePath": "$.expected.missingProject.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_missing_project.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-project-extensions",
+        "capturePath": "$.expected.missingProject.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_missing_project.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-topic-message",
+        "capturePath": "$.expected.missingTopic.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_missing_topic.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-topic-extensions",
+        "capturePath": "$.expected.missingTopic.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/pub_sub_server_pixel_update_missing_topic.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for Pub/Sub ServerPixel endpoint blank and missing required field validation. The proxy must reject these before staging and without an upstream mutation; live success-path server-pixel captures remain blocked by the current credential scope."
+}

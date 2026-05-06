@@ -1,0 +1,174 @@
+{
+  "scenarioId": "marketing-activity-update-external-multi-selector",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-06T03:46:51.096Z",
+  "operations": {
+    "primary": {
+      "query": "mutation MarketingActivityUpdateExternalMultiSelector(\n  $activityA: MarketingActivityCreateExternalInput!\n  $activityB: MarketingActivityCreateExternalInput!\n  $conflictRemoteId: String\n  $conflictUtm: UTMInput\n  $updateInput: MarketingActivityUpdateExternalInput!\n) {\n  createA: marketingActivityCreateExternal(input: $activityA) {\n    marketingActivity {\n      id\n      title\n      utmParameters {\n        campaign\n        source\n        medium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createB: marketingActivityCreateExternal(input: $activityB) {\n    marketingActivity {\n      id\n      title\n      utmParameters {\n        campaign\n        source\n        medium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  conflictUpdate: marketingActivityUpdateExternal(\n    remoteId: $conflictRemoteId\n    utm: $conflictUtm\n    input: $updateInput\n  ) {\n    marketingActivity {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "activityA": {
+          "title": "Multi selector A 1778039210489-hoa870",
+          "remoteId": "multi-selector-a-1778039210489-hoa870",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/multi-selector-a",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "multi-selector-camp-a-1778039210489-hoa870",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        },
+        "activityB": {
+          "title": "Multi selector B 1778039210489-hoa870",
+          "remoteId": "multi-selector-b-1778039210489-hoa870",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/multi-selector-b",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "multi-selector-camp-b-1778039210489-hoa870",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        },
+        "conflictRemoteId": "multi-selector-a-1778039210489-hoa870",
+        "conflictUtm": {
+          "campaign": "multi-selector-camp-b-1778039210489-hoa870",
+          "source": "email",
+          "medium": "newsletter"
+        },
+        "updateInput": {
+          "title": "Should not stage 1778039210489-hoa870"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createA": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197042176306",
+                "title": "Multi selector A 1778039210489-hoa870",
+                "utmParameters": {
+                  "campaign": "multi-selector-camp-a-1778039210489-hoa870",
+                  "source": "email",
+                  "medium": "newsletter"
+                }
+              },
+              "userErrors": []
+            },
+            "createB": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197042209074",
+                "title": "Multi selector B 1778039210489-hoa870",
+                "utmParameters": {
+                  "campaign": "multi-selector-camp-b-1778039210489-hoa870",
+                  "source": "email",
+                  "medium": "newsletter"
+                }
+              },
+              "userErrors": []
+            },
+            "conflictUpdate": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 32,
+              "actualQueryCost": 32,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readActivityA": {
+      "query": "query MarketingActivityUpdateExternalMultiSelectorRead($activityId: ID!) {\n  marketingActivity(id: $activityId) {\n    title\n  }\n}\n",
+      "variables": {
+        "activityId": "gid://shopify/MarketingActivity/197042176306"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivity": {
+              "title": "Multi selector A 1778039210489-hoa870"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "multi-selector-a-1778039210489-hoa870": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197042176306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multi-selector-b-1778039210489-hoa870": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197042209074",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

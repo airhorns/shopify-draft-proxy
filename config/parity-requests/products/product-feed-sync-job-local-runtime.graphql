@@ -1,0 +1,9 @@
+query ProductFeedSyncJobLocalRuntime($id: ID!) {
+  job(id: $id) {
+    id
+    done
+    query {
+      __typename
+    }
+  }
+}

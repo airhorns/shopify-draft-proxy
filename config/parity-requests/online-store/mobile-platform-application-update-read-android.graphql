@@ -1,0 +1,11 @@
+query MobilePlatformApplicationUpdateReadAndroid($id: ID!) {
+  mobilePlatformApplication(id: $id) {
+    __typename
+    ... on AndroidApplication {
+      id
+      applicationId
+      appLinksEnabled
+      sha256CertFingerprints
+    }
+  }
+}

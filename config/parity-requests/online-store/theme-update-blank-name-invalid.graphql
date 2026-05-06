@@ -1,0 +1,14 @@
+mutation ThemeUpdateBlankNameInvalid($id: ID!) {
+  themeUpdate(id: $id, input: { name: "   " }) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

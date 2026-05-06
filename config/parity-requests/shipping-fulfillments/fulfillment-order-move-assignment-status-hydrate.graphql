@@ -1,0 +1,16 @@
+query FulfillmentOrderMoveAssignmentStatusHydrate($first: Int!) {
+  locationsAvailableForDeliveryProfilesConnection(first: $first) {
+    nodes {
+      id
+      name
+      localPickupSettingsV2 {
+        pickupTime
+        instructions
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

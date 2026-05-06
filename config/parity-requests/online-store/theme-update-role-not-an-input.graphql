@@ -1,0 +1,14 @@
+mutation ThemeUpdateRoleNotInput($id: ID!) {
+  themeUpdate(id: $id, input: { role: MAIN }) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

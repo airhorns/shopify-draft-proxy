@@ -1,0 +1,28 @@
+query FulfillmentOrderMergeValidationOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    displayFulfillmentStatus
+    fulfillmentOrders(first: 10, includeClosed: true) {
+      nodes {
+        id
+        status
+        requestStatus
+        fulfillBy
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+              quantity
+              fulfillableQuantity
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+query AbandonmentDeliveryStatusRead($id: ID!) {
+  abandonment(id: $id) {
+    id
+    emailState
+    emailSentAt
+  }
+}
