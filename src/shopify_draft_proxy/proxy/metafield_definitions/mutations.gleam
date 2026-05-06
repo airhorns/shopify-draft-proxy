@@ -556,11 +556,7 @@ pub fn serialize_standard_metafield_definition_enable_mutation_with_requesting_a
       [],
     )
     Some(template_record) -> {
-      let owner_type =
-        definition_types.read_optional_string(args, "ownerType")
-        |> option.unwrap(
-          list.first(template_record.owner_types) |> result.unwrap("PRODUCT"),
-        )
+      let owner_type = standard_definition_owner_type(args, template_record)
       let existing_definition =
         store.find_effective_metafield_definition(
           store_in,
@@ -738,9 +734,11 @@ pub fn validate_standard_enable_input(
       existing_definition,
     ))
     |> list.append(validate_standard_capability_inputs(
+      store_in,
       raw_args,
       args,
       definition,
+      existing_definition,
     ))
   case errors {
     [] -> Ok(Nil)
@@ -834,86 +832,39 @@ fn validate_standard_unstructured_metafields(
 }
 
 fn validate_standard_capability_inputs(
+  store_in: Store,
   raw_args: Dict(String, root_field.ResolvedValue),
   args: Dict(String, root_field.ResolvedValue),
   definition: MetafieldDefinitionRecord,
+  existing_definition: Option(MetafieldDefinitionRecord),
 ) -> List(definition_types.UserError) {
   let capabilities = definition_types.read_object(args, "capabilities")
-  let smart_collection_enabled =
-    capability_enabled(capabilities, "smartCollectionCondition")
-  let unique_values_enabled = capability_enabled(capabilities, "uniqueValues")
-  []
-  |> list.append(case smart_collection_enabled {
-    True -> validate_smart_collection_condition_capability(raw_args, definition)
-    False -> []
-  })
-  |> list.append(case unique_values_enabled {
-    True -> validate_unique_values_capability(definition)
-    False -> []
-  })
-}
-
-fn validate_smart_collection_condition_capability(
-  raw_args: Dict(String, root_field.ResolvedValue),
-  definition: MetafieldDefinitionRecord,
-) -> List(definition_types.UserError) {
-  case smart_collection_condition_supported(definition) {
-    True -> []
-    False -> [
+  let deprecated_condition_error =
+    definition_types.read_optional_bool(raw_args, "useAsCollectionCondition")
+    == Some(True)
+    && capability_enabled(capabilities, "smartCollectionCondition")
+    && !smart_collection_condition_capability_eligible(
+      definition.owner_type,
+      definition.type_.name,
+    )
+  case deprecated_condition_error {
+    True -> [
       definition_types.UserError(
         field: None,
-        message: case
-          definition_types.read_optional_bool(
-            raw_args,
-            "useAsCollectionCondition",
-          )
-        {
-          Some(True) ->
-            "Definition type is not allowed for smart collection conditions."
-          _ ->
-            "The capability smart_collection_condition is not valid for this definition."
-        },
-        code: case
-          definition_types.read_optional_bool(
-            raw_args,
-            "useAsCollectionCondition",
-          )
-        {
-          Some(True) -> "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
-          _ -> "INVALID_CAPABILITY"
-        },
+        message: "Definition type is not allowed for smart collection conditions.",
+        code: "TYPE_NOT_ALLOWED_FOR_CONDITIONS",
       ),
     ]
-  }
-}
-
-fn smart_collection_condition_supported(
-  definition: MetafieldDefinitionRecord,
-) -> Bool {
-  definition.owner_type == "PRODUCT"
-  && list.contains(
-    [
-      "boolean",
-      "number_decimal",
-      "number_integer",
-      "single_line_text_field",
-    ],
-    definition.type_.name,
-  )
-}
-
-fn validate_unique_values_capability(
-  definition: MetafieldDefinitionRecord,
-) -> List(definition_types.UserError) {
-  case list.contains(["single_line_text_field"], definition.type_.name) {
-    True -> []
-    False -> [
-      definition_types.UserError(
-        field: None,
-        message: "The capability unique_values is not valid for this definition.",
-        code: "INVALID_CAPABILITY",
-      ),
-    ]
+    False -> {
+      validate_capability_inputs(
+        store_in,
+        definition.owner_type,
+        definition.type_.name,
+        capabilities,
+        None,
+        option.map(existing_definition, fn(existing) { existing.id }),
+      )
+    }
   }
 }
 
@@ -924,11 +875,7 @@ pub fn build_enabled_standard_definition(
   args: Dict(String, root_field.ResolvedValue),
   template: definition_types.StandardMetafieldDefinitionTemplate,
 ) -> #(MetafieldDefinitionRecord, SyntheticIdentityRegistry) {
-  let owner_type =
-    definition_types.read_optional_string(args, "ownerType")
-    |> option.unwrap(
-      list.first(template.owner_types) |> result.unwrap("PRODUCT"),
-    )
+  let owner_type = standard_definition_owner_type(args, template)
   let existing =
     store.find_effective_metafield_definition(
       store_in,
@@ -952,16 +899,25 @@ pub fn build_enabled_standard_definition(
       description: template.description,
       validations: template.validations,
       access: build_standard_access(args, template),
-      capabilities: build_definition_capabilities(definition_types.read_object(
-        args,
-        "capabilities",
-      )),
+      capabilities: build_definition_capabilities(
+        definition_types.read_object(args, "capabilities"),
+        owner_type,
+        template.type_.name,
+      ),
       constraints: Some(template.constraints),
       pinned_position: None,
       validation_status: "ALL_VALID",
     ),
     next_identity,
   )
+}
+
+fn standard_definition_owner_type(
+  args: Dict(String, root_field.ResolvedValue),
+  template: definition_types.StandardMetafieldDefinitionTemplate,
+) -> String {
+  definition_types.read_optional_string(args, "ownerType")
+  |> option.unwrap(list.first(template.owner_types) |> result.unwrap("PRODUCT"))
 }
 
 @internal
@@ -1031,15 +987,27 @@ pub fn build_input_access(
 @internal
 pub fn build_definition_capabilities(
   capabilities: Dict(String, root_field.ResolvedValue),
+  owner_type: String,
+  type_name: String,
 ) -> MetafieldDefinitionCapabilitiesRecord {
   let admin_filterable = capability_enabled(capabilities, "adminFilterable")
   let smart_collection =
     capability_enabled(capabilities, "smartCollectionCondition")
-  let unique_values = capability_enabled(capabilities, "uniqueValues")
+  let unique_values =
+    capability_enabled_or_required(
+      capabilities,
+      "uniqueValues",
+      required_unique_values_capability(type_name),
+    )
+  let admin_filterable_eligible =
+    admin_filterable_capability_eligible(owner_type, type_name)
+  let smart_collection_eligible =
+    smart_collection_condition_capability_eligible(owner_type, type_name)
+  let unique_values_eligible = unique_values_capability_eligible(type_name)
   MetafieldDefinitionCapabilitiesRecord(
     admin_filterable: MetafieldDefinitionCapabilityRecord(
       enabled: admin_filterable,
-      eligible: True,
+      eligible: admin_filterable_eligible,
       status: Some(case admin_filterable {
         True -> "FILTERABLE"
         False -> "NOT_FILTERABLE"
@@ -1047,12 +1015,12 @@ pub fn build_definition_capabilities(
     ),
     smart_collection_condition: MetafieldDefinitionCapabilityRecord(
       enabled: smart_collection,
-      eligible: True,
+      eligible: smart_collection_eligible,
       status: None,
     ),
     unique_values: MetafieldDefinitionCapabilityRecord(
       enabled: unique_values,
-      eligible: True,
+      eligible: unique_values_eligible,
       status: None,
     ),
   )
@@ -1069,6 +1037,177 @@ pub fn capability_enabled(
       |> option.unwrap(False)
     _ -> False
   }
+}
+
+fn capability_enabled_or_required(
+  capabilities: Dict(String, root_field.ResolvedValue),
+  key: String,
+  required: Bool,
+) -> Bool {
+  case capability_explicitly_disabled(capabilities, key) {
+    True -> False
+    False ->
+      case capability_enabled(capabilities, key) {
+        True -> True
+        False -> required
+      }
+  }
+}
+
+fn capability_explicitly_disabled(
+  capabilities: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(capabilities, key) {
+    Ok(root_field.ObjectVal(value)) ->
+      definition_types.read_optional_bool(value, "enabled") == Some(False)
+    _ -> False
+  }
+}
+
+fn required_unique_values_capability(type_name: String) -> Bool {
+  type_name == "id"
+}
+
+fn unique_values_capability_eligible(type_name: String) -> Bool {
+  list.contains(
+    ["id", "number_integer", "single_line_text_field", "url"],
+    type_name,
+  )
+}
+
+fn smart_collection_condition_capability_eligible(
+  owner_type: String,
+  type_name: String,
+) -> Bool {
+  owner_type == "PRODUCT" && type_name == "single_line_text_field"
+}
+
+fn admin_filterable_capability_eligible(
+  owner_type: String,
+  type_name: String,
+) -> Bool {
+  let supported_types = [
+    "boolean", "date", "date_time", "dimension", "id", "money", "number_decimal",
+    "number_integer", "rating", "single_line_text_field", "volume", "weight",
+  ]
+  list.contains(
+    ["PRODUCT", "PRODUCTVARIANT", "CUSTOMER", "ORDER", "COMPANY"],
+    owner_type,
+  )
+  && list.contains(supported_types, type_name)
+}
+
+fn validate_capability_inputs(
+  store_in: Store,
+  owner_type: String,
+  type_name: String,
+  capabilities: Dict(String, root_field.ResolvedValue),
+  field: Option(List(String)),
+  exclude_definition_id: Option(String),
+) -> List(definition_types.UserError) {
+  let enabled_capabilities = [
+    #(
+      "adminFilterable",
+      capability_enabled(capabilities, "adminFilterable"),
+      admin_filterable_capability_eligible(owner_type, type_name),
+    ),
+    #(
+      "smartCollectionCondition",
+      capability_enabled(capabilities, "smartCollectionCondition"),
+      smart_collection_condition_capability_eligible(owner_type, type_name),
+    ),
+    #(
+      "uniqueValues",
+      capability_enabled(capabilities, "uniqueValues"),
+      unique_values_capability_eligible(type_name),
+    ),
+  ]
+  let eligibility_errors =
+    enabled_capabilities
+    |> list.filter_map(fn(entry) {
+      let #(key, enabled, eligible) = entry
+      case enabled && !eligible {
+        True -> Ok(capability_not_eligible_error(field, key))
+        False -> Error(Nil)
+      }
+    })
+
+  let limit_errors = case eligibility_errors {
+    [_, ..] -> []
+    [] ->
+      case capability_enabled(capabilities, "adminFilterable") {
+        True ->
+          case
+            admin_filterable_owner_type_limit_reached(
+              store_in,
+              owner_type,
+              exclude_definition_id,
+            )
+          {
+            True -> [
+              definition_types.UserError(
+                field: field,
+                message: admin_filterable_owner_type_limit_message(owner_type),
+                code: "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
+              ),
+            ]
+            False -> []
+          }
+        False -> []
+      }
+  }
+  list.append(eligibility_errors, limit_errors)
+}
+
+fn capability_not_eligible_error(
+  field: Option(List(String)),
+  capability_key: String,
+) -> definition_types.UserError {
+  definition_types.UserError(
+    field: field,
+    message: "The capability "
+      <> capability_error_name(capability_key)
+      <> " is not valid for this definition.",
+    code: "INVALID_CAPABILITY",
+  )
+}
+
+fn capability_error_name(capability_key: String) -> String {
+  case capability_key {
+    "adminFilterable" -> "admin_filterable"
+    "smartCollectionCondition" -> "smart_collection_condition"
+    "uniqueValues" -> "unique_values"
+    _ -> capability_key
+  }
+}
+
+fn admin_filterable_owner_type_limit_message(owner_type: String) -> String {
+  case owner_type {
+    "PRODUCT" ->
+      "You can only use 50 product metafield definitions to filter the product list. To add a new filter, disable filtering on an existing one."
+    _ ->
+      "You can only use 50 metafield definitions for this owner type as admin filters. To add a new filter, disable filtering on an existing one."
+  }
+}
+
+fn admin_filterable_owner_type_limit_reached(
+  store_in: Store,
+  owner_type: String,
+  exclude_definition_id: Option(String),
+) -> Bool {
+  let count =
+    store.list_effective_metafield_definitions(store_in)
+    |> list.filter(fn(definition) {
+      definition.owner_type == owner_type
+      && definition.capabilities.admin_filterable.enabled
+      && case exclude_definition_id {
+        Some(id) -> definition.id != id
+        None -> True
+      }
+    })
+    |> list.length
+  count >= 50
 }
 
 @internal
@@ -1099,7 +1238,26 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
   let input =
     definition_types.read_object(args, "definition")
     |> definition_types.resolve_namespace_input(requesting_api_client_id)
-  let errors = definition_types.validate_definition_input(input, True)
+  let owner_type =
+    definition_types.read_optional_string(input, "ownerType")
+    |> option.unwrap("PRODUCT")
+  let type_name =
+    definition_types.read_optional_string(input, "type")
+    |> option.unwrap("single_line_text_field")
+  let input_errors = definition_types.validate_definition_input(input, True)
+  let capability_errors = case input_errors {
+    [] ->
+      validate_capability_inputs(
+        store_in,
+        owner_type,
+        type_name,
+        definition_types.read_object(input, "capabilities"),
+        Some(["definition"]),
+        None,
+      )
+    [_, ..] -> []
+  }
+  let errors = list.append(input_errors, capability_errors)
   case errors {
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
@@ -1118,8 +1276,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
       let existing =
         store.find_effective_metafield_definition(
           store_in,
-          definition_types.read_optional_string(input, "ownerType")
-            |> option.unwrap("PRODUCT"),
+          owner_type,
           definition_types.read_optional_string(input, "namespace")
             |> option.unwrap(""),
           definition_types.read_optional_string(input, "key")
@@ -1326,7 +1483,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
                   [],
                 )
                 False ->
-                  update_definition_success(
+                  update_definition_success_after_capability_validation(
                     store_in,
                     identity,
                     field,
@@ -1336,7 +1493,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
                   )
               }
             _ -> {
-              update_definition_success(
+              update_definition_success_after_capability_validation(
                 store_in,
                 identity,
                 field,
@@ -1349,6 +1506,54 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
         }
       }
     }
+  }
+}
+
+fn update_definition_success_after_capability_validation(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let capability_errors = case
+    definition_types.has_field(input, "capabilities")
+  {
+    True ->
+      validate_capability_inputs(
+        store_in,
+        definition.owner_type,
+        definition.type_.name,
+        definition_types.read_object(input, "capabilities"),
+        Some(["definition"]),
+        Some(definition.id),
+      )
+    False -> []
+  }
+  case capability_errors {
+    [_, ..] -> #(
+      serializers.serialize_definition_mutation_payload(
+        store_in,
+        "updatedDefinition",
+        None,
+        capability_errors,
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    [] ->
+      update_definition_success(
+        store_in,
+        identity,
+        field,
+        variables,
+        input,
+        definition,
+      )
   }
 }
 
@@ -1457,10 +1662,11 @@ pub fn update_definition_success(
       },
       capabilities: case definition_types.has_field(input, "capabilities") {
         True ->
-          build_definition_capabilities(definition_types.read_object(
-            input,
-            "capabilities",
-          ))
+          build_definition_capabilities(
+            definition_types.read_object(input, "capabilities"),
+            definition.owner_type,
+            definition.type_.name,
+          )
         False -> definition.capabilities
       },
       constraints: update_definition_constraints(input, definition.constraints),
@@ -2248,10 +2454,11 @@ pub fn build_definition_from_input(
       description: definition_types.read_optional_string(input, "description"),
       validations: read_validation_records(input),
       access: build_input_access(input),
-      capabilities: build_definition_capabilities(definition_types.read_object(
-        input,
-        "capabilities",
-      )),
+      capabilities: build_definition_capabilities(
+        definition_types.read_object(input, "capabilities"),
+        owner_type,
+        type_name,
+      ),
       constraints: read_definition_constraints(input),
       pinned_position: None,
       validation_status: "ALL_VALID",
@@ -2303,6 +2510,8 @@ pub fn infer_definition_type_category(type_name: String) -> Option(String) {
     "rating" | "boolean" -> Some("NUMBER")
     "dimension" | "volume" | "weight" -> Some("MEASUREMENT")
     "date" | "date_time" -> Some("DATE_TIME")
+    "id" -> Some("ID")
+    "json" -> Some("JSON")
     _ ->
       case string.contains(type_name, "text") {
         True -> Some("TEXT")
