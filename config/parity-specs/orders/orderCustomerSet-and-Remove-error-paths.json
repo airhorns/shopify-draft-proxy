@@ -236,11 +236,13 @@
           {
             "path": "$.order",
             "ignore": true,
+            "regrettable": true,
             "reason": "The setup cancellation succeeds locally; the cancelled order payload is covered by the orderCancel state-transition parity scenario."
           },
           {
             "path": "$.job",
             "ignore": true,
+            "regrettable": true,
             "reason": "The generated local Job ID belongs to orderCancel's own parity coverage and is not relevant to this order-customer guard."
           }
         ]
