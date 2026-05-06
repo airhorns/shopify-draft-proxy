@@ -53,6 +53,8 @@ const domain_name = "metaobjects"
 
 const execution_name = "stage-locally"
 
+const definition_column_size_limit = 255
+
 @internal
 pub type UserError {
   UserError(
@@ -180,6 +182,7 @@ pub fn build_create_definition_validation_errors(
 ) -> List(UserError) {
   let type_ = read_string(input, "type")
   let name = read_string(input, "name")
+  let description = read_string(input, "description")
   let access = read_object(input, "access")
   []
   |> append_if(
@@ -192,16 +195,8 @@ pub fn build_create_definition_validation_errors(
       None,
     ),
   )
-  |> append_if(
-    option.is_none(name),
-    UserError(
-      Some(["definition", "name"]),
-      "Name can't be blank",
-      "BLANK",
-      None,
-      None,
-    ),
-  )
+  |> append_definition_name_validation_errors(name)
+  |> append_definition_description_validation_errors(description)
   |> append_if(
     case type_, access {
       Some(t), Some(a) ->
@@ -252,10 +247,72 @@ pub fn build_create_definition_uniqueness_errors(
 }
 
 @internal
+pub fn append_definition_name_validation_errors(
+  errors: List(UserError),
+  name: Option(String),
+) -> List(UserError) {
+  errors
+  |> append_if(
+    is_missing_definition_name(name),
+    UserError(
+      Some(["definition", "name"]),
+      "Name can't be blank",
+      "BLANK",
+      None,
+      None,
+    ),
+  )
+  |> append_if(
+    string_option_length(name) > definition_column_size_limit,
+    UserError(
+      Some(["definition", "name"]),
+      "Name is too long (maximum is 255 characters)",
+      "TOO_LONG",
+      None,
+      None,
+    ),
+  )
+}
+
+@internal
+pub fn append_definition_description_validation_errors(
+  errors: List(UserError),
+  description: Option(String),
+) -> List(UserError) {
+  errors
+  |> append_if(
+    string_option_length(description) > definition_column_size_limit,
+    UserError(
+      Some(["definition", "description"]),
+      "Description is too long (maximum is 255 characters)",
+      "TOO_LONG",
+      None,
+      None,
+    ),
+  )
+}
+
+@internal
+pub fn is_missing_definition_name(name: Option(String)) -> Bool {
+  case name {
+    None -> True
+    Some(value) -> string.trim(value) == ""
+  }
+}
+
+@internal
 pub fn is_missing_definition_type(type_: Option(String)) -> Bool {
   case type_ {
     None -> True
     Some(value) -> string.trim(value) == ""
+  }
+}
+
+@internal
+pub fn string_option_length(value: Option(String)) -> Int {
+  case value {
+    Some(value) -> string.length(value)
+    None -> 0
   }
 }
 
@@ -470,16 +527,19 @@ pub fn apply_definition_update(
       requesting_api_client_id,
     )
   let access_errors = build_update_definition_access_user_errors(input, type_)
+  let name = read_string_if_present(input, "name", existing.name)
+  let description =
+    read_string_if_present(input, "description", existing.description)
+  let scalar_errors =
+    []
+    |> append_definition_name_validation_errors(name)
+    |> append_definition_description_validation_errors(description)
   let updated =
     MetaobjectDefinitionRecord(
       ..existing,
       type_: type_,
-      name: read_string_if_present(input, "name", existing.name),
-      description: read_string_if_present(
-        input,
-        "description",
-        existing.description,
-      ),
+      name: name,
+      description: description,
       display_name_key: read_string_if_present(
         input,
         "displayNameKey",
@@ -505,6 +565,7 @@ pub fn apply_definition_update(
     next_identity,
     list.flatten([
       type_errors,
+      scalar_errors,
       access_errors,
       user_errors,
     ]),

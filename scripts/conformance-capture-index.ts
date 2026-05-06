@@ -1211,6 +1211,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-name-type-description-length',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-name-type-description-length-conformance.ts',
+    purpose:
+      'Metaobject definition create/update validation for name presence, name/description length, and type minimum length.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}definition-name-type-description-length.json`,
+      'config/parity-specs/metaobjects/definition_name_type_description_length.json',
+      'config/parity-requests/metaobjects/definition-name-type-description-length-*.graphql',
+    ],
+    cleanupBehavior:
+      'Create validation branches create no records; the setup definition used for update validation is deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-delete-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-delete-cascade-conformance.ts',
