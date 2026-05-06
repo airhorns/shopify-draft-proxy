@@ -1,0 +1,13 @@
+#graphql
+mutation CatalogUpdateRelationValidation($id: ID!, $input: CatalogUpdateInput!) {
+  catalogUpdate(id: $id, input: $input) {
+    catalog {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
