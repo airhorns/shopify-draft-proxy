@@ -1,0 +1,78 @@
+mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      name
+      presentmentCurrencyCode
+      displayFinancialStatus
+      capturable
+      totalCapturable
+      totalCapturableSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalReceivedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      netPaymentSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      paymentGatewayNames
+      transactions {
+        id
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        parentTransaction {
+          id
+          kind
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

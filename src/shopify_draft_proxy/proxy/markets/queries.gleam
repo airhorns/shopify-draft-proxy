@@ -342,7 +342,10 @@ fn mutation_needs_preflight(fields: List(Selection)) -> Bool {
     case selection {
       Field(name: name, ..) ->
         case name.value {
-          "priceListFixedPricesByProductUpdate"
+          "priceListFixedPricesAdd"
+          | "priceListFixedPricesUpdate"
+          | "priceListFixedPricesDelete"
+          | "priceListFixedPricesByProductUpdate"
           | "quantityPricingByVariantUpdate"
           | "quantityRulesAdd"
           | "quantityRulesDelete"

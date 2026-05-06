@@ -35,10 +35,10 @@ Staged mutations:
 - `segmentFilters`, `segmentFilterSuggestions`, `segmentValueSuggestions`, and `segmentMigrations` preserve captured root payloads for selected metadata/suggestion/migration fields.
 - Snapshot mode returns Shopify-like empty connections and `EXACT` zero counts when no segment data has been hydrated.
 - Unknown `segment(id:)` returns `null` with Shopify's captured `NOT_FOUND` error shape.
-- `segmentCreate` stages a local segment with a stable synthetic Segment GID, creation/last-edit timestamps, name, and query. Duplicate names follow Shopify's captured suffix behavior by returning the requested name with ` (2)`, ` (3)`, and so on rather than a user error.
+- `segmentCreate` stages a local segment with a stable synthetic Segment GID, creation/last-edit timestamps, name, and query. Duplicate names follow Shopify's suffix behavior by bumping an existing trailing ` (N)` counter or appending ` (2)` when there is no counter. After 10 duplicate retries the proxy returns `Name has already been taken` without staging a segment.
 - Locally staged Segment payloads project Shopify-like defaults for schema non-null fields: `tagMigrated: false` and `valid: true`. Computed Shopify-owned fields that the proxy cannot derive locally are selected as null for staged segments: `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author`.
 - `segmentCreate` rejects names longer than 255 characters, queries longer than 5000 characters, and shops that already have 6000 effective local segments before staging a new segment. Length validation runs before query grammar validation so overlong queries return Shopify's length error rather than parser errors.
-- `segmentUpdate` stages name/query replacement on an existing base or staged segment and preserves the original creation timestamp while advancing `lastEditDate`.
+- `segmentUpdate` stages name/query replacement on an existing base or staged segment and preserves the original creation timestamp while advancing `lastEditDate`. Rename collisions use the same bump-then-Taken behavior as `segmentCreate`.
 - `segmentUpdate` applies the same 255-character name and 5000-character query limits before staging updates.
 - `segmentDelete` records local deletion state and removes the segment from downstream detail, catalog, and count reads.
 - Captured validation coverage currently includes blank names, overlong names, blank/invalid/overlong query strings, unknown IDs, missing required GraphQL arguments, segment-limit rejection, and delete-after-delete/unknown delete behavior.

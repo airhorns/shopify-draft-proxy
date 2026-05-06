@@ -1,0 +1,23 @@
+mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+  fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+    fulfillmentOrderMerges {
+      fulfillmentOrder {
+        id
+        status
+        fulfillBy
+        lineItems(first: 10) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

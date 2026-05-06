@@ -43,6 +43,11 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
     If the store lacks required objects, create/update/activate/delete realistic
     setup data in the capture script or setup flow and clean it up afterward
     instead of falling back to validation-only evidence.
+    Never hand-author or synthesize conformance/parity fixture payloads and
+    present them as Shopify evidence. Checked-in Shopify-behavior fixtures must
+    be produced by a live capture script or central recorder; local-runtime
+    fixtures are acceptable only when explicitly labeled as proxy-mechanics
+    evidence and not used to claim real Shopify behavior.
 11. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 12. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
 13. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
