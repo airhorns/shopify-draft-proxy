@@ -1,0 +1,138 @@
+{
+  "scenarioId": "saved-search-reserved-name",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-reserved-name.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variablesCapturePath": "$.productReservedCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that savedSearchCreate and savedSearchUpdate reject per-resource reserved saved-search names case-insensitively. CUSTOMER is not included because customer saved-search create follows the separate deprecation branch. The update branch reuses the duplicate-name failed-update shape: the payload keeps a non-null savedSearch echo with the existing name plus submitted valid query while the failed rename does not persist to effective local state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-reserved-create",
+        "capturePath": "$.productReservedCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-reserved-create-case",
+        "capturePath": "$.productReservedCreateCase.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.productReservedCreateCase.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "order-reserved-create",
+        "capturePath": "$.orderReservedCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.orderReservedCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "draft-order-reserved-create",
+        "capturePath": "$.draftOrderReservedCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.draftOrderReservedCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "file-reserved-create",
+        "capturePath": "$.fileReservedCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.fileReservedCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "collection-reserved-create",
+        "capturePath": "$.collectionReservedCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.collectionReservedCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "product-positive-control-create",
+        "capturePath": "$.productPositiveControlCreate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.productPositiveControlCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "product-reserved-update",
+        "capturePath": "$.productReservedUpdate.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-name-uniqueness-update-conflict.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "product-positive-control-create",
+                "path": "$.data.savedSearchCreate.savedSearch.id"
+              },
+              "name": {
+                "fromCapturePath": "$.productReservedUpdate.variables.input.name"
+              },
+              "query": {
+                "fromCapturePath": "$.productReservedUpdate.variables.input.query"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy returns the deterministic local SavedSearch id while Shopify returned the live store id."
+          }
+        ]
+      }
+    ]
+  }
+}

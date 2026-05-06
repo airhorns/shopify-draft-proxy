@@ -1132,6 +1132,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-reserved-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-reserved-name-conformance.ts',
+    purpose: 'savedSearchCreate and savedSearchUpdate reject per-resource reserved names case-insensitively.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_files',
+      'write_files',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-reserved-name.json`,
+      'config/parity-specs/saved-searches/saved-search-reserved-name.json',
+    ],
+    cleanupBehavior:
+      'Captures validation-only reserved-name create branches, creates one positive-control product saved search, captures a reserved-name update rejection, then deletes the positive-control record.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes: 'CUSTOMER reserved-name create behavior is deferred to the saved-search customer deprecation flow.',
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-required-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-required-input-validation-conformance.ts',

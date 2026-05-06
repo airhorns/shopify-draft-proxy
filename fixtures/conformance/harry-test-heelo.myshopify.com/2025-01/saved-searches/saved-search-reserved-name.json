@@ -1,0 +1,307 @@
+{
+  "capturedAt": "2026-05-06T21:41:49.453Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Live Shopify evidence for SavedSearch per-resource reserved-name validation.",
+    "PRODUCT, ORDER, DRAFT_ORDER, FILE, and COLLECTION reserved names are rejected on create with userErrors[{ field: [\"input\", \"name\"], message: \"Name has already been taken\" }].",
+    "PRODUCT reserved-name matching is case-insensitive: \"ALL PRODUCTS\" is rejected the same way as \"All products\".",
+    "PRODUCT \"All products v2\" is a positive control proving reserved-name prefixes are not rejected unless they exactly match case-insensitively.",
+    "A PRODUCT saved search renamed to \"All products\" is rejected on update with a non-null savedSearch payload and is deleted during cleanup.",
+    "CUSTOMER reserved-name create behavior is deferred to the customer saved-search deprecation flow.",
+    "The proxy parity runner stages the positive-control setup create locally; no upstream cassette calls are required."
+  ],
+  "productReservedCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "All products",
+        "query": "vendor:Acme"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productReservedCreateCase": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "ALL PRODUCTS",
+        "query": "vendor:Acme"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "orderReservedCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "ORDER",
+        "name": "All",
+        "query": "status:open"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "draftOrderReservedCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "DRAFT_ORDER",
+        "name": "All Drafts",
+        "query": "status:open"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "fileReservedCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "FILE",
+        "name": "All Files",
+        "query": ""
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "collectionReservedCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "COLLECTION",
+        "name": "All collections",
+        "query": "title:Sale"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productPositiveControlCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "All products v2",
+        "query": "vendor:Acme"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008631075122",
+            "legacyResourceId": "4008631075122",
+            "name": "All products v2",
+            "query": "vendor:Acme",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Acme"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productReservedUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-name-uniqueness-update-conflict.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4008631075122",
+        "name": "All products",
+        "query": "vendor:Changed"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008631075122",
+            "name": "All products v2",
+            "query": "vendor:Changed",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Changed"
+              }
+            ]
+          },
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
