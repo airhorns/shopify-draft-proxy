@@ -938,26 +938,15 @@ fn catalog_context_object_errors_without_driver_type(
   store: Store,
   context: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  case read_arg_string_array(context, "marketIds") {
-    Some(_) -> {
-      case
-        require_catalog_context_ids(
-          context,
-          "marketIds",
-          "Market ids can't be blank",
-        )
-      {
-        Ok(ids) -> missing_market_context_errors(store, ids)
-        Error(errors) -> errors
-      }
-    }
-    None -> [
-      user_error(
-        ["input", "context", "driverType"],
-        "Driver type is required",
-        "INVALID",
-      ),
-    ]
+  case
+    require_catalog_context_ids(
+      context,
+      "marketIds",
+      "Market ids can't be blank",
+    )
+  {
+    Ok(ids) -> missing_market_context_errors(store, ids)
+    Error(errors) -> errors
   }
 }
 
