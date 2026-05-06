@@ -1,0 +1,241 @@
+{
+  "scenarioId": "location-activate-limit-and-relocation",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T00:00:00.000Z",
+  "notes": [
+    "Executable local-runtime fixture for Core locationActivate validation flags that are not exposed as public Admin GraphQL Location fields.",
+    "The configured live conformance credential probes successfully, but the public test shop is not at its location limit and does not expose an incomplete mass-relocation job. The cassette-backed hydrate responses encode the Core validation flags described by the source evidence.",
+    "State is earned by replay: each locationActivate request hydrates the target location through StorePropertiesLocationHydrate before applying the supported mutation locally."
+  ],
+  "proxyVariables": {
+    "limit": {
+      "locationId": "gid://shopify/Location/activate-limit",
+      "idempotencyKey": "activate-limit"
+    },
+    "relocation": {
+      "locationId": "gid://shopify/Location/activate-relocation",
+      "idempotencyKey": "activate-relocation"
+    },
+    "control": {
+      "locationId": "gid://shopify/Location/activate-control",
+      "idempotencyKey": "activate-control"
+    }
+  },
+  "expected": {
+    "limit": {
+      "data": {
+        "locationActivate": {
+          "location": {
+            "id": "gid://shopify/Location/activate-limit",
+            "isActive": false
+          },
+          "locationActivateUserErrors": [
+            {
+              "field": ["locationId"],
+              "code": "LOCATION_LIMIT",
+              "message": "Your shop has reached its location limit."
+            }
+          ]
+        }
+      }
+    },
+    "relocation": {
+      "data": {
+        "locationActivate": {
+          "location": {
+            "id": "gid://shopify/Location/activate-relocation",
+            "isActive": false
+          },
+          "locationActivateUserErrors": [
+            {
+              "field": ["locationId"],
+              "code": "HAS_ONGOING_RELOCATION",
+              "message": "Location has an ongoing relocation."
+            }
+          ]
+        }
+      }
+    },
+    "control": {
+      "data": {
+        "locationActivate": {
+          "location": {
+            "id": "gid://shopify/Location/activate-control",
+            "isActive": true
+          },
+          "locationActivateUserErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/activate-limit"
+      },
+      "query": "synthetic local-runtime location hydrate with reachedLocationLimit",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/activate-limit",
+              "legacyResourceId": "activate-limit",
+              "name": "Limit Warehouse",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-06T00:00:00Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-05-06T00:00:00Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-06T00:00:00Z",
+              "reachedLocationLimit": true,
+              "fulfillmentService": null,
+              "address": null,
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/activate-relocation"
+      },
+      "query": "synthetic local-runtime location hydrate with hasIncompleteMassRelocation",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/activate-relocation",
+              "legacyResourceId": "activate-relocation",
+              "name": "Relocation Warehouse",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-06T00:00:00Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-05-06T00:00:00Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-06T00:00:00Z",
+              "hasIncompleteMassRelocation": true,
+              "fulfillmentService": null,
+              "address": null,
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/activate-control"
+      },
+      "query": "synthetic local-runtime location hydrate control",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/activate-control",
+              "legacyResourceId": "activate-control",
+              "name": "Control Warehouse",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-06T00:00:00Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-05-06T00:00:00Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-06T00:00:00Z",
+              "fulfillmentService": null,
+              "address": null,
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

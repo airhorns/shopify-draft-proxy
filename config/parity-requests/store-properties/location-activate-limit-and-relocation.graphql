@@ -1,0 +1,13 @@
+mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
+  locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+    location {
+      id
+      isActive
+    }
+    locationActivateUserErrors {
+      field
+      code
+      message
+    }
+  }
+}
