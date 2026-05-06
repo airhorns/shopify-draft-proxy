@@ -1589,6 +1589,22 @@ pub fn marketing_record_decoder() -> Decoder(types.MarketingRecord) {
 }
 
 @internal
+pub fn marketing_channel_definition_decoder() -> Decoder(
+  types.MarketingChannelDefinitionRecord,
+) {
+  use handle <- decode.field("handle", decode.string)
+  use api_client_ids <- optional_field(
+    "apiClientIds",
+    [],
+    decode.list(of: decode.string),
+  )
+  decode.success(types.MarketingChannelDefinitionRecord(
+    handle: handle,
+    api_client_ids: api_client_ids,
+  ))
+}
+
+@internal
 pub fn marketing_engagement_decoder() -> Decoder(
   types.MarketingEngagementRecord,
 ) {

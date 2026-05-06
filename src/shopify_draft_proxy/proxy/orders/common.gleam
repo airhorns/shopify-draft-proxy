@@ -694,7 +694,10 @@ pub fn serialize_order_mutation_user_error(
   error: OrderMutationUserError,
 ) -> Json {
   let base_fields = [
-    #("field", SrcList(list.map(error.field_path, user_error_path_source))),
+    #("field", case error.field_path {
+      [] -> SrcNull
+      path -> SrcList(list.map(path, user_error_path_source))
+    }),
     #("message", SrcString(error.message)),
   ]
   let fields = case error.code {
@@ -1175,6 +1178,19 @@ pub fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
   case value {
     Some(value) -> CapturedString(value)
     None -> CapturedNull
+  }
+}
+
+@internal
+pub fn valid_email_address(email: String) -> Bool {
+  case string.contains(email, " ") {
+    True -> False
+    False ->
+      case string.split(email, "@") {
+        [local, domain] ->
+          string.trim(local) != "" && string.contains(domain, ".")
+        _ -> False
+      }
   }
 }
 

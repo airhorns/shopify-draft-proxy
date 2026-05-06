@@ -39,13 +39,13 @@ The definition lifecycle slice stages these roots locally without runtime Shopif
 
 Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, selected `constraints`, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, protected or Shopify-reserved namespaces, constrained `pin: true` inputs, and owner-type pin-cap violations before staging any local definition.
 
-Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, and selected `capabilities`. The local `validationJob` payload is currently `null`.
+Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, selected `capabilities`, and selected constraint inputs. Public Admin 2026-04 exposes `constraintsUpdates`, which can set the constraint key, create/delete values, and clear all constraints with `key: null, values: []`; the proxy also handles the legacy/internal `constraints` mixed-operation shape and `constraintsSet` replace-all shape for staged update fidelity. The local `validationJob` payload is currently `null`.
 
 App-owned namespace forms follow Shopify's canonicalization rule. Mutation inputs, identifier lookups, catalog namespace filters, pin/unpin selectors, and standard-definition namespace selectors resolve `$app:<suffix>` through the request's `x-shopify-draft-proxy-api-client-id` identity before validation, persistence, lookup, and serialization. Stored and returned definitions use the canonical `app--<api_client_id>--<suffix>` namespace. Canonical `app--<other_id>--<suffix>` create/update inputs from another API client return Shopify's top-level `ACCESS_DENIED` error shape instead of staging a definition.
 
 Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph for `PRODUCT` definitions only; it does not invent broad async job state for other owner families.
 
-Shopify Admin 2026-04 does not reject product-owned definition deletion when associated product metafields exist and `deleteAllAssociatedMetafields` is omitted or explicitly `false`: it deletes the definition, returns empty `userErrors`, and leaves the product metafields in place without a definition. The `true` flag removes those associated product metafields. 2026-04 `MetafieldDefinitionUpdateInput` is identifier-shaped (`namespace`, `key`, `ownerType`) and does not accept `id` or `type`; namespace/key/owner-type changes therefore resolve as `NOT_FOUND` for the supplied identifier rather than an immutable-field user error.
+Shopify Admin 2026-04 does not reject product-owned definition deletion when associated product metafields exist and `deleteAllAssociatedMetafields` is omitted or explicitly `false`: it deletes the definition, returns empty `userErrors`, and leaves the product metafields in place without a definition. The `true` flag removes those associated product metafields. 2026-04 `MetafieldDefinitionUpdateInput` is identifier-shaped (`namespace`, `key`, `ownerType`) and does not accept `id` or `type`; namespace/key/owner-type changes therefore resolve as `NOT_FOUND` for the supplied identifier rather than an immutable-field user error. Live 2026-04 introspection also does not expose the legacy/internal `constraints` or `constraintsSet` update inputs, so capture evidence for update constraint persistence focuses on public `constraintsUpdates` while runtime tests cover the additional local legacy branches.
 
 Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, collection, customer, order, and company owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex` for product-owned values; CUSTOMER, ORDER, and COMPANY value success paths are covered for definition create, `metafieldsSet`, and owner read-after-set.
 
@@ -65,13 +65,18 @@ The fixture documents excluded product-owned metafield types instead of adding p
 
 ### Standard metafield definition enablement
 
-`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the HAR-257 captured standard template slice. Supported selectors are the fixture-backed template IDs/namespaces in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json`.
+`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the captured standard template slice. Supported selectors are the fixture-backed template IDs/namespaces in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json`, the 2026-04 read-only `standardMetafieldDefinitionTemplates(first: 100, excludeActivated: false)` probe noted in `fixtures/conformance/local-runtime/2026-04/metafields/standard-metafield-definition-enable-error-branches.json`, and the constrained-template evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-create-with-pin-guards.json`.
 
 Successful local enablement:
 
 - creates or replaces a staged `MetafieldDefinition` record without sending the mutation to Shopify
 - supports `id` or `namespace` / `key` template selection for the captured template slice
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
+- translates the deprecated local inputs `useAsCollectionCondition`, `useAsAdminFilter`, and `visibleToStorefrontApi` into the corresponding capability/access records before staging
+- rejects matching existing unstructured metafields with `UNSTRUCTURED_ALREADY_EXISTS` unless `forceEnable: true` is provided
+- returns `INVALID_CAPABILITY` for ineligible capability input, and returns `TYPE_NOT_ALLOWED_FOR_CONDITIONS` for the deprecated collection-condition argument on an ineligible type
+- returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` when merchant admin access is supplied for non-app-owned standard templates
+- returns `LIMIT_EXCEEDED` when the product owner-type definition cap is already reached
 - when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
@@ -85,6 +90,8 @@ HAR-257 captured validation behavior in `fixtures/conformance/harry-test-heelo.m
 - template ID `1` with incompatible owner type `CUSTOMER` returns the same invalid-template-ID branch
 
 That fixture scope is not a rule against live success captures. Normal supported proxy runtime handling must not send this mutation to Shopify, but explicit conformance recording may create and clean up real standard definitions in a disposable test shop, and `__meta/commit` replay should let the queued raw mutation create its Shopify-side schema effect.
+
+The public Admin GraphQL 2026-04 schema on the current conformance shop exposes `capabilities` and `access`, but no longer exposes `forceEnable`, `useAsCollectionCondition`, `useAsAdminFilter`, or `visibleToStorefrontApi` on `standardMetafieldDefinitionEnable`. `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json` therefore combines live public captures for schema-exposed capability errors with local-runtime-backed contract targets for the deprecated/internal inputs required by this proxy fidelity slice.
 
 ### Metafield definition pinning
 
@@ -109,6 +116,7 @@ Validation entry points:
 
 - `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
 - `config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json`
+- `config/parity-specs/metafields/metafield-definition-update-constraints.json`
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`

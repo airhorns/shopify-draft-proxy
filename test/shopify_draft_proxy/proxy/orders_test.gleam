@@ -7254,6 +7254,7 @@ pub fn orders_order_invoice_send_payload_test() {
         data: types.CapturedObject([
           #("id", types.CapturedString(order_id)),
           #("name", types.CapturedString("#1328")),
+          #("email", types.CapturedString("order-recipient@example.test")),
           #("closed", types.CapturedBool(False)),
           #("closedAt", types.CapturedNull),
           #("cancelledAt", types.CapturedNull),
@@ -7296,6 +7297,126 @@ pub fn orders_order_invoice_send_payload_test() {
     == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"name\":\"#1328\",\"closed\":false,\"closedAt\":null,\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_rejects_empty_recipient_test() {
+  let order_id = "gid://shopify/Order/6830646329580"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1330")),
+          #("email", types.CapturedNull),
+          #("customer", types.CapturedNull),
+        ]),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, dict.new())
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":null,\"userErrors\":[{\"field\":null,\"message\":\"No recipient email address was provided\",\"code\":\"ORDER_INVOICE_SEND_UNSUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_rejects_invalid_explicit_email_test() {
+  let order_id = "gid://shopify/Order/6830646329581"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1331")),
+          #("email", types.CapturedString("order-recipient@example.test")),
+        ]),
+      ),
+    ])
+  let variables =
+    dict.from_list([
+      #(
+        "email",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("to", root_field.StringVal("not an email")),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, variables)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":null,\"userErrors\":[{\"field\":null,\"message\":\"To is invalid\",\"code\":\"ORDER_INVOICE_SEND_UNSUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_customer_email_recipient_test() {
+  let order_id = "gid://shopify/Order/6830646329582"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1332")),
+          #("email", types.CapturedNull),
+          #(
+            "customer",
+            types.CapturedObject([
+              #(
+                "email",
+                types.CapturedString("customer-recipient@example.test"),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, dict.new())
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329582\",\"name\":\"#1332\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+fn run_order_invoice_send_validation_case(
+  seeded: store.Store,
+  order_id: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) {
+  let mutation = "
+    mutation OrderInvoiceSendValidation($email: EmailInput) {
+      orderInvoiceSend(id: \"" <> order_id <> "\", email: $email) {
+        order {
+          id
+          name
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    seeded,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    mutation,
+    variables,
+    empty_upstream_context(),
+  )
 }
 
 pub fn orders_order_mark_as_paid_read_after_write_test() {
@@ -8269,6 +8390,122 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
     orders.process(duplicate_outcome.store, read_query, dict.new())
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/3\",\"email\":\"duplicate-source@example.test\",\"shippingLine\":null,\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}}}}}"
+}
+
+pub fn orders_draft_order_duplicate_resets_lifecycle_fields_test() {
+  let open_source_id = "gid://shopify/DraftOrder/101"
+  let completed_source_id = "gid://shopify/DraftOrder/100"
+  let source_order_id = "gid://shopify/Order/200"
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_draft_orders([
+      types.DraftOrderRecord(
+        id: open_source_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(open_source_id)),
+          #("name", types.CapturedString("#D101")),
+          #("status", types.CapturedString("OPEN")),
+          #("ready", types.CapturedBool(True)),
+          #("completedAt", types.CapturedNull),
+          #("createdAt", types.CapturedString("2024-03-01T12:00:00.000Z")),
+          #("updatedAt", types.CapturedString("2024-03-10T12:00:00.000Z")),
+          #("invoiceSentAt", types.CapturedString("2024-03-15T12:00:00.000Z")),
+          #(
+            "invoiceUrl",
+            types.CapturedString("https://example.test/open-invoice"),
+          ),
+          #("orderId", types.CapturedNull),
+          #("order", types.CapturedNull),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+        ]),
+      ),
+      types.DraftOrderRecord(
+        id: completed_source_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(completed_source_id)),
+          #("name", types.CapturedString("#D100")),
+          #("status", types.CapturedString("COMPLETED")),
+          #("ready", types.CapturedBool(True)),
+          #("completedAt", types.CapturedString("2024-04-01T12:00:00.000Z")),
+          #("createdAt", types.CapturedString("2024-03-01T12:00:00.000Z")),
+          #("updatedAt", types.CapturedString("2024-04-01T12:00:00.000Z")),
+          #("invoiceSentAt", types.CapturedString("2024-03-15T12:00:00.000Z")),
+          #(
+            "invoiceUrl",
+            types.CapturedString("https://example.test/inherited-invoice"),
+          ),
+          #("orderId", types.CapturedString(source_order_id)),
+          #(
+            "order",
+            types.CapturedObject([
+              #("id", types.CapturedString(source_order_id)),
+              #("name", types.CapturedString("#200")),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+        ]),
+      ),
+    ])
+
+  let duplicate_mutation =
+    "
+    mutation DraftOrderDuplicate($id: ID) {
+      draftOrderDuplicate(id: $id) {
+        draftOrder {
+          id
+          name
+          status
+          ready
+          completedAt
+          createdAt
+          updatedAt
+          invoiceSentAt
+          invoiceUrl
+          order {
+            id
+            name
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let open_duplicate_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([#("id", root_field.StringVal(open_source_id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(open_duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D3\",\"status\":\"OPEN\",\"ready\":true,\"completedAt\":null,\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\",\"invoiceSentAt\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\",\"order\":null},\"userErrors\":[]}}}"
+
+  let completed_duplicate_outcome =
+    orders.process_mutation(
+      open_duplicate_outcome.store,
+      open_duplicate_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      duplicate_mutation,
+      dict.from_list([#("id", root_field.StringVal(completed_source_id))]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(completed_duplicate_outcome.data)
+    == "{\"data\":{\"draftOrderDuplicate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/2\",\"name\":\"#D4\",\"status\":\"OPEN\",\"ready\":true,\"completedAt\":null,\"createdAt\":\"2024-01-01T00:00:01.000Z\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"invoiceSentAt\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/2/invoice\",\"order\":null},\"userErrors\":[]}}}"
 }
 
 pub fn orders_draft_order_complete_read_after_write_test() {

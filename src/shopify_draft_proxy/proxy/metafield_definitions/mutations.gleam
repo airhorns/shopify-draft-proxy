@@ -11,6 +11,7 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{get_field_response_key}
 import shopify_draft_proxy/proxy/metafield_definitions/serializers
+import shopify_draft_proxy/proxy/metafield_definitions/standard_templates_data
 import shopify_draft_proxy/proxy/metafield_definitions/types as definition_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
@@ -24,6 +25,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionConstraintValueRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
@@ -31,6 +33,8 @@ import shopify_draft_proxy/state/types.{
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
   MetafieldDefinitionValidationRecord,
 }
+
+const metafield_definition_owner_type_limit = 250
 
 pub fn is_metafield_definitions_mutation_root(name: String) -> Bool {
   case name {
@@ -420,108 +424,7 @@ pub fn metafield_definitions_notes_for(root_field_name: String) -> String {
 pub fn standard_templates() -> List(
   definition_types.StandardMetafieldDefinitionTemplate,
 ) {
-  [
-    definition_types.StandardMetafieldDefinitionTemplate(
-      id: "gid://shopify/StandardMetafieldDefinitionTemplate/1",
-      namespace: "descriptors",
-      key: "subtitle",
-      name: "Product subtitle",
-      description: Some("Used as a shorthand for a product name"),
-      owner_types: ["PRODUCT", "PRODUCTVARIANT"],
-      type_: MetafieldDefinitionTypeRecord(
-        name: "single_line_text_field",
-        category: Some("TEXT"),
-      ),
-      validations: [
-        MetafieldDefinitionValidationRecord(name: "max", value: Some("70")),
-      ],
-      constraints: empty_definition_constraints(),
-      visible_to_storefront_api: True,
-    ),
-    definition_types.StandardMetafieldDefinitionTemplate(
-      id: "gid://shopify/StandardMetafieldDefinitionTemplate/2",
-      namespace: "descriptors",
-      key: "care_guide",
-      name: "Care guide",
-      description: Some("Instructions for taking care of a product or apparel"),
-      owner_types: ["PRODUCT", "PRODUCTVARIANT"],
-      type_: MetafieldDefinitionTypeRecord(
-        name: "multi_line_text_field",
-        category: Some("TEXT"),
-      ),
-      validations: [
-        MetafieldDefinitionValidationRecord(name: "max", value: Some("500")),
-      ],
-      constraints: empty_definition_constraints(),
-      visible_to_storefront_api: True,
-    ),
-    definition_types.StandardMetafieldDefinitionTemplate(
-      id: "gid://shopify/StandardMetafieldDefinitionTemplate/3",
-      namespace: "facts",
-      key: "isbn",
-      name: "ISBN",
-      description: Some("International Standard Book Number"),
-      owner_types: ["PRODUCT", "PRODUCTVARIANT"],
-      type_: MetafieldDefinitionTypeRecord(
-        name: "single_line_text_field",
-        category: Some("TEXT"),
-      ),
-      validations: [
-        MetafieldDefinitionValidationRecord(
-          name: "regex",
-          value: Some(
-            "^((\\d{3})?([\\-\\s])?(\\d{1,5})([\\-\\s])?(\\d{1,7})([\\-\\s])?(\\d{6})([\\-\\s])?(\\d{1}))$",
-          ),
-        ),
-      ],
-      constraints: empty_definition_constraints(),
-      visible_to_storefront_api: True,
-    ),
-    definition_types.StandardMetafieldDefinitionTemplate(
-      id: "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
-      namespace: "shopify",
-      key: "color-pattern",
-      name: "Color",
-      description: Some(
-        "Defines the primary color or pattern, such as blue or striped",
-      ),
-      owner_types: ["PRODUCT"],
-      type_: MetafieldDefinitionTypeRecord(
-        name: "list.metaobject_reference",
-        category: Some("REFERENCE"),
-      ),
-      validations: [],
-      constraints: MetafieldDefinitionConstraintsRecord(
-        key: Some("category"),
-        values: [
-          MetafieldDefinitionConstraintValueRecord(value: "ap-2-1-1"),
-        ],
-      ),
-      visible_to_storefront_api: True,
-    ),
-    definition_types.StandardMetafieldDefinitionTemplate(
-      id: "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
-      namespace: "shopify",
-      key: "material",
-      name: "Material",
-      description: Some(
-        "Defines a product's primary material, such as cotton or wool",
-      ),
-      owner_types: ["PRODUCT"],
-      type_: MetafieldDefinitionTypeRecord(
-        name: "list.metaobject_reference",
-        category: Some("REFERENCE"),
-      ),
-      validations: [],
-      constraints: MetafieldDefinitionConstraintsRecord(
-        key: Some("category"),
-        values: [
-          MetafieldDefinitionConstraintValueRecord(value: "ap-2-1-1"),
-        ],
-      ),
-      visible_to_storefront_api: True,
-    ),
-  ]
+  standard_templates_data.templates()
 }
 
 @internal
@@ -632,7 +535,8 @@ pub fn serialize_standard_metafield_definition_enable_mutation_with_requesting_a
   variables: Dict(String, root_field.ResolvedValue),
   requesting_api_client_id: Option(String),
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
-  let args = definition_types.read_args(field, variables)
+  let raw_args = definition_types.read_args(field, variables)
+  let args = translate_standard_enable_deprecated_args(raw_args)
   let #(template, user_errors) =
     find_standard_template_with_requesting_api_client_id(
       args,
@@ -652,6 +556,18 @@ pub fn serialize_standard_metafield_definition_enable_mutation_with_requesting_a
       [],
     )
     Some(template_record) -> {
+      let owner_type =
+        definition_types.read_optional_string(args, "ownerType")
+        |> option.unwrap(
+          list.first(template_record.owner_types) |> result.unwrap("PRODUCT"),
+        )
+      let existing_definition =
+        store.find_effective_metafield_definition(
+          store_in,
+          owner_type,
+          template_record.namespace,
+          template_record.key,
+        )
       let #(definition, next_identity) =
         build_enabled_standard_definition(
           store_in,
@@ -659,13 +575,16 @@ pub fn serialize_standard_metafield_definition_enable_mutation_with_requesting_a
           args,
           template_record,
         )
-      case
-        validate_and_maybe_pin_definition(
+      let standard_errors =
+        validate_standard_enable_input(
           store_in,
+          raw_args,
+          args,
+          template_record,
           definition,
-          definition_types.read_optional_bool(args, "pin"),
+          existing_definition,
         )
-      {
+      case standard_errors {
         Error(user_errors) -> #(
           serializers.serialize_standard_enable_payload(
             store_in,
@@ -678,24 +597,323 @@ pub fn serialize_standard_metafield_definition_enable_mutation_with_requesting_a
           identity,
           [],
         )
-        Ok(definition) -> {
-          let next_store =
-            store.upsert_staged_metafield_definitions(store_in, [definition])
-          #(
-            serializers.serialize_standard_enable_payload(
+        Ok(Nil) -> {
+          case
+            validate_and_maybe_pin_definition(
               store_in,
-              field,
-              variables,
-              Some(definition),
+              definition,
+              definition_types.read_optional_bool(args, "pin"),
+            )
+          {
+            Error(user_errors) -> #(
+              serializers.serialize_standard_enable_payload(
+                store_in,
+                field,
+                variables,
+                None,
+                user_errors,
+              ),
+              store_in,
+              identity,
               [],
-            ),
-            next_store,
-            next_identity,
-            [definition.id],
-          )
+            )
+            Ok(definition) -> {
+              let next_store =
+                store.upsert_staged_metafield_definitions(store_in, [
+                  definition,
+                ])
+              #(
+                serializers.serialize_standard_enable_payload(
+                  store_in,
+                  field,
+                  variables,
+                  Some(definition),
+                  [],
+                ),
+                next_store,
+                next_identity,
+                [definition.id],
+              )
+            }
+          }
         }
       }
     }
+  }
+}
+
+@internal
+pub fn translate_standard_enable_deprecated_args(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  args
+  |> translate_standard_enable_deprecated_capability(
+    "useAsCollectionCondition",
+    "smartCollectionCondition",
+  )
+  |> translate_standard_enable_deprecated_capability(
+    "useAsAdminFilter",
+    "adminFilterable",
+  )
+  |> translate_standard_enable_deprecated_storefront_access
+}
+
+fn translate_standard_enable_deprecated_capability(
+  args: Dict(String, root_field.ResolvedValue),
+  deprecated_key: String,
+  capability_key: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  case definition_types.read_optional_bool(args, deprecated_key) {
+    Some(enabled) -> {
+      let capabilities = definition_types.read_object(args, "capabilities")
+      case dict.has_key(capabilities, capability_key) {
+        True -> args
+        False ->
+          dict.insert(
+            args,
+            "capabilities",
+            root_field.ObjectVal(dict.insert(
+              capabilities,
+              capability_key,
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("enabled", root_field.BoolVal(enabled)),
+                ]),
+              ),
+            )),
+          )
+      }
+    }
+    None -> args
+  }
+}
+
+fn translate_standard_enable_deprecated_storefront_access(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case definition_types.read_optional_bool(args, "visibleToStorefrontApi") {
+    Some(visible) -> {
+      let access = definition_types.read_object(args, "access")
+      case dict.has_key(access, "storefront") {
+        True -> args
+        False ->
+          dict.insert(
+            args,
+            "access",
+            root_field.ObjectVal(dict.insert(
+              access,
+              "storefront",
+              root_field.StringVal(case visible {
+                True -> "PUBLIC_READ"
+                False -> "NONE"
+              }),
+            )),
+          )
+      }
+    }
+    None -> args
+  }
+}
+
+@internal
+pub fn validate_standard_enable_input(
+  store_in: Store,
+  raw_args: Dict(String, root_field.ResolvedValue),
+  args: Dict(String, root_field.ResolvedValue),
+  template: definition_types.StandardMetafieldDefinitionTemplate,
+  definition: MetafieldDefinitionRecord,
+  existing_definition: Option(MetafieldDefinitionRecord),
+) -> Result(Nil, List(definition_types.UserError)) {
+  let errors =
+    validate_standard_admin_access(raw_args, template)
+    |> list.append(validate_standard_owner_definition_limit(
+      store_in,
+      definition,
+      existing_definition,
+    ))
+    |> list.append(validate_standard_unstructured_metafields(
+      store_in,
+      args,
+      definition,
+      existing_definition,
+    ))
+    |> list.append(validate_standard_capability_inputs(
+      raw_args,
+      args,
+      definition,
+    ))
+  case errors {
+    [] -> Ok(Nil)
+    [_, ..] -> Error(errors)
+  }
+}
+
+fn validate_standard_admin_access(
+  args: Dict(String, root_field.ResolvedValue),
+  template: definition_types.StandardMetafieldDefinitionTemplate,
+) -> List(definition_types.UserError) {
+  let access = definition_types.read_object(args, "access")
+  case
+    dict.has_key(access, "admin")
+    && !standard_template_allows_admin_access(template)
+  {
+    True -> [
+      definition_types.UserError(
+        field: Some(["access"]),
+        message: "Admin access input is not allowed for this standard metafield definition.",
+        code: "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn standard_template_allows_admin_access(
+  template: definition_types.StandardMetafieldDefinitionTemplate,
+) -> Bool {
+  string.starts_with(template.namespace, "app--")
+}
+
+fn validate_standard_owner_definition_limit(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+  existing_definition: Option(MetafieldDefinitionRecord),
+) -> List(definition_types.UserError) {
+  case existing_definition {
+    Some(_) -> []
+    None -> {
+      let count =
+        store.list_effective_metafield_definitions(store_in)
+        |> list.filter(fn(existing) {
+          existing.owner_type == definition.owner_type
+        })
+        |> list.length
+      case count >= metafield_definition_owner_type_limit {
+        True -> [
+          definition_types.UserError(
+            field: None,
+            message: "Definition limit reached for owner type.",
+            code: "LIMIT_EXCEEDED",
+          ),
+        ]
+        False -> []
+      }
+    }
+  }
+}
+
+fn validate_standard_unstructured_metafields(
+  store_in: Store,
+  args: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+  existing_definition: Option(MetafieldDefinitionRecord),
+) -> List(definition_types.UserError) {
+  let force_enable =
+    definition_types.read_optional_bool(args, "forceEnable")
+    |> option.unwrap(False)
+  case force_enable, existing_definition {
+    True, _ | False, Some(_) -> []
+    False, None -> {
+      case
+        definition_types.get_product_metafields_for_definition(
+          store_in,
+          definition,
+        )
+      {
+        [] -> []
+        [_, ..] -> [
+          definition_types.UserError(
+            field: None,
+            message: "Unstructured metafields already exist for this owner type, namespace, and key.",
+            code: "UNSTRUCTURED_ALREADY_EXISTS",
+          ),
+        ]
+      }
+    }
+  }
+}
+
+fn validate_standard_capability_inputs(
+  raw_args: Dict(String, root_field.ResolvedValue),
+  args: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> List(definition_types.UserError) {
+  let capabilities = definition_types.read_object(args, "capabilities")
+  let smart_collection_enabled =
+    capability_enabled(capabilities, "smartCollectionCondition")
+  let unique_values_enabled = capability_enabled(capabilities, "uniqueValues")
+  []
+  |> list.append(case smart_collection_enabled {
+    True -> validate_smart_collection_condition_capability(raw_args, definition)
+    False -> []
+  })
+  |> list.append(case unique_values_enabled {
+    True -> validate_unique_values_capability(definition)
+    False -> []
+  })
+}
+
+fn validate_smart_collection_condition_capability(
+  raw_args: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> List(definition_types.UserError) {
+  case smart_collection_condition_supported(definition) {
+    True -> []
+    False -> [
+      definition_types.UserError(
+        field: None,
+        message: case
+          definition_types.read_optional_bool(
+            raw_args,
+            "useAsCollectionCondition",
+          )
+        {
+          Some(True) ->
+            "Definition type is not allowed for smart collection conditions."
+          _ ->
+            "The capability smart_collection_condition is not valid for this definition."
+        },
+        code: case
+          definition_types.read_optional_bool(
+            raw_args,
+            "useAsCollectionCondition",
+          )
+        {
+          Some(True) -> "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
+          _ -> "INVALID_CAPABILITY"
+        },
+      ),
+    ]
+  }
+}
+
+fn smart_collection_condition_supported(
+  definition: MetafieldDefinitionRecord,
+) -> Bool {
+  definition.owner_type == "PRODUCT"
+  && list.contains(
+    [
+      "boolean",
+      "number_decimal",
+      "number_integer",
+      "single_line_text_field",
+    ],
+    definition.type_.name,
+  )
+}
+
+fn validate_unique_values_capability(
+  definition: MetafieldDefinitionRecord,
+) -> List(definition_types.UserError) {
+  case list.contains(["single_line_text_field"], definition.type_.name) {
+    True -> []
+    False -> [
+      definition_types.UserError(
+        field: None,
+        message: "The capability unique_values is not valid for this definition.",
+        code: "INVALID_CAPABILITY",
+      ),
+    ]
   }
 }
 
@@ -1032,7 +1250,11 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
   let input =
     definition_types.read_object(args, "definition")
     |> definition_types.resolve_namespace_input(requesting_api_client_id)
-  let errors = definition_types.validate_definition_input(input, False)
+  let errors =
+    list.append(
+      definition_types.validate_definition_input(input, False),
+      constraint_update_input_conflict_errors(input),
+    )
   case errors {
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
@@ -1241,6 +1463,7 @@ pub fn update_definition_success(
           ))
         False -> definition.capabilities
       },
+      constraints: update_definition_constraints(input, definition.constraints),
     )
   let next_store =
     store.upsert_staged_metafield_definitions(store_in, [updated])
@@ -1257,6 +1480,264 @@ pub fn update_definition_success(
     identity,
     [updated.id],
   )
+}
+
+@internal
+pub fn constraint_update_input_conflict_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  let has_constraints = definition_types.has_field(input, "constraints")
+  let has_constraints_updates =
+    definition_types.has_field(input, "constraintsUpdates")
+  let has_constraints_set = definition_types.has_field(input, "constraintsSet")
+
+  case has_constraints, has_constraints_updates, has_constraints_set {
+    True, True, _ -> [
+      invalid_constraint_update_input_error(
+        "Cannot use both `constraints` and `constraintsUpdates` in the same request.",
+      ),
+    ]
+    True, _, True -> [
+      invalid_constraint_update_input_error(
+        "Cannot use both `constraints` and `constraintsSet` in the same request.",
+      ),
+    ]
+    _, True, True -> [
+      invalid_constraint_update_input_error(
+        "Cannot use both `constraintsUpdates` and `constraintsSet` in the same request.",
+      ),
+    ]
+    _, _, _ -> []
+  }
+}
+
+fn invalid_constraint_update_input_error(
+  message: String,
+) -> definition_types.UserError {
+  definition_types.UserError(
+    field: None,
+    message: message,
+    code: "INVALID_INPUT",
+  )
+}
+
+@internal
+pub fn update_definition_constraints(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(MetafieldDefinitionConstraintsRecord),
+) -> Option(MetafieldDefinitionConstraintsRecord) {
+  case definition_types.has_field(input, "constraintsSet") {
+    True -> Some(read_constraints_set(input))
+    False ->
+      case definition_types.has_field(input, "constraintsUpdates") {
+        True ->
+          Some(apply_constraints_updates(
+            normalize_constraints(existing),
+            definition_types.read_object(input, "constraintsUpdates"),
+          ))
+        False ->
+          case definition_types.has_field(input, "constraints") {
+            True ->
+              Some(apply_legacy_constraints(
+                normalize_constraints(existing),
+                definition_types.read_input_objects(input, "constraints"),
+              ))
+            False -> existing
+          }
+      }
+  }
+}
+
+fn normalize_constraints(
+  constraints: Option(MetafieldDefinitionConstraintsRecord),
+) -> MetafieldDefinitionConstraintsRecord {
+  case constraints {
+    Some(record) -> record
+    None -> empty_definition_constraints()
+  }
+}
+
+fn read_constraints_set(
+  input: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  let constraints_set = definition_types.read_object(input, "constraintsSet")
+  MetafieldDefinitionConstraintsRecord(
+    key: definition_types.read_optional_string(constraints_set, "key"),
+    values: read_string_list(constraints_set, "values")
+      |> string_values_to_constraint_values,
+  )
+}
+
+fn apply_constraints_updates(
+  existing: MetafieldDefinitionConstraintsRecord,
+  updates: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  let values = definition_types.read_input_objects(updates, "values")
+  case definition_types.has_field(updates, "key"), values {
+    True, [] ->
+      case definition_types.read_optional_string(updates, "key") {
+        None -> empty_definition_constraints()
+        Some(key) ->
+          MetafieldDefinitionConstraintsRecord(key: Some(key), values: [])
+      }
+    _, _ -> {
+      let starting_key = case
+        definition_types.read_optional_string(updates, "key")
+      {
+        Some(key) -> Some(key)
+        None ->
+          case definition_types.has_field(updates, "key") {
+            True -> None
+            False -> existing.key
+          }
+      }
+      let starting =
+        MetafieldDefinitionConstraintsRecord(..existing, key: starting_key)
+      list.fold(values, starting, apply_constraint_update_value)
+    }
+  }
+}
+
+fn apply_constraint_update_value(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  update: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  case read_constraint_operation(update, "delete", constraints.key) {
+    Some(#(key, value)) -> delete_constraint_value(constraints, key, value)
+    None ->
+      case read_constraint_operation(update, "update", constraints.key) {
+        Some(#(key, value)) -> upsert_constraint_value(constraints, key, value)
+        None ->
+          case read_constraint_operation(update, "create", constraints.key) {
+            Some(#(key, value)) ->
+              upsert_constraint_value(constraints, key, value)
+            None -> constraints
+          }
+      }
+  }
+}
+
+fn apply_legacy_constraints(
+  existing: MetafieldDefinitionConstraintsRecord,
+  operations: List(Dict(String, root_field.ResolvedValue)),
+) -> MetafieldDefinitionConstraintsRecord {
+  list.fold(operations, existing, apply_legacy_constraint_operation)
+}
+
+fn apply_legacy_constraint_operation(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  operation: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionConstraintsRecord {
+  case read_constraint_operation(operation, "delete", constraints.key) {
+    Some(#(key, value)) -> delete_constraint_value(constraints, key, value)
+    None ->
+      case read_constraint_operation(operation, "update", constraints.key) {
+        Some(#(key, value)) -> upsert_constraint_value(constraints, key, value)
+        None ->
+          case read_constraint_operation(operation, "create", constraints.key) {
+            Some(#(key, value)) ->
+              upsert_constraint_value(constraints, key, value)
+            None -> constraints
+          }
+      }
+  }
+}
+
+fn read_constraint_operation(
+  operation: Dict(String, root_field.ResolvedValue),
+  name: String,
+  fallback_key: Option(String),
+) -> Option(#(Option(String), String)) {
+  case dict.get(operation, name) {
+    Ok(root_field.StringVal(value)) ->
+      Some(#(fallback_key, normalize_constraint_value(value)))
+    Ok(root_field.ObjectVal(input)) ->
+      case definition_types.read_optional_string(input, "value") {
+        Some(value) ->
+          Some(#(
+            first_some(
+              definition_types.read_optional_string(input, "key"),
+              fallback_key,
+            ),
+            normalize_constraint_value(value),
+          ))
+        None -> None
+      }
+    _ -> None
+  }
+}
+
+fn first_some(first: Option(a), second: Option(a)) -> Option(a) {
+  case first {
+    Some(_) -> first
+    None -> second
+  }
+}
+
+fn upsert_constraint_value(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  key: Option(String),
+  value: String,
+) -> MetafieldDefinitionConstraintsRecord {
+  let next_key = first_some(key, constraints.key)
+  let existing_values = constraint_value_strings(constraints.values)
+  case list.contains(existing_values, value) {
+    True -> MetafieldDefinitionConstraintsRecord(..constraints, key: next_key)
+    False ->
+      MetafieldDefinitionConstraintsRecord(
+        key: next_key,
+        values: list.append(constraints.values, [
+          MetafieldDefinitionConstraintValueRecord(value: value),
+        ]),
+      )
+  }
+}
+
+fn delete_constraint_value(
+  constraints: MetafieldDefinitionConstraintsRecord,
+  key: Option(String),
+  value: String,
+) -> MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: first_some(key, constraints.key),
+    values: list.filter(constraints.values, fn(record) { record.value != value }),
+  )
+}
+
+fn string_values_to_constraint_values(
+  values: List(String),
+) -> List(MetafieldDefinitionConstraintValueRecord) {
+  values
+  |> list.map(normalize_constraint_value)
+  |> dedupe_strings
+  |> list.map(fn(value) {
+    MetafieldDefinitionConstraintValueRecord(value: value)
+  })
+}
+
+fn normalize_constraint_value(value: String) -> String {
+  let taxonomy_category_prefix = "gid://shopify/TaxonomyCategory/"
+  case string.starts_with(value, taxonomy_category_prefix) {
+    True ->
+      value
+      |> string.drop_start(string.length(taxonomy_category_prefix))
+    False -> value
+  }
+}
+
+fn constraint_value_strings(
+  values: List(MetafieldDefinitionConstraintValueRecord),
+) -> List(String) {
+  list.map(values, fn(record) { record.value })
+}
+
+fn dedupe_strings(values: List(String)) -> List(String) {
+  list.fold(values, [], fn(seen, value) {
+    case list.contains(seen, value) {
+      True -> seen
+      False -> list.append(seen, [value])
+    }
+  })
 }
 
 @internal

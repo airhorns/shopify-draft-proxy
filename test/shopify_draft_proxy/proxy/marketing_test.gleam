@@ -5,19 +5,46 @@ import gleam/json
 import gleam/list
 import gleam/option.{None}
 import gleam/string
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{SrcList, SrcObject, SrcString}
 import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/mutation_helpers
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  MarketingBool, MarketingNull, MarketingObject, MarketingRecord,
-  MarketingString,
+  MarketingBool, MarketingChannelDefinitionRecord, MarketingNull,
+  MarketingObject, MarketingRecord, MarketingString,
 }
 
 fn empty_vars() {
   dict.new()
+}
+
+fn registered_email_store() {
+  store.upsert_base_marketing_channel_definitions(store.new(), [
+    MarketingChannelDefinitionRecord(handle: "email", api_client_ids: []),
+  ])
+}
+
+fn registered_email_store_for_app(api_client_id: String) {
+  store.upsert_base_marketing_channel_definitions(store.new(), [
+    MarketingChannelDefinitionRecord(handle: "email", api_client_ids: [
+      api_client_id,
+    ]),
+  ])
+}
+
+fn upstream_context_with_api_client(api_client_id: String) {
+  let base = empty_upstream_context()
+  UpstreamContext(
+    ..base,
+    headers: dict.from_list([
+      #(app_identity.api_client_id_header, api_client_id),
+    ]),
+  )
 }
 
 /// Apply the dispatcher-level `record_log_drafts` to the outcome. Tests that
@@ -374,7 +401,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId marketingEvent { id remoteId channelHandle } } userErrors { field message code } } }"
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       request_path,
       create_doc,
@@ -434,6 +461,196 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     )
   assert read_after_delete
     == "{\"marketingActivity\":null,\"marketingEvent\":null}"
+}
+
+pub fn external_activity_create_rejects_invalid_channel_handle_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let invalid_unknown =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Bad channel\", remoteId: \"remote-invalid-channel\", tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"made-up-handle\", utm: { campaign: \"invalid-channel\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let unknown_response = json.to_string(invalid_unknown.data)
+  assert string.contains(unknown_response, "\"marketingActivity\":null")
+  assert string.contains(unknown_response, "\"field\":[\"input\"]")
+  assert string.contains(
+    unknown_response,
+    "\"code\":\"INVALID_CHANNEL_HANDLE\"",
+  )
+  assert store.list_effective_marketing_activities(invalid_unknown.store) == []
+  assert store.get_log(invalid_unknown.store) == []
+
+  let invalid_app =
+    marketing.process_mutation(
+      registered_email_store_for_app("app-a"),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Wrong app\", remoteId: \"remote-wrong-app\", tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"email\", utm: { campaign: \"wrong-app\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  let app_response = json.to_string(invalid_app.data)
+  assert string.contains(app_response, "\"marketingActivity\":null")
+  assert string.contains(app_response, "\"field\":[\"input\"]")
+  assert string.contains(app_response, "\"code\":\"INVALID_CHANNEL_HANDLE\"")
+  assert store.list_effective_marketing_activities(invalid_app.store) == []
+}
+
+pub fn external_activity_upsert_create_rejects_invalid_channel_handle_test() {
+  let result =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityUpsertExternal(input: { title: \"Bad channel\", remoteId: \"remote-upsert-invalid-channel\", tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"made-up-handle\", utm: { campaign: \"upsert-invalid-channel\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(result.data)
+  assert string.contains(response, "\"marketingActivity\":null")
+  assert string.contains(response, "\"field\":[\"input\"]")
+  assert string.contains(response, "\"code\":\"INVALID_CHANNEL_HANDLE\"")
+  assert store.list_effective_marketing_activities(result.store) == []
+}
+
+pub fn external_activity_create_and_upsert_reject_currency_mismatch_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Bad currency\", remoteId: \"remote-currency-create\", tactic: NEWSLETTER, marketingChannelType: EMAIL, budget: { budgetType: DAILY, total: { amount: \"1.00\", currencyCode: USD } }, adSpend: { amount: \"1.00\", currencyCode: EUR }, utm: { campaign: \"currency-create\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let create_response = json.to_string(create.data)
+  assert string.contains(create_response, "\"marketingActivity\":null")
+  assert string.contains(create_response, "\"field\":[\"input\"]")
+  assert string.contains(
+    create_response,
+    "\"message\":\"Currency code is not matching between budget and ad spend\"",
+  )
+  assert string.contains(create_response, "\"code\":null")
+  assert store.list_effective_marketing_activities(create.store) == []
+
+  let upsert =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { title: \"Bad currency\", remoteId: \"remote-currency-upsert\", tactic: NEWSLETTER, marketingChannelType: EMAIL, budget: { budgetType: DAILY, total: { amount: \"1.00\", currencyCode: USD } }, adSpend: { amount: \"1.00\", currencyCode: EUR }, utm: { campaign: \"currency-upsert\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let upsert_response = json.to_string(upsert.data)
+  assert string.contains(upsert_response, "\"marketingActivity\":null")
+  assert string.contains(
+    upsert_response,
+    "\"message\":\"Currency code is not matching between budget and ad spend\"",
+  )
+  assert string.contains(upsert_response, "\"code\":null")
+  assert store.list_effective_marketing_activities(upsert.store) == []
+}
+
+pub fn external_activity_create_rejects_distinct_uniqueness_errors_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let duplicate_remote_doc =
+    "mutation { marketingActivityCreateExternal(input: { title: \"Duplicate remote\", remoteId: \"remote-dupe\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"url-remote-dupe\", utm: { campaign: \"remote-dupe\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }"
+  let seeded_remote =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      duplicate_remote_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let duplicate_remote =
+    marketing.process_mutation(
+      seeded_remote.store,
+      seeded_remote.identity,
+      request_path,
+      duplicate_remote_doc,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let remote_response = json.to_string(duplicate_remote.data)
+  assert string.contains(remote_response, "\"marketingActivity\":null")
+  assert string.contains(
+    remote_response,
+    "\"message\":\"Validation failed: Remote ID has already been taken\"",
+  )
+  assert string.contains(remote_response, "\"code\":null")
+  assert list.length(store.list_effective_marketing_activities(
+      duplicate_remote.store,
+    ))
+    == 1
+  assert store.get_log(duplicate_remote.store) == []
+
+  let seeded_utm =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Seed UTM\", remoteId: \"remote-utm-1\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"url-utm-1\", utm: { campaign: \"same-utm\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let duplicate_utm =
+    marketing.process_mutation(
+      seeded_utm.store,
+      seeded_utm.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Duplicate UTM\", remoteId: \"remote-utm-2\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"url-utm-2\", utm: { campaign: \"same-utm\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let utm_response = json.to_string(duplicate_utm.data)
+  assert string.contains(utm_response, "\"marketingActivity\":null")
+  assert string.contains(
+    utm_response,
+    "\"message\":\"Validation failed: Utm campaign has already been taken\"",
+  )
+  assert string.contains(utm_response, "\"code\":null")
+  assert list.length(store.list_effective_marketing_activities(
+      duplicate_utm.store,
+    ))
+    == 1
+
+  let seeded_url =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Seed URL\", remoteId: \"remote-url-1\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"same-url\", utm: { campaign: \"url-one\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let duplicate_url =
+    marketing.process_mutation(
+      seeded_url.store,
+      seeded_url.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Duplicate URL\", remoteId: \"remote-url-2\", tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"same-url\", utm: { campaign: \"url-two\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let url_response = json.to_string(duplicate_url.data)
+  assert string.contains(url_response, "\"marketingActivity\":null")
+  assert string.contains(
+    url_response,
+    "\"message\":\"Validation failed: Url parameter value has already been taken\"",
+  )
+  assert string.contains(url_response, "\"code\":null")
+  assert list.length(store.list_effective_marketing_activities(
+      duplicate_url.store,
+    ))
+    == 1
 }
 
 pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
@@ -729,7 +946,7 @@ pub fn delete_all_external_in_flight_blocks_external_writes_test() {
     "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { field message code } } }"
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       request_path,
       create_doc,
@@ -845,7 +1062,7 @@ pub fn native_activity_validation_update_and_log_test() {
 pub fn engagement_create_and_delete_stages_metric_records_test() {
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
@@ -901,7 +1118,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
 pub fn engagement_create_rejects_mismatched_input_currencies_test() {
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
@@ -927,7 +1144,7 @@ pub fn engagement_create_rejects_mismatched_input_currencies_test() {
 pub fn engagement_create_rejects_activity_currency_mismatch_by_id_test() {
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", budget: { budgetType: DAILY, total: { amount: \"100.00\", currencyCode: USD } }, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
@@ -956,7 +1173,7 @@ pub fn engagement_create_rejects_activity_currency_mismatch_by_id_test() {
 pub fn engagement_create_rejects_activity_currency_mismatch_by_remote_id_test() {
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", adSpend: { amount: \"25.00\", currencyCode: USD }, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
@@ -985,7 +1202,7 @@ pub fn engagement_create_rejects_activity_currency_mismatch_by_remote_id_test() 
 pub fn engagement_create_channel_handle_checks_input_currencies_only_test() {
   let created =
     marketing.process_mutation(
-      store.new(),
+      registered_email_store(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", budget: { budgetType: DAILY, total: { amount: \"100.00\", currencyCode: USD } }, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",

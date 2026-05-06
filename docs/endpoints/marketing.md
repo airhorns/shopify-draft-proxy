@@ -69,6 +69,12 @@ HAR-681 extends existing external activity update/upsert validation:
 - the shared local validator also rejects non-external activity records, external records whose nested marketing event is absent, and parent changes to a different resolved marketing event before staging any update
 - the live parity capture covers the branches the current disposable shop can create: channel-handle, URL-parameter, UTM, invalid-parent-remote-id, and hierarchy-level rejections. The immutable-parent-id branch is runtime-test-backed because the conformance app/store has no recognized channel handle, while Shopify requires one to create the campaign-level parent activity needed for that live branch.
 
+External activity create and upsert-create validation now mirrors Shopify's guard order for the captured branches:
+
+- supplied `channelHandle` values must resolve to a known marketing channel definition for the requesting app; otherwise `marketingActivityCreateExternal` and the create branch of `marketingActivityUpsertExternal` return `INVALID_CHANNEL_HANDLE` with `field: ["input"]` and do not stage an activity
+- if both `budget.total.currencyCode` and `adSpend.currencyCode` are present and differ, the mutations return `field: ["input"]`, message `Currency code is not matching between budget and ad spend`, no code, and no staged activity
+- duplicate external creates return distinct branch-specific validation messages with `code: null` for duplicate `remoteId`, duplicate UTM triplet, and duplicate `urlParameterValue`; the live validation parity scenario covers the create branches, and focused runtime tests cover the matching upsert-create behavior and app-scoped channel registry behavior
+
 The HAR-213 parity spec replays the external lifecycle through the local proxy parity harness. It compares stable selected mutation/read fields and captured userErrors against the live fixture; synthetic IDs and timestamps remain covered by runtime integration tests because local staging intentionally does not reuse live Shopify identifiers.
 
 Local staging intentionally uses stable synthetic IDs and timestamps instead of replaying live Shopify IDs. The raw original mutation body is retained in the meta log for successful staged lifecycle mutations so commit replay can preserve request order.
