@@ -1,0 +1,26 @@
+mutation MarketingActivityPerAppCreate {
+  createExternal: marketingActivityCreateExternal(
+    input: {
+      title: "Per App Campaign"
+      remoteId: "campaign-1"
+      status: ACTIVE
+      tactic: NEWSLETTER
+      marketingChannelType: EMAIL
+      remoteUrl: "https://example.com/per-app"
+      budget: { budgetType: DAILY, total: { amount: "100.00", currencyCode: USD } }
+      urlParameterValue: "utm_campaign=per-app-a"
+      utm: { campaign: "per-app-a", source: "newsletter", medium: "email" }
+    }
+  ) {
+    marketingActivity {
+      id
+      title
+      remoteId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

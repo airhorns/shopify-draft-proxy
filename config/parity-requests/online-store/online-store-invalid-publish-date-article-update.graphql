@@ -1,0 +1,15 @@
+mutation OnlineStoreInvalidPublishDateArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+  articleUpdate(id: $id, article: $article) {
+    article {
+      id
+      title
+      isPublished
+      publishedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

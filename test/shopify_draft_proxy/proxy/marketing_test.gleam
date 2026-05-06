@@ -3,7 +3,7 @@
 import gleam/dict
 import gleam/json
 import gleam/list
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{SrcList, SrcObject, SrcString}
@@ -47,6 +47,40 @@ fn upstream_context_with_api_client(api_client_id: String) {
   )
 }
 
+fn external_create_doc(
+  remote_id: String,
+  title: String,
+  campaign: String,
+  url_parameter_value: String,
+) -> String {
+  "mutation { marketingActivityCreateExternal(input: { title: \""
+  <> title
+  <> "\", remoteId: \""
+  <> remote_id
+  <> "\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \""
+  <> url_parameter_value
+  <> "\", utm: { campaign: \""
+  <> campaign
+  <> "\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId marketingEvent { id remoteId channelHandle } } userErrors { field message code } } }"
+}
+
+fn external_create_with_budget_doc(
+  remote_id: String,
+  title: String,
+  campaign: String,
+  url_parameter_value: String,
+) -> String {
+  "mutation { marketingActivityCreateExternal(input: { title: \""
+  <> title
+  <> "\", remoteId: \""
+  <> remote_id
+  <> "\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, budget: { budgetType: DAILY, total: { amount: \"100.00\", currencyCode: USD } }, urlParameterValue: \""
+  <> url_parameter_value
+  <> "\", utm: { campaign: \""
+  <> campaign
+  <> "\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId } userErrors { field message code } } }"
+}
+
 /// Apply the dispatcher-level `record_log_drafts` to the outcome. Tests that
 /// exercise `marketing.process_mutation` directly need this so log-buffer
 /// assertions still see the drafts the module emitted; centralized recording
@@ -75,6 +109,21 @@ fn record_drafts(
 fn run(source: store.Store, query: String) -> String {
   let assert Ok(data) =
     marketing.handle_marketing_query(source, query, empty_vars())
+  json.to_string(data)
+}
+
+fn run_with_api_client(
+  source: store.Store,
+  query: String,
+  api_client_id: String,
+) -> String {
+  let assert Ok(data) =
+    marketing.handle_marketing_query_for_app(
+      source,
+      query,
+      empty_vars(),
+      Some(api_client_id),
+    )
   json.to_string(data)
 }
 
@@ -114,6 +163,7 @@ fn activity_with_utm(
   MarketingRecord(
     id: id,
     cursor: None,
+    api_client_id: None,
     data: dict.from_list([
       #("__typename", MarketingString("MarketingActivity")),
       #("id", MarketingString(id)),
@@ -166,6 +216,7 @@ fn external_activity_with_details(
   MarketingRecord(
     id: id,
     cursor: None,
+    api_client_id: None,
     data: dict.from_list([
       #("__typename", MarketingString("MarketingActivity")),
       #("id", MarketingString(id)),
@@ -201,6 +252,7 @@ fn marketing_event(id: String, remote_id: String) {
   MarketingRecord(
     id: id,
     cursor: None,
+    api_client_id: None,
     data: dict.from_list([
       #("__typename", MarketingString("MarketingEvent")),
       #("id", MarketingString(id)),
@@ -217,6 +269,7 @@ fn non_external_activity(id: String, remote_id: String) {
   MarketingRecord(
     id: id,
     cursor: None,
+    api_client_id: None,
     data: dict.from_list([
       #("__typename", MarketingString("MarketingActivity")),
       #("id", MarketingString(id)),
@@ -239,6 +292,7 @@ fn external_activity_without_event(id: String, remote_id: String) {
   MarketingRecord(
     id: id,
     cursor: None,
+    api_client_id: None,
     data: dict.from_list([
       #("__typename", MarketingString("MarketingActivity")),
       #("id", MarketingString(id)),
@@ -310,6 +364,7 @@ pub fn reads_stateful_activity_and_event_connections_test() {
       MarketingRecord(
         id: "gid://shopify/MarketingEvent/101",
         cursor: None,
+        api_client_id: None,
         data: dict.from_list([
           #("__typename", MarketingString("MarketingEvent")),
           #("id", MarketingString("gid://shopify/MarketingEvent/101")),
@@ -481,6 +536,294 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     )
   assert read_after_delete
     == "{\"marketingActivity\":null,\"marketingEvent\":null}"
+}
+
+pub fn external_activity_remote_id_uniqueness_is_app_scoped_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let app_a_create =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      request_path,
+      external_create_doc(
+        "remote-shared",
+        "App A launch",
+        "app-a-launch",
+        "utm_campaign=app-a",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+
+  let app_b_create =
+    marketing.process_mutation(
+      app_a_create.store,
+      app_a_create.identity,
+      request_path,
+      external_create_doc(
+        "remote-shared",
+        "App B launch",
+        "app-b-launch",
+        "utm_campaign=app-b",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+
+  let response = json.to_string(app_b_create.data)
+  assert string.contains(response, "\"userErrors\":[]")
+  assert list.length(store.list_effective_marketing_activities(
+      app_b_create.store,
+    ))
+    == 2
+
+  let app_a_duplicate =
+    marketing.process_mutation(
+      app_b_create.store,
+      app_b_create.identity,
+      request_path,
+      external_create_doc(
+        "remote-shared",
+        "App A duplicate",
+        "app-a-duplicate",
+        "utm_campaign=app-a-duplicate",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+  assert string.contains(
+    json.to_string(app_a_duplicate.data),
+    "Validation failed: Remote ID has already been taken",
+  )
+}
+
+pub fn external_activity_selectors_are_app_scoped_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let app_a_create =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      request_path,
+      external_create_with_budget_doc(
+        "remote-owned",
+        "App A scoped",
+        "app-a-scoped",
+        "utm_campaign=app-a-scoped",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+
+  let app_b_update =
+    marketing.process_mutation(
+      app_a_create.store,
+      app_a_create.identity,
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-owned\", input: { title: \"Foreign update\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  let update_response = json.to_string(app_b_update.data)
+  assert string.contains(
+    update_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+
+  let app_b_delete =
+    marketing.process_mutation(
+      app_a_create.store,
+      app_a_create.identity,
+      request_path,
+      "mutation { marketingActivityDeleteExternal(remoteId: \"remote-owned\") { deletedMarketingActivityId userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  let delete_response = json.to_string(app_b_delete.data)
+  assert string.contains(delete_response, "\"deletedMarketingActivityId\":null")
+  assert string.contains(
+    delete_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+
+  let app_b_engagement =
+    marketing.process_mutation(
+      app_a_create.store,
+      app_a_create.identity,
+      request_path,
+      "mutation { marketingEngagementCreate(remoteId: \"remote-owned\", marketingEngagement: { occurredOn: \"2026-05-06\", adSpend: { amount: \"10.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  let engagement_response = json.to_string(app_b_engagement.data)
+  assert string.contains(
+    engagement_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+  assert !string.contains(
+    engagement_response,
+    "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH",
+  )
+
+  assert run_with_api_client(
+      app_a_create.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { title } }",
+      "app-a",
+    )
+    == "{\"marketingActivity\":{\"title\":\"App A scoped\"}}"
+  assert run_with_api_client(
+      app_a_create.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { title } }",
+      "app-b",
+    )
+    == "{\"marketingActivity\":null}"
+}
+
+pub fn delete_all_external_is_app_scoped_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let app_a_create =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      request_path,
+      external_create_doc(
+        "remote-delete-a",
+        "App A delete all",
+        "delete-a",
+        "utm_campaign=delete-a",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+  let app_b_create =
+    marketing.process_mutation(
+      app_a_create.store,
+      app_a_create.identity,
+      request_path,
+      external_create_doc(
+        "remote-delete-b",
+        "App B delete all",
+        "delete-b",
+        "utm_campaign=delete-b",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  let app_b_delete_all =
+    marketing.process_mutation(
+      app_b_create.store,
+      app_b_create.identity,
+      request_path,
+      "mutation { marketingActivitiesDeleteAllExternal { job { id done } userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+
+  assert store.has_marketing_delete_all_external_in_flight_for_app(
+    app_b_delete_all.store,
+    Some("app-b"),
+  )
+  assert !store.has_marketing_delete_all_external_in_flight_for_app(
+    app_b_delete_all.store,
+    Some("app-a"),
+  )
+  assert run_with_api_client(
+      app_b_delete_all.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { title } }",
+      "app-a",
+    )
+    == "{\"marketingActivity\":{\"title\":\"App A delete all\"}}"
+  assert run_with_api_client(
+      app_b_delete_all.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/3\") { title } }",
+      "app-b",
+    )
+    == "{\"marketingActivity\":null}"
+
+  let app_a_after_delete_all =
+    marketing.process_mutation(
+      app_b_delete_all.store,
+      app_b_delete_all.identity,
+      request_path,
+      external_create_doc(
+        "remote-delete-a-2",
+        "App A after delete all",
+        "delete-a-2",
+        "utm_campaign=delete-a-2",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+  assert string.contains(
+    json.to_string(app_a_after_delete_all.data),
+    "\"userErrors\":[]",
+  )
+
+  let app_b_blocked =
+    marketing.process_mutation(
+      app_b_delete_all.store,
+      app_b_delete_all.identity,
+      request_path,
+      external_create_doc(
+        "remote-delete-b-2",
+        "App B blocked",
+        "delete-b-2",
+        "utm_campaign=delete-b-2",
+      ),
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  assert string.contains(
+    json.to_string(app_b_blocked.data),
+    "\"code\":\"DELETE_JOB_ENQUEUED\"",
+  )
+}
+
+pub fn native_activity_update_is_app_scoped_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let create_doc =
+    "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native scoped\", marketingActivityExtensionId: \"gid://shopify/MarketingActivityExtension/abc\" }) { userErrors { message } } }"
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      create_doc,
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+
+  let app_b_update =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      request_path,
+      "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", marketingActivityTitle: \"Foreign native\" }) { marketingActivity { id title } redirectPath userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-b"),
+    )
+  let app_b_response = json.to_string(app_b_update.data)
+  assert string.contains(app_b_response, "\"marketingActivityUpdate\":null")
+  assert string.contains(app_b_response, "\"code\":\"ACCESS_DENIED\"")
+  assert run_with_api_client(
+      created.store,
+      "{ marketingActivity(id: \"gid://shopify/MarketingActivity/1\") { title } }",
+      "app-a",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Native scoped\"}}"
+
+  let app_a_update =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      request_path,
+      "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", marketingActivityTitle: \"Native updated\" }) { marketingActivity { id title } redirectPath userErrors { field message code } } }",
+      empty_vars(),
+      upstream_context_with_api_client("app-a"),
+    )
+  assert string.contains(
+    json.to_string(app_a_update.data),
+    "\"title\":\"Native updated\"",
+  )
 }
 
 pub fn external_activity_create_rejects_invalid_channel_handle_test() {

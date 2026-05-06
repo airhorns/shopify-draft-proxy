@@ -1,0 +1,30 @@
+{
+  "scenarioId": "order-create-mandate-payment-missing-mandate",
+  "operationNames": ["orderCreateMandatePayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "payload-shape", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/order_create_mandate_payment_missing_mandate.graphql",
+    "variables": {
+      "id": "gid://shopify/Order/1",
+      "idempotencyKey": "missing-mandate"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-mandate-id-schema-error",
+        "capturePath": "$.mandateFlow.expected.missingMandate",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime schema validation parity for omitted mandateId. The request fails before resolver execution and does not stage a mandate payment."
+}

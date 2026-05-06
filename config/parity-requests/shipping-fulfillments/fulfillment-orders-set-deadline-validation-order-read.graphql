@@ -1,0 +1,14 @@
+query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    displayFulfillmentStatus
+    fulfillmentOrders(first: 10) {
+      nodes {
+        id
+        status
+        fulfillBy
+      }
+    }
+  }
+}

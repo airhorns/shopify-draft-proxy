@@ -1,0 +1,574 @@
+{
+  "capturedAt": "2026-05-06T05:45:29.509Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Validation branches for productVariantAppendMedia and productVariantDetachMedia.",
+    "The script creates disposable products and media, waits only for the ready-media branches, and deletes the products during cleanup."
+  ],
+  "operations": {
+    "createBaseProduct": {
+      "variables": {
+        "product": {
+          "title": "Product variant media validation base motmv989",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10178011136306",
+              "title": "Product variant media validation base motmv989",
+              "handle": "product-variant-media-validation-base-motmv989",
+              "status": "DRAFT",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51129410060594",
+                    "title": "Default Title",
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createOtherProduct": {
+      "variables": {
+        "product": {
+          "title": "Product variant media validation other motmv989",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10178011169074",
+              "title": "Product variant media validation other motmv989",
+              "handle": "product-variant-media-validation-other-motmv989",
+              "status": "DRAFT",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51129410093362",
+                    "title": "Default Title",
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createBaseReadyMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=variant-media-ready-base",
+            "alt": "Variant media validation ready base"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/43672264016178",
+                "alt": "Variant media validation ready base",
+                "mediaContentType": "IMAGE",
+                "status": "PROCESSING"
+              }
+            ],
+            "mediaUserErrors": [],
+            "product": {
+              "id": "gid://shopify/Product/10178011136306",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/43672264016178",
+                    "alt": "Variant media validation ready base",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 26,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "baseReadyMediaRead": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306"
+      },
+      "response": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10178011136306",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/43672264016178",
+                  "alt": "Variant media validation ready base",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "settleBaseReadyMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "media": []
+      },
+      "response": {
+        "data": {
+          "productUpdateMedia": {
+            "media": [],
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createOtherReadyMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011169074",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=variant-media-ready-other",
+            "alt": "Variant media validation ready other"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/43672264376626",
+                "alt": "Variant media validation ready other",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED"
+              }
+            ],
+            "mediaUserErrors": [],
+            "product": {
+              "id": "gid://shopify/Product/10178011169074",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/43672264376626",
+                    "alt": "Variant media validation ready other",
+                    "mediaContentType": "IMAGE",
+                    "status": "UPLOADED"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 26,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "otherReadyMediaRead": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011169074"
+      },
+      "response": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10178011169074",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/43672264376626",
+                  "alt": "Variant media validation ready other",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "settleOtherReadyMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011169074",
+        "media": []
+      },
+      "response": {
+        "data": {
+          "productUpdateMedia": {
+            "media": [],
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createBaseProcessingMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=variant-media-processing-base",
+            "alt": "Variant media validation processing base"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/43672264474930",
+                "alt": "Variant media validation processing base",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED"
+              }
+            ],
+            "mediaUserErrors": [],
+            "product": {
+              "id": "gid://shopify/Product/10178011136306",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/43672264016178",
+                    "alt": "Variant media validation ready base",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY"
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/43672264474930",
+                    "alt": "Variant media validation processing base",
+                    "mediaContentType": "IMAGE",
+                    "status": "UPLOADED"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 26,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "appendVariantFromOtherProduct": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "variantMedia": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51129410093362",
+            "mediaIds": ["gid://shopify/MediaImage/43672264016178"]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantAppendMedia": {
+            "product": null,
+            "productVariants": null,
+            "userErrors": [
+              {
+                "field": ["variantMedia", "0", "variantId"],
+                "message": "Variant does not exist on the specified product.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "appendMediaFromOtherProduct": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "variantMedia": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51129410060594",
+            "mediaIds": ["gid://shopify/MediaImage/43672264376626"]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantAppendMedia": {
+            "product": null,
+            "productVariants": null,
+            "userErrors": [
+              {
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "Media does not exist on the specified product.",
+                "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "appendProcessingMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "variantMedia": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51129410060594",
+            "mediaIds": ["gid://shopify/MediaImage/43672264474930"]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantAppendMedia": {
+            "product": null,
+            "productVariants": null,
+            "userErrors": [
+              {
+                "field": ["variantMedia", "0", "mediaIds"],
+                "message": "Non-ready media cannot be attached to variants.",
+                "code": "NON_READY_MEDIA"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "detachUnattachedMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10178011136306",
+        "variantMedia": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51129410060594",
+            "mediaIds": ["gid://shopify/MediaImage/43672264016178"]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantDetachMedia": {
+            "productVariants": null,
+            "userErrors": [
+              {
+                "field": ["variantMedia", "0", "variantId"],
+                "message": "The specified media is not attached to the specified variant.",
+                "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": [
+    {
+      "label": "cleanup productDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10178011169074",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup productDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10178011136306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

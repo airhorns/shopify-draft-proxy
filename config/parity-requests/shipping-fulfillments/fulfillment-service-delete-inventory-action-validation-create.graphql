@@ -1,0 +1,25 @@
+mutation FulfillmentServiceDeleteInventoryActionValidationCreate($name: String!) {
+  fulfillmentServiceCreate(
+    name: $name
+    trackingSupport: true
+    inventoryManagement: true
+    requiresShippingMethod: true
+  ) {
+    fulfillmentService {
+      id
+      handle
+      serviceName
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,24 @@
+mutation MobilePlatformApplicationCreateRequiresOnePlatform {
+  neither: mobilePlatformApplicationCreate(input: {}) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  both: mobilePlatformApplicationCreate(
+    input: { android: { applicationId: "com.example.app" }, apple: { appId: "1234567890.com.example.app" } }
+  ) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}
