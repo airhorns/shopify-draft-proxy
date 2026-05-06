@@ -1924,6 +1924,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-article-update-validation',
+    scriptPath: 'scripts/capture-online-store-article-update-validation-conformance.ts',
+    purpose: 'articleUpdate ambiguous author, author user existence, and image URL validation branches.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-update-validation.json`,
+      'config/parity-specs/online-store/article_update_validation.json',
+      'config/parity-requests/online-store/online-store-article-update-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog and article setup record; invalid articleUpdate attempts should not mutate, and cleanup deletes the article then blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-body-script-verbatim-2025-01',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',

@@ -66,6 +66,8 @@ Page and article create/update reject a supplied future `publishDate` whenever t
 
 `pageCreate`, `blogCreate`, and `articleCreate` reject missing or blank `title` inputs before staging any local content. The local resolver returns a title `userErrors` payload with `field: ["page" | "blog" | "article", "title"]` and `code: "BLANK"` for both omitted and blank title values so tests get a stable mutation payload instead of staging empty-title records.
 
+`articleUpdate` runs article-specific cross-field validation before staging. It rejects simultaneous `author` and `authorV2` inputs with `AMBIGUOUS_AUTHOR`, rejects `authorV2.userId` values that do not resolve to an effective local `StaffMember` with `NOT_FOUND`, rejects simultaneous `blogId` and inline `blog` inputs with `AMBIGUOUS_BLOG`, and rejects `image.altText` without `image.url` when the existing article has no image with a `BLANK` error on `article.image.url`.
+
 Unknown content IDs return local `userErrors` for supported mutations instead of proxying upstream. Blog, page, and article delete mutations stage tombstones so downstream detail reads return `null` and catalog/nested connections omit the deleted row. Comment delete is modeled as a moderation transition to `REMOVED` so subsequent moderation roots can preserve Shopify's removed-comment guardrails.
 
 Comment creation is not part of the Admin GraphQL root set captured for this ticket, so comment moderation support is intentionally limited to comments supplied by snapshot or hydrated upstream reads.
