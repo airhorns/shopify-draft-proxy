@@ -1110,6 +1110,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-capability-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-capability-eligibility.mts',
+    purpose:
+      'Metafield definition capability eligibility, required uniqueValues, and PRODUCT admin-filterable owner limit behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-capability-eligibility.json`,
+      'config/parity-specs/metafields/metafield-definition-capability-eligibility.json',
+      'config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions in one namespace, captures validation and limit branches, then deletes the created definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-owner-types',
     scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
     purpose:
@@ -2301,6 +2318,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-disallowed-value-shapes.json`],
     cleanupBehavior: 'Deletes temporary products after capturing rejected discount mutations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-basic-disallowed-discount-on-quantity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-basic-disallowed-discount-on-quantity-conformance.ts',
+    purpose: 'Basic code and automatic discount rejection of customerGets.value.discountOnQuantity on create/update.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-basic-disallowed-discount-on-quantity.json`,
+      'config/parity-specs/discounts/discount-basic-disallowed-discount-on-quantity.json',
+      'config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable basic code discount and one basic automatic discount, then deletes both.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

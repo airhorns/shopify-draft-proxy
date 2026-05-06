@@ -1,0 +1,83 @@
+{
+  "scenarioId": "metafield-definition-capability-eligibility",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionUpdate", "standardMetafieldDefinitionEnable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "capability-eligibility", "required-capabilities", "owner-type-limit"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-capability-eligibility.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unique-values-json-create-invalid-capability",
+        "capturePath": "$.primary.response.data.uniqueJson",
+        "proxyPath": "$.data.uniqueJson"
+      },
+      {
+        "name": "smart-collection-customer-create-invalid-capability",
+        "capturePath": "$.primary.response.data.smartCustomer",
+        "proxyPath": "$.data.smartCustomer"
+      },
+      {
+        "name": "id-create-auto-enables-unique-values",
+        "capturePath": "$.primary.response.data.idCreate",
+        "proxyPath": "$.data.idCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "json-create-serializes-ineligible-capabilities",
+        "capturePath": "$.primary.response.data.jsonBase",
+        "proxyPath": "$.data.jsonBase",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "json-update-unique-values-invalid-capability",
+        "capturePath": "$.primary.response.data.jsonUpdateUnique",
+        "proxyPath": "$.data.jsonUpdateUnique"
+      },
+      {
+        "name": "fiftieth-admin-filterable-create-succeeds",
+        "capturePath": "$.primary.response.data.admin50",
+        "proxyPath": "$.data.admin50",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "fifty-first-admin-filterable-create-limit",
+        "capturePath": "$.primary.response.data.adminLimit",
+        "proxyPath": "$.data.adminLimit"
+      },
+      {
+        "name": "standard-enable-reference-unique-values-invalid-capability",
+        "capturePath": "$.primary.response.data.standardUniqueReference",
+        "proxyPath": "$.data.standardUniqueReference"
+      }
+    ]
+  },
+  "notes": "Captured against Shopify Admin 2026-04. The scenario preflights for zero pre-existing PRODUCT admin-filterable definitions, then creates 50 disposable PRODUCT admin-filterable definitions in one namespace to trigger the ownerType limit on the 51st create. Cleanup deletes every created definition."
+}
