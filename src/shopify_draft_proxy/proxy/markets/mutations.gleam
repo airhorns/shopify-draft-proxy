@@ -24,8 +24,8 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   optional_captured_string, price_edges, price_list_currency, price_list_data,
   price_list_input_errors, product_level_fixed_price_errors, product_payloads,
   project_record, quantity_pricing_input_errors, quantity_rule_delete_errors,
-  quantity_rule_payloads, quantity_rules_input_errors, read_arg_object_array,
-  read_arg_string_allow_empty, read_arg_string_array,
+  quantity_rule_payloads, quantity_rule_user_error, quantity_rules_input_errors,
+  read_arg_object_array, read_arg_string_allow_empty, read_arg_string_array,
   read_explicit_market_handle, read_market_region_inputs, read_price_list_id,
   result_to_option, string_array, translation_user_error,
   upsert_fixed_price_nodes, upsert_quantity_price_break_nodes,
@@ -1815,7 +1815,7 @@ fn handle_quantity_rules_add(
   let errors = case price_list {
     Some(_) -> quantity_rules_input_errors(store, inputs)
     None -> [
-      user_error(
+      quantity_rule_user_error(
         ["priceListId"],
         "Price list does not exist.",
         "PRICE_LIST_DOES_NOT_EXIST",

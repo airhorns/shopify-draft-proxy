@@ -34,7 +34,7 @@
     "gleam:format:check": "gleam format --check src test",
     "gleam:smoke:js": "vitest run tests/integration/gleam-interop.test.ts",
     "elixir:smoke": "tsx scripts/elixir-smoke.ts",
-    "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
+    "conformance:check": "tsx ./scripts/conformance-check.ts",
     "conformance:capture:check": "vitest run tests/unit/conformance-capture-index.test.ts tests/unit/conformance-script-config.test.ts tests/unit/no-mjs-files.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
     "linear:cache": "tsx ./scripts/build-linear-issue-cache.ts",

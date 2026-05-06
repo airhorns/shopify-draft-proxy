@@ -6,6 +6,7 @@ import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 
@@ -13,7 +14,7 @@ import shopify_draft_proxy/graphql/root_field.{type ResolvedValue, BoolVal}
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SerializeConnectionConfig, SrcList, SrcNull, SrcString,
+  SerializeConnectionConfig, SrcList, SrcNull, SrcObject, SrcString,
   default_connection_page_info_options, default_connection_window_options,
   default_selected_field_options, get_field_response_key,
   get_selected_child_fields, paginate_connection_items,
@@ -21,9 +22,15 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, src_object,
 }
 
+import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/customers/hydration as customer_hydration
+import shopify_draft_proxy/proxy/customers/serializers as customer_serializers
 import shopify_draft_proxy/proxy/mutation_helpers.{
   RequiredArgument, validate_required_field_arguments,
 }
+import shopify_draft_proxy/proxy/online_store/serializers as online_store_serializers
+import shopify_draft_proxy/proxy/orders/common as orders_common
+import shopify_draft_proxy/proxy/orders/hydration as orders_hydration
 
 import shopify_draft_proxy/proxy/products/inventory_apply.{
   sync_product_inventory_summary, sync_product_set_inventory_summary,
@@ -65,9 +72,10 @@ import shopify_draft_proxy/proxy/products/publications_publishable.{
   product_source_with_store_and_publication,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  mutation_error_result, mutation_rejected_result, mutation_result,
-  read_arg_bool_default_true, read_identifier_argument, read_object_list_field,
-  read_string_argument, user_errors_source,
+  mutation_error_result, mutation_error_with_null_data_result,
+  mutation_rejected_result, mutation_result, read_arg_bool_default_true,
+  read_identifier_argument, read_object_list_field, read_string_argument,
+  user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   make_default_option_record, make_default_variant_record,
@@ -87,15 +95,19 @@ import shopify_draft_proxy/proxy/products/variants_validation.{
   product_create_variant_errors, product_set_scalar_variant_errors,
   product_set_variant_records,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductOperationRecord, type ProductOperationUserErrorRecord,
-  type ProductRecord, ProductOperationRecord, ProductOperationUserErrorRecord,
-  ProductRecord,
+  type CapturedJsonValue, type CustomerRecord, type DraftOrderRecord,
+  type OnlineStoreContentRecord, type OrderRecord, type ProductOperationRecord,
+  type ProductOperationUserErrorRecord, type ProductRecord, CapturedArray,
+  CapturedObject, CapturedString, CustomerRecord, DraftOrderRecord,
+  OnlineStoreContentRecord, OrderRecord, ProductOperationRecord,
+  ProductOperationUserErrorRecord, ProductRecord,
 }
 
 // ===== from products_l07 =====
@@ -576,17 +588,13 @@ pub fn product_create_payload(
 
 @internal
 pub fn tags_update_payload(
-  store: Store,
+  _store: Store,
   is_add: Bool,
-  product: Option(ProductRecord),
+  node: SourceValue,
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
-  let product_value = case product {
-    Some(record) -> product_source_with_store(store, record)
-    None -> SrcNull
-  }
   let typename = case is_add {
     True -> "TagsAddPayload"
     False -> "TagsRemovePayload"
@@ -594,7 +602,7 @@ pub fn tags_update_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString(typename)),
-      #("node", product_value),
+      #("node", node),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -1114,6 +1122,7 @@ pub fn handle_tags_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -1129,7 +1138,7 @@ pub fn handle_tags_update(
             tags_update_payload(
               store,
               is_add,
-              None,
+              SrcNull,
               [ProductUserError(["id"], "Product id is required", None)],
               field,
               fragments,
@@ -1139,97 +1148,703 @@ pub fn handle_tags_update(
             [],
           )
         Some(product_id) ->
-          case store.get_effective_product_by_id(store, product_id) {
-            None ->
-              mutation_result(
-                key,
-                tags_update_payload(
-                  store,
-                  is_add,
-                  None,
-                  [ProductUserError(["id"], "Product not found", None)],
-                  field,
-                  fragments,
-                ),
-                store,
-                identity,
-                [],
-              )
-            Some(product) -> {
-              let tags = read_tag_inputs(args, is_add)
-              case product_tag_values_validation_error(tags) {
-                Some(error) ->
-                  mutation_result(
-                    key,
-                    tags_update_payload(
-                      store,
-                      is_add,
-                      Some(product),
-                      [error],
-                      field,
-                      fragments,
-                    ),
-                    store,
-                    identity,
-                    [],
-                  )
-                None ->
-                  case tags {
-                    [] ->
-                      mutation_result(
-                        key,
-                        tags_update_payload(
-                          store,
-                          is_add,
-                          None,
-                          [
-                            ProductUserError(
-                              ["tags"],
-                              "At least one tag is required",
-                              None,
-                            ),
-                          ],
-                          field,
-                          fragments,
-                        ),
-                        store,
-                        identity,
-                        [],
-                      )
-                    _ -> {
-                      let next_tags = case is_add {
-                        True ->
-                          normalize_product_tags(list.append(product.tags, tags))
-                        False ->
-                          normalize_product_tags(
-                            remove_product_tags_by_identity(product.tags, tags),
-                          )
-                      }
-                      let next_product =
-                        ProductRecord(..product, tags: next_tags)
-                      let #(_, next_store) =
-                        store.upsert_staged_product(store, next_product)
-                      mutation_result(
-                        key,
-                        tags_update_payload(
-                          next_store,
-                          is_add,
-                          Some(next_product),
-                          [],
-                          field,
-                          fragments,
-                        ),
-                        next_store,
-                        identity,
-                        [next_product.id],
-                      )
-                    }
-                  }
-              }
-            }
-          }
+          handle_tags_update_for_id(
+            store,
+            identity,
+            key,
+            product_id,
+            is_add,
+            field,
+            fragments,
+            args,
+            upstream,
+          )
       }
   }
+}
+
+fn handle_tags_update_for_id(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  id: String,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationFieldResult {
+  case taggable_gid_type(id) {
+    Some("Product") ->
+      case store.get_effective_product_by_id(store, id) {
+        Some(product) ->
+          apply_product_tags_update(
+            store,
+            identity,
+            key,
+            product,
+            is_add,
+            field,
+            fragments,
+            args,
+          )
+        None ->
+          tags_update_not_found_result(
+            store,
+            identity,
+            key,
+            is_add,
+            field,
+            fragments,
+            "Product not found",
+          )
+      }
+    Some("Order") -> {
+      let hydrated_store =
+        orders_hydration.maybe_hydrate_order_by_id(store, id, upstream)
+      case store.get_order_by_id(hydrated_store, id) {
+        Some(order) ->
+          apply_order_tags_update(
+            hydrated_store,
+            identity,
+            key,
+            order,
+            is_add,
+            field,
+            fragments,
+            args,
+          )
+        None ->
+          tags_update_not_found_result(
+            hydrated_store,
+            identity,
+            key,
+            is_add,
+            field,
+            fragments,
+            "Order not found",
+          )
+      }
+    }
+    Some("DraftOrder") -> {
+      let hydrated_store =
+        orders_hydration.maybe_hydrate_draft_order_by_id(store, id, upstream)
+      case store.get_draft_order_by_id(hydrated_store, id) {
+        Some(draft_order) ->
+          apply_draft_order_tags_update(
+            hydrated_store,
+            identity,
+            key,
+            draft_order,
+            is_add,
+            field,
+            fragments,
+            args,
+          )
+        None ->
+          tags_update_not_found_result(
+            hydrated_store,
+            identity,
+            key,
+            is_add,
+            field,
+            fragments,
+            "Draft order not found",
+          )
+      }
+    }
+    Some("Customer") -> {
+      let #(hydrated_store, hydrated_identity) =
+        customer_hydration.maybe_hydrate_customer(store, identity, id, upstream)
+      case store.get_effective_customer_by_id(hydrated_store, id) {
+        Some(customer) ->
+          apply_customer_tags_update(
+            hydrated_store,
+            hydrated_identity,
+            key,
+            customer,
+            is_add,
+            field,
+            fragments,
+            args,
+          )
+        None ->
+          tags_update_not_found_result(
+            hydrated_store,
+            hydrated_identity,
+            key,
+            is_add,
+            field,
+            fragments,
+            "Customer not found",
+          )
+      }
+    }
+    Some("Article") -> {
+      let hydrated_store = maybe_hydrate_article_for_tags(store, id, upstream)
+      case store.get_effective_online_store_content_by_id(hydrated_store, id) {
+        Some(article) if article.kind == "article" ->
+          apply_article_tags_update(
+            hydrated_store,
+            identity,
+            key,
+            article,
+            is_add,
+            field,
+            fragments,
+            args,
+          )
+        _ ->
+          tags_update_not_found_result(
+            hydrated_store,
+            identity,
+            key,
+            is_add,
+            field,
+            fragments,
+            "Article not found",
+          )
+      }
+    }
+    // Shopify can expose DiscountNode through the discount_tags_api flag.
+    // Local discount tag state is not modeled yet, so keep it out of the
+    // supported gid_type set for now instead of fabricating support.
+    _ ->
+      mutation_error_with_null_data_result(key, store, identity, [
+        invalid_taggable_gid_error(field, id, is_add),
+      ])
+  }
+}
+
+fn apply_product_tags_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product: ProductRecord,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let tags = read_tag_inputs(args, is_add)
+  case
+    tags_validation_result_with_node(
+      store,
+      identity,
+      key,
+      is_add,
+      field,
+      fragments,
+      tags,
+      product_source_with_store(store, product),
+    )
+  {
+    Some(result) -> result
+    None -> {
+      let next_tags = updated_tags(product.tags, tags, is_add)
+      let next_product = ProductRecord(..product, tags: next_tags)
+      let #(_, next_store) = store.upsert_staged_product(store, next_product)
+      mutation_result(
+        key,
+        tags_update_payload(
+          next_store,
+          is_add,
+          product_source_with_store(next_store, next_product),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_product.id],
+      )
+    }
+  }
+}
+
+fn apply_order_tags_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  order: OrderRecord,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let tags = read_tag_inputs(args, is_add)
+  case
+    tags_validation_result_with_node(
+      store,
+      identity,
+      key,
+      is_add,
+      field,
+      fragments,
+      tags,
+      taggable_captured_source("Order", order.data, captured_tags(order.data)),
+    )
+  {
+    Some(result) -> result
+    None -> {
+      let next_tags = updated_tags(captured_tags(order.data), tags, is_add)
+      let next_order =
+        OrderRecord(..order, data: replace_captured_tags(order.data, next_tags))
+      let next_store = store.stage_order(store, next_order)
+      mutation_result(
+        key,
+        tags_update_payload(
+          next_store,
+          is_add,
+          taggable_captured_source("Order", next_order.data, next_tags),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_order.id],
+      )
+    }
+  }
+}
+
+fn apply_draft_order_tags_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  draft_order: DraftOrderRecord,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let tags = read_tag_inputs(args, is_add)
+  case
+    tags_validation_result_with_node(
+      store,
+      identity,
+      key,
+      is_add,
+      field,
+      fragments,
+      tags,
+      taggable_captured_source(
+        "DraftOrder",
+        draft_order.data,
+        captured_tags(draft_order.data),
+      ),
+    )
+  {
+    Some(result) -> result
+    None -> {
+      let next_tags =
+        updated_tags(captured_tags(draft_order.data), tags, is_add)
+      let next_draft_order =
+        DraftOrderRecord(
+          ..draft_order,
+          data: replace_captured_tags(draft_order.data, next_tags),
+        )
+      let next_store = store.stage_draft_order(store, next_draft_order)
+      mutation_result(
+        key,
+        tags_update_payload(
+          next_store,
+          is_add,
+          taggable_captured_source(
+            "DraftOrder",
+            next_draft_order.data,
+            next_tags,
+          ),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_draft_order.id],
+      )
+    }
+  }
+}
+
+fn apply_customer_tags_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  customer: CustomerRecord,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let tags = read_tag_inputs(args, is_add)
+  case
+    tags_validation_result_with_node(
+      store,
+      identity,
+      key,
+      is_add,
+      field,
+      fragments,
+      tags,
+      customer_serializers.customer_to_source(store, customer),
+    )
+  {
+    Some(result) -> result
+    None -> {
+      let next_tags = updated_tags(customer.tags, tags, is_add)
+      let next_customer = CustomerRecord(..customer, tags: next_tags)
+      let #(_, next_store) = store.stage_update_customer(store, next_customer)
+      mutation_result(
+        key,
+        tags_update_payload(
+          next_store,
+          is_add,
+          customer_serializers.customer_to_source(next_store, next_customer),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_customer.id],
+      )
+    }
+  }
+}
+
+fn apply_article_tags_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  article: OnlineStoreContentRecord,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let tags = read_tag_inputs(args, is_add)
+  case
+    tags_validation_result_with_node(
+      store,
+      identity,
+      key,
+      is_add,
+      field,
+      fragments,
+      tags,
+      article_tag_source(store, article, captured_tags(article.data)),
+    )
+  {
+    Some(result) -> result
+    None -> {
+      let next_tags = updated_tags(captured_tags(article.data), tags, is_add)
+      let next_article =
+        OnlineStoreContentRecord(
+          ..article,
+          data: replace_captured_tags(article.data, next_tags),
+        )
+      let #(_, next_store) =
+        store.upsert_staged_online_store_content(store, next_article)
+      mutation_result(
+        key,
+        tags_update_payload(
+          next_store,
+          is_add,
+          article_tag_source(next_store, next_article, next_tags),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        identity,
+        [next_article.id],
+      )
+    }
+  }
+}
+
+fn tags_validation_result_with_node(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  tags: List(String),
+  node: SourceValue,
+) -> Option(MutationFieldResult) {
+  case product_tag_values_validation_error(tags) {
+    Some(error) ->
+      Some(
+        mutation_result(
+          key,
+          tags_update_payload(store, is_add, node, [error], field, fragments),
+          store,
+          identity,
+          [],
+        ),
+      )
+    None ->
+      case tags {
+        [] ->
+          Some(
+            mutation_result(
+              key,
+              tags_update_payload(
+                store,
+                is_add,
+                SrcNull,
+                [
+                  ProductUserError(
+                    ["tags"],
+                    "At least one tag is required",
+                    None,
+                  ),
+                ],
+                field,
+                fragments,
+              ),
+              store,
+              identity,
+              [],
+            ),
+          )
+        _ -> None
+      }
+  }
+}
+
+fn tags_update_not_found_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  is_add: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+  message: String,
+) -> MutationFieldResult {
+  mutation_result(
+    key,
+    tags_update_payload(
+      store,
+      is_add,
+      SrcNull,
+      [ProductUserError(["id"], message, None)],
+      field,
+      fragments,
+    ),
+    store,
+    identity,
+    [],
+  )
+}
+
+fn maybe_hydrate_article_for_tags(
+  store_in: Store,
+  id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(id)
+    || option.is_some(store.get_effective_online_store_content_by_id(
+      store_in,
+      id,
+    ))
+  {
+    True -> store_in
+    False -> {
+      let query =
+        "query TagsArticleHydrate($id: ID!) {
+  article(id: $id) {
+    __typename
+    id
+    title
+    handle
+    tags
+    createdAt
+    updatedAt
+    blog { id }
+  }
+}
+"
+      let variables = json.object([#("id", json.string(id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "TagsArticleHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_article_for_tags_response(store_in, value, id)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn hydrate_article_for_tags_response(
+  store_in: Store,
+  value: commit.JsonValue,
+  fallback_id: String,
+) -> Store {
+  case orders_common.json_get(value, "data") {
+    Some(data) ->
+      case orders_common.json_get(data, "article") {
+        Some(article) ->
+          case
+            orders_common.non_null_json(article)
+            |> option.then(article_record_from_hydrate(_, fallback_id))
+          {
+            Some(record) ->
+              store.upsert_base_online_store_content(store_in, [record])
+            None -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn article_record_from_hydrate(
+  node: commit.JsonValue,
+  fallback_id: String,
+) -> Option(OnlineStoreContentRecord) {
+  let id =
+    orders_common.json_get_string(node, "id")
+    |> option.or(Some(fallback_id))
+  use article_id <- option.then(id)
+  Some(OnlineStoreContentRecord(
+    id: article_id,
+    kind: "article",
+    cursor: None,
+    parent_id: article_blog_id(node),
+    created_at: orders_common.json_get_string(node, "createdAt"),
+    updated_at: orders_common.json_get_string(node, "updatedAt"),
+    data: orders_common.captured_json_from_commit(node),
+  ))
+}
+
+fn article_blog_id(node: commit.JsonValue) -> Option(String) {
+  use blog <- option.then(orders_common.json_get(node, "blog"))
+  orders_common.json_get_string(blog, "id")
+}
+
+fn updated_tags(
+  existing: List(String),
+  input: List(String),
+  is_add: Bool,
+) -> List(String) {
+  case is_add {
+    True -> normalize_product_tags(list.append(existing, input))
+    False ->
+      normalize_product_tags(remove_product_tags_by_identity(existing, input))
+  }
+}
+
+fn captured_tags(value: CapturedJsonValue) -> List(String) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        case pair {
+          #("tags", CapturedArray(values)) -> Ok(values)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+      |> option.unwrap([])
+      |> list.filter_map(fn(value) {
+        case value {
+          CapturedString(tag) -> Ok(tag)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn replace_captured_tags(
+  value: CapturedJsonValue,
+  tags: List(String),
+) -> CapturedJsonValue {
+  let tag_value = CapturedArray(list.map(tags, CapturedString))
+  case value {
+    CapturedObject(fields) ->
+      CapturedObject(upsert_captured_field(fields, "tags", tag_value))
+    _ -> CapturedObject([#("tags", tag_value)])
+  }
+}
+
+fn upsert_captured_field(
+  fields: List(#(String, CapturedJsonValue)),
+  key: String,
+  value: CapturedJsonValue,
+) -> List(#(String, CapturedJsonValue)) {
+  case fields {
+    [] -> [#(key, value)]
+    [#(field_key, _), ..rest] if field_key == key -> [#(key, value), ..rest]
+    [first, ..rest] -> [first, ..upsert_captured_field(rest, key, value)]
+  }
+}
+
+fn taggable_captured_source(
+  typename: String,
+  data: CapturedJsonValue,
+  tags: List(String),
+) -> SourceValue {
+  let base = case orders_common.captured_json_source(data) {
+    SrcObject(fields) -> fields
+    _ -> dict.new()
+  }
+  SrcObject(
+    base
+    |> dict.insert("__typename", SrcString(typename))
+    |> dict.insert("tags", SrcList(list.map(tags, SrcString))),
+  )
+}
+
+fn article_tag_source(
+  store: Store,
+  article: OnlineStoreContentRecord,
+  tags: List(String),
+) -> SourceValue {
+  let base = case
+    online_store_serializers.content_payload_source(store, article)
+  {
+    SrcObject(fields) -> fields
+    _ -> dict.new()
+  }
+  SrcObject(
+    base
+    |> dict.insert("__typename", SrcString("Article"))
+    |> dict.insert("tags", SrcList(list.map(tags, SrcString))),
+  )
+}
+
+fn taggable_gid_type(id: String) -> Option(String) {
+  case string.split(id, "/") {
+    ["gid:", "", "shopify", type_name, tail] if tail != "" -> Some(type_name)
+    ["gid:", "", "shopify", type_name, tail, ..] if tail != "" ->
+      Some(type_name)
+    _ -> None
+  }
+}
+
+fn invalid_taggable_gid_error(
+  _field: Selection,
+  _id: String,
+  is_add: Bool,
+) -> Json {
+  json.object([
+    #("message", json.string("invalid id")),
+    #("path", json.array([tags_update_root_name(is_add)], json.string)),
+    #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
+  ])
 }
 
 // ===== from products_l14 =====

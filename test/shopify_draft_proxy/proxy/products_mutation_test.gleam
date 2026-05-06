@@ -12,23 +12,26 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
-  type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
-  type InventoryQuantityRecord, type InventoryTransferRecord,
-  type LocationRecord, type MetafieldDefinitionCapabilitiesRecord,
+  type CollectionRecord, type CollectionRuleSetRecord, type CustomerRecord,
+  type InventoryLevelRecord, type InventoryQuantityRecord,
+  type InventoryTransferRecord, type LocationRecord,
+  type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
   type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
-  type ShopRecord, ChannelRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, InventoryItemRecord, InventoryLevelRecord,
+  type ShopRecord, CapturedArray, CapturedObject, CapturedString, ChannelRecord,
+  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
+  CustomerRecord, DraftOrderRecord, InventoryItemRecord, InventoryLevelRecord,
   InventoryLocationRecord, InventoryQuantityRecord,
   InventoryTransferLineItemRecord, InventoryTransferRecord, LocationRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, PaymentSettingsRecord,
-  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
-  SellingPlanGroupRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  MetafieldDefinitionValidationRecord, OnlineStoreContentRecord, OrderRecord,
+  PaymentSettingsRecord, ProductCollectionRecord, ProductMediaRecord,
+  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, PublicationRecord, SellingPlanGroupRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
   ShopResourceLimitsRecord,
@@ -2268,6 +2271,126 @@ pub fn tags_add_and_remove_use_shopify_tag_identity_test() {
   assert remove_status == 200
   assert json.to_string(remove_body)
     == "{\"data\":{\"tagsRemove\":{\"node\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]},\"userErrors\":[]}}}"
+}
+
+pub fn tags_add_stages_order_customer_and_article_tags_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: taggable_non_product_store())
+
+  let #(Response(status: order_status, body: order_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { tagsAdd(id: \\\"gid://shopify/Order/1001\\\", tags: [\\\" priority \\\", \\\"base\\\"]) { node { ... on Order { __typename id tags } } userErrors { field message } } }",
+      ),
+    )
+  assert order_status == 200
+  assert json.to_string(order_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"__typename\":\"Order\",\"id\":\"gid://shopify/Order/1001\",\"tags\":[\"base\",\"priority\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: customer_status, body: customer_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { tagsAdd(id: \\\"gid://shopify/Customer/2001\\\", tags: [\\\"vip\\\", \\\"Base\\\"]) { node { ... on Customer { __typename id tags } } userErrors { field message } } }",
+      ),
+    )
+  assert customer_status == 200
+  assert json.to_string(customer_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"__typename\":\"Customer\",\"id\":\"gid://shopify/Customer/2001\",\"tags\":[\"base\",\"vip\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: article_status, body: article_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { tagsAdd(id: \\\"gid://shopify/Article/3001\\\", tags: [\\\"news\\\"]) { node { ... on Article { __typename id tags title } } userErrors { field message } } }",
+      ),
+    )
+  assert article_status == 200
+  assert json.to_string(article_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"__typename\":\"Article\",\"id\":\"gid://shopify/Article/3001\",\"tags\":[\"base\",\"news\"],\"title\":\"Launch note\"},\"userErrors\":[]}}}"
+
+  let #(Response(status: order_read_status, body: order_read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { order(id: \\\"gid://shopify/Order/1001\\\") { id tags } }",
+      ),
+    )
+  assert order_read_status == 200
+  assert json.to_string(order_read_body)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/1001\",\"tags\":[\"base\",\"priority\"]}}}"
+
+  let #(Response(status: customer_read_status, body: customer_read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { customer(id: \\\"gid://shopify/Customer/2001\\\") { id tags } }",
+      ),
+    )
+  assert customer_read_status == 200
+  assert json.to_string(customer_read_body)
+    == "{\"data\":{\"customer\":{\"id\":\"gid://shopify/Customer/2001\",\"tags\":[\"base\",\"vip\"]}}}"
+
+  let #(Response(status: article_read_status, body: article_read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { article(id: \\\"gid://shopify/Article/3001\\\") { id tags } }",
+      ),
+    )
+  assert article_read_status == 200
+  assert json.to_string(article_read_body)
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3001\",\"tags\":[\"base\",\"news\"]}}}"
+}
+
+pub fn tags_remove_stages_draft_order_tags_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: taggable_non_product_store())
+  let query =
+    "mutation { tagsRemove(id: \\\"gid://shopify/DraftOrder/4001\\\", tags: [\\\"remove\\\", \\\"missing\\\"]) { node { ... on DraftOrder { __typename id tags } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"tagsRemove\":{\"node\":{\"__typename\":\"DraftOrder\",\"id\":\"gid://shopify/DraftOrder/4001\",\"tags\":[\"base\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { draftOrder(id: \\\"gid://shopify/DraftOrder/4001\\\") { id tags } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/4001\",\"tags\":[\"base\"]}}}"
+}
+
+pub fn tags_add_rejects_unsupported_gid_type_as_top_level_error_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: taggable_non_product_store())
+  let query =
+    "mutation TagsAddUnsupported($id: ID!) { tagsAdd(id: $id, tags: [\"x\"]) { node { id } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_with_variables(
+        query,
+        json.object([
+          #("id", json.string("gid://shopify/SomethingUnsupported/1")),
+        ]),
+      ),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"invalid id\",\"path\":[\"tagsAdd\"],\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"}}],\"data\":{\"tagsAdd\":null}}"
 }
 
 pub fn product_update_stages_fields_and_downstream_reads_test() {
@@ -4954,6 +5077,84 @@ fn tagged_product_store() -> store.Store {
   |> store.upsert_base_products([
     ProductRecord(..default_product(), tags: ["existing", "sale", "summer"]),
   ])
+}
+
+fn taggable_non_product_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_orders([
+    OrderRecord(
+      id: "gid://shopify/Order/1001",
+      cursor: None,
+      data: CapturedObject([
+        #("__typename", CapturedString("Order")),
+        #("id", CapturedString("gid://shopify/Order/1001")),
+        #("name", CapturedString("#1001")),
+        #("tags", CapturedArray([CapturedString("base")])),
+      ]),
+    ),
+  ])
+  |> store.upsert_base_draft_orders([
+    DraftOrderRecord(
+      id: "gid://shopify/DraftOrder/4001",
+      cursor: None,
+      data: CapturedObject([
+        #("__typename", CapturedString("DraftOrder")),
+        #("id", CapturedString("gid://shopify/DraftOrder/4001")),
+        #("name", CapturedString("#D4001")),
+        #(
+          "tags",
+          CapturedArray([CapturedString("base"), CapturedString("remove")]),
+        ),
+      ]),
+    ),
+  ])
+  |> store.upsert_base_customers([taggable_customer()])
+  |> store.upsert_base_online_store_content([
+    OnlineStoreContentRecord(
+      id: "gid://shopify/Article/3001",
+      kind: "article",
+      cursor: None,
+      parent_id: None,
+      created_at: None,
+      updated_at: None,
+      data: CapturedObject([
+        #("__typename", CapturedString("Article")),
+        #("id", CapturedString("gid://shopify/Article/3001")),
+        #("title", CapturedString("Launch note")),
+        #("tags", CapturedArray([CapturedString("base")])),
+      ]),
+    ),
+  ])
+}
+
+fn taggable_customer() -> CustomerRecord {
+  CustomerRecord(
+    id: "gid://shopify/Customer/2001",
+    first_name: Some("Tag"),
+    last_name: Some("Target"),
+    display_name: Some("Tag Target"),
+    email: Some("tag-target@example.test"),
+    legacy_resource_id: Some("2001"),
+    locale: None,
+    note: None,
+    can_delete: None,
+    verified_email: None,
+    data_sale_opt_out: False,
+    tax_exempt: None,
+    tax_exemptions: [],
+    state: Some("ENABLED"),
+    tags: ["base"],
+    number_of_orders: None,
+    amount_spent: None,
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    account_activation_token: None,
+    created_at: None,
+    updated_at: None,
+  )
 }
 
 fn metafield_store() -> store.Store {

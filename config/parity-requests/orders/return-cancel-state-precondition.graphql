@@ -1,0 +1,27 @@
+mutation ReturnCancelStatePrecondition($id: ID!) {
+  returnCancel(id: $id) {
+    return {
+      id
+      name
+      status
+      closedAt
+      order {
+        id
+        updatedAt
+      }
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,11 @@
+mutation OrderEditAddCustomItemInlineMissingCurrency($id: ID!) {
+  orderEditAddCustomItem(id: $id, title: "Missing currency", quantity: 1, price: { amount: "1.00" }) {
+    calculatedLineItem {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
