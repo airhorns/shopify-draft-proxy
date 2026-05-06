@@ -20,7 +20,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/markets/types as market_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, combine_error_lists, single_root_log_draft,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -1230,6 +1230,7 @@ pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
 
 @internal
 pub fn price_list_input_errors(
+  _store: Store,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
 ) -> List(CapturedJsonValue) {
@@ -1247,9 +1248,7 @@ pub fn price_list_input_errors(
     [] -> price_list_parent_errors(input, existing)
     _ -> []
   }
-  name_errors
-  |> list.append(currency_errors)
-  |> list.append(parent_errors)
+  combine_error_lists([name_errors, currency_errors, parent_errors])
 }
 
 @internal
@@ -1288,7 +1287,8 @@ pub fn price_list_parent_errors(
     Some(parent) -> price_list_parent_adjustment_errors(parent)
     None ->
       case existing {
-        Some(_) -> []
+        Some(existing_value) ->
+          price_list_existing_parent_adjustment_errors(existing_value)
         None -> [
           user_error(["input", "parent"], "Parent must exist", "REQUIRED"),
         ]
@@ -1297,13 +1297,48 @@ pub fn price_list_parent_errors(
 }
 
 @internal
+pub fn price_list_existing_parent_adjustment_errors(
+  existing_value: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case
+    captured_field(existing_value, "parent")
+    |> option.then(captured_field(_, "adjustment"))
+  {
+    Some(adjustment) ->
+      case captured_string_field(adjustment, "type") {
+        Some("PERCENTAGE_DECREASE") ->
+          price_list_captured_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_DECREASE",
+          )
+        Some("PERCENTAGE_INCREASE") ->
+          price_list_captured_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_INCREASE",
+          )
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+@internal
 pub fn price_list_parent_adjustment_errors(
   parent: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_object(parent, "adjustment") {
-    Some(adjustment) ->
+    Some(adjustment) -> {
       case graphql_helpers.read_arg_string_nonempty(adjustment, "type") {
-        Some("PERCENTAGE_DECREASE") | Some("PERCENTAGE_INCREASE") -> []
+        Some("PERCENTAGE_DECREASE") ->
+          price_list_parent_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_DECREASE",
+          )
+        Some("PERCENTAGE_INCREASE") ->
+          price_list_parent_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_INCREASE",
+          )
         _ -> [
           user_error(
             ["input", "parent", "adjustment", "type"],
@@ -1312,6 +1347,7 @@ pub fn price_list_parent_adjustment_errors(
           ),
         ]
       }
+    }
     None -> [
       user_error(
         ["input", "parent", "adjustment"],
@@ -1319,6 +1355,123 @@ pub fn price_list_parent_adjustment_errors(
         "REQUIRED",
       ),
     ]
+  }
+}
+
+@internal
+pub fn price_list_parent_adjustment_value_errors(
+  adjustment: Dict(String, root_field.ResolvedValue),
+  adjustment_type: String,
+) -> List(CapturedJsonValue) {
+  case read_price_list_adjustment_number(adjustment) {
+    Some(value) -> price_list_adjustment_number_errors(value, adjustment_type)
+    None -> []
+  }
+}
+
+@internal
+pub fn price_list_captured_adjustment_value_errors(
+  adjustment: CapturedJsonValue,
+  adjustment_type: String,
+) -> List(CapturedJsonValue) {
+  case captured_adjustment_number(adjustment) {
+    Some(value) -> price_list_adjustment_number_errors(value, adjustment_type)
+    None -> []
+  }
+}
+
+@internal
+pub fn price_list_adjustment_number_errors(
+  value: Float,
+  adjustment_type: String,
+) -> List(CapturedJsonValue) {
+  let invalid_adjustment_error = [
+    user_error(
+      ["input", "parent", "adjustment", "value"],
+      "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+      "INVALID_ADJUSTMENT_VALUE",
+    ),
+  ]
+
+  case value <. 0.0 {
+    True -> invalid_adjustment_error
+    False ->
+      case adjustment_type, value >. 100.0, value >. 1000.0 {
+        "PERCENTAGE_DECREASE", True, _ -> invalid_adjustment_error
+        "PERCENTAGE_INCREASE", _, True -> invalid_adjustment_error
+        _, _, _ -> []
+      }
+  }
+}
+
+@internal
+pub fn price_list_market_currency_errors(
+  _store: Store,
+  _input: Dict(String, root_field.ResolvedValue),
+  _existing: Option(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  // Current public Admin GraphQL accepts catalog-linked price lists whose
+  // currency differs from the linked market base currency.
+  []
+}
+
+@internal
+pub fn effective_price_list_currency(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> Option(String) {
+  graphql_helpers.read_arg_string_nonempty(input, "currency")
+  |> option.or(option.then(existing, captured_string_field(_, "currency")))
+}
+
+@internal
+pub fn effective_price_list_catalog_market_currency(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> Option(String) {
+  case effective_price_list_catalog_id(input, existing) {
+    Some(catalog_id) ->
+      case store.get_effective_catalog_by_id(store, catalog_id) {
+        Some(catalog) -> catalog_market_currency(catalog.data)
+        None -> None
+      }
+    None -> None
+  }
+}
+
+@internal
+pub fn effective_price_list_catalog_id(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> Option(String) {
+  graphql_helpers.read_arg_string_nonempty(input, "catalogId")
+  |> option.or(option.then(existing, price_list_catalog_id))
+}
+
+@internal
+pub fn price_list_catalog_id(value: CapturedJsonValue) -> Option(String) {
+  captured_field(value, "catalog")
+  |> option.then(captured_string_field(_, "id"))
+}
+
+@internal
+pub fn catalog_market_currency(catalog: CapturedJsonValue) -> Option(String) {
+  captured_field(catalog, "markets")
+  |> option.then(captured_field(_, "nodes"))
+  |> option.then(first_captured_array_value)
+  |> option.then(captured_field(_, "currencySettings"))
+  |> option.then(captured_field(_, "baseCurrency"))
+  |> option.then(captured_string_field(_, "currencyCode"))
+}
+
+@internal
+pub fn first_captured_array_value(
+  value: CapturedJsonValue,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedArray([first, ..]) -> Some(first)
+    _ -> None
   }
 }
 
@@ -1351,6 +1504,7 @@ pub fn iso_currency_codes() -> List(String) {
 
 @internal
 pub fn price_list_data(
+  store: Store,
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
@@ -1376,10 +1530,7 @@ pub fn price_list_data(
         |> option.unwrap(CapturedInt(0)),
     ),
     #("parent", price_list_parent_data(input, existing_value)),
-    #(
-      "catalog",
-      captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull),
-    ),
+    #("catalog", price_list_catalog_data(store, input, existing_value)),
     #(
       "prices",
       captured_field(existing_value, "prices")
@@ -1391,6 +1542,27 @@ pub fn price_list_data(
         |> option.unwrap(empty_connection()),
     ),
   ])
+}
+
+@internal
+pub fn price_list_catalog_data(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case graphql_helpers.read_arg_string_nonempty(input, "catalogId") {
+    Some(id) ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(record) -> record.data
+        None ->
+          CapturedObject([
+            #("__typename", CapturedString("MarketCatalog")),
+            #("id", CapturedString(id)),
+          ])
+      }
+    None ->
+      captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull)
+  }
 }
 
 @internal
@@ -1431,6 +1603,28 @@ pub fn read_price_list_adjustment_value(
   case dict.get(adjustment, "value") {
     Ok(root_field.IntVal(value)) -> Some(CapturedInt(value))
     Ok(root_field.FloatVal(value)) -> Some(CapturedFloat(value))
+    _ -> None
+  }
+}
+
+@internal
+pub fn read_price_list_adjustment_number(
+  adjustment: Dict(String, root_field.ResolvedValue),
+) -> Option(Float) {
+  case dict.get(adjustment, "value") {
+    Ok(root_field.IntVal(value)) -> Some(int.to_float(value))
+    Ok(root_field.FloatVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+@internal
+pub fn captured_adjustment_number(
+  adjustment: CapturedJsonValue,
+) -> Option(Float) {
+  case captured_field(adjustment, "value") {
+    Some(CapturedInt(value)) -> Some(int.to_float(value))
+    Some(CapturedFloat(value)) -> Some(value)
     _ -> None
   }
 }
@@ -1486,22 +1680,21 @@ pub fn product_level_fixed_price_errors(
           ))
       }
     })
-  no_op_errors
-  |> list.append(add_errors)
-  |> list.append(delete_errors)
-  |> list.append(price_currency_mismatch_errors(price_list, price_inputs))
-  |> list.append(duplicate_price_input_errors(price_inputs))
-  |> list.append(duplicate_delete_product_errors(delete_product_ids))
-  |> list.append(mutually_exclusive_product_errors(
-    price_inputs,
-    delete_product_ids,
-  ))
-  |> list.append(price_list_fixed_price_limit_errors(
-    store,
-    price_list,
-    price_inputs,
-    delete_product_ids,
-  ))
+  combine_error_lists([
+    no_op_errors,
+    add_errors,
+    delete_errors,
+    price_currency_mismatch_errors(price_list, price_inputs),
+    duplicate_price_input_errors(price_inputs),
+    duplicate_delete_product_errors(delete_product_ids),
+    mutually_exclusive_product_errors(price_inputs, delete_product_ids),
+    price_list_fixed_price_limit_errors(
+      store,
+      price_list,
+      price_inputs,
+      delete_product_ids,
+    ),
+  ])
 }
 
 fn price_currency_mismatch_errors(
@@ -1515,13 +1708,15 @@ fn price_currency_mismatch_errors(
       |> enumerate_dicts
       |> list.flat_map(fn(entry) {
         let #(input, index) = entry
-        money_currency_mismatch_error(input, index, "price", currency)
-        |> list.append(money_currency_mismatch_error(
-          input,
-          index,
-          "compareAtPrice",
-          currency,
-        ))
+        combine_error_lists([
+          money_currency_mismatch_error(input, index, "price", currency),
+          money_currency_mismatch_error(
+            input,
+            index,
+            "compareAtPrice",
+            currency,
+          ),
+        ])
       })
     }
     None -> []
@@ -1924,7 +2119,7 @@ pub fn quantity_pricing_input_errors(
       "PRICE_ADD_VARIANT_NOT_FOUND",
       "Variant not found.",
     )
-  list.append(price_break_errors, list.append(rule_errors, price_errors))
+  combine_error_lists([price_break_errors, rule_errors, price_errors])
 }
 
 @internal
@@ -1954,20 +2149,16 @@ fn quantity_rules_input_errors_loop(
       let variant_id =
         graphql_helpers.read_arg_string_nonempty(input, "variantId")
       let current_errors =
-        list.append(
+        combine_error_lists([
           quantity_rule_variant_errors(store, input, index),
-          list.append(
-            quantity_rule_numeric_errors(input, index),
-            list.append(
-              quantity_rule_price_break_errors(price_list, input, index),
-              quantity_rule_duplicate_variant_errors(
-                variant_id,
-                index,
-                duplicate_variant_ids,
-              ),
-            ),
+          quantity_rule_numeric_errors(input, index),
+          quantity_rule_price_break_errors(price_list, input, index),
+          quantity_rule_duplicate_variant_errors(
+            variant_id,
+            index,
+            duplicate_variant_ids,
           ),
-        )
+        ])
       list.append(
         current_errors,
         quantity_rules_input_errors_loop(

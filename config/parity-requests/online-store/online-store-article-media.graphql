@@ -1,14 +1,18 @@
-mutation OnlineStoreArticleMedia($article: ArticleCreateInput!, $blog: BlogCreateInput!) {
+mutation OnlineStoreArticleMedia($article: ArticleCreateInput!, $blog: ArticleBlogInput) {
   articleCreate(article: $article, blog: $blog) {
     article {
+      id
       title
+      blog {
+        id
+      }
       image {
         altText
         url
         width
         height
       }
-      metafield(namespace: "har_410", key: "hero") {
+      metafield(namespace: "online_store_conformance", key: "hero") {
         namespace
         key
         type
@@ -16,7 +20,7 @@ mutation OnlineStoreArticleMedia($article: ArticleCreateInput!, $blog: BlogCreat
         jsonValue
         ownerType
       }
-      metafields(first: 5, namespace: "har_410") {
+      metafields(first: 5, namespace: "online_store_conformance") {
         nodes {
           namespace
           key

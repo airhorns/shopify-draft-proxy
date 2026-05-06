@@ -2176,6 +2176,18 @@ pub fn record_log_drafts(
   })
 }
 
+/// Combine independent validation outputs into a single error list.
+/// Use at sites that previously chained `|> list.append(other_errors)`
+/// repeatedly — the flat shape reads as a checklist of independent
+/// validators and removes the syntactic distinction between the seed
+/// list and the appended ones.
+///
+/// Eager: every validator must already have run, so all errors surface
+/// in one response (matching Shopify's userErrors semantics).
+pub fn combine_error_lists(error_lists: List(List(error))) -> List(error) {
+  list.flatten(error_lists)
+}
+
 /// Wrap a domain `process` result into the dispatcher's
 /// `#(Response, DraftProxy)` shape. `Ok(envelope)` becomes a 200 with
 /// the JSON body; `Error(_)` becomes a 400 carrying `error_message` in
