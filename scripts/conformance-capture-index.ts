@@ -3188,6 +3188,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'orders',
+    captureId: 'return-status-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
+    purpose:
+      'returnClose, returnReopen, and returnCancel status-machine preconditions, idempotent no-op branches, and processed-return cancel rejection.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
+      'config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json',
+      'config/parity-requests/orders/return-*-state-precondition.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills disposable orders for requested, open/closed, cancelable, declined, and processed return states, records status precondition behavior, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },

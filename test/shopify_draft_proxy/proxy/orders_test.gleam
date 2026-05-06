@@ -8278,6 +8278,115 @@ pub fn orders_order_cancel_unknown_order_uses_not_found_code_test() {
   assert outcome.log_drafts == []
 }
 
+pub fn orders_return_close_rejects_declined_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("DECLINED", 0),
+      root_name: "returnClose",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnClose\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return status is invalid.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "DECLINED", None)
+}
+
+pub fn orders_return_close_on_closed_return_is_idempotent_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store_with_closed_at(
+        "CLOSED",
+        0,
+        "2026-05-01T01:00:00.000Z",
+      ),
+      root_name: "returnClose",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt order { updatedAt } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnClose\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"CLOSED\",\"closedAt\":\"2026-05-01T01:00:00.000Z\",\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_return_reopen_rejects_requested_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("REQUESTED", 0),
+      root_name: "returnReopen",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnReopen\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return status is invalid.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "REQUESTED", None)
+}
+
+pub fn orders_return_reopen_on_open_return_is_idempotent_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("OPEN", 0),
+      root_name: "returnReopen",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status closedAt order { updatedAt } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnReopen\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"OPEN\",\"closedAt\":null,\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_return_cancel_rejects_processed_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("OPEN", 1),
+      root_name: "returnCancel",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCancel\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return is not cancelable.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "OPEN", None)
+}
+
+pub fn orders_return_cancel_rejects_refunded_return_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store_with_quantities("OPEN", 0, 1, ""),
+      root_name: "returnCancel",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCancel\":{\"return\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Return is not cancelable.\",\"code\":\"INVALID_STATE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "OPEN", None)
+}
+
+pub fn orders_return_cancel_on_canceled_return_is_idempotent_test() {
+  let outcome =
+    run_return_status_mutation(
+      seed: return_status_test_store("CANCELED", 0),
+      root_name: "returnCancel",
+      return_id: "gid://shopify/Return/status-guard",
+      selection: "return { id status order { updatedAt } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnCancel\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"CANCELED\",\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
 fn order_cancel_test_order(
   id: String,
   display_financial_status: String,
@@ -8350,6 +8459,142 @@ fn run_order_cancel_with_extra_args(
     dict.new(),
     empty_upstream_context(),
   )
+}
+
+fn return_status_test_store(
+  status: String,
+  processed_quantity: Int,
+) -> store.Store {
+  return_status_test_store_with_quantities(status, processed_quantity, 0, "")
+}
+
+fn return_status_test_store_with_closed_at(
+  status: String,
+  processed_quantity: Int,
+  closed_at: String,
+) -> store.Store {
+  return_status_test_store_with_quantities(
+    status,
+    processed_quantity,
+    0,
+    closed_at,
+  )
+}
+
+fn return_status_test_store_with_quantities(
+  status: String,
+  processed_quantity: Int,
+  refunded_quantity: Int,
+  closed_at: String,
+) -> store.Store {
+  let order_id = "gid://shopify/Order/status-guard"
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#STATUS-GUARD")),
+        #("updatedAt", types.CapturedString("2026-05-01T00:00:00.000Z")),
+        #(
+          "returns",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString("gid://shopify/Return/status-guard")),
+              #("name", types.CapturedString("#STATUS-GUARD-R1")),
+              #("status", types.CapturedString(status)),
+              #("closedAt", case closed_at {
+                "" -> types.CapturedNull
+                value -> types.CapturedString(value)
+              }),
+              #("totalQuantity", types.CapturedInt(1)),
+              #(
+                "returnLineItems",
+                types.CapturedObject([
+                  #(
+                    "nodes",
+                    types.CapturedArray([
+                      types.CapturedObject([
+                        #(
+                          "id",
+                          types.CapturedString(
+                            "gid://shopify/ReturnLineItem/status-guard",
+                          ),
+                        ),
+                        #("quantity", types.CapturedInt(1)),
+                        #(
+                          "processedQuantity",
+                          types.CapturedInt(processed_quantity),
+                        ),
+                        #(
+                          "refundedQuantity",
+                          types.CapturedInt(refunded_quantity),
+                        ),
+                      ]),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn run_return_status_mutation(
+  seed seed: store.Store,
+  root_name root_name: String,
+  return_id return_id: String,
+  selection selection: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2025-01/graphql.json",
+    "mutation {
+      " <> root_name <> "(id: \"" <> return_id <> "\") {
+        " <> selection <> "
+        userErrors { field message code }
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn assert_return_status_read(
+  seed: store.Store,
+  status: String,
+  closed_at: Option(String),
+) {
+  let assert Ok(result) =
+    orders.process(
+      seed,
+      "
+        query {
+          return(id: \"gid://shopify/Return/status-guard\") {
+            id
+            status
+            closedAt
+            order { updatedAt }
+          }
+        }
+      ",
+      dict.new(),
+    )
+  let closed_at_json = case closed_at {
+    Some(value) -> "\"" <> value <> "\""
+    None -> "null"
+  }
+  assert json.to_string(result)
+    == "{\"data\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\""
+    <> status
+    <> "\",\"closedAt\":"
+    <> closed_at_json
+    <> ",\"order\":{\"updatedAt\":\"2026-05-01T00:00:00.000Z\"}}}}"
 }
 
 pub fn orders_order_invoice_send_payload_test() {
