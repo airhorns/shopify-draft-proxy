@@ -1,0 +1,488 @@
+{
+  "capturedAt": "2026-05-06T03:49:08.729Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, hyphen key acceptance, and max field count.",
+  "seed": {
+    "runId": "1778039347419",
+    "hyphenDefinitionId": "gid://shopify/MetaobjectDefinition/17883562290"
+  },
+  "reservedHandle": {
+    "name": "reserved-field-key",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_reserved_1778039347419",
+          "name": "Reserved Field Key",
+          "displayNameKey": "handle",
+          "fieldDefinitions": [
+            {
+              "key": "handle",
+              "name": "handle",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0"],
+              "message": "The name \"handle\" is reserved for system use",
+              "code": "RESERVED_NAME",
+              "elementKey": "handle",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateKey": {
+    "name": "duplicate-field-key",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_duplicate_1778039347419",
+          "name": "Duplicate Field Key",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "title",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "title",
+              "name": "title",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "1"],
+              "message": "Field \"title\" duplicates other inputs",
+              "code": "DUPLICATE_FIELD_INPUT",
+              "elementKey": "title",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingDisplayNameKey": {
+    "name": "missing-display-name-key",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_display_1778039347419",
+          "name": "Missing Display Name Key",
+          "displayNameKey": "missing",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "title",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "displayNameKey"],
+              "message": "Field definition \"missing\" does not exist",
+              "code": "UNDEFINED_OBJECT_FIELD",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "hyphenKey": {
+    "name": "hyphen-field-key",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_hyphen_1778039347419",
+          "name": "Hyphen Field Key",
+          "displayNameKey": "field-key",
+          "fieldDefinitions": [
+            {
+              "key": "field-key",
+              "name": "field-key",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17883562290",
+            "type": "field_validation_hyphen_1778039347419",
+            "displayNameKey": "field-key",
+            "fieldDefinitions": [
+              {
+                "key": "field-key"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tooManyFields": {
+    "name": "too-many-field-definitions",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_many_1778039347419",
+          "name": "Too Many Field Definitions",
+          "displayNameKey": "field_1",
+          "fieldDefinitions": [
+            {
+              "key": "field_1",
+              "name": "field_1",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_2",
+              "name": "field_2",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_3",
+              "name": "field_3",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_4",
+              "name": "field_4",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_5",
+              "name": "field_5",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_6",
+              "name": "field_6",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_7",
+              "name": "field_7",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_8",
+              "name": "field_8",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_9",
+              "name": "field_9",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_10",
+              "name": "field_10",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_11",
+              "name": "field_11",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_12",
+              "name": "field_12",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_13",
+              "name": "field_13",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_14",
+              "name": "field_14",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_15",
+              "name": "field_15",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_16",
+              "name": "field_16",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_17",
+              "name": "field_17",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_18",
+              "name": "field_18",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_19",
+              "name": "field_19",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_20",
+              "name": "field_20",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_21",
+              "name": "field_21",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_22",
+              "name": "field_22",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_23",
+              "name": "field_23",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_24",
+              "name": "field_24",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_25",
+              "name": "field_25",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_26",
+              "name": "field_26",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_27",
+              "name": "field_27",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_28",
+              "name": "field_28",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_29",
+              "name": "field_29",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_30",
+              "name": "field_30",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_31",
+              "name": "field_31",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_32",
+              "name": "field_32",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_33",
+              "name": "field_33",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_34",
+              "name": "field_34",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_35",
+              "name": "field_35",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_36",
+              "name": "field_36",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_37",
+              "name": "field_37",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_38",
+              "name": "field_38",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_39",
+              "name": "field_39",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_40",
+              "name": "field_40",
+              "type": "single_line_text_field"
+            },
+            {
+              "key": "field_41",
+              "name": "field_41",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions"],
+              "message": "Maximum 40 fields per metaobject definition",
+              "code": "INVALID",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17883562290"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17883562290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
