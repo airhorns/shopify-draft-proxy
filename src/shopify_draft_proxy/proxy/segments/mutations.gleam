@@ -386,9 +386,17 @@ fn handle_segment_create(
   let name_errors = validate_segment_name_required(raw_name, ["name"])
   let query_errors = validate_segment_query(raw_query, ["query"])
   let field_errors = list.append(name_errors, query_errors)
-  let limit_errors = case field_errors {
-    [] -> validate_segment_limit(store)
-    _ -> []
+  let inventory = case field_errors {
+    [] -> Some(segment_name_inventory(store, None))
+    _ -> None
+  }
+  let limit_errors = case inventory {
+    Some(#(count, _)) -> segment_limit_errors_for_count(count)
+    None -> []
+  }
+  let used_names = case inventory {
+    Some(#(_, names)) -> names
+    None -> dict.new()
   }
   let errors =
     field_errors
@@ -396,10 +404,9 @@ fn handle_segment_create(
   case errors, raw_name, raw_query {
     [], Some(name_value), Some(query_value) -> {
       case
-        resolve_unique_segment_name(
-          store,
+        resolve_unique_segment_name_from_used_set(
+          used_names,
           normalize_segment_name(name_value),
-          None,
         )
       {
         Ok(unique_name) -> {
@@ -948,11 +955,10 @@ fn validate_segment_name(
   }
 }
 
-fn validate_segment_limit(store: Store) -> List(segment_types.UserError) {
-  case
-    list.length(store.list_effective_segments(store))
-    >= segment_types.max_segments_per_shop
-  {
+fn segment_limit_errors_for_count(
+  segment_count: Int,
+) -> List(segment_types.UserError) {
+  case segment_count >= segment_types.max_segments_per_shop {
     True -> [
       segment_types.null_field_user_error(
         "Segment limit reached. Delete an existing segment to create more.",
@@ -973,35 +979,56 @@ pub fn resolve_unique_segment_name(
   requested: String,
   current_id: Option(String),
 ) -> Result(String, segment_types.UserError) {
-  let used =
-    store.list_effective_segments(store)
-    |> list.filter(fn(s) {
-      case current_id {
-        Some(id) -> s.id != id
-        None -> True
-      }
-    })
-    |> list.filter_map(fn(s) {
-      case s.name {
-        Some(n) ->
-          case string.length(n) {
-            0 -> Error(Nil)
-            _ -> Ok(n)
-          }
-        None -> Error(Nil)
-      }
-    })
-  let used_set =
-    list.fold(used, dict.new(), fn(acc, n) { dict.insert(acc, n, True) })
-  case dict.get(used_set, requested) {
+  let #(_, used_names) = segment_name_inventory(store, current_id)
+  resolve_unique_segment_name_from_used_set(used_names, requested)
+}
+
+fn resolve_unique_segment_name_from_used_set(
+  used_names: Dict(String, Bool),
+  requested: String,
+) -> Result(String, segment_types.UserError) {
+  case dict.get(used_names, requested) {
     Error(_) -> Ok(requested)
     Ok(_) ->
       next_unique_candidate(
-        used_set,
+        used_names,
         increment_duplicate_segment_name(requested),
         10,
       )
   }
+}
+
+fn segment_name_inventory(
+  store: Store,
+  current_id: Option(String),
+) -> #(Int, Dict(String, Bool)) {
+  let deleted =
+    dict.merge(
+      store.base_state.deleted_segment_ids,
+      store.staged_state.deleted_segment_ids,
+    )
+  dict.merge(store.base_state.segments, store.staged_state.segments)
+  |> dict.fold(#(0, dict.new()), fn(acc, id, record) {
+    let #(count, names) = acc
+    case dict.get(deleted, id) {
+      Ok(_) -> acc
+      Error(_) -> {
+        let names = case current_id {
+          Some(current) if current == id -> names
+          _ ->
+            case record.name {
+              Some(name) ->
+                case string.length(name) > 0 {
+                  True -> dict.insert(names, name, True)
+                  False -> names
+                }
+              _ -> names
+            }
+        }
+        #(count + 1, names)
+      }
+    }
+  })
 }
 
 fn next_unique_candidate(

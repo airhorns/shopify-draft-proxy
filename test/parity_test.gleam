@@ -8,6 +8,7 @@
 
 import gleam/int
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import parity/diff
 import parity/discover
@@ -20,12 +21,53 @@ pub type Outcome {
   Failed(spec_path: String, message: String)
 }
 
-pub fn all_discovered_parity_specs_pass_test() {
+pub fn parity_specs_admin_to_discounts_pass_test() {
+  run_shard("admin-discounts")
+}
+
+pub fn parity_specs_events_to_metaobjects_pass_test() {
+  run_shard("events-metaobjects")
+}
+
+pub fn parity_specs_online_store_to_products_pass_test() {
+  run_shard("online-products")
+}
+
+pub fn parity_specs_saved_searches_to_webhooks_pass_test() {
+  run_shard("saved-webhooks")
+}
+
+pub fn parity_shards_cover_every_discovered_spec_test() {
   let assert Ok(discovered_paths) = discover.discover(parity_root)
   let spec_paths =
     discovered_paths
     |> list.map(repo_relative_path)
     |> list.sort(by: string.compare)
+  let unassigned =
+    list.filter(spec_paths, fn(path) {
+      case shard_for_domain(spec_domain(path)) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  case unassigned {
+    [] -> Nil
+    _ -> panic as render_section("unassigned parity specs", unassigned)
+  }
+}
+
+fn run_shard(label: String) {
+  let assert Ok(discovered_paths) = discover.discover(parity_root)
+  let spec_paths =
+    discovered_paths
+    |> list.map(repo_relative_path)
+    |> list.sort(by: string.compare)
+    |> list.filter(fn(path) {
+      case shard_for_domain(spec_domain(path)) {
+        Some(shard) -> shard == label
+        None -> False
+      }
+    })
   let outcomes = list.map(spec_paths, run_one)
 
   let failures =
@@ -39,8 +81,56 @@ pub fn all_discovered_parity_specs_pass_test() {
     })
 
   case failures {
-    [] -> Nil
-    _ -> panic as render_summary(failures)
+    [] ->
+      case spec_paths {
+        [] -> {
+          let message = "parity shard '" <> label <> "' matched no specs"
+          panic as message
+        }
+        _ -> Nil
+      }
+    _ -> panic as render_summary(label, failures)
+  }
+}
+
+fn spec_domain(path: String) -> String {
+  case string.split(path, on: "/") {
+    ["config", "parity-specs", domain, ..] -> domain
+    [domain, ..] -> domain
+    _ -> ""
+  }
+}
+
+fn shard_for_domain(domain: String) -> Option(String) {
+  case domain {
+    "admin-platform" -> Some("admin-discounts")
+    "apps" -> Some("admin-discounts")
+    "b2b" -> Some("admin-discounts")
+    "bulk-operations" -> Some("admin-discounts")
+    "customers" -> Some("admin-discounts")
+    "discounts" -> Some("admin-discounts")
+    "events" -> Some("events-metaobjects")
+    "functions" -> Some("events-metaobjects")
+    "gift-cards" -> Some("events-metaobjects")
+    "localization" -> Some("events-metaobjects")
+    "marketing" -> Some("events-metaobjects")
+    "markets" -> Some("events-metaobjects")
+    "media" -> Some("events-metaobjects")
+    "metafields" -> Some("events-metaobjects")
+    "metaobjects" -> Some("events-metaobjects")
+    "online-store-article-media-navigation-follow-through.json" ->
+      Some("online-products")
+    "online-store" -> Some("online-products")
+    "orders" -> Some("online-products")
+    "payments" -> Some("online-products")
+    "privacy" -> Some("online-products")
+    "products" -> Some("online-products")
+    "saved-searches" -> Some("saved-webhooks")
+    "segments" -> Some("saved-webhooks")
+    "shipping-fulfillments" -> Some("saved-webhooks")
+    "store-properties" -> Some("saved-webhooks")
+    "webhooks" -> Some("saved-webhooks")
+    _ -> None
   }
 }
 
@@ -78,10 +168,10 @@ fn first_line(message: String) -> String {
   }
 }
 
-fn render_summary(failures: List(String)) -> String {
+fn render_summary(shard: String, failures: List(String)) -> String {
   string.join(
     [
-      "Gleam parity corpus failed.",
+      "Gleam parity corpus failed for shard '" <> shard <> "'.",
       render_section("failures", failures),
     ],
     "\n",
