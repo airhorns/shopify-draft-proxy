@@ -1,0 +1,27 @@
+{
+  "scenarioId": "online-store/page-create-invalid-publish-date",
+  "operationNames": ["pageCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-invalid-publish-date.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-page-create.graphql",
+    "variablesCapturePath": "$.interactions[1].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify's pageCreate validation when a future publishDate is supplied with isPublished true. The mutation returns an INVALID publishDate userError and does not create a page.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "pageCreate rejects publishing with a future publishDate",
+        "capturePath": "$.interactions[1].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": ["$.page", "$.userErrors"]
+      }
+    ]
+  }
+}

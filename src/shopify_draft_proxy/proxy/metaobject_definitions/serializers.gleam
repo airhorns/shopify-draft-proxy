@@ -39,8 +39,8 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectRecord, type MetaobjectStandardTemplateRecord,
   MetaobjectDefinitionCapabilityRecord, MetaobjectOnlineStoreCapabilityRecord,
-  MetaobjectPublishableCapabilityRecord, MetaobjectStandardTemplateRecord,
-  MetaobjectString,
+  MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
+  MetaobjectStandardTemplateRecord, MetaobjectString,
 }
 
 pub fn wrap_data(data: Json) -> Json {
@@ -268,6 +268,13 @@ pub fn metaobject_source(
       store,
       metaobject,
     )
+  metaobject_source_from_projected(store, projected)
+}
+
+fn metaobject_source_from_projected(
+  store: Store,
+  projected: MetaobjectRecord,
+) -> SourceValue {
   let definition =
     find_effective_metaobject_definition_by_type(store, projected.type_)
   src_object([
@@ -306,6 +313,38 @@ pub fn serialize_metaobject_selection(
       metaobject,
     )
   let source = metaobject_source(store, projected)
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      json.object(
+        list.flat_map(selections, fn(selection) {
+          project_metaobject_selection(
+            store,
+            projected,
+            source,
+            selection,
+            fragments,
+          )
+        }),
+      )
+    _ -> source_to_json(source)
+  }
+}
+
+@internal
+pub fn serialize_metaobject_mutation_selection(
+  store: Store,
+  metaobject: MetaobjectRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let projected =
+    metaobject_definition_types.project_metaobject_through_definition(
+      store,
+      metaobject,
+    )
+  let projected =
+    MetaobjectRecord(..projected, display_name: metaobject.display_name)
+  let source = metaobject_source_from_projected(store, projected)
   case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
       json.object(

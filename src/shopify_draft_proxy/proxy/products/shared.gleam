@@ -455,6 +455,7 @@ pub fn job_source(id: String, done: Bool) -> SourceValue {
     #("__typename", SrcString("Job")),
     #("id", SrcString(id)),
     #("done", SrcBool(done)),
+    #("query", src_object([#("__typename", SrcString("QueryRoot"))])),
   ])
 }
 

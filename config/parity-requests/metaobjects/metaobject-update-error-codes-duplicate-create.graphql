@@ -1,0 +1,19 @@
+mutation MetaobjectUpdateErrorCodesDuplicateCreate($metaobject: MetaobjectCreateInput!) {
+  metaobjectCreate(metaobject: $metaobject) {
+    metaobject {
+      id
+      displayName
+      fields {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
