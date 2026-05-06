@@ -38,5 +38,5 @@
       }
     ]
   },
-  "notes": "HAR-686 executable local-runtime parity for gift-card mutation userError enum codes and Shopify input-nested field paths. A live probe with valid conformance credentials on Admin API 2025-01 and 2026-04 rejected `code` selection on `giftCardUpdate.userErrors` because that public schema path is typed as generic `UserError`; this runtime-backed scenario therefore encodes the ticket's typed enum-code contract directly. The request first stages a deterministic $5 CAD gift card locally, then strictly compares the create/update/credit/debit error paths without runtime Shopify writes."
+  "notes": "Executable local-runtime parity for gift-card mutation userError enum codes and Shopify input-nested field paths. A live probe with valid conformance credentials on Admin API 2025-01 and 2026-04 rejected `code` selection on `giftCardUpdate.userErrors` because that public schema path is typed as generic `UserError`; this runtime-backed scenario therefore encodes the local typed enum-code contract directly. The request first stages a deterministic $5 CAD gift card locally, then strictly compares the create/update/credit/debit error paths without runtime Shopify writes."
 }

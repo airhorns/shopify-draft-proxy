@@ -186,6 +186,7 @@ fn payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
+            gift_card_user_error_typename(payload_typename),
             graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
@@ -198,18 +199,36 @@ fn payload_field_entry(
 
 fn serialize_user_errors(
   user_errors: List(gift_card_types.UserError),
+  user_error_typename: String,
   selections: List(Selection),
   fragments: FragmentMap,
 ) -> Json {
   json.array(user_errors, fn(error) {
-    let source = user_error_to_source(error)
+    let source = user_error_to_source(error, user_error_typename)
     project_graphql_value(source, selections, fragments)
   })
 }
 
-fn user_error_to_source(error: gift_card_types.UserError) -> SourceValue {
+fn gift_card_user_error_typename(payload_typename: String) -> String {
+  case payload_typename {
+    "GiftCardCreatePayload" -> "GiftCardUserError"
+    "GiftCardCreditPayload" | "GiftCardDebitPayload" ->
+      "GiftCardTransactionUserError"
+    "GiftCardDeactivatePayload" -> "GiftCardDeactivateUserError"
+    "GiftCardSendNotificationToCustomerPayload" ->
+      "GiftCardSendNotificationToCustomerUserError"
+    "GiftCardSendNotificationToRecipientPayload" ->
+      "GiftCardSendNotificationToRecipientUserError"
+    "GiftCardUpdatePayload" | _ -> "UserError"
+  }
+}
+
+fn user_error_to_source(
+  error: gift_card_types.UserError,
+  user_error_typename: String,
+) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString(user_error_typename)),
     #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("code", graphql_helpers.option_string_source(error.code)),
     #("message", SrcString(error.message)),
