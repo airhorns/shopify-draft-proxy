@@ -2211,7 +2211,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["productFullSync", "ProductFullSync"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages product-feed sync acknowledgement locally for known staged feeds and returns captured unknown-id userErrors for absent feeds without runtime Shopify writes.",
+        "Stages product-feed sync kickoff locally for known staged feeds, returns a pollable local Job with done=false, and rejects absent feeds before runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -4902,7 +4902,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages mandate-payment jobs locally with current mandateId request-shape coverage, session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways or validating real mandate ownership.",
+        "Stages mandate-payment jobs locally with current mandateId request-shape coverage, session idempotency keys, Shopify-style order/idempotency paymentReferenceId values, autoCapture sale/authorization transaction kinds, and downstream order transaction/financial-status updates without contacting payment gateways or validating real mandate ownership.",
       ),
     ),
     RegistryEntry(

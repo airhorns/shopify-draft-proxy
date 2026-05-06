@@ -1,0 +1,42 @@
+{
+  "scenarioId": "order-create-mandate-payment-auto-capture-false",
+  "operationNames": ["orderCreate", "orderCreateMandatePayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "financial-status", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-payment-create-local-staging.graphql",
+    "variablesCapturePath": "$.mandateFlow.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "auto-capture-false-authorizes",
+        "capturePath": "$.mandateFlow.expected.autoCaptureFalse",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order_create_mandate_payment.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
+            "idempotencyKey": "har-848-auth-only",
+            "autoCapture": false,
+            "amount": {
+              "amount": "25.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime mandate payment parity for autoCapture: false. The proxy stages an AUTHORIZATION transaction and leaves the order authorized/capturable without sending the supported mutation upstream."
+}

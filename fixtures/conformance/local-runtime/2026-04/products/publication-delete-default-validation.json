@@ -1,0 +1,26 @@
+{
+  "fixtureKind": "local-runtime-publication-delete-default-validation",
+  "apiVersion": "2026-04",
+  "scenarios": {
+    "defaultOnlineStore": {
+      "variables": {
+        "id": "gid://shopify/Publication/1"
+      },
+      "response": {
+        "data": {
+          "publicationDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Cannot delete the default publication",
+                "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

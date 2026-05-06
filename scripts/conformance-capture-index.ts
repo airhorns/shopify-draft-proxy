@@ -458,7 +458,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-add-remove-validation-conformance.ts',
     purpose:
-      'Selling-plan group add/remove product and product-variant validation for unknown ids, duplicate membership, known non-member removal, and malformed removal ids.',
+      'Selling-plan group add/remove product and product-variant validation for unknown ids, unknown groups, duplicate membership, known non-member removal, and malformed removal ids.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-add-remove-validation.json`,
@@ -693,7 +693,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory'],
-    fixtureOutputs: [`${CAPTURE_ROOT}inventory-item-mutation-*.json`],
+    fixtureOutputs: [`${CAPTURE_ROOT}inventory-item-*.json`],
     cleanupBehavior: 'Creates disposable products to own inventory items and deletes those products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -1036,6 +1036,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-variant-media-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',
+    purpose:
+      'productVariantAppendMedia and productVariantDetachMedia validation for cross-product variants, cross-product media, non-ready media, and unattached detach targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variant-media-validation.json`,
+      'config/parity-specs/products/product_variant_append_media_validation.json',
+      'config/parity-requests/products/product-variant-media-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products plus disposable product media, then deletes both products during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2113,6 +2130,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-commit-history-fulfillment',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-commit-history-fulfillment-conformance.ts',
+    purpose:
+      'orderEditCommit downstream edit-history, fulfillment-order remaining quantity, and current totals/tax-line behavior after a quantity decrement plus variant addition.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-commit-history-and-fulfillment-orders.json`,
+      'config/parity-specs/orders/orderEditCommit-history-and-fulfillment-orders.json',
+      'config/parity-requests/orders/orderEditCommit-history-fulfillment-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable test order, commits one order edit, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-lifecycle-noop',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.mts',
@@ -2698,6 +2731,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'transaction-void-codes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-transaction-void-codes-conformance.ts',
+    purpose:
+      'transactionVoid TRANSACTION_NOT_FOUND, AUTH_NOT_SUCCESSFUL, and AUTH_NOT_VOIDABLE public userError code shapes.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}transaction-void-codes.json`,
+      'config/parity-specs/payments/transaction_void_codes.json',
+      'config/parity-requests/payments/transaction-void-codes-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders with capture and authorization transactions, captures void validation branches, captures one orderCapture setup, then cancels the disposable orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'finance-risk',
     scriptPath: 'scripts/capture-finance-risk-conformance.ts',
     purpose: 'Finance, risk, POS, dispute, and Shop Pay receipt read/access evidence.',
@@ -2934,6 +2984,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete the destination location after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-delete-inventory-action-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-delete-inventory-action-validation-conformance.ts',
+    purpose: 'fulfillmentServiceDelete KEEP/DELETE destinationLocationId validation and valid KEEP behavior.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-delete-inventory-action-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-delete-inventory-action-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete both created locations after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

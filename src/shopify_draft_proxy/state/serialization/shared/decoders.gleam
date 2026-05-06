@@ -592,9 +592,23 @@ pub fn payment_settings_decoder() -> Decoder(types.PaymentSettingsRecord) {
     "supportedDigitalWallets",
     decode.list(of: decode.string),
   )
+  use payment_gateways <- optional_field(
+    "paymentGateways",
+    [],
+    decode.list(of: payment_gateway_decoder()),
+  )
   decode.success(types.PaymentSettingsRecord(
     supported_digital_wallets: supported_digital_wallets,
+    payment_gateways: payment_gateways,
   ))
+}
+
+@internal
+pub fn payment_gateway_decoder() -> Decoder(types.PaymentGatewayRecord) {
+  use id <- decode.field("id", decode.string)
+  use name <- decode.field("name", decode.string)
+  use active <- optional_field("active", True, decode.bool)
+  decode.success(types.PaymentGatewayRecord(id: id, name: name, active: active))
 }
 
 @internal

@@ -1,0 +1,337 @@
+{
+  "scenarioId": "transaction_void_codes",
+  "capturedAt": "2026-05-06T04:58:34.493Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "operations": {
+    "createCaptureOrder": {
+      "query": "mutation TransactionVoidCodesOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "transaction-void-codes-capture-transaction-1778043512688@example.com",
+          "note": "transactionVoid code parity capture-transaction",
+          "test": true,
+          "lineItems": [
+            {
+              "title": "transactionVoid code parity capture-transaction",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "CAPTURE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8731628405042",
+              "name": "#1205",
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10418757599538",
+                  "kind": "CAPTURE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "voidCapture": {
+      "query": "mutation TransactionVoidCodesTransactionVoid($id: ID!) {\n  transactionVoid(parentTransactionId: $id) {\n    transaction {\n      id\n      kind\n      status\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/OrderTransaction/10418757599538"
+      },
+      "response": {
+        "data": {
+          "transactionVoid": {
+            "transaction": null,
+            "userErrors": [
+              {
+                "field": ["parentTransactionId"],
+                "message": "Parent transaction must be a successful authorization",
+                "code": "AUTH_NOT_SUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "voidMissing": {
+      "query": "mutation TransactionVoidCodesTransactionVoid($id: ID!) {\n  transactionVoid(parentTransactionId: $id) {\n    transaction {\n      id\n      kind\n      status\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/OrderTransaction/999999999999999999"
+      },
+      "response": {
+        "data": {
+          "transactionVoid": {
+            "transaction": null,
+            "userErrors": [
+              {
+                "field": ["parentTransactionId"],
+                "message": "Transaction does not exist",
+                "code": "TRANSACTION_NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createAuthorizationOrder": {
+      "query": "mutation TransactionVoidCodesOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "transaction-void-codes-captured-authorization-1778043512688@example.com",
+          "note": "transactionVoid code parity captured-authorization",
+          "test": true,
+          "lineItems": [
+            {
+              "title": "transactionVoid code parity captured-authorization",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8731628470578",
+              "name": "#1206",
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10418757665074",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "captureAuthorization": {
+      "query": "mutation TransactionVoidCodesOrderCapture($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8731628470578",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10418757665074",
+          "amount": "25.00",
+          "currency": "CAD"
+        }
+      },
+      "response": {
+        "data": {
+          "orderCapture": {
+            "transaction": {
+              "id": "gid://shopify/OrderTransaction/10418757697842",
+              "kind": "CAPTURE",
+              "status": "SUCCESS",
+              "parentTransaction": {
+                "id": "gid://shopify/OrderTransaction/10418757665074",
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "voidCapturedAuthorization": {
+      "query": "mutation TransactionVoidCodesTransactionVoid($id: ID!) {\n  transactionVoid(parentTransactionId: $id) {\n    transaction {\n      id\n      kind\n      status\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/OrderTransaction/10418757665074"
+      },
+      "response": {
+        "data": {
+          "transactionVoid": {
+            "transaction": null,
+            "userErrors": [
+              {
+                "field": ["parentTransactionId"],
+                "message": "Parent transaction require a parent_id referring to a voidable transaction",
+                "code": "AUTH_NOT_VOIDABLE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "gid://shopify/Order/8731628470578": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/bcd46e28-c5c9-4bd6-81d4-b48676da3311",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8731628405042": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/bcd46e28-c5c9-4bd6-81d4-b48676da3311",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

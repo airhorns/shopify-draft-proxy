@@ -182,11 +182,45 @@ still does not synthesize a broader staff catalog, but missing staff-member and
 staff-assignment IDs use Shopify's indexed user error paths and null payload
 shape for the failed list-valued fields.
 
-HAR-755 adds the B2B package's request-level bulk action guard before per-entry
-processing. The local bulk delete, role assignment/revoke, and location staff
-assignment/removal roots reject lists with more than 50 entries with a single
-`LIMIT_REACHED` userError at the bare top-level argument path and leave the
-staged B2B graph unchanged.
+The local runtime keeps a Business Customers request-level bulk action guard
+for the list-valued B2B package roots covered by focused runtime tests. That
+guard runs before per-entry processing, rejects lists with more than 50 entries
+with a single `LIMIT_REACHED` userError at the bare top-level argument path, and
+leaves the staged B2B graph unchanged.
+
+Live public Admin GraphQL evidence on `harry-test-heelo.myshopify.com` does not
+expose one uniform public contract for that internal guard on either 2025-01 or
+2026-04:
+
+- `companiesDelete(companyIds: <51 ids>)` returns a request-level
+  `LIMIT_REACHED` at `["companyIds"]`, but with Shopify's public message
+  `Exceeded max input size of 50. Consider using BulkOperation.` and
+  `deletedCompanyIds: null`.
+- `companyContactsDelete(companyContactIds: <51 valid ids>)` and
+  `companyLocationsDelete(companyLocationIds: <51 valid ids>)` delete all 51
+  records successfully. With 51 missing IDs, both roots process every entry and
+  return 51 indexed `RESOURCE_NOT_FOUND` userErrors rather than a request-size
+  limit.
+- `companyContactAssignRoles(rolesToAssign: <51 valid location-role specs>)`
+  succeeds and returns 51 role assignments.
+- `companyContactRevokeRoles(roleAssignmentIds: <51 valid ids>)` returns a
+  request-level `LIMIT_REACHED` at `["roleAssignmentIds"]`, with the public
+  max-input message and `revokedRoleAssignmentIds: null`.
+- `companyLocationAssignRoles(rolesToAssign: <51 valid contact-role specs>)`
+  returns the public max-input `LIMIT_REACHED` at `["rolesToAssign"]` with
+  `roleAssignments: null`. At 50 valid contact-role specs, the same live target
+  instead hits a company-location customer-assignment cap after 49 successes and
+  returns an indexed `LIMIT_REACHED` at `["rolesToAssign", "49"]`.
+- The current conformance credential still cannot read
+  `currentStaffMember` / `staffMembers`; missing `staffMemberIds` and missing
+  `companyLocationStaffMemberAssignmentIds` are processed per entry and return
+  indexed `RESOURCE_NOT_FOUND` userErrors, so valid-staff request-size evidence
+  remains access blocked on this host.
+
+Because those public branches differ by root, payload nullability, and message,
+checked-in parity specs should be added only for a specific root whose local
+behavior is intentionally aligned to the captured public branch. Do not add a
+single broad placeholder parity scenario for the internal package guard.
 
 HAR-756 extends the bulk role-assignment surfaces to match Shopify's
 partial-success behavior while preserving those indexed field paths.

@@ -75,8 +75,10 @@ Shared in-memory store helpers for cross-domain shop capability reads.
 
 - `shop_sells_subscriptions` reads the effective staged/base `ShopRecord.features.sellsSubscriptions` capability and defaults missing synthetic shop state to `False`
 - `set_shop_sells_subscriptions` configures the effective shop capability for tests and local-runtime parity scenarios without introducing ambient/global shop state
+- `payment_gateway_by_id` reads an opt-in synthetic shop payment gateway by ID from effective staged/base `ShopRecord.paymentSettings.paymentGateways`
+- `set_shop_payment_gateways` configures the effective shop payment gateway catalog for tests and local-runtime scenarios without introducing ambient/global shop state
 
-Use these helpers when validation depends on whether the synthetic shop sells subscriptions. Endpoint handlers should not add resource-local copies of the shop capability default.
+Use these helpers when validation depends on synthetic shop capabilities or installed payment-provider fixtures. Endpoint handlers should not add resource-local copies of shop capability defaults or gateway catalog lookups.
 
 ## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 
