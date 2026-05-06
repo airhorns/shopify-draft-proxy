@@ -1,0 +1,155 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "namespace": "constraint_update_motg0oyy",
+    "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
+    "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
+  },
+  "primary": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints.graphql",
+      "variables": {
+        "namespace": "constraint_update_motg0oyy",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
+        "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
+      }
+    },
+    "response": {
+      "data": {
+        "createDefinition": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "key": "tier",
+            "constraints": {
+              "key": null,
+              "values": {
+                "nodes": []
+              }
+            },
+            "pinnedPosition": null
+          },
+          "userErrors": []
+        },
+        "setConstraints": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "constraints": {
+              "key": "category",
+              "values": {
+                "nodes": [
+                  {
+                    "value": "ap-2"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "pinConstrained": {
+          "pinnedDefinition": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Constrained metafield definitions do not support pinning.",
+              "code": "UNSUPPORTED_PINNING"
+            }
+          ]
+        },
+        "updateConstraints": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "constraints": {
+              "key": "category",
+              "values": {
+                "nodes": [
+                  {
+                    "value": "ap-2-1"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "unconstrain": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "constraints": {
+              "key": null,
+              "values": {
+                "nodes": []
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "pinUnconstrained": {
+          "pinnedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206800159026",
+            "key": "tier",
+            "pinnedPosition": 3
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 88,
+          "actualQueryCost": 82,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1913,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfter": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints-read.graphql",
+      "variables": {
+        "namespace": "constraint_update_motg0oyy",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2",
+        "alternateCategoryId": "gid://shopify/TaxonomyCategory/ap-2-1"
+      }
+    },
+    "response": {
+      "data": {
+        "definition": {
+          "id": "gid://shopify/MetafieldDefinition/206800159026",
+          "key": "tier",
+          "constraints": {
+            "key": null,
+            "values": {
+              "nodes": []
+            }
+          },
+          "pinnedPosition": 3
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1914,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "deletedDefinitions": [
+      {
+        "id": "gid://shopify/MetafieldDefinition/206800159026",
+        "key": "tier"
+      }
+    ]
+  },
+  "upstreamCalls": []
+}
