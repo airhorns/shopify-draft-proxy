@@ -1939,6 +1939,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-theme-update-role-not-an-input',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-online-store-theme-update-validation-conformance.ts',
+    purpose: 'themeUpdate rejects fields that are not exposed by OnlineStoreThemeInput before resolver execution.',
+    requiredAuthScopes: ['authenticated_admin_graphql'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}theme-update-role-not-an-input.json`,
+      'config/parity-specs/online-store/theme_update_role_not_an_input.json',
+      'config/parity-requests/online-store/theme-update-role-not-an-input.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only schema capture; the dummy theme ID is never resolved and no live theme state is modified.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current conformance app is blocked from themeUpdate resolver writes by Shopify write_themes exemption requirements, so blank-name, valid-rename, and locked-theme resolver branches are covered by executable local-runtime parity.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-body-script-verbatim-2025-01',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',

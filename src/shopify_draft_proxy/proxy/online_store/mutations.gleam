@@ -1498,9 +1498,14 @@ fn update_theme(
         |> option.unwrap(dict.new())
       let role = case root {
         "themePublish" -> Some("MAIN")
-        _ -> serializers.input_string(input, "role")
+        _ -> None
       }
       let name = serializers.input_string(input, "name")
+      let update_blocked = root == "themeUpdate" && current_role == "LOCKED"
+      let blank_name = case root, name {
+        "themeUpdate", Some(value) -> string.trim(value) == ""
+        _, _ -> False
+      }
       case publish_blocked {
         True ->
           integration_payload_result(
@@ -1521,32 +1526,70 @@ fn update_theme(
             outcome.identity,
             [],
           )
-        False -> {
-          let data =
-            existing.data
-            |> serializers.maybe_insert_string("name", name)
-            |> serializers.maybe_insert_string("role", role)
-          let record = OnlineStoreIntegrationRecord(..existing, data: data)
-          let target_store = case root {
-            "themePublish" -> demote_previous_main_themes(outcome.store, id)
-            _ -> outcome.store
+        False ->
+          case update_blocked, blank_name {
+            True, _ ->
+              integration_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                root,
+                "theme",
+                [
+                  serializers.integration_user_error(
+                    "theme",
+                    ["id"],
+                    "Locked themes cannot be modified.",
+                    "CANNOT_UPDATE_LOCKED_THEME",
+                  ),
+                ],
+              )
+            _, True ->
+              integration_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                root,
+                "theme",
+                [
+                  serializers.integration_user_error(
+                    "theme",
+                    ["input", "name"],
+                    "Name can't be blank",
+                    "INVALID",
+                  ),
+                ],
+              )
+            False, False -> {
+              let data =
+                existing.data
+                |> serializers.maybe_insert_string("name", name)
+                |> serializers.maybe_insert_string("role", role)
+              let record = OnlineStoreIntegrationRecord(..existing, data: data)
+              let target_store = case root {
+                "themePublish" -> demote_previous_main_themes(outcome.store, id)
+                _ -> outcome.store
+              }
+              let #(_, store) =
+                store.upsert_staged_online_store_integration(
+                  target_store,
+                  record,
+                )
+              integration_payload_result(
+                outcome,
+                field,
+                fragments,
+                variables,
+                root,
+                "theme",
+                Some(record),
+                [],
+                store,
+                outcome.identity,
+                [id],
+              )
+            }
           }
-          let #(_, store) =
-            store.upsert_staged_online_store_integration(target_store, record)
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            root,
-            "theme",
-            Some(record),
-            [],
-            store,
-            outcome.identity,
-            [id],
-          )
-        }
       }
     }
     serializers.IntegrationInvalidId ->

@@ -1592,6 +1592,115 @@ pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
     == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
 }
 
+pub fn theme_update_rejects_role_input_at_schema_layer_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Role fixture\", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { role: MAIN }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(
+    update_json,
+    "\"message\":\"InputObject 'OnlineStoreThemeInput' doesn't accept argument 'role'\"",
+  )
+  assert string.contains(update_json, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(update_json, "\"argumentName\":\"role\"")
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Role fixture\"}}}"
+}
+
+pub fn theme_update_rejects_locked_theme_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Locked fixture\", role: LOCKED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { name: \"Renamed\" }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Locked themes cannot be modified.\",\"code\":\"CANNOT_UPDATE_LOCKED_THEME\"}]}}}"
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"LOCKED\",\"name\":\"Locked fixture\"}}}"
+}
+
+pub fn theme_update_rejects_blank_name_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Blank fixture\", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { name: \"   \" }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name can't be blank\",\"code\":\"INVALID\"}]}}}"
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Blank fixture\"}}}"
+}
+
+pub fn theme_update_valid_name_rename_still_stages_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Original fixture\", role: UNPUBLISHED) { theme { id role name } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let update =
+    "mutation { themeUpdate(id: \""
+    <> theme_id
+    <> "\", input: { name: \"Renamed fixture\" }) { theme { id role name } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"themeUpdate\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Renamed fixture\"},\"userErrors\":[]}}}"
+
+  let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Renamed fixture\"}}}"
+}
+
 pub fn theme_files_upsert_uses_body_checksum_size_and_validates_filename_test() {
   let proxy = draft_proxy.new()
   let create =

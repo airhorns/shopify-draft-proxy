@@ -1,0 +1,95 @@
+{
+  "scenarioId": "online-store/theme-update-validation-local-runtime",
+  "operationNames": ["themeCreate", "themeUpdate", "theme"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "read-after-write",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/theme-update-validation-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/theme-update-validation-create-unpublished.graphql",
+    "variablesCapturePath": "$.createRenamed.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-renamed-theme",
+        "capturePath": "$.createRenamed.response.payload.data.themeCreate",
+        "proxyPath": "$.data.themeCreate"
+      },
+      {
+        "name": "create-blank-theme",
+        "capturePath": "$.createBlank.response.payload.data.themeCreate",
+        "proxyPath": "$.data.themeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-update-validation-create-unpublished.graphql",
+          "variablesCapturePath": "$.createBlank.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-locked-theme",
+        "capturePath": "$.createLocked.response.payload.data.themeCreate",
+        "proxyPath": "$.data.themeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-update-validation-create-locked.graphql",
+          "variablesCapturePath": "$.createLocked.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "valid-rename-stages",
+        "capturePath": "$.rename.response.payload.data.themeUpdate",
+        "proxyPath": "$.data.themeUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-update-valid-rename.graphql",
+          "variablesCapturePath": "$.rename.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "blank-name-invalid",
+        "capturePath": "$.blank.response.payload.data.themeUpdate",
+        "proxyPath": "$.data.themeUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-update-blank-name-invalid.graphql",
+          "variablesCapturePath": "$.blank.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "locked-theme-rejected",
+        "capturePath": "$.locked.response.payload.data.themeUpdate",
+        "proxyPath": "$.data.themeUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-update-locked-rejected.graphql",
+          "variablesCapturePath": "$.locked.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "downstream-readback-after-validation",
+        "capturePath": "$.readback.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-update-validation-readback.graphql",
+          "variablesCapturePath": "$.readback.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for themeUpdate resolver behavior. The scenario earns theme state through replayed themeCreate requests, proves a valid rename stages locally, proves blank names and LOCKED themes return userErrors without mutating state, and verifies downstream theme reads after the rejected updates. The active live conformance credential receives Shopify ACCESS_DENIED for themeUpdate writes because write_themes plus exemption is required, so resolver branches are local-runtime-backed while the role-input schema rejection has separate live evidence."
+}
