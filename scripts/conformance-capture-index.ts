@@ -1827,6 +1827,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-deactivate-state-machine',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-deactivate-state-machine-conformance.mts',
+    purpose:
+      'locationDeactivate destination-location validation and source deactivation state-machine guards for same destination, inactive destination, active inventory, only-online fulfillment, and permanent deactivation block.',
+    requiredAuthScopes: ['read_locations', 'write_locations', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-deactivate-state-machine.json`,
+      'config/parity-specs/store-properties/location-deactivate-state-machine.json',
+      'config/parity-requests/store-properties/location-deactivate-state-machine*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable merchant-managed locations and a temporary product/inventory level, temporarily disables/restores online fulfillment on pre-existing locations for the only-online branch, then deactivates/deletes disposable locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
