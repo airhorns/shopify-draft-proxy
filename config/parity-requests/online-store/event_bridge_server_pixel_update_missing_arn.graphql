@@ -1,0 +1,12 @@
+mutation {
+  eventBridgeServerPixelUpdate {
+    serverPixel {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

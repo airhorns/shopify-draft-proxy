@@ -538,6 +538,72 @@ pub fn first_unknown_media_index(
   |> option.from_result
 }
 
+fn variant_media_variant_error(index: Int) -> ProductUserError {
+  ProductUserError(
+    ["variantMedia", int.to_string(index), "variantId"],
+    "Variant does not exist on the specified product.",
+    Some("PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"),
+  )
+}
+
+fn variant_media_product_media_error(input_index: Int) -> ProductUserError {
+  ProductUserError(
+    ["variantMedia", int.to_string(input_index), "mediaIds"],
+    "Media does not exist on the specified product.",
+    Some("MEDIA_DOES_NOT_EXIST_ON_PRODUCT"),
+  )
+}
+
+fn variant_media_processing_error(input_index: Int) -> ProductUserError {
+  ProductUserError(
+    ["variantMedia", int.to_string(input_index), "mediaIds"],
+    "Non-ready media cannot be attached to variants.",
+    Some("NON_READY_MEDIA"),
+  )
+}
+
+fn variant_media_unattached_error(input_index: Int) -> ProductUserError {
+  ProductUserError(
+    ["variantMedia", int.to_string(input_index), "variantId"],
+    "The specified media is not attached to the specified variant.",
+    Some("MEDIA_IS_NOT_ATTACHED_TO_VARIANT"),
+  )
+}
+
+fn variant_media_input_errors(
+  variant: ProductVariantRecord,
+  product_media: List(ProductMediaRecord),
+  media_ids: List(String),
+  input_index: Int,
+  is_append: Bool,
+) -> List(ProductUserError) {
+  list.fold(enumerate_strings(media_ids), [], fn(errors, entry) {
+    let #(media_id, _media_index) = entry
+    case find_media_by_id(product_media, media_id) {
+      None ->
+        list.append(errors, [
+          variant_media_product_media_error(input_index),
+        ])
+      Some(media) ->
+        case is_append, media.status {
+          True, Some("READY") -> errors
+          True, _ ->
+            list.append(errors, [
+              variant_media_processing_error(input_index),
+            ])
+          False, _ ->
+            case list.contains(variant.media_ids, media_id) {
+              True -> errors
+              False ->
+                list.append(errors, [
+                  variant_media_unattached_error(input_index),
+                ])
+            }
+        }
+    }
+  })
+}
+
 @internal
 pub fn product_update_media_payload(
   media: List(ProductMediaRecord),
@@ -814,9 +880,7 @@ pub fn stage_variant_media_memberships(
 ) -> #(Store, List(String), List(ProductUserError)) {
   let effective_variants =
     store.get_effective_variants_by_product_id(store, product_id)
-  let product_media_ids =
-    store.get_effective_media_by_product_id(store, product_id)
-    |> list.filter_map(media_record_id_result)
+  let product_media = store.get_effective_media_by_product_id(store, product_id)
   let #(next_variants, updated_variant_ids, user_errors) =
     list.fold(enumerate_items(inputs), #([], [], []), fn(acc, item) {
       let #(updated_variants, updated_ids, errors) = acc
@@ -828,32 +892,20 @@ pub fn stage_variant_media_memberships(
           updated_variants,
           updated_ids,
           list.append(errors, [
-            ProductUserError(
-              ["variantMedia", int.to_string(index), "variantId"],
-              "Variant does not exist",
-              None,
-            ),
+            variant_media_variant_error(index),
           ]),
         )
-        Some(variant) ->
-          case first_unknown_media_index(media_ids, product_media_ids) {
-            Some(media_index) -> #(
-              updated_variants,
-              updated_ids,
-              list.append(errors, [
-                ProductUserError(
-                  [
-                    "variantMedia",
-                    int.to_string(index),
-                    "mediaIds",
-                    int.to_string(media_index),
-                  ],
-                  "Media does not exist",
-                  None,
-                ),
-              ]),
+        Some(variant) -> {
+          let media_errors =
+            variant_media_input_errors(
+              variant,
+              product_media,
+              media_ids,
+              index,
+              is_append,
             )
-            None -> {
+          case media_errors {
+            [] -> {
               let next_media_ids = case is_append {
                 True ->
                   dedupe_preserving_order(list.append(
@@ -874,7 +926,13 @@ pub fn stage_variant_media_memberships(
                 errors,
               )
             }
+            _ -> #(
+              updated_variants,
+              updated_ids,
+              list.append(errors, media_errors),
+            )
           }
+        }
       }
     })
   case user_errors {

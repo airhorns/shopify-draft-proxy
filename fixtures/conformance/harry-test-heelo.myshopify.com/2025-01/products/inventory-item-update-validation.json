@@ -1,0 +1,277 @@
+{
+  "capturedAt": "2026-05-06T05:29:18.164Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "captures": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "hermes-inventory-item-update-validation-1778045359322",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177997013298",
+              "title": "hermes-inventory-item-update-validation-1778045359322",
+              "tracksInventory": false,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51129383977266",
+                    "inventoryQuantity": 0,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53232518824242",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "negativeCost": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/53232518824242",
+        "input": {
+          "cost": "-5.00"
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryItemUpdate": {
+            "inventoryItem": null,
+            "userErrors": [
+              {
+                "field": ["input", "cost"],
+                "message": "Cost must be greater than or equal to 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "negativeWeightValue": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/53232518824242",
+        "input": {
+          "measurement": {
+            "weight": {
+              "unit": "KILOGRAMS",
+              "value": -1
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryItemUpdate": {
+            "inventoryItem": null,
+            "userErrors": [
+              {
+                "field": ["input", "measurement", "weight"],
+                "message": "Measurement weight value -1 kg must be >= 0 kg"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidWeightUnit": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/53232518824242",
+        "input": {
+          "measurement": {
+            "weight": {
+              "unit": "STONES",
+              "value": 1
+            }
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type InventoryItemInput! was provided invalid value for measurement.weight.unit (Expected \"STONES\" to be one of: KILOGRAMS, GRAMS, POUNDS, OUNCES)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 52
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "measurement": {
+                  "weight": {
+                    "unit": "STONES",
+                    "value": 1
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["measurement", "weight", "unit"],
+                  "explanation": "Expected \"STONES\" to be one of: KILOGRAMS, GRAMS, POUNDS, OUNCES"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "invalidCountry": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/53232518824242",
+        "input": {
+          "countryCodeOfOrigin": "ZZ"
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryItemUpdate": {
+            "inventoryItem": null,
+            "userErrors": [
+              {
+                "field": ["input", "countryCodeOfOrigin"],
+                "message": "Country code of origin is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidHsCode": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/53232518824242",
+        "input": {
+          "harmonizedSystemCode": "12"
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryItemUpdate": {
+            "inventoryItem": null,
+            "userErrors": [
+              {
+                "field": ["input", "harmonizedSystemCode"],
+                "message": "Harmonized system code must be a number between six and thirteen digits"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/53232518824242"]
+      },
+      "query": "hand-synthesized from checked-in inventory item validation capture evidence",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/53232518824242",
+                "tracked": false,
+                "requiresShipping": true,
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51129383977266",
+                  "inventoryQuantity": 0,
+                  "product": {
+                    "id": "gid://shopify/Product/10177997013298",
+                    "title": "hermes-inventory-item-update-validation-1778045359322",
+                    "tracksInventory": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

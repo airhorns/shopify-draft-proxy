@@ -119,9 +119,28 @@ pub fn content_validation_error_payload(
   payload_key: String,
   error: graphql_helpers.SourceValue,
 ) -> #(String, Json, MutationOutcome) {
+  content_validation_errors_payload(
+    outcome,
+    field,
+    fragments,
+    root,
+    payload_key,
+    [error],
+  )
+}
+
+@internal
+pub fn content_validation_errors_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  root: String,
+  payload_key: String,
+  errors: List(graphql_helpers.SourceValue),
+) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let payload =
-    mutation_payload(field, fragments, payload_key, json.null(), [error])
+    mutation_payload(field, fragments, payload_key, json.null(), errors)
   #(
     key,
     payload,
@@ -176,13 +195,14 @@ pub fn make_content(
       input_bool(input, "isPublished"),
       source_bool_field(prior, "isPublished", True),
     )
-  let published_at = case is_published {
-    True ->
+  let input_publish_date = input_string(input, "publishDate")
+  let published_at = case input_publish_date {
+    Some(value) -> value
+    None ->
       option_string(
         source_optional_string_field(prior, "publishedAt"),
         timestamp,
       )
-    False -> ""
   }
   let source =
     base_source(prior, [
@@ -226,7 +246,11 @@ pub fn make_content(
       #("isPublished", SrcBool(is_published)),
       #("publishedAt", case is_published {
         True -> SrcString(published_at)
-        False -> SrcNull
+        False ->
+          case input_publish_date {
+            Some(_) -> SrcString(published_at)
+            None -> SrcNull
+          }
       }),
       #("templateSuffix", source_field(prior, "templateSuffix", SrcNull)),
       #("createdAt", source_field(prior, "createdAt", SrcString(timestamp))),
@@ -698,6 +722,7 @@ pub fn integration_projection_source(
             )),
           ),
         ),
+        #("event", SrcString(source_string_field(source, "event", "onload"))),
       ])
     "webPixel" ->
       base_source(without_source_field(source, "webhookEndpointAddress"), [
@@ -1298,6 +1323,7 @@ pub fn integration_user_error(
 pub fn integration_user_error_typename(kind: String) -> Option(String) {
   case kind {
     "webPixel" -> Some("WebPixelUserError")
+    "serverPixel" -> Some("ServerPixelUserError")
     "scriptTag" -> Some("ScriptTagUserError")
     "theme" -> Some("ThemeUserError")
     _ -> None

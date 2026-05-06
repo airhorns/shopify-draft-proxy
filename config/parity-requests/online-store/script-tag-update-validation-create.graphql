@@ -1,0 +1,16 @@
+mutation ScriptTagUpdateValidationCreate {
+  scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) {
+    scriptTag {
+      id
+      src
+      displayScope
+      event
+      cache
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

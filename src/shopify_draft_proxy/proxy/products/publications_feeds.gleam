@@ -27,7 +27,8 @@ import shopify_draft_proxy/proxy/products/product_types.{
 }
 import shopify_draft_proxy/proxy/products/products_core.{
   duplicate_product_metafields, enumerate_items, json_string_array_literal,
-  product_seo_source,
+  product_operation_user_error_source, product_seo_source,
+  slugify_product_handle,
 }
 import shopify_draft_proxy/proxy/products/products_validation.{
   product_price_range_source,
@@ -37,7 +38,7 @@ import shopify_draft_proxy/proxy/products/publications_core.{
   missing_variant_relationship_ids, product_feed_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, empty_connection_source, mutation_rejected_result,
+  count_source, empty_connection_source, job_source, mutation_rejected_result,
   mutation_result, nullable_field_user_errors_source, read_arg_object_list,
   read_int_field, read_object_field, read_object_list_field,
   read_string_argument, read_string_field, read_string_list_field,
@@ -51,19 +52,26 @@ import shopify_draft_proxy/proxy/products/variants_options_core.{
   optional_captured_json_source,
 }
 
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, make_synthetic_gid,
+  type SyntheticIdentityRegistry, make_proxy_synthetic_gid, make_synthetic_gid,
+  make_synthetic_timestamp,
 }
 import shopify_draft_proxy/state/types.{
   type ChannelRecord, type ProductFeedRecord, type ProductOperationRecord,
   type ProductOptionRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ShopResourceFeedbackRecord,
   ProductCollectionRecord, ProductFeedRecord, ProductOperationRecord,
-  ProductResourceFeedbackRecord, ShopResourceFeedbackRecord,
+  ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
+  ShopResourceFeedbackRecord,
 }
 
 // ===== from publications_l02 =====
+const feedback_batch_limit = 50
+
+const feedback_message_character_limit = 100
+
 @internal
 pub fn serialize_channel_root(
   store: Store,
@@ -240,6 +248,124 @@ pub fn make_shop_resource_feedback_record(
   }
 }
 
+fn product_feedback_validation_errors(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(ProductUserError) {
+  validate_feedback_input(input, ["feedback", int.to_string(index)])
+}
+
+fn shop_feedback_validation_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  validate_feedback_input(input, ["feedback"])
+}
+
+fn validate_feedback_input(
+  input: Dict(String, ResolvedValue),
+  field_path: List(String),
+) -> List(ProductUserError) {
+  []
+  |> list.append(validate_feedback_state(input, field_path))
+  |> list.append(validate_feedback_messages(input, field_path))
+  |> list.append(validate_feedback_generated_at(input, field_path))
+}
+
+fn validate_feedback_state(
+  input: Dict(String, ResolvedValue),
+  field_path: List(String),
+) -> List(ProductUserError) {
+  case read_string_field(input, "state") {
+    Some("ACCEPTED") | Some("REQUIRES_ACTION") -> []
+    Some(_) -> [
+      ProductUserError(
+        list.append(field_path, ["state"]),
+        "State is invalid",
+        Some("INVALID"),
+      ),
+    ]
+    None -> []
+  }
+}
+
+fn validate_feedback_messages(
+  input: Dict(String, ResolvedValue),
+  field_path: List(String),
+) -> List(ProductUserError) {
+  let messages =
+    read_string_list_field(input, "messages")
+    |> option.unwrap([])
+  let blank_errors = case read_string_field(input, "state"), messages {
+    Some("REQUIRES_ACTION"), [] -> [
+      ProductUserError(
+        list.append(field_path, ["messages"]),
+        "Messages can't be blank",
+        Some("BLANK"),
+      ),
+    ]
+    _, _ -> []
+  }
+  list.append(
+    blank_errors,
+    validate_feedback_message_lengths(messages, field_path),
+  )
+}
+
+fn validate_feedback_message_lengths(
+  messages: List(String),
+  field_path: List(String),
+) -> List(ProductUserError) {
+  messages
+  |> list.index_map(fn(message, index) {
+    case string.length(message) > feedback_message_character_limit {
+      True -> [
+        ProductUserError(
+          list.append(field_path, ["messages", int.to_string(index)]),
+          "Message is too long (maximum is "
+            <> int.to_string(feedback_message_character_limit)
+            <> " characters)",
+          Some("TOO_LONG"),
+        ),
+      ]
+      False -> []
+    }
+  })
+  |> list.flatten
+}
+
+fn validate_feedback_generated_at(
+  input: Dict(String, ResolvedValue),
+  field_path: List(String),
+) -> List(ProductUserError) {
+  case read_string_field(input, "feedbackGeneratedAt") {
+    Some(value) ->
+      case
+        iso_timestamp.parse_iso(value),
+        iso_timestamp.parse_iso(iso_timestamp.now_iso())
+      {
+        Ok(feedback_generated_at), Ok(now) ->
+          case feedback_generated_at > now {
+            True -> [
+              ProductUserError(
+                list.append(field_path, ["feedbackGeneratedAt"]),
+                "Feedback generated at must not be in the future",
+                Some("INVALID"),
+              ),
+            ]
+            False -> []
+          }
+        _, _ -> [
+          ProductUserError(
+            list.append(field_path, ["feedbackGeneratedAt"]),
+            "Feedback generated at is invalid",
+            Some("INVALID"),
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
 @internal
 pub fn product_feed_create_payload(
   feed: Option(ProductFeedRecord),
@@ -283,14 +409,20 @@ pub fn product_feed_delete_payload(
 @internal
 pub fn product_full_sync_payload(
   id: Option(String),
+  job_id: Option(String),
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
+  let job_value = case job_id {
+    Some(id) -> job_source(id, False)
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductFullSyncPayload")),
       #("id", graphql_helpers.option_string_source(id)),
+      #("job", job_value),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -300,6 +432,7 @@ pub fn product_full_sync_payload(
 
 @internal
 pub fn product_bundle_mutation_payload(
+  store: Store,
   root_name: String,
   operation: Option(ProductOperationRecord),
   user_errors: List(NullableFieldUserError),
@@ -314,7 +447,7 @@ pub fn product_bundle_mutation_payload(
     src_object([
       #("__typename", SrcString(typename)),
       #("productBundleOperation", case operation {
-        Some(operation) -> product_bundle_operation_source(operation)
+        Some(operation) -> product_bundle_operation_source(store, operation)
         None -> SrcNull
       }),
       #("userErrors", nullable_field_user_errors_source(user_errors)),
@@ -325,14 +458,43 @@ pub fn product_bundle_mutation_payload(
 }
 
 fn product_bundle_operation_source(
+  store: Store,
   operation: ProductOperationRecord,
 ) -> SourceValue {
   src_object([
     #("__typename", SrcString(operation.type_name)),
     #("id", SrcString(operation.id)),
     #("status", SrcString(operation.status)),
-    #("product", SrcNull),
+    #("product", case operation.status, operation.product_id {
+      "COMPLETE", Some(product_id) ->
+        case store.get_effective_product_by_id(store, product_id) {
+          Some(product) -> bundle_product_source(product)
+          None -> SrcNull
+        }
+      _, _ -> SrcNull
+    }),
+    #(
+      "userErrors",
+      SrcList(list.map(
+        operation.user_errors,
+        product_operation_user_error_source,
+      )),
+    ),
   ])
+}
+
+fn bundle_product_source(product: ProductRecord) -> SourceValue {
+  product_source_with_relationships(
+    product,
+    empty_connection_source(),
+    empty_connection_source(),
+    empty_connection_source(),
+    SrcList([]),
+    empty_connection_source(),
+    count_source(0),
+    "USD",
+    None,
+  )
 }
 
 @internal
@@ -662,42 +824,61 @@ pub fn handle_product_full_sync(
   case id {
     Some(feed_id) ->
       case store.get_effective_product_feed_by_id(store, feed_id) {
-        Some(_) ->
-          mutation_result(
-            key,
-            product_full_sync_payload(Some(feed_id), [], field, fragments),
-            store,
-            identity,
-            [feed_id],
-          )
-        None ->
+        Some(_) -> {
+          let #(job_id, next_identity) =
+            synthetic_identity.make_synthetic_gid(identity, "Job")
           mutation_result(
             key,
             product_full_sync_payload(
+              Some(feed_id),
+              Some(job_id),
+              [],
+              field,
+              fragments,
+            ),
+            store,
+            next_identity,
+            [feed_id, job_id],
+          )
+        }
+        None ->
+          mutation_rejected_result(
+            key,
+            product_full_sync_payload(
+              None,
               None,
               [
-                ProductUserError(["id"], "ProductFeed does not exist", None),
+                ProductUserError(
+                  ["id"],
+                  "ProductFeed does not exist",
+                  Some("NOT_FOUND"),
+                ),
               ],
               field,
               fragments,
             ),
             store,
             identity,
-            [],
           )
       }
     None ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         product_full_sync_payload(
           None,
-          [ProductUserError(["id"], "ProductFeed does not exist", None)],
+          None,
+          [
+            ProductUserError(
+              ["id"],
+              "ProductFeed does not exist",
+              Some("NOT_FOUND"),
+            ),
+          ],
           field,
           fragments,
         ),
         store,
         identity,
-        [],
       )
   }
 }
@@ -736,24 +917,37 @@ pub fn handle_product_bundle_mutation(
   }
   case user_errors {
     [] -> {
+      let #(next_store, identity_after_product, product_id) =
+        stage_product_bundle_product(
+          store,
+          identity,
+          root_name,
+          input,
+          existing_product,
+        )
       let #(operation_id, next_identity) =
-        make_synthetic_gid(identity, "ProductBundleOperation")
+        make_synthetic_gid(identity_after_product, "ProductBundleOperation")
       let completed_operation =
         ProductOperationRecord(
           id: operation_id,
           type_name: "ProductBundleOperation",
-          product_id: None,
+          product_id: product_id,
           new_product_id: None,
-          status: "ACTIVE",
+          status: "COMPLETE",
           user_errors: [],
         )
       let #(staged_operation, next_store) =
-        store.stage_product_operation(store, completed_operation)
+        store.stage_product_operation(next_store, completed_operation)
       let initial_operation =
-        ProductOperationRecord(..staged_operation, status: "CREATED")
+        ProductOperationRecord(
+          ..staged_operation,
+          product_id: None,
+          status: "CREATED",
+        )
       mutation_result(
         key,
         product_bundle_mutation_payload(
+          next_store,
           root_name,
           Some(initial_operation),
           [],
@@ -769,6 +963,7 @@ pub fn handle_product_bundle_mutation(
       mutation_rejected_result(
         key,
         product_bundle_mutation_payload(
+          store,
           root_name,
           None,
           user_errors,
@@ -778,6 +973,72 @@ pub fn handle_product_bundle_mutation(
         store,
         identity,
       )
+  }
+}
+
+fn stage_product_bundle_product(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  input: Dict(String, ResolvedValue),
+  existing_product: Option(ProductRecord),
+) -> #(Store, SyntheticIdentityRegistry, Option(String)) {
+  case root_name, existing_product {
+    "productBundleUpdate", Some(product) -> {
+      let #(updated_at, next_identity) = make_synthetic_timestamp(identity)
+      let next_product =
+        ProductRecord(
+          ..product,
+          title: read_string_field(input, "title")
+            |> option.unwrap(product.title),
+          updated_at: Some(updated_at),
+        )
+      let #(staged, next_store) =
+        store.upsert_staged_product(store, next_product)
+      #(next_store, next_identity, Some(staged.id))
+    }
+    "productBundleUpdate", None -> #(store, identity, None)
+    _, _ -> {
+      let #(created_at, identity_after_timestamp) =
+        make_synthetic_timestamp(identity)
+      let #(product_id, next_identity) =
+        make_proxy_synthetic_gid(identity_after_timestamp, "Product")
+      let title = read_string_field(input, "title") |> option.unwrap("Bundle")
+      let product =
+        ProductRecord(
+          id: product_id,
+          legacy_resource_id: None,
+          title: title,
+          handle: slugify_product_handle(title),
+          status: "ACTIVE",
+          vendor: None,
+          product_type: None,
+          tags: [],
+          price_range_min: None,
+          price_range_max: None,
+          total_variants: None,
+          has_only_default_variant: None,
+          has_out_of_stock_variants: None,
+          total_inventory: Some(0),
+          tracks_inventory: Some(False),
+          created_at: Some(created_at),
+          updated_at: Some(created_at),
+          published_at: None,
+          description_html: "",
+          online_store_preview_url: None,
+          template_suffix: None,
+          seo: ProductSeoRecord(title: None, description: None),
+          category: None,
+          publication_ids: [],
+          contextual_pricing: None,
+          cursor: None,
+          combined_listing_role: None,
+          combined_listing_parent_id: None,
+          combined_listing_child_ids: [],
+        )
+      let #(staged, next_store) = store.upsert_staged_product(store, product)
+      #(next_store, next_identity, Some(staged.id))
+    }
   }
 }
 
@@ -1547,78 +1808,116 @@ pub fn handle_bulk_product_resource_feedback_create(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let initial = #(store, identity, [], [], [])
-  let #(next_store, next_identity, feedback, user_errors, staged_ids) =
-    read_arg_object_list(args, "feedbackInput")
-    |> enumerate_items()
-    |> list.fold(initial, fn(acc, entry) {
-      let #(current_store, current_identity, records, errors, ids) = acc
-      let #(input, index) = entry
-      let #(record, identity_after_record) =
-        make_product_resource_feedback_record(current_identity, input)
-      case record {
-        Some(feedback_record) ->
-          case
-            store.get_effective_product_by_id(
-              current_store,
-              feedback_record.product_id,
-            )
-          {
-            Some(_) -> {
-              let #(staged, staged_store) =
-                store.upsert_staged_product_resource_feedback(
-                  current_store,
-                  feedback_record,
-                )
-              #(
-                staged_store,
-                identity_after_record,
-                list.append(records, [staged]),
-                errors,
-                list.append(ids, [staged.product_id]),
-              )
-            }
-            None -> #(
+  let inputs = read_arg_object_list(args, "feedbackInput")
+  case list.length(inputs) > feedback_batch_limit {
+    True ->
+      mutation_result(
+        key,
+        bulk_product_resource_feedback_create_payload(
+          [],
+          [
+            ProductUserError(
+              ["feedback"],
+              "Feedback cannot contain more than "
+                <> int.to_string(feedback_batch_limit)
+                <> " entries",
+              Some("TOO_LONG"),
+            ),
+          ],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+    False -> {
+      let initial = #(store, identity, [], [], [])
+      let #(next_store, next_identity, feedback, user_errors, staged_ids) =
+        inputs
+        |> enumerate_items()
+        |> list.fold(initial, fn(acc, entry) {
+          let #(current_store, current_identity, records, errors, ids) = acc
+          let #(input, index) = entry
+          let validation_errors =
+            product_feedback_validation_errors(input, index)
+          let #(record, identity_after_record) =
+            make_product_resource_feedback_record(current_identity, input)
+          case validation_errors {
+            [_, ..] -> #(
               current_store,
               identity_after_record,
               records,
-              list.append(errors, [
-                ProductUserError(
-                  ["feedbackInput", int.to_string(index), "productId"],
-                  "Product does not exist",
-                  None,
-                ),
-              ]),
+              list.append(errors, validation_errors),
               ids,
             )
+            [] ->
+              case record {
+                Some(feedback_record) ->
+                  case
+                    store.get_effective_product_by_id(
+                      current_store,
+                      feedback_record.product_id,
+                    )
+                  {
+                    Some(_) -> {
+                      let #(staged, staged_store) =
+                        store.upsert_staged_product_resource_feedback(
+                          current_store,
+                          feedback_record,
+                        )
+                      #(
+                        staged_store,
+                        identity_after_record,
+                        list.append(records, [staged]),
+                        errors,
+                        list.append(ids, [staged.product_id]),
+                      )
+                    }
+                    None -> #(
+                      current_store,
+                      identity_after_record,
+                      records,
+                      list.append(errors, [
+                        ProductUserError(
+                          ["feedback", int.to_string(index), "productId"],
+                          "Product does not exist",
+                          None,
+                        ),
+                      ]),
+                      ids,
+                    )
+                  }
+                None -> #(
+                  current_store,
+                  identity_after_record,
+                  records,
+                  list.append(errors, [
+                    ProductUserError(
+                      ["feedback", int.to_string(index), "productId"],
+                      "Product does not exist",
+                      None,
+                    ),
+                  ]),
+                  ids,
+                )
+              }
           }
-        None -> #(
-          current_store,
-          identity_after_record,
-          records,
-          list.append(errors, [
-            ProductUserError(
-              ["feedbackInput", int.to_string(index), "productId"],
-              "Product does not exist",
-              None,
-            ),
-          ]),
-          ids,
-        )
-      }
-    })
-  mutation_result(
-    key,
-    bulk_product_resource_feedback_create_payload(
-      feedback,
-      user_errors,
-      field,
-      fragments,
-    ),
-    next_store,
-    next_identity,
-    staged_ids,
-  )
+        })
+      mutation_result(
+        key,
+        bulk_product_resource_feedback_create_payload(
+          feedback,
+          user_errors,
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        staged_ids,
+      )
+    }
+  }
 }
 
 @internal
@@ -1633,31 +1932,16 @@ pub fn handle_shop_resource_feedback_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let validation_errors = shop_feedback_validation_errors(input)
   let #(record, next_identity) =
     make_shop_resource_feedback_record(identity, input)
-  case record {
-    Some(feedback) -> {
-      let #(staged, next_store) =
-        store.upsert_staged_shop_resource_feedback(store, feedback)
-      mutation_result(
-        key,
-        shop_resource_feedback_create_payload(
-          Some(staged),
-          [],
-          field,
-          fragments,
-        ),
-        next_store,
-        next_identity,
-        [staged.id],
-      )
-    }
-    None ->
+  case validation_errors {
+    [_, ..] ->
       mutation_result(
         key,
         shop_resource_feedback_create_payload(
           None,
-          [ProductUserError(["input", "state"], "State is invalid", None)],
+          validation_errors,
           field,
           fragments,
         ),
@@ -1665,5 +1949,43 @@ pub fn handle_shop_resource_feedback_create(
         next_identity,
         [],
       )
+    [] ->
+      case record {
+        Some(feedback) -> {
+          let #(staged, next_store) =
+            store.upsert_staged_shop_resource_feedback(store, feedback)
+          mutation_result(
+            key,
+            shop_resource_feedback_create_payload(
+              Some(staged),
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            [staged.id],
+          )
+        }
+        None ->
+          mutation_result(
+            key,
+            shop_resource_feedback_create_payload(
+              None,
+              [
+                ProductUserError(
+                  ["feedback", "state"],
+                  "State is invalid",
+                  Some("INVALID"),
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            next_identity,
+            [],
+          )
+      }
   }
 }

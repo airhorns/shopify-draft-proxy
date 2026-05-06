@@ -1,0 +1,93 @@
+{
+  "scenarioId": "product-feedback-validation-local-runtime",
+  "operationNames": ["bulkProductResourceFeedbackCreate", "shopResourceFeedbackCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "graphql-validation-parity",
+    "user-errors-parity",
+    "no-upstream-passthrough",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/product-feedback-validation-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-feedback-invalid-state.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product feedback invalid state enum coercion",
+        "capturePath": "$.productInvalidState.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code"]
+      },
+      {
+        "name": "product feedback requires messages",
+        "capturePath": "$.productBlankMessages.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.productBlankMessages.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product feedback rejects future generated-at",
+        "capturePath": "$.productFutureGeneratedAt.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.productFutureGeneratedAt.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product feedback rejects overlong message",
+        "capturePath": "$.productTooLongMessage.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.productTooLongMessage.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product feedback enforces batch cap",
+        "capturePath": "$.productBatchTooLong.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.productBatchTooLong.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop feedback invalid state enum coercion",
+        "capturePath": "$.shopInvalidState.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions.code"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/shop-feedback-invalid-state.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop feedback requires messages",
+        "capturePath": "$.shopBlankMessages.response.data.shopResourceFeedbackCreate",
+        "proxyPath": "$.data.shopResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/shop-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.shopBlankMessages.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime validation parity for product and shop resource feedback guardrails. Live success and resolver-level validation capture remains blocked by the conformance app's resource-feedback access and sales-channel configuration, so these cases pin the local supported-mutation contract while enum coercion remains schema-driven and no request proxies upstream."
+}

@@ -219,6 +219,17 @@
             "path": "$.id",
             "matcher": "shopify-gid:ProductBundleOperation",
             "reason": "The proxy reads back its locally staged synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
+          },
+          {
+            "path": "$.status",
+            "matcher": "exact-string:COMPLETE",
+            "reason": "Local bundle operations complete immediately after staging so clients can observe the terminal ProductBundleOperation without waiting on Shopify's job runner."
+          },
+          {
+            "path": "$.product",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Local bundle operations link to the staged bundle product on completion; the older 2025-01 capture returned null for this readback."
           }
         ],
         "proxyRequest": {

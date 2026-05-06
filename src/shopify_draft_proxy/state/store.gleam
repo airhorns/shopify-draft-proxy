@@ -118,6 +118,10 @@ pub const replace_staged_media_for_product = products.replace_staged_media_for_p
 
 pub const get_effective_media_by_product_id = products.get_effective_media_by_product_id
 
+pub const remove_media_ids_from_product_variants = products.remove_media_ids_from_product_variants
+
+pub const remove_media_ids_from_variants_for_products = products.remove_media_ids_from_variants_for_products
+
 pub const upsert_base_files = products.upsert_base_files
 
 pub const upsert_staged_files = products.upsert_staged_files
@@ -430,6 +434,8 @@ pub const get_effective_backup_region = admin_platform.get_effective_backup_regi
 
 pub const upsert_base_admin_platform_generic_nodes = admin_platform.upsert_base_admin_platform_generic_nodes
 
+pub const upsert_staged_admin_platform_generic_nodes = admin_platform.upsert_staged_admin_platform_generic_nodes
+
 pub const get_effective_admin_platform_generic_node_by_id = admin_platform.get_effective_admin_platform_generic_node_by_id
 
 pub const upsert_base_admin_platform_taxonomy_categories = admin_platform.upsert_base_admin_platform_taxonomy_categories
@@ -445,6 +451,10 @@ pub const stage_shop = admin_platform.stage_shop
 pub const get_effective_shop = admin_platform.get_effective_shop
 
 pub const shop_sells_subscriptions = admin_platform.shop_sells_subscriptions
+
+pub const payment_gateway_by_id = admin_platform.payment_gateway_by_id
+
+pub const set_shop_payment_gateways = admin_platform.set_shop_payment_gateways
 
 pub const set_shop_sells_subscriptions = admin_platform.set_shop_sells_subscriptions
 
@@ -644,19 +654,33 @@ pub const stage_delete_marketing_activity = marketing.stage_delete_marketing_act
 
 pub const stage_delete_all_external_marketing_activities = marketing.stage_delete_all_external_marketing_activities
 
+pub const stage_delete_all_external_marketing_activities_for_app = marketing.stage_delete_all_external_marketing_activities_for_app
+
 pub const get_effective_marketing_activity_record_by_id = marketing.get_effective_marketing_activity_record_by_id
+
+pub const get_effective_marketing_activity_record_by_id_for_app = marketing.get_effective_marketing_activity_record_by_id_for_app
 
 pub const get_effective_marketing_event_record_by_id = marketing.get_effective_marketing_event_record_by_id
 
+pub const get_effective_marketing_event_record_by_id_for_app = marketing.get_effective_marketing_event_record_by_id_for_app
+
 pub const get_effective_marketing_activity_by_remote_id = marketing.get_effective_marketing_activity_by_remote_id
+
+pub const get_effective_marketing_activity_by_remote_id_for_app = marketing.get_effective_marketing_activity_by_remote_id_for_app
 
 pub const list_effective_marketing_activities = marketing.list_effective_marketing_activities
 
+pub const list_effective_marketing_activities_for_app = marketing.list_effective_marketing_activities_for_app
+
 pub const list_effective_marketing_events = marketing.list_effective_marketing_events
+
+pub const list_effective_marketing_events_for_app = marketing.list_effective_marketing_events_for_app
 
 pub const has_staged_marketing_records = marketing.has_staged_marketing_records
 
 pub const has_marketing_delete_all_external_in_flight = marketing.has_marketing_delete_all_external_in_flight
+
+pub const has_marketing_delete_all_external_in_flight_for_app = marketing.has_marketing_delete_all_external_in_flight_for_app
 
 pub const stage_marketing_engagement = marketing.stage_marketing_engagement
 
@@ -664,9 +688,17 @@ pub const stage_delete_marketing_engagement = marketing.stage_delete_marketing_e
 
 pub const stage_delete_marketing_engagements_by_channel_handle = marketing.stage_delete_marketing_engagements_by_channel_handle
 
+pub const stage_delete_marketing_engagements_by_channel_handle_for_app = marketing.stage_delete_marketing_engagements_by_channel_handle_for_app
+
 pub const stage_delete_all_channel_marketing_engagements = marketing.stage_delete_all_channel_marketing_engagements
 
+pub const stage_delete_all_channel_marketing_engagements_for_app = marketing.stage_delete_all_channel_marketing_engagements_for_app
+
 pub const list_effective_marketing_engagements = marketing.list_effective_marketing_engagements
+
+pub const list_effective_marketing_engagements_for_app = marketing.list_effective_marketing_engagements_for_app
+
+pub const marketing_record_visible_to_api_client = marketing.record_visible_to_api_client
 
 pub const has_known_marketing_channel_handle = marketing.has_known_marketing_channel_handle
 

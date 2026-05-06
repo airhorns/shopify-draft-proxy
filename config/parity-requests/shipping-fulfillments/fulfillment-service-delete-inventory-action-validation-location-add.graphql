@@ -1,0 +1,13 @@
+mutation FulfillmentServiceDeleteInventoryActionValidationLocationAdd($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      isActive
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

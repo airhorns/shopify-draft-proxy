@@ -1,0 +1,125 @@
+{
+  "scenarioId": "online-store/mobile-platform-application-update-local-staging",
+  "operationNames": ["mobilePlatformApplicationCreate", "mobilePlatformApplicationUpdate", "mobilePlatformApplication"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "read-after-write",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/mobile-platform-application-update-local-staging.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-create.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mobile-platform-application-create-setup",
+        "capturePath": "$.expected.create.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "mobile-platform-application-update-apple",
+        "capturePath": "$.expected.appleUpdate.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-apple.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appleCreate.mobilePlatformApplication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mobile-platform-application-read-apple-after-update",
+        "capturePath": "$.expected.appleRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-read-apple.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appleCreate.mobilePlatformApplication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mobile-platform-application-update-android",
+        "capturePath": "$.expected.androidUpdate.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-android.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.androidCreate.mobilePlatformApplication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mobile-platform-application-read-android-after-update",
+        "capturePath": "$.expected.androidRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-read-android.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.androidCreate.mobilePlatformApplication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mobile-platform-application-update-validation",
+        "capturePath": "$.expected.validation.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "appleId": {
+              "fromPrimaryProxyPath": "$.data.appleCreate.mobilePlatformApplication.id"
+            },
+            "androidId": {
+              "fromPrimaryProxyPath": "$.data.androidCreate.mobilePlatformApplication.id"
+            },
+            "missingId": "gid://shopify/MobilePlatformApplication/9999999999"
+          }
+        }
+      },
+      {
+        "name": "mobile-platform-application-read-after-validation-failures",
+        "capturePath": "$.expected.readAfterValidation.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile-platform-application-update-read-after-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "appleId": {
+              "fromPrimaryProxyPath": "$.data.appleCreate.mobilePlatformApplication.id"
+            },
+            "androidId": {
+              "fromPrimaryProxyPath": "$.data.androidCreate.mobilePlatformApplication.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity coverage for mobilePlatformApplicationUpdate: Apple and Android input fields mutate staged records, downstream reads reflect the updates, wrong-platform input returns INVALID on mobilePlatformApplication, missing IDs return NOT_FOUND on id, and blank platform identifiers return BLANK on the platform-specific field paths without mutating existing records. The scenario uses an empty cassette because supported mobile platform application mutations stage locally and must not write upstream at runtime."
+}

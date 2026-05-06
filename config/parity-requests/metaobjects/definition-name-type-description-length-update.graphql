@@ -1,0 +1,23 @@
+mutation MetaobjectDefinitionScalarValidationUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      name
+      description
+      displayNameKey
+      fieldDefinitions {
+        key
+        name
+      }
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
