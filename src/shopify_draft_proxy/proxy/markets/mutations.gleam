@@ -16,11 +16,12 @@ import shopify_draft_proxy/proxy/markets/queries
 import shopify_draft_proxy/proxy/markets/serializers.{
   append_unique_strings, assigned_market_country_codes, captured_field,
   captured_json_source, captured_object_upsert, captured_string_field,
-  catalog_create_input_errors, catalog_data, catalog_update_input_errors,
-  delete_fixed_price_nodes, delete_quantity_rule_nodes, enumerate_dicts,
-  enumerate_strings, fixed_price_edge_variant_id, market_connection_from_ids,
-  market_data, market_handle_in_use, market_localization_payload,
-  market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
+  catalog_connection_from_ids, catalog_create_input_errors, catalog_data,
+  catalog_update_input_errors, delete_fixed_price_nodes,
+  delete_quantity_rule_nodes, enumerate_dicts, enumerate_strings,
+  fixed_price_edge_variant_id, market_connection_from_ids, market_data,
+  market_handle_in_use, market_localization_payload, market_name_in_use,
+  markets_log_draft, mutation_variant_ids, option_to_result,
   optional_captured_string, price_edges, price_list_currency, price_list_data,
   price_list_fixed_prices_by_product_user_error, price_list_input_errors,
   product_level_fixed_price_errors, product_payloads, project_record,
@@ -31,19 +32,20 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   result_to_option, string_array, translation_user_error,
   upsert_fixed_price_nodes, upsert_quantity_price_break_nodes,
   upsert_quantity_rule_nodes, user_error, user_error_with_typename,
-  valid_currency, variant_payloads,
+  valid_currency, variant_payloads, web_presence_connection_from_ids,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type MutationOutcome, MutationOutcome,
+  type LogDraft, type MutationOutcome, MutationOutcome, combine_error_lists,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type MarketLocalizableContentRecord,
-  type MarketLocalizationRecord, type PriceListRecord,
+  type MarketLocalizationRecord, type MarketRecord, type PriceListRecord,
   type ProductMetafieldRecord, type ShopDomainRecord, type WebPresenceRecord,
   CapturedArray, CapturedBool, CapturedNull, CapturedObject, CapturedString,
   CatalogRecord, MarketLocalizationRecord, MarketRecord, PriceListRecord,
@@ -373,13 +375,15 @@ fn market_create_input_errors(
   input: Dict(String, root_field.ResolvedValue),
   name: String,
 ) -> List(CapturedJsonValue) {
-  market_create_name_errors(name)
-  |> list.append(market_create_duplicate_name_errors(store, name))
-  |> list.append(market_create_status_enabled_errors(input))
-  |> list.append(market_create_handle_errors(store, input, None))
-  |> list.append(market_create_plan_limit_errors(store))
-  |> list.append(market_create_currency_errors(store, input))
-  |> list.append(market_create_region_errors(store, input))
+  combine_error_lists([
+    market_create_name_errors(name),
+    market_create_duplicate_name_errors(store, name),
+    market_create_status_enabled_errors(input),
+    market_create_handle_errors(store, input, None),
+    market_create_plan_limit_errors(store),
+    market_create_currency_errors(store, input),
+    market_create_region_errors(store, input),
+  ])
 }
 
 fn market_create_name_errors(name: String) -> List(CapturedJsonValue) {
@@ -570,24 +574,38 @@ fn handle_market_update(
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
         Some(existing) -> {
-          let data = market_data(store, id, input, Some(existing.data))
-          let #(_, next_store) =
-            store.upsert_staged_market(
-              store,
-              MarketRecord(id, existing.cursor, data),
-            )
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "marketUpdate",
-            "market",
-            data,
-            [],
-            next_store,
-            identity,
-            [id],
-          )
+          let errors = market_update_linkage_errors(store, input)
+          case errors {
+            [] -> {
+              let #(data, next_store) =
+                apply_market_update_linkage(store, existing, input)
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "marketUpdate",
+                "market",
+                data,
+                [],
+                next_store,
+                identity,
+                [id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "marketUpdate",
+                "market",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           not_found_mutation_result(
@@ -617,6 +635,237 @@ fn handle_market_update(
         identity,
       )
   }
+}
+
+fn market_update_linkage_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  [
+    missing_catalog_link_errors(store, input, "catalogsToAdd"),
+    missing_web_presence_link_errors(store, input, "webPresencesToAdd"),
+  ]
+  |> list.flatten
+}
+
+fn missing_catalog_link_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let missing =
+    read_arg_string_array(input, field_name)
+    |> option.unwrap([])
+    |> list.filter(fn(id) {
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  missing_customizations_error(field_name, missing)
+}
+
+fn missing_web_presence_link_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  let missing =
+    read_arg_string_array(input, field_name)
+    |> option.unwrap([])
+    |> list.filter(fn(id) {
+      case store.get_effective_web_presence_by_id(store, id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  missing_customizations_error(field_name, missing)
+}
+
+fn missing_customizations_error(
+  field_name: String,
+  missing_ids: List(String),
+) -> List(CapturedJsonValue) {
+  case missing_ids {
+    [] -> []
+    [_, ..] -> [
+      user_error(
+        ["input", field_name],
+        "The following customization IDs were not found: "
+          <> string.join(list.map(missing_ids, gid_tail_or_id), ", "),
+        "CUSTOMIZATIONS_NOT_FOUND",
+      ),
+    ]
+  }
+}
+
+fn gid_tail_or_id(id: String) -> String {
+  resource_ids.shopify_gid_tail(id) |> option.unwrap(id)
+}
+
+fn apply_market_update_linkage(
+  store: Store,
+  existing: MarketRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(CapturedJsonValue, Store) {
+  let catalog_ids =
+    read_connection_node_ids(existing.data, "catalogs")
+    |> append_unique_strings(
+      read_arg_string_array(input, "catalogsToAdd") |> option.unwrap([]),
+    )
+    |> remove_strings(
+      read_arg_string_array(input, "catalogsToDelete") |> option.unwrap([]),
+    )
+  let web_presence_ids =
+    read_connection_node_ids(existing.data, "webPresences")
+    |> append_unique_strings(
+      read_arg_string_array(input, "webPresencesToAdd") |> option.unwrap([]),
+    )
+    |> remove_strings(
+      read_arg_string_array(input, "webPresencesToDelete") |> option.unwrap([]),
+    )
+  let market_data =
+    market_data(store, existing.id, input, Some(existing.data))
+    |> captured_object_upsert([
+      #("catalogs", catalog_connection_from_ids(store, catalog_ids)),
+      #(
+        "webPresences",
+        web_presence_connection_from_ids(store, web_presence_ids),
+      ),
+    ])
+  let #(_, next_store) =
+    store.upsert_staged_market(
+      store,
+      MarketRecord(existing.id, existing.cursor, market_data),
+    )
+  let next_store =
+    sync_market_catalog_links(
+      next_store,
+      existing.id,
+      read_arg_string_array(input, "catalogsToAdd") |> option.unwrap([]),
+      read_arg_string_array(input, "catalogsToDelete") |> option.unwrap([]),
+    )
+  let next_store =
+    sync_market_web_presence_links(
+      next_store,
+      existing.id,
+      read_arg_string_array(input, "webPresencesToAdd") |> option.unwrap([]),
+      read_arg_string_array(input, "webPresencesToDelete") |> option.unwrap([]),
+    )
+  let market_data =
+    captured_object_upsert(market_data, [
+      #("catalogs", catalog_connection_from_ids(next_store, catalog_ids)),
+      #(
+        "webPresences",
+        web_presence_connection_from_ids(next_store, web_presence_ids),
+      ),
+    ])
+  let #(_, next_store) =
+    store.upsert_staged_market(
+      next_store,
+      MarketRecord(existing.id, existing.cursor, market_data),
+    )
+  #(market_data, next_store)
+}
+
+fn sync_market_catalog_links(
+  store: Store,
+  market_id: String,
+  add_ids: List(String),
+  delete_ids: List(String),
+) -> Store {
+  append_unique_strings(add_ids, delete_ids)
+  |> list.fold(store, fn(next_store, catalog) {
+    case store.get_effective_catalog_by_id(next_store, catalog) {
+      Some(record) -> {
+        let linked_market_ids =
+          read_connection_node_ids(record.data, "markets")
+          |> append_unique_strings(case list.contains(add_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+          |> remove_strings(case list.contains(delete_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+        let data =
+          captured_object_upsert(record.data, [
+            #(
+              "markets",
+              market_connection_from_ids(next_store, linked_market_ids),
+            ),
+          ])
+        let #(_, staged) =
+          store.upsert_staged_catalog(
+            next_store,
+            CatalogRecord(record.id, record.cursor, data),
+          )
+        staged
+      }
+      None -> next_store
+    }
+  })
+}
+
+fn sync_market_web_presence_links(
+  store: Store,
+  market_id: String,
+  add_ids: List(String),
+  delete_ids: List(String),
+) -> Store {
+  append_unique_strings(add_ids, delete_ids)
+  |> list.fold(store, fn(next_store, web_presence) {
+    case store.get_effective_web_presence_by_id(next_store, web_presence) {
+      Some(record) -> {
+        let linked_market_ids =
+          read_connection_node_ids(record.data, "markets")
+          |> append_unique_strings(case list.contains(add_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+          |> remove_strings(case list.contains(delete_ids, record.id) {
+            True -> [market_id]
+            False -> []
+          })
+        let data =
+          captured_object_upsert(record.data, [
+            #(
+              "markets",
+              market_connection_from_ids(next_store, linked_market_ids),
+            ),
+          ])
+        let #(_, staged) =
+          store.upsert_staged_web_presence(
+            next_store,
+            WebPresenceRecord(record.id, record.cursor, data),
+          )
+        staged
+      }
+      None -> next_store
+    }
+  })
+}
+
+fn read_connection_node_ids(
+  data: CapturedJsonValue,
+  field_name: String,
+) -> List(String) {
+  case captured_field(data, field_name) {
+    Some(connection) ->
+      case captured_field(connection, "nodes") {
+        Some(CapturedArray(nodes)) ->
+          nodes
+          |> list.filter_map(fn(node) {
+            captured_string_field(node, "id") |> option_to_result
+          })
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn remove_strings(base: List(String), removed: List(String)) -> List(String) {
+  list.filter(base, fn(item) { !list.contains(removed, item) })
 }
 
 fn handle_market_delete(
@@ -1061,12 +1310,12 @@ fn handle_price_list_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let errors = price_list_input_errors(input, None)
+  let errors = price_list_input_errors(store, input, None)
   case errors {
     [] -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "PriceList")
-      let data = price_list_data(id, input, None)
+      let data = price_list_data(store, id, input, None)
       let #(_, next_store) =
         store.upsert_staged_price_list(
           store,
@@ -1116,10 +1365,11 @@ fn handle_price_list_update(
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
         Some(existing) -> {
-          let errors = price_list_input_errors(input, Some(existing.data))
+          let errors =
+            price_list_input_errors(store, input, Some(existing.data))
           case errors {
             [] -> {
-              let data = price_list_data(id, input, Some(existing.data))
+              let data = price_list_data(store, id, input, Some(existing.data))
               let #(_, next_store) =
                 store.upsert_staged_price_list(
                   store,
@@ -1145,7 +1395,7 @@ fn handle_price_list_update(
                 fragments,
                 "priceListUpdate",
                 "priceList",
-                CapturedNull,
+                existing.data,
                 errors,
                 store,
                 identity,
@@ -1259,12 +1509,14 @@ fn handle_price_list_fixed_prices_add(
     option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
   let price_inputs = read_arg_object_array(args, "prices")
   let errors =
-    price_list_fixed_price_target_errors(price_list_id, price_list)
-    |> list.append(case price_list {
-      Some(existing) ->
-        fixed_price_input_errors(store, existing, price_inputs, "prices")
-      None -> []
-    })
+    combine_error_lists([
+      price_list_fixed_price_target_errors(price_list_id, price_list),
+      case price_list {
+        Some(existing) ->
+          fixed_price_input_errors(store, existing, price_inputs, "prices")
+        None -> []
+      },
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -1311,27 +1563,31 @@ fn handle_price_list_fixed_prices_update(
   let delete_variant_ids =
     read_arg_string_array(args, "variantIdsToDelete") |> option.unwrap([])
   let errors =
-    price_list_fixed_price_target_errors(price_list_id, price_list)
-    |> list.append(case price_list {
-      Some(existing) ->
-        fixed_price_input_errors(
-          store,
-          existing,
-          price_inputs,
-          price_input_field,
-        )
-        |> list.append(fixed_price_not_fixed_errors(
-          existing,
-          price_inputs,
-          price_input_field,
-        ))
-        |> list.append(fixed_price_delete_variant_errors(
-          store,
-          delete_variant_ids,
-          "variantIdsToDelete",
-        ))
-      None -> []
-    })
+    combine_error_lists([
+      price_list_fixed_price_target_errors(price_list_id, price_list),
+      case price_list {
+        Some(existing) ->
+          combine_error_lists([
+            fixed_price_input_errors(
+              store,
+              existing,
+              price_inputs,
+              price_input_field,
+            ),
+            fixed_price_not_fixed_errors(
+              existing,
+              price_inputs,
+              price_input_field,
+            ),
+            fixed_price_delete_variant_errors(
+              store,
+              delete_variant_ids,
+              "variantIdsToDelete",
+            ),
+          ])
+        None -> []
+      },
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -1385,12 +1641,14 @@ fn handle_price_list_fixed_prices_delete(
   let variant_ids =
     read_arg_string_array(args, "variantIds") |> option.unwrap([])
   let errors =
-    price_list_fixed_price_target_errors(price_list_id, price_list)
-    |> list.append(case price_list {
-      Some(_) ->
-        fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
-      None -> []
-    })
+    combine_error_lists([
+      price_list_fixed_price_target_errors(price_list_id, price_list),
+      case price_list {
+        Some(_) ->
+          fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
+        None -> []
+      },
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -1440,22 +1698,24 @@ fn handle_price_list_fixed_prices_by_product_update(
     read_arg_string_array(args, "pricesToDeleteByProductIds")
     |> option.unwrap([])
   let errors =
-    case price_list_id, price_list {
-      Some(_), Some(_) -> []
-      _, _ -> [
-        price_list_fixed_prices_by_product_user_error(
-          ["priceListId"],
-          "Price list does not exist.",
-          "PRICE_LIST_DOES_NOT_EXIST",
-        ),
-      ]
-    }
-    |> list.append(product_level_fixed_price_errors(
-      store,
-      price_list,
-      price_inputs,
-      delete_product_ids,
-    ))
+    combine_error_lists([
+      case price_list_id, price_list {
+        Some(_), Some(_) -> []
+        _, _ -> [
+          price_list_fixed_prices_by_product_user_error(
+            ["priceListId"],
+            "Price list does not exist.",
+            "PRICE_LIST_DOES_NOT_EXIST",
+          ),
+        ]
+      },
+      product_level_fixed_price_errors(
+        store,
+        price_list,
+        price_inputs,
+        delete_product_ids,
+      ),
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -2233,10 +2493,7 @@ fn market_localization_register_input_errors(
     Some(_), [], [] -> market_localization_value_errors(input, prefix)
     _, _, _ -> []
   }
-  market_errors
-  |> list.append(key_errors)
-  |> list.append(digest_errors)
-  |> list.append(value_errors)
+  combine_error_lists([market_errors, key_errors, digest_errors, value_errors])
 }
 
 fn market_localization_market_errors(
@@ -2376,14 +2633,77 @@ fn handle_market_localizations_remove(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
-  let errors = case resource_id {
+  let market_ids = read_arg_string_array(args, "marketIds") |> option.unwrap([])
+  let localization_keys =
+    read_arg_string_array(args, "marketLocalizationKeys") |> option.unwrap([])
+  case resource_id {
     Some(id) ->
       case store.find_effective_metafield_by_id(store, id) {
-        Some(_) -> []
-        None -> [resource_not_found_error(id)]
+        Some(_) -> {
+          let #(deleted_records, next_store) =
+            store.delete_staged_market_localizations(
+              store,
+              id,
+              market_ids,
+              localization_keys,
+            )
+          let deleted_payload = case deleted_records {
+            [] -> CapturedNull
+            _ ->
+              CapturedArray(
+                list.map(deleted_records, fn(record) {
+                  market_localization_payload(store, record)
+                }),
+              )
+          }
+          let staged_ids = case deleted_records {
+            [] -> []
+            _ -> [id]
+          }
+          mutation_payload_result(
+            key,
+            field,
+            fragments,
+            "marketLocalizationsRemove",
+            CapturedObject([
+              #("marketLocalizations", deleted_payload),
+              #("userErrors", CapturedArray([])),
+            ]),
+            next_store,
+            identity,
+            staged_ids,
+          )
+        }
+        None ->
+          market_localizations_remove_error_result(
+            key,
+            field,
+            fragments,
+            [translation_resource_not_found_error(id)],
+            store,
+            identity,
+          )
       }
-    None -> [resource_not_found_error("")]
+    None ->
+      market_localizations_remove_error_result(
+        key,
+        field,
+        fragments,
+        [translation_resource_not_found_error("")],
+        store,
+        identity,
+      )
   }
+}
+
+fn market_localizations_remove_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(CapturedJsonValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
   mutation_payload_result(
     key,
     field,
@@ -2396,14 +2716,6 @@ fn handle_market_localizations_remove(
     store,
     identity,
     [],
-  )
-}
-
-fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {
-  user_error(
-    ["resourceId"],
-    "Resource " <> resource_id <> " does not exist",
-    "RESOURCE_NOT_FOUND",
   )
 }
 
@@ -2795,18 +3107,17 @@ fn web_presence_update_errors(
   }
   let route_and_suffix_errors = case default_locale_errors {
     [] ->
-      list.append(
+      combine_error_lists([
         web_presence_update_route_errors(existing, input),
         web_presence_subfolder_suffix_errors(input),
-      )
+      ])
     _ -> []
   }
-  [
+  combine_error_lists([
     default_locale_errors,
     web_presence_alternate_locale_errors(input),
     route_and_suffix_errors,
-  ]
-  |> list.flatten
+  ])
 }
 
 fn web_presence_input_errors(

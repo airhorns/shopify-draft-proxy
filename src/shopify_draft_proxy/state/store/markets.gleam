@@ -106,6 +106,42 @@ pub fn upsert_staged_market_localizations(
   )
 }
 
+pub fn delete_staged_market_localizations(
+  store: Store,
+  resource_id: String,
+  market_ids: List(String),
+  localization_keys: List(String),
+) -> #(List(MarketLocalizationRecord), Store) {
+  let staged = store.staged_state
+  let deleted =
+    staged.market_localizations
+    |> dict.values
+    |> list.filter(fn(record) {
+      record.resource_id == resource_id
+      && list.contains(market_ids, record.market_id)
+      && list.contains(localization_keys, record.key)
+    })
+    |> sort_market_localization_records
+  let next_bucket =
+    list.fold(deleted, staged.market_localizations, fn(acc, record) {
+      dict.delete(
+        acc,
+        market_localization_key(
+          record.resource_id,
+          record.market_id,
+          record.key,
+        ),
+      )
+    })
+  #(
+    deleted,
+    Store(
+      ..store,
+      staged_state: StagedState(..staged, market_localizations: next_bucket),
+    ),
+  )
+}
+
 pub fn list_effective_market_localizations(
   store: Store,
   resource_id: String,
@@ -119,6 +155,13 @@ pub fn list_effective_market_localizations(
     record.resource_id == resource_id
     && !dict_has(store.staged_state.deleted_market_ids, record.market_id)
   })
+  |> sort_market_localization_records
+}
+
+fn sort_market_localization_records(
+  records: List(MarketLocalizationRecord),
+) -> List(MarketLocalizationRecord) {
+  records
   |> list.sort(fn(left, right) {
     case string.compare(left.market_id, right.market_id) {
       order.Eq -> string.compare(left.key, right.key)

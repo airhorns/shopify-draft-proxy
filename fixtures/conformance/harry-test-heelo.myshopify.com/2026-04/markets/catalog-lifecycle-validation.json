@@ -1,33 +1,31 @@
 {
-  "capturedAt": "2026-04-25T17:09:03.059Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "data": {
     "markets": {
       "nodes": [
         {
-          "id": "gid://shopify/Market/92276719922",
-          "name": "Canada"
+          "id": "gid://shopify/Market/92276785458",
+          "name": "International"
+        },
+        {
+          "id": "gid://shopify/Market/92276818226",
+          "name": "Mexico"
         }
       ]
-    }
-  },
-  "seed": {
-    "market": {
-      "id": "gid://shopify/Market/92276719922",
-      "name": "Canada"
     }
   },
   "cases": [
     {
       "name": "catalogCreateBlankTitle",
-      "query": "#graphql\nmutation CatalogCreateBlankTitle($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog { id }\n    userErrors { field message code }\n  }\n}",
+      "query": "#graphql\nmutation CatalogCreateBlankTitle($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "title": "",
           "status": "ACTIVE",
           "context": {
-            "marketIds": ["gid://shopify/Market/92276719922"]
+            "marketIds": ["gid://shopify/Market/92276785458"]
           }
         }
       },
@@ -45,13 +43,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1869,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "catalogUpdateUnknownId",
-      "query": "#graphql\nmutation CatalogUpdateUnknownId($id: ID!, $input: CatalogUpdateInput!) {\n  catalogUpdate(id: $id, input: $input) {\n    catalog { id }\n    userErrors { field message code }\n  }\n}",
+      "query": "#graphql\nmutation CatalogUpdateUnknownId($id: ID!, $input: CatalogUpdateInput!) {\n  catalogUpdate(id: $id, input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/MarketCatalog/999999999999",
         "input": {
@@ -72,17 +81,28 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1875,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "catalogContextUpdateUnknownId",
-      "query": "#graphql\nmutation CatalogContextUpdateUnknownId($catalogId: ID!, $contextsToAdd: CatalogContextInput) {\n  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd) {\n    catalog { id }\n    userErrors { field message code }\n  }\n}",
+      "query": "#graphql\nmutation CatalogContextUpdateUnknownId($catalogId: ID!, $contextsToAdd: CatalogContextInput) {\n  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "catalogId": "gid://shopify/MarketCatalog/999999999999",
         "contextsToAdd": {
-          "marketIds": ["gid://shopify/Market/92276719922"]
+          "marketIds": ["gid://shopify/Market/92276785458"]
         }
       },
       "response": {
@@ -99,13 +119,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1876,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "catalogDeleteUnknownId",
-      "query": "#graphql\nmutation CatalogDeleteUnknownId($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+      "query": "#graphql\nmutation CatalogDeleteUnknownId($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/MarketCatalog/999999999999"
       },
@@ -122,6 +153,17 @@
                   "code": "CATALOG_NOT_FOUND"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1876,
+                "restoreRate": 100
+              }
             }
           }
         }

@@ -1,0 +1,8 @@
+#graphql
+query BulkOperationsInvalidStatusUnknownValidation {
+  bulkOperations(first: 1, query: "status:NOT_A_STATUS") {
+    nodes {
+      id
+    }
+  }
+}

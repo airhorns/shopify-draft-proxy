@@ -221,6 +221,13 @@ pub fn shop_sells_subscriptions(store: Store) -> Bool {
   }
 }
 
+pub fn shop_discounts_by_market_enabled(store: Store) -> Bool {
+  case get_effective_shop(store) {
+    Some(shop) -> shop.features.discounts_by_market_enabled
+    None -> False
+  }
+}
+
 pub fn payment_gateway_by_id(
   store: Store,
   id: String,
@@ -288,6 +295,32 @@ pub fn set_shop_sells_subscriptions(
   }
 }
 
+pub fn set_shop_discounts_by_market_enabled(
+  store: Store,
+  discounts_by_market_enabled: Bool,
+) -> Store {
+  case store.staged_state.shop {
+    Some(shop) -> {
+      let shop =
+        shop_with_discounts_by_market_enabled(shop, discounts_by_market_enabled)
+      Store(
+        ..store,
+        staged_state: StagedState(..store.staged_state, shop: Some(shop)),
+      )
+    }
+    None -> {
+      let shop =
+        store.base_state.shop
+        |> option.unwrap(default_synthetic_shop())
+        |> shop_with_discounts_by_market_enabled(discounts_by_market_enabled)
+      Store(
+        ..store,
+        base_state: BaseState(..store.base_state, shop: Some(shop)),
+      )
+    }
+  }
+}
+
 fn shop_with_sells_subscriptions(
   shop: ShopRecord,
   sells_subscriptions: Bool,
@@ -298,6 +331,20 @@ fn shop_with_sells_subscriptions(
     features: types_mod.ShopFeaturesRecord(
       ..features,
       sells_subscriptions: sells_subscriptions,
+    ),
+  )
+}
+
+fn shop_with_discounts_by_market_enabled(
+  shop: ShopRecord,
+  discounts_by_market_enabled: Bool,
+) -> ShopRecord {
+  let features = shop.features
+  types_mod.ShopRecord(
+    ..shop,
+    features: types_mod.ShopFeaturesRecord(
+      ..features,
+      discounts_by_market_enabled: discounts_by_market_enabled,
     ),
   )
 }
@@ -404,6 +451,7 @@ fn default_shop_features() -> types_mod.ShopFeaturesRecord {
     live_view: False,
     paypal_express_subscription_gateway_status: "DISABLED",
     reports: False,
+    discounts_by_market_enabled: False,
     sells_subscriptions: False,
     show_metrics: False,
     storefront: False,

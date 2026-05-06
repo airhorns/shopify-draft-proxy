@@ -56,7 +56,7 @@
         "capturePath": "$.readyInventoryReadAfterWriteGraphql.data.inventoryItem",
         "proxyPath": "$.data.inventoryItem",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/products/inventory-transfer-inventory-read.graphql",
+          "documentPath": "config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql",
           "variablesCapturePath": "$.workflow.afterReadyInventoryRead.variables"
         }
       },
@@ -92,5 +92,5 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json"
   ],
   "runtimeTestFiles": ["tests/integration/inventory-transfer-flow.test.ts"],
-  "notes": "HAR-307 replays the captured Shopify draft create, ready transition, downstream inventory reservation read, cancel transition, and non-draft delete guardrail through the local proxy harness. The generic parity runner seeds the captured product-backed inventory item and origin/destination inventory levels before replay, while the runtime test continues to cover edit/set/remove/duplicate/delete draft branches, empty reads, validation guardrails, raw log ordering, and no runtime Shopify writes."
+  "notes": "Replays the captured Shopify draft create, ready transition, downstream inventory reservation read, cancel transition, and non-draft delete guardrail through the local proxy harness. The scenario earns its local product-backed inventory item and origin/destination inventory levels through cassette-backed upstream hydration before replay, while the runtime test continues to cover edit/set/remove/duplicate/delete draft branches, empty reads, validation guardrails, raw log ordering, and no runtime Shopify writes."
 }

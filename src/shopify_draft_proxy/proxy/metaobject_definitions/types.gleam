@@ -34,14 +34,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
   type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
+  type MetaobjectFieldDefinitionCapabilitiesRecord,
   type MetaobjectFieldDefinitionRecord,
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectRecord, MetaobjectBool,
   MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionCapabilitiesRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectFloat, MetaobjectInt, MetaobjectList, MetaobjectNull,
   MetaobjectObject, MetaobjectOnlineStoreCapabilityRecord,
@@ -56,6 +57,18 @@ const execution_name = "stage-locally"
 const metaobject_handle_max_length = 255
 
 const definition_column_size_limit = 255
+
+// These mirror Shopify's default entitlement caps. The proxy cannot know shop-
+// specific entitlement overrides locally, so it uses conservative defaults:
+// over-rejecting a custom-plan shop is preferable to staging writes that later
+// fail during commit.
+pub const default_max_merchant_definitions = 128
+
+pub const max_app_controlled_definitions = 128
+
+pub const default_max_admin_filterable_fields_per_definition = 40
+
+pub const default_max_metaobjects_per_type = 1_000_000
 
 const default_max_fields_per_definition = 40
 
@@ -253,6 +266,80 @@ pub fn build_create_definition_uniqueness_errors(
       None,
     ),
   )
+  |> append_definition_limit_user_errors(store, input, requesting_api_client_id)
+}
+
+@internal
+pub fn append_definition_limit_user_errors(
+  errors: List(UserError),
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  case normalized_definition_type_from_input(input, requesting_api_client_id) {
+    Some(type_) ->
+      append_if(
+        errors,
+        definition_count_after_create(store, type_) > definition_limit(type_),
+        max_definitions_exceeded_user_error(),
+      )
+    None -> errors
+  }
+}
+
+@internal
+pub fn definition_count_after_create(store: Store, type_: String) -> Int {
+  definition_count_for_cap_bucket(store, type_) + 1
+}
+
+@internal
+pub fn definition_count_for_cap_bucket(store: Store, type_: String) -> Int {
+  list_effective_metaobject_definitions(store)
+  |> list.filter(fn(definition) {
+    option.is_none(definition.standard_template)
+    && definition_in_same_limit_bucket(definition.type_, type_)
+  })
+  |> list.length
+}
+
+@internal
+pub fn definition_in_same_limit_bucket(
+  existing_type: String,
+  candidate_type: String,
+) -> Bool {
+  case app_controlled_api_client_id(candidate_type) {
+    Some(api_client_id) ->
+      app_controlled_api_client_id(existing_type) == Some(api_client_id)
+    None -> app_controlled_api_client_id(existing_type) == None
+  }
+}
+
+@internal
+pub fn definition_limit(type_: String) -> Int {
+  case app_controlled_api_client_id(type_) {
+    Some(_) -> max_app_controlled_definitions
+    None -> default_max_merchant_definitions
+  }
+}
+
+@internal
+pub fn app_controlled_api_client_id(type_: String) -> Option(String) {
+  case string.split(type_, "--") {
+    ["app", api_client_id, rest, ..] if api_client_id != "" && rest != "" ->
+      Some(api_client_id)
+    _ -> None
+  }
+}
+
+@internal
+pub fn max_definitions_exceeded_user_error() -> UserError {
+  UserError(
+    None,
+    "Maximum metaobject definitions has been exceeded",
+    "MAX_DEFINITIONS_EXCEEDED",
+    None,
+    None,
+  )
 }
 
 @internal
@@ -447,11 +534,42 @@ pub fn append_create_field_definition_input_errors(
       }
     })
   errors
-  |> append_field_count_user_errors(
-    list.length(values),
+  |> append_create_field_limit_user_errors(
+    values,
     normalized_type |> option.unwrap(""),
   )
   |> append_display_name_key_user_errors(display_name_key, keys)
+}
+
+@internal
+pub fn append_create_field_limit_user_errors(
+  errors: List(UserError),
+  values: List(root_field.ResolvedValue),
+  type_: String,
+) -> List(UserError) {
+  let fields = read_field_definitions(values)
+  append_definition_field_limit_user_errors(
+    errors,
+    list.length(values),
+    fields,
+    type_,
+  )
+}
+
+@internal
+pub fn append_definition_field_limit_user_errors(
+  errors: List(UserError),
+  field_count: Int,
+  fields: List(MetaobjectFieldDefinitionRecord),
+  type_: String,
+) -> List(UserError) {
+  case
+    admin_filterable_field_count(fields)
+    > default_max_admin_filterable_fields_per_definition
+  {
+    True -> append_admin_filterable_field_count_user_errors(errors, fields)
+    False -> append_field_count_user_errors(errors, field_count, type_)
+  }
 }
 
 @internal
@@ -546,6 +664,51 @@ pub fn append_field_count_user_errors(
       None,
       None,
     ),
+  )
+}
+
+@internal
+pub fn append_admin_filterable_field_count_user_errors(
+  errors: List(UserError),
+  fields: List(MetaobjectFieldDefinitionRecord),
+) -> List(UserError) {
+  append_if(
+    errors,
+    admin_filterable_field_count(fields)
+      > default_max_admin_filterable_fields_per_definition,
+    admin_filterable_field_count_user_error(),
+  )
+}
+
+@internal
+pub fn admin_filterable_field_count(
+  fields: List(MetaobjectFieldDefinitionRecord),
+) -> Int {
+  fields
+  |> list.filter(fn(field) { field_definition_admin_filterable_enabled(field) })
+  |> list.length
+}
+
+@internal
+pub fn field_definition_admin_filterable_enabled(
+  field: MetaobjectFieldDefinitionRecord,
+) -> Bool {
+  case field.capabilities.admin_filterable {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: True)) -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn admin_filterable_field_count_user_error() -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions"]),
+    "Maximum "
+      <> int.to_string(default_max_admin_filterable_fields_per_definition)
+      <> " admin-filterable fields per metaobject definition",
+    "INVALID",
+    None,
+    None,
   )
 }
 
@@ -729,7 +892,12 @@ fn apply_mutable_definition_update(
       access_errors,
       user_errors,
       capability_errors,
-      append_field_count_user_errors([], list.length(next_fields), type_),
+      append_definition_field_limit_user_errors(
+        [],
+        list.length(next_fields),
+        next_fields,
+        type_,
+      ),
       append_display_name_key_user_errors(
         [],
         display_name_key,
@@ -1160,6 +1328,10 @@ pub fn read_field_definition_input(
           infer_field_type_category(type_name),
         ),
         validations: read_validation_inputs(read_list(input, "validations")),
+        capabilities: read_field_definition_capabilities(read_object(
+          input,
+          "capabilities",
+        )),
       ))
     _, _ -> None
   }
@@ -1404,9 +1576,52 @@ pub fn merge_field_definition(
         )
       None -> existing.type_
     },
+    capabilities: case read_object(input, "capabilities") {
+      Some(capabilities) ->
+        merge_field_definition_capabilities(existing.capabilities, capabilities)
+      None -> existing.capabilities
+    },
     validations: case dict.get(input, "validations") {
       Ok(root_field.ListVal(values)) -> read_validation_inputs(values)
       _ -> existing.validations
+    },
+  )
+}
+
+@internal
+pub fn default_field_definition_capabilities() -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+  )
+}
+
+@internal
+pub fn read_field_definition_capabilities(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  case input {
+    Some(capabilities) ->
+      merge_field_definition_capabilities(
+        default_field_definition_capabilities(),
+        capabilities,
+      )
+    None -> default_field_definition_capabilities()
+  }
+}
+
+@internal
+pub fn merge_field_definition_capabilities(
+  existing: MetaobjectFieldDefinitionCapabilitiesRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: case read_object(input, "adminFilterable") {
+      Some(admin_filterable) ->
+        case read_bool(admin_filterable, "enabled") {
+          Some(enabled) -> Some(MetaobjectDefinitionCapabilityRecord(enabled))
+          None -> existing.admin_filterable
+        }
+      None -> existing.admin_filterable
     },
   )
 }
@@ -1464,6 +1679,43 @@ pub fn build_create_metaobject_user_errors(
       None,
       None,
     ),
+  )
+  |> append_metaobjects_per_type_user_errors(definition)
+}
+
+@internal
+pub fn append_metaobjects_per_type_user_errors(
+  errors: List(UserError),
+  definition: Option(MetaobjectDefinitionRecord),
+) -> List(UserError) {
+  case definition {
+    Some(definition) ->
+      append_if(
+        errors,
+        metaobjects_per_type_limit_reached(definition),
+        max_objects_exceeded_user_error(definition.type_),
+      )
+    None -> errors
+  }
+}
+
+@internal
+pub fn metaobjects_per_type_limit_reached(
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  option.is_none(definition.standard_template)
+  && option.unwrap(definition.metaobjects_count, 0)
+  >= default_max_metaobjects_per_type
+}
+
+@internal
+pub fn max_objects_exceeded_user_error(type_: String) -> UserError {
+  UserError(
+    None,
+    "Maximum metaobjects of type '" <> type_ <> "' has been exceeded",
+    "MAX_OBJECTS_EXCEEDED",
+    None,
+    None,
   )
 }
 

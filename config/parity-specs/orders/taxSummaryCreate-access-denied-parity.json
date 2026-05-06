@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "access-denied-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/taxSummaryCreate-access-denied-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/taxSummaryCreate-access-denied-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/taxSummaryCreate-access-denied-parity.graphql",

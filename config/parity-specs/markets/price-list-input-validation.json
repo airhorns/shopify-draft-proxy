@@ -1,0 +1,270 @@
+{
+  "scenarioId": "price-list-input-validation",
+  "operationNames": ["catalogCreate", "priceListCreate", "priceListUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-input-validation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "zero-adjustment-create-accepted",
+        "capturePath": "$.cases[1].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "negative-adjustment-create-invalid",
+        "capturePath": "$.cases[2].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "decrease-over-one-hundred-create-invalid",
+        "capturePath": "$.cases[3].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases[3].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "increase-over-one-thousand-create-invalid",
+        "capturePath": "$.cases[4].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases[4].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-adjustment-setup",
+        "capturePath": "$.cases[5].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases[5].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "update-decrease-over-one-hundred-invalid",
+        "capturePath": "$.cases[6].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-adjustment-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[6].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy returns the unchanged local staged price list, whose id is synthetic."
+          }
+        ]
+      },
+      {
+        "name": "create-mismatch-catalog-setup",
+        "capturePath": "$.cases[7].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[7].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[7].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "create-catalog-currency-mismatch-accepted",
+        "capturePath": "$.cases[8].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.cases[8].variables.input.name"
+              },
+              "currency": {
+                "fromCapturePath": "$.cases[8].variables.input.currency"
+              },
+              "parent": {
+                "fromCapturePath": "$.cases[8].variables.input.parent"
+              },
+              "catalogId": {
+                "fromProxyResponse": "create-mismatch-catalog-setup",
+                "path": "$.data.catalogCreate.catalog.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy links the price list to the locally staged catalog id."
+          }
+        ]
+      },
+      {
+        "name": "update-mismatch-catalog-setup",
+        "capturePath": "$.cases[9].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[9].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[9].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "update-mismatch-price-list-setup",
+        "capturePath": "$.cases[10].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.cases[10].variables.input.name"
+              },
+              "currency": {
+                "fromCapturePath": "$.cases[10].variables.input.currency"
+              },
+              "parent": {
+                "fromCapturePath": "$.cases[10].variables.input.parent"
+              },
+              "catalogId": {
+                "fromProxyResponse": "update-mismatch-catalog-setup",
+                "path": "$.data.catalogCreate.catalog.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy links the price list to the locally staged catalog id."
+          }
+        ]
+      },
+      {
+        "name": "update-catalog-currency-mismatch-accepted",
+        "capturePath": "$.cases[11].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-mismatch-price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[11].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy updates the locally staged price list, whose id is synthetic."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy preserves the locally staged catalog id on update."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for priceListCreate/priceListUpdate parent adjustment validation and catalog-linked currency behavior. Public Admin accepts zero percentage-decrease adjustments and catalog-linked price-list currency mismatches; negative adjustments and out-of-range percentage increase/decrease branches return one INVALID_ADJUSTMENT_VALUE error at input.parent.adjustment.value. The recorder creates disposable price lists and catalogs for success/update paths and deletes them during cleanup; parity replay uses cassette-backed markets reads and local supported mutation staging."
+}
