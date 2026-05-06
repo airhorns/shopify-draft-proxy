@@ -458,7 +458,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-add-remove-validation-conformance.ts',
     purpose:
-      'Selling-plan group add/remove product and product-variant validation for unknown ids, duplicate membership, known non-member removal, and malformed removal ids.',
+      'Selling-plan group add/remove product and product-variant validation for unknown ids, unknown groups, duplicate membership, known non-member removal, and malformed removal ids.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-add-remove-validation.json`,

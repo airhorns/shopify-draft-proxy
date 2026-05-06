@@ -602,7 +602,7 @@ pub fn product_join_selling_plan_groups_enforces_31_group_cap_test() {
   assert status == 200
   assert string.contains(
     serialized,
-    "\"code\":\"TOO_MANY_SELLING_PLAN_GROUPS\"",
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
   )
   assert store.list_effective_selling_plan_groups_for_product(
       next_proxy.store,
@@ -661,7 +661,7 @@ pub fn product_variant_join_selling_plan_groups_enforces_31_group_cap_test() {
   assert status == 200
   assert string.contains(
     serialized,
-    "\"code\":\"TOO_MANY_SELLING_PLAN_GROUPS\"",
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
   )
   assert store.list_effective_selling_plan_groups_for_product_variant(
       next_proxy.store,
@@ -692,6 +692,169 @@ pub fn product_variant_leave_selling_plan_groups_rejects_non_member_test() {
   assert status == 200
   assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
   assert string.contains(serialized, "\"code\":\"NOT_A_MEMBER\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn selling_plan_group_add_products_rejects_unknown_and_mixed_duplicate_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+          selling_plan_group(
+            "gid://shopify/SellingPlanGroup/one",
+            [
+              "gid://shopify/Product/optioned",
+            ],
+            [],
+          ),
+        ])
+        |> store.upsert_base_products([
+          ProductRecord(
+            ..default_product(),
+            id: "gid://shopify/Product/second",
+            title: "Second Board",
+            handle: "second-board",
+          ),
+        ]),
+    )
+
+  let unknown_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\"gid://shopify/SellingPlanGroup/one\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { sellingPlanGroup { id } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_query))
+  let unknown_serialized = json.to_string(unknown_body)
+
+  assert unknown_status == 200
+  assert string.contains(unknown_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(unknown_serialized, "\"field\":[\"productIds\"]")
+  assert string.contains(unknown_serialized, "\"code\":\"NOT_FOUND\"")
+
+  let duplicate_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\"gid://shopify/SellingPlanGroup/one\\\", productIds: [\\\"gid://shopify/Product/optioned\\\", \\\"gid://shopify/Product/second\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  let duplicate_serialized = json.to_string(duplicate_body)
+
+  assert duplicate_status == 200
+  assert string.contains(duplicate_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(duplicate_serialized, "\"code\":\"TAKEN\"")
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      proxy.store,
+      "gid://shopify/SellingPlanGroup/one",
+    )
+  assert group.product_ids == ["gid://shopify/Product/optioned"]
+}
+
+pub fn selling_plan_group_add_product_variants_rejects_mixed_duplicate_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+          selling_plan_group("gid://shopify/SellingPlanGroup/one", [], [
+            "gid://shopify/ProductVariant/default",
+          ]),
+        ])
+        |> store.upsert_base_product_variants([
+          ProductVariantRecord(
+            ..default_variant(),
+            id: "gid://shopify/ProductVariant/second",
+          ),
+        ]),
+    )
+  let query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\"gid://shopify/SellingPlanGroup/one\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\", \\\"gid://shopify/ProductVariant/second\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(serialized, "\"code\":\"TAKEN\"")
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/one",
+    )
+  assert group.product_variant_ids == ["gid://shopify/ProductVariant/default"]
+}
+
+pub fn selling_plan_group_add_products_enforces_31_group_cap_test() {
+  let existing_groups =
+    numbered_selling_plan_group_ids(31)
+    |> list.map(fn(id) {
+      selling_plan_group(id, ["gid://shopify/Product/optioned"], [])
+    })
+  let target_group =
+    selling_plan_group("gid://shopify/SellingPlanGroup/32", [], [])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([target_group, ..existing_groups]),
+    )
+  let query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\"gid://shopify/SellingPlanGroup/32\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(
+    serialized,
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
+  )
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/32",
+    )
+  assert group.product_ids == []
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn selling_plan_group_add_product_variants_enforces_31_group_cap_test() {
+  let existing_groups =
+    numbered_selling_plan_group_ids(31)
+    |> list.map(fn(id) {
+      selling_plan_group(id, [], ["gid://shopify/ProductVariant/default"])
+    })
+  let target_group =
+    selling_plan_group("gid://shopify/SellingPlanGroup/32", [], [])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([target_group, ..existing_groups]),
+    )
+  let query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\"gid://shopify/SellingPlanGroup/32\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(
+    serialized,
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
+  )
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/32",
+    )
+  assert group.product_variant_ids == []
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []

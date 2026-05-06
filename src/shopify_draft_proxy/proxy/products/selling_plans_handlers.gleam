@@ -35,6 +35,7 @@ import shopify_draft_proxy/proxy/products/products_handlers.{
 }
 import shopify_draft_proxy/proxy/products/selling_plans_core.{
   find_selling_plan, make_selling_plan_group_record,
+  max_selling_plan_group_memberships,
   product_variant_count_for_selling_plan_group, selling_plan_group_cursor,
   selling_plan_group_does_not_exist_error, selling_plan_group_staged_ids,
   serialize_selling_plans_connection,
@@ -1026,11 +1027,17 @@ fn selling_plan_group_add_product_errors(
         )
       })
     [] ->
-      case
-        requested != [] && all_ids_are_members(requested, group.product_ids)
-      {
+      case requested != [] && any_id_is_member(requested, group.product_ids) {
         True -> [resource_already_taken_error(["productIds"])]
-        False -> []
+        False ->
+          case
+            product_add_would_exceed_membership_cap(store, group, requested)
+          {
+            True -> [
+              too_many_selling_plan_groups_for_field_error(["productIds"]),
+            ]
+            False -> []
+          }
       }
   }
 }
@@ -1060,10 +1067,18 @@ fn selling_plan_group_add_variant_errors(
     [] ->
       case
         requested != []
-        && all_ids_are_members(requested, group.product_variant_ids)
+        && any_id_is_member(requested, group.product_variant_ids)
       {
         True -> [resource_already_taken_error(["productVariantIds"])]
-        False -> []
+        False ->
+          case
+            variant_add_would_exceed_membership_cap(store, group, requested)
+          {
+            True -> [
+              too_many_selling_plan_groups_for_field_error(["productVariantIds"]),
+            ]
+            False -> []
+          }
       }
   }
 }
@@ -1072,8 +1087,53 @@ fn resource_already_taken_error(field: List(String)) -> ProductUserError {
   ProductUserError(field, "Resource has already been taken", Some("TAKEN"))
 }
 
-fn all_ids_are_members(requested: List(String), members: List(String)) -> Bool {
-  list.all(requested, fn(id) { list.contains(members, id) })
+fn any_id_is_member(requested: List(String), members: List(String)) -> Bool {
+  list.any(requested, fn(id) { list.contains(members, id) })
+}
+
+fn product_add_would_exceed_membership_cap(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  requested: List(String),
+) -> Bool {
+  requested
+  |> list.any(fn(product_id) {
+    !list.contains(group.product_ids, product_id)
+    && {
+      store.list_effective_selling_plan_groups_for_product(store, product_id)
+      |> list.length
+    }
+    >= max_selling_plan_group_memberships
+  })
+}
+
+fn variant_add_would_exceed_membership_cap(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  requested: List(String),
+) -> Bool {
+  requested
+  |> list.any(fn(variant_id) {
+    !list.contains(group.product_variant_ids, variant_id)
+    && {
+      store.list_effective_selling_plan_groups_for_product_variant(
+        store,
+        variant_id,
+      )
+      |> list.length
+    }
+    >= max_selling_plan_group_memberships
+  })
+}
+
+fn too_many_selling_plan_groups_for_field_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "Cannot join more than 31 selling plan groups.",
+    Some("SELLING_PLAN_GROUPS_TOO_MANY"),
+  )
 }
 
 fn first_malformed_shopify_gid(
