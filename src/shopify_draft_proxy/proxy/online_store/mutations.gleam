@@ -1498,7 +1498,7 @@ fn create_script_tag(
       "input",
     )
     |> option.unwrap(dict.new())
-  let errors = script_tag_input_errors(input, True)
+  let errors = script_tag_input_errors(input, True, ["input"])
   case errors {
     [] -> {
       let display_scope =
@@ -1517,6 +1517,7 @@ fn create_script_tag(
             ),
           ),
           #("displayScope", SrcString(display_scope)),
+          #("event", SrcString("onload")),
           #(
             "cache",
             serializers.bool_source(
@@ -1565,7 +1566,7 @@ fn update_script_tag(
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case serializers.lookup_integration_by_id(outcome.store, "scriptTag", id) {
     serializers.IntegrationFound(existing) -> {
-      let errors = script_tag_input_errors(input, False)
+      let errors = script_tag_input_errors(input, False, [])
       case errors {
         [] -> {
           let display_scope =
@@ -1579,6 +1580,10 @@ fn update_script_tag(
               serializers.input_string(input, "src"),
             )
             |> serializers.maybe_insert_string("displayScope", display_scope)
+            |> serializers.captured_object_insert(
+              "event",
+              CapturedString("onload"),
+            )
             |> serializers.maybe_insert_bool(
               "cache",
               serializers.input_bool(input, "cache"),
@@ -1645,56 +1650,67 @@ fn update_script_tag(
 fn script_tag_input_errors(
   input: Dict(String, root_field.ResolvedValue),
   require_src: Bool,
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   list.append(
-    script_tag_src_errors(serializers.input_string(input, "src"), require_src),
-    script_tag_display_scope_errors(serializers.input_string(
-      input,
-      "displayScope",
-    )),
+    script_tag_src_errors(
+      serializers.input_string(input, "src"),
+      require_src,
+      field_prefix,
+    ),
+    script_tag_display_scope_errors(
+      serializers.input_string(input, "displayScope"),
+      field_prefix,
+    ),
   )
 }
 
 fn script_tag_src_errors(
   src: Option(String),
   require_src: Bool,
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   case src {
     None if require_src -> [
-      script_tag_user_error(["input", "src"], "Source can't be blank", "BLANK"),
+      script_tag_user_error(
+        script_tag_field_path(field_prefix, "src"),
+        "Source can't be blank",
+        "BLANK",
+      ),
     ]
     None -> []
     Some(value) ->
       case string.trim(value) {
         "" -> [
           script_tag_user_error(
-            ["input", "src"],
+            script_tag_field_path(field_prefix, "src"),
             "Source can't be blank",
             "BLANK",
           ),
         ]
-        _ -> validate_non_blank_script_tag_src(value)
+        _ -> validate_non_blank_script_tag_src(value, field_prefix)
       }
   }
 }
 
 fn validate_non_blank_script_tag_src(
   value: String,
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   case string.length(value) > 255 {
     True -> [
       script_tag_user_error(
-        ["input", "src"],
+        script_tag_field_path(field_prefix, "src"),
         "Source is too long (maximum is 255 characters)",
         "TOO_LONG",
       ),
     ]
     False ->
-      case script_tag_src_is_http_url(value) {
+      case script_tag_src_is_https_url(value) {
         True -> []
         False -> [
           script_tag_user_error(
-            ["input", "src"],
+            script_tag_field_path(field_prefix, "src"),
             "Source is invalid",
             "INVALID",
           ),
@@ -1703,16 +1719,17 @@ fn validate_non_blank_script_tag_src(
   }
 }
 
-fn script_tag_src_is_http_url(value: String) -> Bool {
+fn script_tag_src_is_https_url(value: String) -> Bool {
   case uri.parse(value) {
     Ok(uri.Uri(scheme: Some(scheme), host: Some(host), ..)) ->
-      { scheme == "http" || scheme == "https" } && string.trim(host) != ""
+      scheme == "https" && string.trim(host) != ""
     _ -> False
   }
 }
 
 fn script_tag_display_scope_errors(
   display_scope: Option(String),
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   case display_scope {
     None -> []
@@ -1721,13 +1738,20 @@ fn script_tag_display_scope_errors(
         Some(_) -> []
         None -> [
           script_tag_user_error(
-            ["input", "displayScope"],
+            script_tag_field_path(field_prefix, "displayScope"),
             "Display scope is not included in the list",
             "INCLUSION",
           ),
         ]
       }
   }
+}
+
+fn script_tag_field_path(
+  field_prefix: List(String),
+  field: String,
+) -> List(String) {
+  list.append(field_prefix, [field])
 }
 
 fn normalized_script_tag_display_scope(

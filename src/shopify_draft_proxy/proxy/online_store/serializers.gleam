@@ -698,6 +698,7 @@ pub fn integration_projection_source(
             )),
           ),
         ),
+        #("event", SrcString(source_string_field(source, "event", "onload"))),
       ])
     "webPixel" ->
       base_source(without_source_field(source, "webhookEndpointAddress"), [
