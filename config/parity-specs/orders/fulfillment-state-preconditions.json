@@ -1,0 +1,64 @@
+{
+  "scenarioId": "fulfillment-state-preconditions",
+  "operationNames": ["fulfillmentCancel", "fulfillmentTrackingInfoUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "user-errors-parity",
+    "mutation-lifecycle",
+    "runtime-staging",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql",
+    "variablesCapturePath": "$.cancelAlreadyCancelled.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancel-already-cancelled-user-error",
+        "capturePath": "$.cancelAlreadyCancelled.response.data.fulfillmentCancel",
+        "proxyPath": "$.data.fulfillmentCancel"
+      },
+      {
+        "name": "cancel-already-cancelled-does-not-log",
+        "capturePath": "$.cancelAlreadyCancelled.log",
+        "proxyLogPath": "$",
+        "selectedPaths": ["$.entries"]
+      },
+      {
+        "name": "tracking-cancelled-user-error",
+        "capturePath": "$.trackingAlreadyCancelled.response.data.fulfillmentTrackingInfoUpdate",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql",
+          "variablesCapturePath": "$.trackingAlreadyCancelled.variables"
+        }
+      },
+      {
+        "name": "cancel-delivered-user-error",
+        "capturePath": "$.cancelDelivered.response.data.fulfillmentCancel",
+        "proxyPath": "$.data.fulfillmentCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql",
+          "variablesCapturePath": "$.cancelDelivered.variables"
+        }
+      },
+      {
+        "name": "tracking-happy-path-contrast",
+        "capturePath": "$.trackingHappyPath.response.data.fulfillmentTrackingInfoUpdate",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql",
+          "variablesCapturePath": "$.trackingHappyPath.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for fulfillment state-machine preconditions. Public Admin API probes for these branches returned behavior that differed from the ticketed contract, so the scenario uses cassette-backed fulfillment hydration and the focused runtime test file as the source of executable local evidence without pre-seeding proxy state."
+}
