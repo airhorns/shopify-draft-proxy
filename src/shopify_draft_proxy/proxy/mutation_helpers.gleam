@@ -1532,6 +1532,7 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "PRICE_DESC",
     ]),
     #("CountryCode", country_code_values()),
+    #("WeightUnit", ["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"]),
     #("FulfillmentEventStatus", [
       "LABEL_PURCHASED",
       "LABEL_PRINTED",
@@ -1544,6 +1545,10 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "DELIVERED",
       "FAILURE",
       "CARRIER_PICKED_UP",
+    ]),
+    #("PublicationCreateInputPublicationDefaultState", [
+      "EMPTY",
+      "ALL_PRODUCTS",
     ]),
     #("TaxExemption", tax_exemption_values()),
   ])

@@ -1,0 +1,29 @@
+mutation DraftOrderCompletePaymentGatewayPathsComplete($id: ID!, $paymentGatewayId: ID, $paymentPending: Boolean) {
+  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId, paymentPending: $paymentPending) {
+    draftOrder {
+      id
+      status
+      order {
+        id
+        displayFinancialStatus
+        paymentGatewayNames
+        transactions {
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

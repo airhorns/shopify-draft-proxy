@@ -106,15 +106,92 @@ pub fn handle_draft_order_complete(
           case store.get_draft_order_by_id(hydrated_store, id) {
             Some(draft_order) -> {
               case read_string_arg(args, "paymentGatewayId") {
-                Some(_) -> {
-                  let payload =
-                    serialize_draft_order_mutation_payload(
-                      field,
-                      None,
-                      [inferred_user_error([], "Invalid payment gateway")],
-                      fragments,
+                Some(payment_gateway_id) -> {
+                  case
+                    store.payment_gateway_by_id(
+                      hydrated_store,
+                      payment_gateway_id,
                     )
-                  #(key, payload, store, identity, [], [], [])
+                  {
+                    Some(payment_gateway) ->
+                      case payment_gateway.active {
+                        True -> {
+                          let #(completed_draft_order, next_identity) =
+                            complete_draft_order(
+                              store,
+                              identity,
+                              draft_order,
+                              read_string_arg(args, "sourceName"),
+                              read_bool(args, "paymentPending", False),
+                              Some(payment_gateway),
+                            )
+                          let next_store =
+                            stage_completed_draft_order_graph(
+                              hydrated_store,
+                              completed_draft_order,
+                            )
+                          let payload =
+                            serialize_draft_order_mutation_payload(
+                              field,
+                              Some(completed_draft_order),
+                              [],
+                              fragments,
+                            )
+                          let draft =
+                            single_root_log_draft(
+                              "draftOrderComplete",
+                              [completed_draft_order.id],
+                              store_types.Staged,
+                              "orders",
+                              "stage-locally",
+                              Some(
+                                "Locally staged draftOrderComplete in shopify-draft-proxy.",
+                              ),
+                            )
+                          #(
+                            key,
+                            payload,
+                            next_store,
+                            next_identity,
+                            [completed_draft_order.id],
+                            [],
+                            [draft],
+                          )
+                        }
+                        False -> {
+                          let payload =
+                            serialize_draft_order_mutation_payload(
+                              field,
+                              None,
+                              [
+                                user_error(
+                                  ["paymentGatewayId"],
+                                  "payment_gateway_disabled",
+                                  Some(user_error_codes.invalid),
+                                ),
+                              ],
+                              fragments,
+                            )
+                          #(key, payload, hydrated_store, identity, [], [], [])
+                        }
+                      }
+                    None -> {
+                      let payload =
+                        serialize_draft_order_mutation_payload(
+                          field,
+                          None,
+                          [
+                            user_error(
+                              ["paymentGatewayId"],
+                              "payment_gateway_not_found",
+                              Some(user_error_codes.invalid),
+                            ),
+                          ],
+                          fragments,
+                        )
+                      #(key, payload, hydrated_store, identity, [], [], [])
+                    }
+                  }
                 }
                 None -> {
                   let #(completed_draft_order, next_identity) =
@@ -124,6 +201,7 @@ pub fn handle_draft_order_complete(
                       draft_order,
                       read_string_arg(args, "sourceName"),
                       read_bool(args, "paymentPending", False),
+                      None,
                     )
                   let next_store =
                     stage_completed_draft_order_graph(

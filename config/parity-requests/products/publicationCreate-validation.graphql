@@ -1,0 +1,13 @@
+#graphql
+mutation PublicationCreateValidation($input: PublicationCreateInput!) {
+  publicationCreate(input: $input) {
+    publication {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
