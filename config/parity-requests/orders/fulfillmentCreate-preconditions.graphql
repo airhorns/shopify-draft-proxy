@@ -1,0 +1,28 @@
+mutation FulfillmentCreatePreconditions($fulfillment: FulfillmentInput!, $message: String) {
+  fulfillmentCreate(fulfillment: $fulfillment, message: $message) {
+    fulfillment {
+      id
+      status
+      displayStatus
+      trackingInfo {
+        number
+        url
+        company
+      }
+      fulfillmentLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
