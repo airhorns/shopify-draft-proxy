@@ -227,6 +227,44 @@ pub fn quantity_rules_add_still_stages_valid_rules_test() {
     == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[{\"minimum\":2,\"maximum\":10,\"increment\":2,\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/4\"}}],\"userErrors\":[]}}}"
 }
 
+pub fn quantity_rules_add_rejects_maximum_below_existing_price_break_test() {
+  let proxy = product_bulk_fixed_price_proxy_with_quantity_break(10)
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      quantity_rules_add_mutation(
+        "gid://shopify/PriceList/test",
+        "gid://shopify/ProductVariant/test",
+        "minimum: 1, maximum: 5, increment: 1",
+      ),
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { priceList(id: \"gid://shopify/PriceList/test\") { quantityRules(first: 10) { edges { node { maximum productVariant { id } } } } } }",
+    )
+
+  assert status == 200
+  assert read_status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesAdd\":{\"quantityRules\":[],\"userErrors\":[{\"__typename\":\"QuantityRuleUserError\",\"field\":[\"quantityRules\",\"0\",\"maximum\"],\"message\":\"Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.\",\"code\":\"MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM\"}]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"priceList\":{\"quantityRules\":null}}}"
+}
+
+pub fn quantity_rules_delete_rejects_variant_without_existing_rule_test() {
+  let proxy = product_bulk_fixed_price_proxy()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { quantityRulesDelete(priceListId: \"gid://shopify/PriceList/test\", variantIds: [\"gid://shopify/ProductVariant/test\"]) { deletedQuantityRulesVariantIds userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"quantityRulesDelete\":{\"deletedQuantityRulesVariantIds\":[],\"userErrors\":[{\"field\":[\"variantIds\",\"0\"],\"message\":\"Quantity rule for variant associated with the price list provided does not exist.\",\"code\":\"VARIANT_QUANTITY_RULE_DOES_NOT_EXIST\"}]}}}"
+}
+
 fn quantity_rules_subject() -> #(DraftProxy, String, String) {
   let #(Response(status: product_status, body: product_body, ..), proxy) =
     graphql(
@@ -823,6 +861,22 @@ fn product_bulk_fixed_price_proxy() -> DraftProxy {
   product_bulk_fixed_price_proxy_with_fixed_edges(0)
 }
 
+fn product_bulk_fixed_price_proxy_with_quantity_break(
+  minimum_quantity: Int,
+) -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_products([product_bulk_fixed_price_product()])
+    |> store.upsert_base_product_variants([product_bulk_fixed_price_variant()])
+    |> store.upsert_base_price_lists([
+      product_bulk_fixed_price_list([
+        product_bulk_fixed_price_edge_with_quantity_break(minimum_quantity),
+      ]),
+    ])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
 fn product_bulk_fixed_price_proxy_with_fixed_edges(
   edge_count: Int,
 ) -> DraftProxy {
@@ -943,6 +997,47 @@ fn product_bulk_fixed_price_edge(index: Int) -> CapturedJsonValue {
         #("__typename", CapturedString("PriceListPrice")),
         #("originType", CapturedString("FIXED")),
         #("variant", CapturedObject([#("id", CapturedString(variant_id))])),
+      ]),
+    ),
+  ])
+}
+
+fn product_bulk_fixed_price_edge_with_quantity_break(
+  minimum_quantity: Int,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("cursor", CapturedString("gid://shopify/ProductVariant/test")),
+    #(
+      "node",
+      CapturedObject([
+        #("__typename", CapturedString("PriceListPrice")),
+        #("originType", CapturedString("FIXED")),
+        #(
+          "variant",
+          CapturedObject([
+            #("id", CapturedString("gid://shopify/ProductVariant/test")),
+          ]),
+        ),
+        #(
+          "quantityPriceBreaks",
+          CapturedObject([
+            #(
+              "edges",
+              CapturedArray([
+                CapturedObject([
+                  #("cursor", CapturedString("break")),
+                  #(
+                    "node",
+                    CapturedObject([
+                      #("__typename", CapturedString("QuantityPriceBreak")),
+                      #("minimumQuantity", CapturedInt(minimum_quantity)),
+                    ]),
+                  ),
+                ]),
+              ]),
+            ),
+          ]),
+        ),
       ]),
     ),
   ])

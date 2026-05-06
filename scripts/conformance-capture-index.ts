@@ -73,6 +73,25 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'b2b',
+    captureId: 'b2b-quantity-rules-extended-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-quantity-rules-extended-validation-conformance.mts',
+    purpose:
+      'B2B-backed price-list quantityRulesAdd maximum-vs-existing-price-break validation, missing-variant validation, and quantityRulesDelete no-existing-rule validation.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-rules-extended-validation.json`,
+      'config/parity-specs/b2b/quantity-rules-extended-validation.json',
+      'config/parity-requests/markets/quantity-pricing-by-variant-update.graphql',
+      'config/parity-requests/markets/quantity-rules-add-validation.graphql',
+      'config/parity-requests/markets/quantity-rules-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes any existing fixed quantity pricing for the configured variant, records validation failures, seeds a disposable quantity price break, captures the overlap validation failure, then deletes the seeded fixed quantity pricing.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-company-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
