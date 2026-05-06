@@ -672,27 +672,10 @@ pub fn catalog_context_object_errors(
   context: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_string_nonempty(context, "driverType") {
-    None -> [
-      user_error(
-        ["input", "context", "driverType"],
-        "Driver type is required",
-        "INVALID",
-      ),
-    ]
+    None -> catalog_market_context_errors(store, context)
     Some(driver_type) ->
       case driver_type {
-        "MARKET" -> {
-          case
-            require_catalog_context_ids(
-              context,
-              "marketIds",
-              "Market ids can't be blank",
-            )
-          {
-            Ok(ids) -> missing_market_context_errors(store, ids)
-            Error(errors) -> errors
-          }
-        }
+        "MARKET" -> catalog_market_context_errors(store, context)
         "COMPANY_LOCATION" -> {
           case
             require_catalog_context_ids(
@@ -730,6 +713,22 @@ pub fn catalog_context_object_errors(
           ),
         ]
       }
+  }
+}
+
+fn catalog_market_context_errors(
+  store: Store,
+  context: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case
+    require_catalog_context_ids(
+      context,
+      "marketIds",
+      "Market ids can't be blank",
+    )
+  {
+    Ok(ids) -> missing_market_context_errors(store, ids)
+    Error(errors) -> errors
   }
 }
 

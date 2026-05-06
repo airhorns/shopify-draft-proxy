@@ -808,8 +808,8 @@ fn handle_catalog_context_update(
                 CapturedNull,
                 [
                   user_error(
-                    [],
-                    "At least one context to add or remove is required",
+                    ["contextsToAdd"],
+                    "Must have `contexts_to_add` or `contexts_to_remove` argument.",
                     "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
                   ),
                 ],
@@ -838,11 +838,6 @@ fn handle_catalog_context_update(
                   "contextsToRemove",
                   remove_market_ids,
                 ))
-                |> list.append(catalog_context_market_taken_errors(
-                  store,
-                  id,
-                  add_market_ids,
-                ))
               case errors {
                 [] -> {
                   let remaining_market_ids =
@@ -851,7 +846,7 @@ fn handle_catalog_context_update(
                       !list.contains(remove_market_ids, market_id)
                     })
                   let market_ids =
-                    append_unique_strings(remaining_market_ids, add_market_ids)
+                    append_unique_strings(add_market_ids, remaining_market_ids)
                   let data =
                     captured_object_upsert(existing.data, [
                       #(
@@ -943,51 +938,6 @@ fn catalog_context_market_not_found_errors(
         ))
     }
   })
-}
-
-fn catalog_context_market_taken_errors(
-  store: Store,
-  catalog_id: String,
-  market_ids: List(String),
-) -> List(CapturedJsonValue) {
-  market_ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.filter_map(fn(entry) {
-    let #(id, index) = entry
-    case market_taken_by_other_market_catalog(store, catalog_id, id) {
-      False -> Error(Nil)
-      True ->
-        Ok(user_error(
-          ["contextsToAdd", "marketIds", int.to_string(index)],
-          "Market has already been taken",
-          "MARKET_TAKEN",
-        ))
-    }
-  })
-}
-
-fn market_taken_by_other_market_catalog(
-  store: Store,
-  catalog_id: String,
-  market_id: String,
-) -> Bool {
-  store.list_effective_catalogs(store)
-  |> list.any(fn(record) {
-    record.id != catalog_id
-    && catalog_driver_type_is_market(record.data)
-    && list.contains(catalog_market_ids(record.data), market_id)
-  })
-}
-
-fn catalog_driver_type_is_market(data: CapturedJsonValue) -> Bool {
-  case captured_string_field(data, "__typename") {
-    Some("MarketCatalog") -> True
-    _ ->
-      case captured_field(data, "markets") {
-        Some(_) -> True
-        None -> False
-      }
-  }
 }
 
 fn catalog_market_ids(data: CapturedJsonValue) -> List(String) {

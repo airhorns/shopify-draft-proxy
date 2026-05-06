@@ -1,0 +1,14 @@
+#graphql
+query CatalogContextUpdateRead($id: ID!) {
+  catalog(id: $id) {
+    title
+    status
+    ... on MarketCatalog {
+      markets(first: 5) {
+        nodes {
+          name
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,895 @@
+{
+  "capturedAt": "2026-05-06T18:14:56.166Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "catalogContextUpdate required-context validation, remove-only update, duplicate market add behavior, and catalog-not-found typing",
+  "setup": {
+    "suffix": "20260506181449",
+    "createdMarketIds": [
+      "gid://shopify/Market/97983136050",
+      "gid://shopify/Market/97983168818",
+      "gid://shopify/Market/97983201586",
+      "gid://shopify/Market/97983234354",
+      "gid://shopify/Market/97983267122"
+    ],
+    "createdCatalogIds": [
+      "gid://shopify/MarketCatalog/145748951346",
+      "gid://shopify/MarketCatalog/145748984114",
+      "gid://shopify/MarketCatalog/145749016882",
+      "gid://shopify/MarketCatalog/145749049650"
+    ],
+    "cleanup": "The capture creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order."
+  },
+  "cases": [
+    {
+      "name": "No ArgsMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalog Context No Args 20260506181449"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97983136050",
+                "name": "Catalog Context No Args 20260506181449",
+                "handle": "catalog-context-no-args-20260506181449",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "No ArgsCatalogCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog Context No Args Catalog 20260506181449",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": [
+              "gid://shopify/Market/97983136050"
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145748951346",
+                "title": "Catalog Context No Args Catalog 20260506181449",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97983136050",
+                      "name": "Catalog Context No Args 20260506181449"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogContextUpdateNoArgs",
+      "query": "#graphql\nmutation CatalogContextUpdateNoArgs(\n  $catalogId: ID!\n  $contextsToAdd: CatalogContextInput\n  $contextsToRemove: CatalogContextInput\n) {\n  catalogContextUpdate(\n    catalogId: $catalogId\n    contextsToAdd: $contextsToAdd\n    contextsToRemove: $contextsToRemove\n  ) {\n    catalog {\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/145748951346",
+        "contextsToAdd": null,
+        "contextsToRemove": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogContextUpdate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": [
+                    "contextsToAdd"
+                  ],
+                  "message": "Must have `contexts_to_add` or `contexts_to_remove` argument.",
+                  "code": "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Remove TargetMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalog Context Remove Target 20260506181449"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97983168818",
+                "name": "Catalog Context Remove Target 20260506181449",
+                "handle": "catalog-context-remove-target-20260506181449",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Remove RemainingMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalog Context Remove Remaining 20260506181449"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97983201586",
+                "name": "Catalog Context Remove Remaining 20260506181449",
+                "handle": "catalog-context-remove-remaining-20260506181449",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "RemovesCatalogCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog Context Removes Catalog 20260506181449",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": [
+              "gid://shopify/Market/97983168818",
+              "gid://shopify/Market/97983201586"
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145748984114",
+                "title": "Catalog Context Removes Catalog 20260506181449",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97983201586",
+                      "name": "Catalog Context Remove Remaining 20260506181449"
+                    },
+                    {
+                      "id": "gid://shopify/Market/97983168818",
+                      "name": "Catalog Context Remove Target 20260506181449"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogContextUpdateRemovesOnly",
+      "query": "#graphql\nmutation CatalogContextUpdateRemovesOnly($catalogId: ID!, $contextsToRemove: CatalogContextInput) {\n  catalogContextUpdate(catalogId: $catalogId, contextsToRemove: $contextsToRemove) {\n    catalog {\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/145748984114",
+        "contextsToRemove": {
+          "marketIds": [
+            "gid://shopify/Market/97983168818"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogContextUpdate": {
+              "catalog": {
+                "title": "Catalog Context Removes Catalog 20260506181449",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "name": "Catalog Context Remove Remaining 20260506181449"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogReadAfterRemove",
+      "query": "#graphql\nquery CatalogContextUpdateRead($id: ID!) {\n  catalog(id: $id) {\n    title\n    status\n    ... on MarketCatalog {\n      markets(first: 5) {\n        nodes {\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/145748984114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "title": "Catalog Context Removes Catalog 20260506181449",
+              "status": "ACTIVE",
+              "markets": {
+                "nodes": [
+                  {
+                    "name": "Catalog Context Remove Remaining 20260506181449"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Taken ExistingMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalog Context Taken Existing 20260506181449"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97983234354",
+                "name": "Catalog Context Taken Existing 20260506181449",
+                "handle": "catalog-context-taken-existing-20260506181449",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Taken TargetMarketCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Catalog Context Taken Target 20260506181449"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97983267122",
+                "name": "Catalog Context Taken Target 20260506181449",
+                "handle": "catalog-context-taken-target-20260506181449",
+                "status": "DRAFT",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Taken HolderCatalogCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog Context Taken Holder Catalog 20260506181449",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": [
+              "gid://shopify/Market/97983234354"
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145749016882",
+                "title": "Catalog Context Taken Holder Catalog 20260506181449",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97983234354",
+                      "name": "Catalog Context Taken Existing 20260506181449"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Taken TargetCatalogCreate",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog Context Taken Target Catalog 20260506181449",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": [
+              "gid://shopify/Market/97983267122"
+            ]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145749049650",
+                "title": "Catalog Context Taken Target Catalog 20260506181449",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97983267122",
+                      "name": "Catalog Context Taken Target 20260506181449"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogContextUpdateDuplicateAdd",
+      "query": "#graphql\nmutation CatalogContextUpdateDuplicateAdd($catalogId: ID!, $contextsToAdd: CatalogContextInput) {\n  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd) {\n    catalog {\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/145749049650",
+        "contextsToAdd": {
+          "marketIds": [
+            "gid://shopify/Market/97983234354"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogContextUpdate": {
+              "catalog": {
+                "title": "Catalog Context Taken Target Catalog 20260506181449",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "name": "Catalog Context Taken Existing 20260506181449"
+                    },
+                    {
+                      "name": "Catalog Context Taken Target 20260506181449"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogReadAfterDuplicateAdd",
+      "query": "#graphql\nquery CatalogContextUpdateRead($id: ID!) {\n  catalog(id: $id) {\n    title\n    status\n    ... on MarketCatalog {\n      markets(first: 5) {\n        nodes {\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/145749049650"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "title": "Catalog Context Taken Target Catalog 20260506181449",
+              "status": "ACTIVE",
+              "markets": {
+                "nodes": [
+                  {
+                    "name": "Catalog Context Taken Existing 20260506181449"
+                  },
+                  {
+                    "name": "Catalog Context Taken Target 20260506181449"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogContextUpdateCatalogNotFound",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogNotFound($catalogId: ID!, $contextsToAdd: CatalogContextInput) {\n  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd) {\n    catalog {\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/999999999999",
+        "contextsToAdd": {
+          "marketIds": [
+            "gid://shopify/Market/999999999999"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogContextUpdate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": [
+                    "catalogId"
+                  ],
+                  "message": "Catalog does not exist",
+                  "code": "CATALOG_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "kind": "catalog",
+      "id": "gid://shopify/MarketCatalog/145749049650",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145749049650",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "catalog",
+      "id": "gid://shopify/MarketCatalog/145749016882",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145749016882",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "catalog",
+      "id": "gid://shopify/MarketCatalog/145748984114",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145748984114",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "catalog",
+      "id": "gid://shopify/MarketCatalog/145748951346",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145748951346",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/97983267122",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97983267122",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/97983234354",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97983234354",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/97983201586",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97983201586",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/97983168818",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97983168818",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "market",
+      "id": "gid://shopify/Market/97983136050",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97983136050",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

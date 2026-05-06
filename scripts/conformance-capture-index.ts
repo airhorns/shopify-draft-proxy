@@ -1721,6 +1721,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'catalog-context-update-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-catalog-context-update-conformance.ts',
+    purpose:
+      'catalogContextUpdate required-context validation, remove-only context updates, duplicate market add behavior, catalog-not-found typing, and downstream catalog reads.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}catalog-context-update-lifecycle.json`,
+      'config/parity-specs/markets/catalog-context-update-no-args.json',
+      'config/parity-specs/markets/catalog-context-update-removes-only.json',
+      'config/parity-specs/markets/catalog-context-update-market-taken.json',
+      'config/parity-specs/markets/catalog-context-update-catalog-not-found.json',
+      'config/parity-requests/markets/catalog-context-update-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-localization-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',

@@ -930,7 +930,7 @@ pub fn catalog_create_requires_context_test() {
     == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\"],\"message\":\"Context is required\",\"code\":\"INVALID\"}]}}}"
 }
 
-pub fn catalog_create_requires_context_driver_type_test() {
+pub fn catalog_create_requires_market_ids_for_empty_context_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
       "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: {} }) { catalog { id } userErrors { field message code } } }",
@@ -938,7 +938,7 @@ pub fn catalog_create_requires_context_driver_type_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"driverType\"],\"message\":\"Driver type is required\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"marketIds\"],\"message\":\"Market ids can't be blank\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn catalog_create_validates_market_context_ids_test() {
@@ -1057,7 +1057,7 @@ pub fn catalog_context_update_requires_add_or_remove_contexts_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[],\"message\":\"At least one context to add or remove is required\",\"code\":\"REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE\"}]}}}"
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"contextsToAdd\"],\"message\":\"Must have `contexts_to_add` or `contexts_to_remove` argument.\",\"code\":\"REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE\"}]}}}"
 }
 
 pub fn catalog_context_update_removes_market_contexts_test() {
@@ -1115,7 +1115,7 @@ pub fn catalog_context_update_validates_missing_market_context_ids_test() {
     == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"contextsToAdd\",\"marketIds\",\"0\"],\"message\":\"Market does not exist\",\"code\":\"MARKET_NOT_FOUND\"},{\"field\":[\"contextsToRemove\",\"marketIds\",\"0\"],\"message\":\"Market does not exist\",\"code\":\"MARKET_NOT_FOUND\"}]}}}"
 }
 
-pub fn catalog_context_update_rejects_market_taken_by_same_driver_catalog_test() {
+pub fn catalog_context_update_allows_market_already_on_another_market_catalog_test() {
   let #(Response(status: _, body: _, ..), proxy) =
     graphql(
       "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
@@ -1148,10 +1148,10 @@ pub fn catalog_context_update_rejects_market_taken_by_same_driver_catalog_test()
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"contextsToAdd\",\"marketIds\",\"0\"],\"message\":\"Market has already been taken\",\"code\":\"MARKET_TAKEN\"}]}}}"
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/7\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"},{\"id\":\"gid://shopify/Market/3\"}]}},\"userErrors\":[]}}}"
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/7\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}}}}"
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/7\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"},{\"id\":\"gid://shopify/Market/3\"}]}}}}"
 }
 
 pub fn catalog_context_update_unknown_catalog_returns_typed_user_error_test() {
