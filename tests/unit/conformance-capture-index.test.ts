@@ -32,6 +32,12 @@ describe('conformance capture index', () => {
       expect(entry.purpose.length, entry.captureId).toBeGreaterThan(0);
       expect(entry.requiredAuthScopes.length, entry.captureId).toBeGreaterThan(0);
       expect(entry.fixtureOutputs.length, entry.captureId).toBeGreaterThan(0);
+      for (const output of entry.fixtureOutputs) {
+        expect(output, entry.captureId).toMatch(
+          /^(fixtures\/conformance\/|config\/parity-specs\/|config\/parity-requests\/|config\/|src\/)/u,
+        );
+        expect(output, entry.captureId).not.toContain('*');
+      }
       expect(entry.cleanupBehavior.length, entry.captureId).toBeGreaterThan(0);
       expect(entry.expectedStatusChecks.length, entry.captureId).toBeGreaterThan(0);
     }
