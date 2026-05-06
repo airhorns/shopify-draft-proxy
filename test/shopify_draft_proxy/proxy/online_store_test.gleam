@@ -10,7 +10,9 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
-  AccessScopeRecord, AppInstallationRecord, AppRecord,
+  type CapturedJsonValue, AccessScopeRecord, AppInstallationRecord, AppRecord,
+  CapturedArray, CapturedInt, CapturedObject, CapturedString,
+  OnlineStoreIntegrationRecord,
 }
 
 const comment_id: String = "gid://shopify/Comment/har-587"
@@ -319,6 +321,45 @@ fn proxy_with_current_app_scopes(scopes: List(String)) -> DraftProxy {
   DraftProxy(..proxy(), store: seeded_store)
 }
 
+fn captured_object_merge(
+  data: CapturedJsonValue,
+  entries: List(#(String, CapturedJsonValue)),
+) -> CapturedJsonValue {
+  case data {
+    CapturedObject(existing) -> CapturedObject(list.append(entries, existing))
+    _ -> CapturedObject(entries)
+  }
+}
+
+fn proxy_with_web_pixel_extension_declaration(proxy: DraftProxy) -> DraftProxy {
+  let assert [record] =
+    store.list_effective_online_store_integrations(proxy.store, "webPixel")
+  let record =
+    OnlineStoreIntegrationRecord(
+      ..record,
+      data: captured_object_merge(record.data, [
+        #("runtimeContexts", CapturedArray([CapturedString("LAX")])),
+        #(
+          "settingsDefinition",
+          CapturedObject([
+            #(
+              "accountID",
+              CapturedObject([
+                #("type", CapturedString("String")),
+                #("min", CapturedInt(3)),
+                #("max", CapturedInt(12)),
+                #("regex", CapturedString("^[a-z]+$")),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let #(_, seeded_store) =
+    store.upsert_staged_online_store_integration(proxy.store, record)
+  DraftProxy(..proxy, store: seeded_store)
+}
+
 pub fn storefront_access_token_create_returns_unique_token_scopes_and_shop_test() {
   let query =
     "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { id title accessToken accessScopes { handle } } shop { id } userErrors { code field message } } }"
@@ -499,6 +540,77 @@ pub fn web_pixel_update_and_delete_errors_use_web_pixel_user_error_test() {
   let #(delete_body, _) = run_graphql(proxy, delete_query)
   assert delete_body
     == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]}}}"
+}
+
+pub fn web_pixel_update_rejects_invalid_configuration_json_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"not json\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_CONFIGURATION_JSON\",\"field\":[\"settings\"]}]}}}"
+}
+
+pub fn web_pixel_update_rejects_invalid_runtime_context_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+  let proxy = proxy_with_web_pixel_extension_declaration(proxy)
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{}\", runtimeContext: \"STRICT\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_RUNTIME_CONTEXT\",\"field\":[\"webPixel\",\"runtimeContext\"]}]}}}"
+}
+
+pub fn web_pixel_update_rejects_invalid_declared_settings_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+  let proxy = proxy_with_web_pixel_extension_declaration(proxy)
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":123}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_SETTINGS\",\"field\":[\"settings\"]}]}}}"
+}
+
+pub fn web_pixel_update_rejects_setting_range_and_regex_violations_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { code field } } }"
+  let #(_, proxy) = run_graphql(proxy(), create_query)
+  let proxy = proxy_with_web_pixel_extension_declaration(proxy)
+
+  let range_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":\\\"ab\\\"}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(range_body, proxy) = run_graphql(proxy, range_query)
+  assert range_body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_SETTINGS\",\"field\":[\"settings\"]}]}}}"
+
+  let regex_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":\\\"ABC\\\"}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(regex_body, _) = run_graphql(proxy, regex_query)
+  assert regex_body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID_SETTINGS\",\"field\":[\"settings\"]}]}}}"
+}
+
+pub fn web_pixel_update_parses_settings_and_derives_status_test() {
+  let create_query =
+    "mutation { webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { code field } } }"
+  let #(create_body, proxy) = run_graphql(proxy(), create_query)
+  assert create_body
+    == "{\"data\":{\"webPixelCreate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\",\"status\":\"NEEDS_CONFIGURATION\",\"settings\":null},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\", webPixel: { settings: \"{\\\"accountID\\\":\\\"abc\\\"}\" }) { webPixel { id settings status } userErrors { __typename code field } } }"
+  let #(body, _) = run_graphql(proxy, update_query)
+  assert body
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":{\"id\":\"gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic\",\"settings\":{\"accountID\":\"abc\"},\"status\":\"CONNECTED\"},\"userErrors\":[]}}}"
 }
 
 pub fn online_store_integration_missing_ids_return_not_found_codes_test() {
