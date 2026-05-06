@@ -524,6 +524,32 @@ pub fn graphql_order_create_mandate_payment_missing_mandate_id_errors_test() {
     == "{\"errors\":[{\"message\":\"Field 'orderCreateMandatePayment' is missing required arguments: mandateId\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderCreateMandatePayment\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderCreateMandatePayment\",\"arguments\":\"mandateId\"}}]}"
 }
 
+pub fn graphql_order_edit_add_custom_item_missing_required_title_errors_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderEditAddCustomItem(id: \\\"gid://shopify/CalculatedOrder/1\\\", quantity: 1, price: { amount: \\\"1.00\\\", currencyCode: CAD }) { calculatedLineItem { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'orderEditAddCustomItem' is missing required arguments: title\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderEditAddCustomItem\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderEditAddCustomItem\",\"arguments\":\"title\"}}]}"
+}
+
+pub fn graphql_order_edit_add_custom_item_inline_price_requires_currency_code_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderEditAddCustomItem(id: \\\"gid://shopify/CalculatedOrder/1\\\", title: \\\"Missing currency\\\", quantity: 1, price: { amount: \\\"1.00\\\" }) { calculatedLineItem { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'currencyCode' on InputObject 'MoneyInput' is required. Expected type CurrencyCode!\",\"locations\":[{\"line\":1,\"column\":121}],\"path\":[\"mutation\",\"orderEditAddCustomItem\",\"price\",\"currencyCode\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"currencyCode\",\"argumentType\":\"CurrencyCode!\",\"inputObjectType\":\"MoneyInput\"}}]}"
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -1290,6 +1316,52 @@ pub fn graphql_webhook_subscription_create_blank_uri_user_error_test() {
   assert status == 200
   assert json.to_string(response_body)
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
+}
+
+pub fn graphql_carrier_service_create_missing_callback_url_invalid_variable_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Hermes Missing Callback\",\"supportsServiceDiscovery\":false,\"active\":false}}}"
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let response_json = json.to_string(response_body)
+  assert string.contains(
+    response_json,
+    "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Expected value to not be null)",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    response_json,
+    "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Expected value to not be null\"}]",
+  )
+
+  let read_body =
+    "{\"query\":\"query { carrierServices(first: 5) { nodes { id name callbackUrl } } }\"}"
+  let #(Response(status: read_status, body: read_response, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_body))
+  assert read_status == 200
+  assert json.to_string(read_response)
+    == "{\"data\":{\"carrierServices\":{\"nodes\":[]}}}"
+}
+
+pub fn graphql_carrier_service_create_unparseable_callback_url_invalid_variable_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Hermes Bad Callback\",\"callbackUrl\":\"not-a-url\",\"supportsServiceDiscovery\":false,\"active\":false}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let response_json = json.to_string(response_body)
+  assert string.contains(
+    response_json,
+    "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Invalid url 'not-a-url', missing scheme)",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    response_json,
+    "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Invalid url 'not-a-url', missing scheme\",\"message\":\"Invalid url 'not-a-url', missing scheme\"}]",
+  )
 }
 
 // ---------------------------------------------------------------------------

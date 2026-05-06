@@ -12,6 +12,7 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
+import shopify_draft_proxy/proxy/customers/inputs as customer_inputs
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, type FragmentMap, type SourceValue,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
@@ -1612,7 +1613,305 @@ pub fn validate_location_input(
     |> list.append(validate_billing_same_as_shipping(input, prefix))
     |> list.append(validate_tax_exempt_input(input, prefix))
     |> list.append(validate_external_id_field(input, prefix))
+    |> list.append(validate_nested_address_input(
+      input,
+      "billingAddress",
+      prefix,
+    ))
+    |> list.append(validate_nested_address_input(
+      input,
+      "shippingAddress",
+      prefix,
+    ))
   #(input, errors)
+}
+
+@internal
+pub type AddressCountryValidation {
+  ValidAddressCountry(String, List(#(String, String)))
+  InvalidAddressCountry
+  NoAddressCountry
+}
+
+@internal
+pub fn validate_nested_address_input(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  prefix: List(String),
+) -> List(b2b_types.UserError) {
+  case dict.get(input, field) {
+    Ok(root_field.ObjectVal(address_input)) ->
+      validate_address_input(address_input, field_path(prefix, field))
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_address_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(b2b_types.UserError) {
+  let #(country, country_errors) = validate_address_country(input, prefix)
+  country_errors
+  |> list.append(validate_address_zone(input, prefix, country))
+  |> list.append(validate_address_zip(input, prefix, country))
+  |> list.append(validate_address_free_text(input, prefix))
+}
+
+@internal
+pub fn validate_address_country(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(AddressCountryValidation, List(b2b_types.UserError)) {
+  case read_string(input, "countryCode") {
+    Some(code) ->
+      case customer_inputs.country_catalog_by_code(code) {
+        Some(#(catalog_code, _catalog_name, zones)) -> #(
+          ValidAddressCountry(catalog_code, zones),
+          [],
+        )
+        None -> #(InvalidAddressCountry, [
+          user_error(
+            Some(field_path(prefix, "countryCode")),
+            "Country code is invalid",
+            user_error_code.invalid,
+          ),
+        ])
+      }
+    None -> #(NoAddressCountry, [])
+  }
+}
+
+@internal
+pub fn validate_address_zone(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  country: AddressCountryValidation,
+) -> List(b2b_types.UserError) {
+  case country, read_string(input, "zoneCode") {
+    ValidAddressCountry(_country_code, zones), Some(zone_code) -> {
+      case zones, customer_inputs.zone_name_by_code(zones, zone_code) {
+        [_, ..], None -> [
+          user_error(
+            Some(field_path(prefix, "zoneCode")),
+            "Zone code is invalid",
+            user_error_code.invalid,
+          ),
+        ]
+        _, _ -> []
+      }
+    }
+    _, _ -> []
+  }
+}
+
+@internal
+pub fn validate_address_zip(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  country: AddressCountryValidation,
+) -> List(b2b_types.UserError) {
+  case country, read_string(input, "zip") {
+    ValidAddressCountry(country_code, _zones), Some(zip) -> {
+      let zone_code = read_string(input, "zoneCode")
+      case postal_code_valid(country_code, zone_code, zip) {
+        True -> []
+        False -> [
+          user_error(
+            Some(field_path(prefix, "zip")),
+            "Zip is invalid",
+            user_error_code.invalid,
+          ),
+        ]
+      }
+    }
+    _, _ -> []
+  }
+}
+
+@internal
+pub fn postal_code_valid(
+  country_code: String,
+  zone_code: Option(String),
+  zip: String,
+) -> Bool {
+  case string.uppercase(country_code) {
+    "CA" -> canada_postal_code_valid(zip)
+    "US" -> us_postal_code_valid(zip, zone_code)
+    "SG" -> singapore_postal_code_valid(zip)
+    _ -> True
+  }
+}
+
+@internal
+pub fn us_postal_code_valid(zip: String, zone_code: Option(String)) -> Bool {
+  let normalized = string.trim(zip)
+  case us_postal_code_shape_valid(normalized) {
+    False -> False
+    True -> us_zone_postal_code_valid(normalized, zone_code)
+  }
+}
+
+@internal
+pub fn us_postal_code_shape_valid(zip: String) -> Bool {
+  let codes =
+    string.to_utf_codepoints(zip) |> list.map(string.utf_codepoint_to_int)
+  case codes {
+    [a, b, c, d, e] -> list.all([a, b, c, d, e], is_digit_code)
+    [a, b, c, d, e, dash, f, g, h, i] ->
+      dash == 45 && list.all([a, b, c, d, e, f, g, h, i], is_digit_code)
+    _ -> False
+  }
+}
+
+@internal
+pub fn us_zone_postal_code_valid(
+  zip: String,
+  zone_code: Option(String),
+) -> Bool {
+  case zone_code {
+    Some(code) ->
+      case string.uppercase(code) {
+        "CA" -> zip_prefix_between(zip, 900, 961)
+        _ -> True
+      }
+    None -> True
+  }
+}
+
+@internal
+pub fn zip_prefix_between(zip: String, min: Int, max: Int) -> Bool {
+  case string.slice(zip, at_index: 0, length: 3) |> int.parse {
+    Ok(prefix) -> prefix >= min && prefix <= max
+    Error(_) -> False
+  }
+}
+
+@internal
+pub fn canada_postal_code_valid(zip: String) -> Bool {
+  let compact =
+    zip
+    |> string.uppercase
+    |> string.replace(" ", "")
+    |> string.replace("-", "")
+  case
+    string.to_utf_codepoints(compact) |> list.map(string.utf_codepoint_to_int)
+  {
+    [a, b, c, d, e, f] ->
+      canada_postal_alpha(a)
+      && is_digit_code(b)
+      && canada_postal_alpha(c)
+      && is_digit_code(d)
+      && canada_postal_alpha(e)
+      && is_digit_code(f)
+    _ -> False
+  }
+}
+
+@internal
+pub fn singapore_postal_code_valid(zip: String) -> Bool {
+  let compact = string.trim(zip)
+  case
+    string.to_utf_codepoints(compact) |> list.map(string.utf_codepoint_to_int)
+  {
+    [a, b, c, d, e, f] -> list.all([a, b, c, d, e, f], is_digit_code)
+    _ -> False
+  }
+}
+
+@internal
+pub fn canada_postal_alpha(code: Int) -> Bool {
+  let upper = case code >= 97 && code <= 122 {
+    True -> code - 32
+    False -> code
+  }
+  list.contains(
+    [65, 66, 67, 69, 71, 72, 74, 75, 76, 77, 78, 80, 82, 83, 84, 86, 88, 89],
+    upper,
+  )
+}
+
+@internal
+pub fn is_digit_code(code: Int) -> Bool {
+  code >= 48 && code <= 57
+}
+
+@internal
+pub fn validate_address_free_text(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(b2b_types.UserError) {
+  [
+    #("recipient", "Recipient", False),
+    #("address1", "Address1", False),
+    #("address2", "Address2", False),
+    #("city", "City", False),
+    #("firstName", "First name", True),
+    #("lastName", "Last name", True),
+  ]
+  |> list.flat_map(fn(config) {
+    let #(field, label, reject_url) = config
+    validate_address_free_text_field(input, field, prefix, label, reject_url)
+  })
+}
+
+@internal
+pub fn validate_address_free_text_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  prefix: List(String),
+  label: String,
+  reject_url: Bool,
+) -> List(b2b_types.UserError) {
+  case read_string(input, field) {
+    Some(value) -> {
+      let invalid =
+        contains_html_tags(value)
+        || contains_emoji(value)
+        || { reject_url && contains_url_substring(value) }
+      case invalid {
+        True -> [
+          user_error(
+            Some(field_path(prefix, field)),
+            label <> " is invalid",
+            user_error_code.invalid,
+          ),
+        ]
+        False -> []
+      }
+    }
+    None -> []
+  }
+}
+
+@internal
+pub fn contains_url_substring(value: String) -> Bool {
+  let lowered = string.lowercase(value)
+  string.contains(lowered, "http://")
+  || string.contains(lowered, "https://")
+  || string.contains(lowered, "www.")
+}
+
+@internal
+pub fn contains_emoji(value: String) -> Bool {
+  value
+  |> string.to_utf_codepoints
+  |> list.any(fn(codepoint) {
+    codepoint
+    |> string.utf_codepoint_to_int
+    |> is_emoji_codepoint
+  })
+}
+
+@internal
+pub fn is_emoji_codepoint(code: Int) -> Bool {
+  code >= 0x1f000
+  && code <= 0x1faff
+  || code >= 0x2600
+  && code <= 0x27bf
+  || code >= 0xfe00
+  && code <= 0xfe0f
+  || code == 0x200d
 }
 
 @internal

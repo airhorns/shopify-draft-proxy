@@ -1,0 +1,989 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "query": "mutation CustomerMergeBlockerSetup(\n  $tagsOne: CustomerInput!\n  $tagsTwo: CustomerInput!\n  $noteOne: CustomerInput!\n  $noteTwo: CustomerInput!\n  $giftOne: CustomerInput!\n  $giftTwo: CustomerInput!\n) {\n  tagsOne: customerCreate(input: $tagsOne) {\n    customer {\n      id\n      displayName\n      email\n      tags\n      note\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  tagsTwo: customerCreate(input: $tagsTwo) {\n    customer {\n      id\n      displayName\n      email\n      tags\n      note\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  noteOne: customerCreate(input: $noteOne) {\n    customer {\n      id\n      displayName\n      email\n      tags\n      note\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  noteTwo: customerCreate(input: $noteTwo) {\n    customer {\n      id\n      displayName\n      email\n      tags\n      note\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  giftOne: customerCreate(input: $giftOne) {\n    customer {\n      id\n      displayName\n      email\n      tags\n      note\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  giftTwo: customerCreate(input: $giftTwo) {\n    customer {\n      id\n      displayName\n      email\n      tags\n      note\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "tagsOne": {
+        "email": "customer-merge-blocker-tags-one-1778099114202@example.com",
+        "firstName": "Merge",
+        "lastName": "Blocker",
+        "tags": [
+          "one0",
+          "one1",
+          "one2",
+          "one3",
+          "one4",
+          "one5",
+          "one6",
+          "one7",
+          "one8",
+          "one9",
+          "one10",
+          "one11",
+          "one12",
+          "one13",
+          "one14",
+          "one15",
+          "one16",
+          "one17",
+          "one18",
+          "one19",
+          "one20",
+          "one21",
+          "one22",
+          "one23",
+          "one24",
+          "one25",
+          "one26",
+          "one27",
+          "one28",
+          "one29",
+          "one30",
+          "one31",
+          "one32",
+          "one33",
+          "one34",
+          "one35",
+          "one36",
+          "one37",
+          "one38",
+          "one39",
+          "one40",
+          "one41",
+          "one42",
+          "one43",
+          "one44",
+          "one45",
+          "one46",
+          "one47",
+          "one48",
+          "one49",
+          "one50",
+          "one51",
+          "one52",
+          "one53",
+          "one54",
+          "one55",
+          "one56",
+          "one57",
+          "one58",
+          "one59",
+          "one60",
+          "one61",
+          "one62",
+          "one63",
+          "one64",
+          "one65",
+          "one66",
+          "one67",
+          "one68",
+          "one69",
+          "one70",
+          "one71",
+          "one72",
+          "one73",
+          "one74",
+          "one75",
+          "one76",
+          "one77",
+          "one78",
+          "one79",
+          "one80",
+          "one81",
+          "one82",
+          "one83",
+          "one84",
+          "one85",
+          "one86",
+          "one87",
+          "one88",
+          "one89",
+          "one90",
+          "one91",
+          "one92",
+          "one93",
+          "one94",
+          "one95",
+          "one96",
+          "one97",
+          "one98",
+          "one99",
+          "one100",
+          "one101",
+          "one102",
+          "one103",
+          "one104",
+          "one105",
+          "one106",
+          "one107",
+          "one108",
+          "one109",
+          "one110",
+          "one111",
+          "one112",
+          "one113",
+          "one114",
+          "one115",
+          "one116",
+          "one117",
+          "one118",
+          "one119",
+          "one120",
+          "one121",
+          "one122",
+          "one123",
+          "one124",
+          "one125"
+        ]
+      },
+      "tagsTwo": {
+        "email": "customer-merge-blocker-tags-two-1778099114202@example.com",
+        "firstName": "Merge",
+        "lastName": "Blocker",
+        "tags": [
+          "two0",
+          "two1",
+          "two2",
+          "two3",
+          "two4",
+          "two5",
+          "two6",
+          "two7",
+          "two8",
+          "two9",
+          "two10",
+          "two11",
+          "two12",
+          "two13",
+          "two14",
+          "two15",
+          "two16",
+          "two17",
+          "two18",
+          "two19",
+          "two20",
+          "two21",
+          "two22",
+          "two23",
+          "two24",
+          "two25",
+          "two26",
+          "two27",
+          "two28",
+          "two29",
+          "two30",
+          "two31",
+          "two32",
+          "two33",
+          "two34",
+          "two35",
+          "two36",
+          "two37",
+          "two38",
+          "two39",
+          "two40",
+          "two41",
+          "two42",
+          "two43",
+          "two44",
+          "two45",
+          "two46",
+          "two47",
+          "two48",
+          "two49",
+          "two50",
+          "two51",
+          "two52",
+          "two53",
+          "two54",
+          "two55",
+          "two56",
+          "two57",
+          "two58",
+          "two59",
+          "two60",
+          "two61",
+          "two62",
+          "two63",
+          "two64",
+          "two65",
+          "two66",
+          "two67",
+          "two68",
+          "two69",
+          "two70",
+          "two71",
+          "two72",
+          "two73",
+          "two74",
+          "two75",
+          "two76",
+          "two77",
+          "two78",
+          "two79",
+          "two80",
+          "two81",
+          "two82",
+          "two83",
+          "two84",
+          "two85",
+          "two86",
+          "two87",
+          "two88",
+          "two89",
+          "two90",
+          "two91",
+          "two92",
+          "two93",
+          "two94",
+          "two95",
+          "two96",
+          "two97",
+          "two98",
+          "two99",
+          "two100",
+          "two101",
+          "two102",
+          "two103",
+          "two104",
+          "two105",
+          "two106",
+          "two107",
+          "two108",
+          "two109",
+          "two110",
+          "two111",
+          "two112",
+          "two113",
+          "two114",
+          "two115",
+          "two116",
+          "two117",
+          "two118",
+          "two119",
+          "two120",
+          "two121",
+          "two122",
+          "two123",
+          "two124"
+        ]
+      },
+      "noteOne": {
+        "email": "customer-merge-blocker-note-one-1778099114202@example.com",
+        "firstName": "Merge",
+        "lastName": "Blocker",
+        "note": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "noteTwo": {
+        "email": "customer-merge-blocker-note-two-1778099114202@example.com",
+        "firstName": "Merge",
+        "lastName": "Blocker",
+        "note": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      },
+      "giftOne": {
+        "email": "customer-merge-blocker-gift-one-1778099114202@example.com",
+        "firstName": "Merge",
+        "lastName": "Blocker"
+      },
+      "giftTwo": {
+        "email": "customer-merge-blocker-gift-two-1778099114202@example.com",
+        "firstName": "Merge",
+        "lastName": "Blocker"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "tagsOne": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585989382450",
+            "displayName": "Merge Blocker",
+            "email": "customer-merge-blocker-tags-one-1778099114202@example.com",
+            "tags": [
+              "one0",
+              "one1",
+              "one10",
+              "one100",
+              "one101",
+              "one102",
+              "one103",
+              "one104",
+              "one105",
+              "one106",
+              "one107",
+              "one108",
+              "one109",
+              "one11",
+              "one110",
+              "one111",
+              "one112",
+              "one113",
+              "one114",
+              "one115",
+              "one116",
+              "one117",
+              "one118",
+              "one119",
+              "one12",
+              "one120",
+              "one121",
+              "one122",
+              "one123",
+              "one124",
+              "one125",
+              "one13",
+              "one14",
+              "one15",
+              "one16",
+              "one17",
+              "one18",
+              "one19",
+              "one2",
+              "one20",
+              "one21",
+              "one22",
+              "one23",
+              "one24",
+              "one25",
+              "one26",
+              "one27",
+              "one28",
+              "one29",
+              "one3",
+              "one30",
+              "one31",
+              "one32",
+              "one33",
+              "one34",
+              "one35",
+              "one36",
+              "one37",
+              "one38",
+              "one39",
+              "one4",
+              "one40",
+              "one41",
+              "one42",
+              "one43",
+              "one44",
+              "one45",
+              "one46",
+              "one47",
+              "one48",
+              "one49",
+              "one5",
+              "one50",
+              "one51",
+              "one52",
+              "one53",
+              "one54",
+              "one55",
+              "one56",
+              "one57",
+              "one58",
+              "one59",
+              "one6",
+              "one60",
+              "one61",
+              "one62",
+              "one63",
+              "one64",
+              "one65",
+              "one66",
+              "one67",
+              "one68",
+              "one69",
+              "one7",
+              "one70",
+              "one71",
+              "one72",
+              "one73",
+              "one74",
+              "one75",
+              "one76",
+              "one77",
+              "one78",
+              "one79",
+              "one8",
+              "one80",
+              "one81",
+              "one82",
+              "one83",
+              "one84",
+              "one85",
+              "one86",
+              "one87",
+              "one88",
+              "one89",
+              "one9",
+              "one90",
+              "one91",
+              "one92",
+              "one93",
+              "one94",
+              "one95",
+              "one96",
+              "one97",
+              "one98",
+              "one99"
+            ],
+            "note": null
+          },
+          "userErrors": []
+        },
+        "tagsTwo": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585989415218",
+            "displayName": "Merge Blocker",
+            "email": "customer-merge-blocker-tags-two-1778099114202@example.com",
+            "tags": [
+              "two0",
+              "two1",
+              "two10",
+              "two100",
+              "two101",
+              "two102",
+              "two103",
+              "two104",
+              "two105",
+              "two106",
+              "two107",
+              "two108",
+              "two109",
+              "two11",
+              "two110",
+              "two111",
+              "two112",
+              "two113",
+              "two114",
+              "two115",
+              "two116",
+              "two117",
+              "two118",
+              "two119",
+              "two12",
+              "two120",
+              "two121",
+              "two122",
+              "two123",
+              "two124",
+              "two13",
+              "two14",
+              "two15",
+              "two16",
+              "two17",
+              "two18",
+              "two19",
+              "two2",
+              "two20",
+              "two21",
+              "two22",
+              "two23",
+              "two24",
+              "two25",
+              "two26",
+              "two27",
+              "two28",
+              "two29",
+              "two3",
+              "two30",
+              "two31",
+              "two32",
+              "two33",
+              "two34",
+              "two35",
+              "two36",
+              "two37",
+              "two38",
+              "two39",
+              "two4",
+              "two40",
+              "two41",
+              "two42",
+              "two43",
+              "two44",
+              "two45",
+              "two46",
+              "two47",
+              "two48",
+              "two49",
+              "two5",
+              "two50",
+              "two51",
+              "two52",
+              "two53",
+              "two54",
+              "two55",
+              "two56",
+              "two57",
+              "two58",
+              "two59",
+              "two6",
+              "two60",
+              "two61",
+              "two62",
+              "two63",
+              "two64",
+              "two65",
+              "two66",
+              "two67",
+              "two68",
+              "two69",
+              "two7",
+              "two70",
+              "two71",
+              "two72",
+              "two73",
+              "two74",
+              "two75",
+              "two76",
+              "two77",
+              "two78",
+              "two79",
+              "two8",
+              "two80",
+              "two81",
+              "two82",
+              "two83",
+              "two84",
+              "two85",
+              "two86",
+              "two87",
+              "two88",
+              "two89",
+              "two9",
+              "two90",
+              "two91",
+              "two92",
+              "two93",
+              "two94",
+              "two95",
+              "two96",
+              "two97",
+              "two98",
+              "two99"
+            ],
+            "note": null
+          },
+          "userErrors": []
+        },
+        "noteOne": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585989447986",
+            "displayName": "Merge Blocker",
+            "email": "customer-merge-blocker-note-one-1778099114202@example.com",
+            "tags": [],
+            "note": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          },
+          "userErrors": []
+        },
+        "noteTwo": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585989480754",
+            "displayName": "Merge Blocker",
+            "email": "customer-merge-blocker-note-two-1778099114202@example.com",
+            "tags": [],
+            "note": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+          },
+          "userErrors": []
+        },
+        "giftOne": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585989513522",
+            "displayName": "Merge Blocker",
+            "email": "customer-merge-blocker-gift-one-1778099114202@example.com",
+            "tags": [],
+            "note": null
+          },
+          "userErrors": []
+        },
+        "giftTwo": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585989579058",
+            "displayName": "Merge Blocker",
+            "email": "customer-merge-blocker-gift-two-1778099114202@example.com",
+            "tags": [],
+            "note": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 60,
+          "actualQueryCost": 60,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1940,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tagsOverflow": {
+    "merge": {
+      "query": "mutation CustomerMergeBlocker($one: ID!, $two: ID!) {\n  customerMerge(customerOneId: $one, customerTwoId: $two) {\n    resultingCustomerId\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "one": "gid://shopify/Customer/10585989382450",
+        "two": "gid://shopify/Customer/10585989415218"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerMerge": {
+            "resultingCustomerId": null,
+            "job": null,
+            "userErrors": [
+              {
+                "field": ["customerOneId"],
+                "message": "Customers must have 250 tags or less.",
+                "code": "INVALID_CUSTOMER"
+              },
+              {
+                "field": ["customerTwoId"],
+                "message": "Customers must have 250 tags or less.",
+                "code": "INVALID_CUSTOMER"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "noteOverflow": {
+    "merge": {
+      "query": "mutation CustomerMergeBlocker($one: ID!, $two: ID!) {\n  customerMerge(customerOneId: $one, customerTwoId: $two) {\n    resultingCustomerId\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "one": "gid://shopify/Customer/10585989447986",
+        "two": "gid://shopify/Customer/10585989480754"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerMerge": {
+            "resultingCustomerId": null,
+            "job": null,
+            "userErrors": [
+              {
+                "field": ["customerOneId"],
+                "message": "Customer notes must be 5,000 characters or less.",
+                "code": "INVALID_CUSTOMER"
+              },
+              {
+                "field": ["customerTwoId"],
+                "message": "Customer notes must be 5,000 characters or less.",
+                "code": "INVALID_CUSTOMER"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "giftCard": {
+    "setup": {
+      "query": "mutation CustomerMergeBlockerGiftCardCreate($input: GiftCardCreateInput!) {\n  giftCardCreate(input: $input) {\n    giftCard {\n      id\n      enabled\n      customer {\n        id\n        email\n      }\n    }\n    giftCardCode\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "cmblock778099114202",
+          "customerId": "gid://shopify/Customer/10585989513522"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "giftCardCreate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654864351538",
+              "enabled": true,
+              "customer": {
+                "id": "gid://shopify/Customer/10585989513522",
+                "email": "customer-merge-blocker-gift-one-1778099114202@example.com"
+              }
+            },
+            "giftCardCode": "cmblock778099114202",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "merge": {
+      "query": "mutation CustomerMergeBlocker($one: ID!, $two: ID!) {\n  customerMerge(customerOneId: $one, customerTwoId: $two) {\n    resultingCustomerId\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "one": "gid://shopify/Customer/10585989513522",
+        "two": "gid://shopify/Customer/10585989579058"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerMerge": {
+            "resultingCustomerId": null,
+            "job": null,
+            "userErrors": [
+              {
+                "field": ["customerOneId"],
+                "message": "Merge Blocker has gift cards and can’t be merged.",
+                "code": "INVALID_CUSTOMER"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "giftCardDeactivate cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654864351538"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "giftCardDeactivate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654864351538",
+              "enabled": false,
+              "deactivatedAt": "2026-05-06T20:25:15Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerDelete cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585989382450"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585989382450",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerDelete cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585989415218"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585989415218",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerDelete cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585989447986"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585989447986",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerDelete cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585989480754"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585989480754",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerDelete cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585989513522"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585989513522",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerDelete cleanup",
+      "query": "#graphql\n      mutation CustomerMergeBlockerCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585989579058"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585989579058",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -1,0 +1,56 @@
+{
+  "scenarioId": "metaobjectDefinitionUpdate-immutable",
+  "operationNames": ["standardMetaobjectDefinitionEnable", "metaobjectDefinitionUpdate", "metaobjectDefinition"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinitionUpdate-immutable.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
+    "variablesCapturePath": "$.standardEnable.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "standard-update-immutable",
+        "capturePath": "$.standardUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.standardMetaobjectDefinitionEnable.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.standardUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "standard-read-after-reject",
+        "capturePath": "$.standardReadAfter.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.standardMetaobjectDefinitionEnable.metaobjectDefinition.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectDefinitionUpdate immutability. The executable parity targets prove a standard definition enabled from Shopify's template catalog returns one IMMUTABLE userError and remains unchanged on immediate read-after-reject. The same live fixture records that this shop cannot create arbitrary non-standard `shopify--*` definitions (`NOT_AUTHORIZED`) and that changing `displayNameKey` on a definition linked to product options returns Shopify's IMMUTABLE display-name error. Focused runtime tests cover deterministic local standard-template metadata, checked-in standard-template types without metadata, and reserved `shopify--` namespace staging because the local model can represent those cases. The local model does not yet represent Shopify's linked-product-options or app-config-managed definition flags, so endpoint docs state that limitation rather than fabricating parity targets."
+}

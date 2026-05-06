@@ -1,0 +1,313 @@
+{
+  "capturedAt": "2026-05-06T20:29:42.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures DeliveryCarrierService callbackUrl validation against live Shopify Admin GraphQL.",
+    "Missing, blank, and unparseable callbackUrl inputs fail at GraphQL variable coercion before resolver execution.",
+    "http:// and banned-host callbackUrl inputs reach carrier service resolver userErrors with typed create/update codes.",
+    "The successful create exists only to target update validation and is deleted during cleanup."
+  ],
+  "primary": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation.graphql",
+    "variables": {
+      "validInput": {
+        "name": "Hermes Callback Validation 1778099381182",
+        "callbackUrl": "https://mock.shop/carrier-service-rates",
+        "supportsServiceDiscovery": false,
+        "active": false
+      },
+      "httpCreateInput": {
+        "name": "Hermes HTTP Callback 1778099381182",
+        "callbackUrl": "http://example.com/rates",
+        "supportsServiceDiscovery": false,
+        "active": false
+      },
+      "bannedCreateInput": {
+        "name": "Hermes Banned Callback 1778099381182",
+        "callbackUrl": "https://shopify.com/rates",
+        "supportsServiceDiscovery": false,
+        "active": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validCreate": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/103007453490",
+              "name": "Hermes Callback Validation 1778099381182",
+              "callbackUrl": "https://mock.shop/carrier-service-rates",
+              "active": false,
+              "supportsServiceDiscovery": false
+            },
+            "userErrors": []
+          },
+          "httpCreate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Shipping rate provider callback url must use HTTPS",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+              }
+            ]
+          },
+          "bannedCreate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Shipping rate provider callback url invalid host",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateHttp": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation-update-http.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/DeliveryCarrierService/103007453490",
+        "callbackUrl": "http://example.com/rates"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceUpdate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Shipping rate provider callback url must use HTTPS",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateBanned": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation-update-banned.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/DeliveryCarrierService/103007453490",
+        "callbackUrl": "https://shopify.com/rates"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceUpdate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Shipping rate provider callback url invalid host",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidVariableCreates": {
+    "missingCreate": {
+      "query": "mutation CarrierServiceCallbackUrlValidationInvalidCreate($input: DeliveryCarrierServiceCreateInput!) {\n    carrierServiceCreate(input: $input) {\n      carrierService {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Hermes Missing Callback 1778099381182",
+          "supportsServiceDiscovery": false,
+          "active": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 59
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Hermes Missing Callback 1778099381182",
+                  "supportsServiceDiscovery": false,
+                  "active": false
+                },
+                "problems": [
+                  {
+                    "path": ["callbackUrl"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "blankCreate": {
+      "query": "mutation CarrierServiceCallbackUrlValidationInvalidCreate($input: DeliveryCarrierServiceCreateInput!) {\n    carrierServiceCreate(input: $input) {\n      carrierService {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Hermes Blank Callback 1778099381182",
+          "callbackUrl": "",
+          "supportsServiceDiscovery": false,
+          "active": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Invalid url '', missing scheme)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 59
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Hermes Blank Callback 1778099381182",
+                  "callbackUrl": "",
+                  "supportsServiceDiscovery": false,
+                  "active": false
+                },
+                "problems": [
+                  {
+                    "path": ["callbackUrl"],
+                    "explanation": "Invalid url '', missing scheme",
+                    "message": "Invalid url '', missing scheme"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "unparseableCreate": {
+      "query": "mutation CarrierServiceCallbackUrlValidationInvalidCreate($input: DeliveryCarrierServiceCreateInput!) {\n    carrierServiceCreate(input: $input) {\n      carrierService {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Hermes Bad Callback 1778099381182",
+          "callbackUrl": "not-a-url",
+          "supportsServiceDiscovery": false,
+          "active": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Invalid url 'not-a-url', missing scheme)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 59
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Hermes Bad Callback 1778099381182",
+                  "callbackUrl": "not-a-url",
+                  "supportsServiceDiscovery": false,
+                  "active": false
+                },
+                "problems": [
+                  {
+                    "path": ["callbackUrl"],
+                    "explanation": "Invalid url 'not-a-url', missing scheme",
+                    "message": "Invalid url 'not-a-url', missing scheme"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation CarrierServiceCallbackUrlValidationCleanup($id: ID!) {\n    carrierServiceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+    "variables": {
+      "id": "gid://shopify/DeliveryCarrierService/103007453490"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceDelete": {
+            "deletedId": "gid://shopify/DeliveryCarrierService/103007453490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

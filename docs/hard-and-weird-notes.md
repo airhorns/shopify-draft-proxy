@@ -113,6 +113,12 @@ Two nearby 2026-04 traps from the same capture:
 - duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
   returns `addresses: null` and a single `INVALID_INPUT` userError with
   `field: null` and message `Invalid input.`
+- `CompanyLocationUpdateInput` does not expose `billingAddress` or
+  `shippingAddress` in the checked public schema or the live 2026-04 target.
+  Internal Business Customers code has an address-update validator path, but
+  public GraphQL parity for location-update address validation cannot be
+  captured through this input shape; keep local update-path coverage in focused
+  runtime tests unless a later public schema exposes address fields.
 
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 
@@ -1894,15 +1900,17 @@ Why this matters:
 
 `tagsAdd` and `tagsRemove` look deceptively small, but they surface two durable fidelity traps.
 
-First, the root fields are generic across owner types. A product-domain digital twin should not claim broad generic support just because those mutation names exist. The safe first slice is:
+First, the root fields are generic across owner types. A product-domain digital twin should not claim broad generic support just because those mutation names exist. The current supported slice is deliberately limited to taggable owner types whose local stores can model read-after-write effects:
 
-- support `tagsAdd` / `tagsRemove` only for product ids
-- stage onto the normalized `Product.tags` field rather than inventing a generic tag-owner table prematurely
-- keep downstream `product.tags` immediately aligned with the staged write, but do not assume tag-filtered catalog search updates on the same schedule
+- stage `Product` tags onto the normalized `Product.tags` field
+- stage `Order`, `DraftOrder`, `Customer`, and `Article` tags into their owning domain stores, then serialize the polymorphic payload `node` from that updated owner
+- do not fabricate `DiscountNode` support until local discount tag state and Shopify's feature-flagged resolver behavior are modeled
+- reject unsupported GID types with Shopify's captured top-level `invalid id` / `RESOURCE_NOT_FOUND` error shape rather than returning a product-scoped `Product not found` payload error
+- keep downstream direct owner reads immediately aligned with the staged write, but do not assume product tag-filtered catalog search updates on the same schedule
 - live conformance on this host showed immediate index lag for hydrated products: newly added-only tags were visible on `product.tags` but absent from `products(query: "tag:...")` / `productsCount(query: "tag:...")`
 - a practical parity rule is: for hydrated products, tag search should stay limited to the intersection of hydrated/base tags and the current effective tag list — removals of hydrated tags disappear immediately, but newly added-only tags stay out of search until a later rehydration
 
-Second, the payload returns `node`, and callers often ask for product fields through `... on Product` inline fragments. That means mutation-payload serialization cannot assume plain field selections only. Product serialization now needs to honor inline fragments with `typeCondition: Product` inside `node` selections or useful payload fields like `tags` silently disappear even though the staged state is correct.
+Second, the payload returns polymorphic `node`, and callers often ask for owner fields through inline fragments such as `... on Product`, `... on Order`, or `... on Customer`. Mutation-payload serialization cannot assume plain field selections only; useful payload fields like `tags` silently disappear if the `node` serializer ignores matching type-conditioned fragments even though the staged state is correct.
 
 A small Shopify-specific shape wrinkle worth preserving:
 
@@ -3224,6 +3232,22 @@ Practical rule:
 
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
+
+## 75a. Async `productDelete` starts pending but duplicate errors use nullable fields
+
+HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
+- the product remains visible to an immediate downstream `product(id:)` read after the async delete mutation
+- a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
+- the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
+- helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
+
+Practical rule:
+
+- model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
 ## 76. `locationAdd` required input errors are parser-level, but country validation is topology-sensitive
 

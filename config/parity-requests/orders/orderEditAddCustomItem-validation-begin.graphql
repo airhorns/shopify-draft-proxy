@@ -1,0 +1,40 @@
+mutation OrderEditAddCustomItemValidationBegin($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder {
+      id
+      subtotalLineItemsQuantity
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    orderEditSession {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

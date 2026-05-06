@@ -1,0 +1,17 @@
+mutation B2BAddressValidationAssignAddress(
+  $locationId: ID!
+  $address: CompanyAddressInput!
+  $addressTypes: [CompanyAddressType!]!
+) {
+  companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {
+    addresses {
+      id
+      countryCode
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

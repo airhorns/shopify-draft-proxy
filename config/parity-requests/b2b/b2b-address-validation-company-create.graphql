@@ -1,0 +1,25 @@
+mutation B2BAddressValidationCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      locations(first: 5) {
+        nodes {
+          id
+          name
+          shippingAddress {
+            address1
+            countryCode
+            zoneCode
+            zip
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

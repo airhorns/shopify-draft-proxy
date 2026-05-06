@@ -44,6 +44,7 @@ type RecordedCall = {
 type SpecTargetRequest = {
   documentPath?: string;
   documentCapturePath?: string;
+  variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
 };
@@ -162,6 +163,8 @@ function loadDocumentAndVariables(
       throw new Error(`Spec references missing variables: ${request.variablesPath}`);
     }
     variables = JSON.parse(readFileSync(variablesPath, 'utf8')) as Record<string, unknown>;
+  } else if (request.variables) {
+    variables = request.variables;
   }
   return { document, variables };
 }
