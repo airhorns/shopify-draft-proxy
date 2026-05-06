@@ -1677,31 +1677,32 @@ pub fn append_added_line_items_to_first_open_fulfillment_order(
   added_line_items: List(CapturedJsonValue),
   identity: SyntheticIdentityRegistry,
 ) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
-  case added_line_items, fulfillment_orders {
-    [], _ -> #(fulfillment_orders, identity)
-    _, [] -> #(fulfillment_orders, identity)
-    _, [first, ..rest] -> {
+  case added_line_items {
+    [] -> #(fulfillment_orders, identity)
+    _ -> {
+      let #(fulfillment_order_id, identity_after_order) =
+        synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
       let #(new_line_items, next_identity) =
         build_fulfillment_order_line_items_for_added_order_lines(
           added_line_items,
-          identity,
+          identity_after_order,
         )
-      let updated_first =
-        replace_captured_object_fields(first, [
+      let added_fulfillment_order =
+        CapturedObject([
+          #("id", CapturedString(fulfillment_order_id)),
+          #("status", CapturedString("OPEN")),
+          #("requestStatus", CapturedString("UNSUBMITTED")),
           #(
             "lineItems",
             CapturedObject([
-              #(
-                "nodes",
-                CapturedArray(list.append(
-                  fulfillment_order_line_items(first),
-                  new_line_items,
-                )),
-              ),
+              #("nodes", CapturedArray(new_line_items)),
             ]),
           ),
         ])
-      #(list.append([updated_first], rest), next_identity)
+      #(
+        list.append(fulfillment_orders, [added_fulfillment_order]),
+        next_identity,
+      )
     }
   }
 }
@@ -1740,10 +1741,13 @@ pub fn fulfillment_order_source_line_item(
   line_item: CapturedJsonValue,
   fulfillable_quantity: Int,
 ) -> CapturedJsonValue {
+  let quantity =
+    captured_int_field(line_item, "quantity")
+    |> option.unwrap(order_line_item_current_quantity(line_item))
   CapturedObject([
     #("id", optional_captured_string(line_item_id(line_item))),
     #("title", captured_field_or_null(line_item, "title")),
-    #("quantity", CapturedInt(order_line_item_current_quantity(line_item))),
+    #("quantity", CapturedInt(quantity)),
     #(
       "currentQuantity",
       CapturedInt(order_line_item_current_quantity(line_item)),
@@ -1915,8 +1919,8 @@ pub fn order_edit_event(
     captured_string_field(order_edit, "committedAt") |> option.unwrap("")
   CapturedObject([
     #("id", optional_captured_string(order_edit_id)),
-    #("action", CapturedString("edit")),
-    #("message", CapturedString("Order edited")),
+    #("action", CapturedString("edited")),
+    #("message", CapturedString("example.com edited this order.")),
     #("createdAt", CapturedString(committed_at)),
     #("subjectId", CapturedString(order.id)),
     #("subject", CapturedObject([#("id", CapturedString(order.id))])),

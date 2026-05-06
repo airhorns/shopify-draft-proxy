@@ -1511,7 +1511,7 @@ pub fn orders_order_edit_commit_updates_history_fulfillment_orders_and_totals_te
   assert string.contains(body, "\"__typename\":\"OrderEditChangeSetQuantity\"")
   assert string.contains(
     body,
-    "\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/order-edit-existing\",\"title\":\"Existing widget\",\"quantity\":1,\"fulfillableQuantity\":1}",
+    "\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/order-edit-existing\",\"title\":\"Existing widget\",\"quantity\":3,\"fulfillableQuantity\":1}",
   )
   assert string.contains(
     body,
