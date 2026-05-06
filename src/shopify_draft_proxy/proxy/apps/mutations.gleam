@@ -12,6 +12,7 @@ import gleam/string
 import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/apps/delegate_tokens
 import shopify_draft_proxy/proxy/apps/serializers
 import shopify_draft_proxy/proxy/apps/types as app_types
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -165,6 +166,7 @@ fn handle_mutation_fields(
                 current_identity,
                 request_path,
                 document,
+                headers,
                 field,
                 fragments,
                 variables,
@@ -937,6 +939,7 @@ fn handle_delegate_create(
         fragments,
         access_scopes,
         expires_in,
+        request_headers,
       )
   }
 }
@@ -969,7 +972,7 @@ fn delegate_create_user_errors(
       ),
     ]
     _ ->
-      case active_parent_is_delegate(store, request_headers) {
+      case delegate_tokens.active_parent_is_delegate(store, request_headers) {
         True -> [
           app_types.DelegateAccessTokenUserError(
             field: None,
@@ -1015,50 +1018,6 @@ fn delegate_unknown_scope_errors(
   }
 }
 
-fn active_parent_is_delegate(
-  store: Store,
-  request_headers: Dict(String, String),
-) -> Bool {
-  case active_access_token(request_headers) {
-    Some(raw) ->
-      case store.find_delegated_access_token_by_hash(store, token_hash(raw)) {
-        Some(_) -> True
-        None -> False
-      }
-    None -> False
-  }
-}
-
-fn active_access_token(headers: Dict(String, String)) -> Option(String) {
-  active_access_token_from_pairs(dict.to_list(headers))
-}
-
-fn active_access_token_from_pairs(
-  headers: List(#(String, String)),
-) -> Option(String) {
-  case headers {
-    [] -> None
-    [#(key, value), ..rest] -> {
-      case string.lowercase(key) {
-        "x-shopify-access-token" -> Some(string.trim(value))
-        "authorization" -> bearer_token(value, rest)
-        _ -> active_access_token_from_pairs(rest)
-      }
-    }
-  }
-}
-
-fn bearer_token(
-  value: String,
-  rest: List(#(String, String)),
-) -> Option(String) {
-  let trimmed = string.trim(value)
-  case string.starts_with(string.lowercase(trimmed), "bearer ") {
-    True -> Some(string.trim(string.drop_start(trimmed, 7)))
-    False -> active_access_token_from_pairs(rest)
-  }
-}
-
 fn failed_delegate_create_result(
   key: String,
   store: Store,
@@ -1099,6 +1058,7 @@ fn stage_delegate_create(
   fragments: FragmentMap,
   access_scopes: List(String),
   expires_in: Option(Int),
+  request_headers: Dict(String, String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let #(token_gid, identity_after_id) =
     synthetic_identity.make_synthetic_gid(identity, "DelegateAccessToken")
@@ -1108,6 +1068,14 @@ fn stage_delegate_create(
   let record =
     DelegatedAccessTokenRecord(
       id: token_gid,
+      api_client_id: delegate_tokens.caller_api_client_id(
+        store,
+        request_headers,
+      ),
+      parent_access_token_sha256: delegate_tokens.active_access_token(
+        request_headers,
+      )
+        |> option.map(token_hash),
       access_token_sha256: token_hash(raw_token),
       access_token_preview: token_preview(raw_token),
       access_scopes: access_scopes,
@@ -1146,6 +1114,7 @@ fn handle_delegate_destroy(
   identity: SyntheticIdentityRegistry,
   _request_path: String,
   _document: String,
+  request_headers: Dict(String, String),
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1153,6 +1122,9 @@ fn handle_delegate_destroy(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let access_token = graphql_helpers.read_arg_string(args, "accessToken")
+  let active_token_hash =
+    delegate_tokens.active_access_token(request_headers)
+    |> option.map(token_hash)
   let token = case access_token {
     Some(raw) ->
       store.find_delegated_access_token_by_hash(store, token_hash(raw))
@@ -1160,17 +1132,42 @@ fn handle_delegate_destroy(
   }
   case token {
     None -> {
+      let errors = case access_token, active_token_hash {
+        Some(raw), Some(active_hash) -> {
+          let supplied_hash = token_hash(raw)
+          case
+            supplied_hash == active_hash
+            && !delegate_tokens.delegated_token_hash_exists(
+              store,
+              supplied_hash,
+            )
+          {
+            True -> [
+              delegate_tokens.destroy_error(
+                "Can only delete delegate tokens.",
+                "CAN_ONLY_DELETE_DELEGATE_TOKENS",
+              ),
+            ]
+            False -> [
+              delegate_tokens.destroy_error(
+                "Access token does not exist.",
+                "ACCESS_TOKEN_NOT_FOUND",
+              ),
+            ]
+          }
+        }
+        _, _ -> [
+          delegate_tokens.destroy_error(
+            "Access token does not exist.",
+            "ACCESS_TOKEN_NOT_FOUND",
+          ),
+        ]
+      }
       let payload =
         serializers.project_delegate_destroy_payload(
           store,
           False,
-          [
-            app_types.DelegateAccessTokenUserError(
-              field: None,
-              message: "Access token does not exist.",
-              code: Some("ACCESS_TOKEN_NOT_FOUND"),
-            ),
-          ],
+          errors,
           field,
           fragments,
         )
@@ -1187,30 +1184,64 @@ fn handle_delegate_destroy(
       )
     }
     Some(record) -> {
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let store_after =
-        store.destroy_delegated_access_token(store, record.id, timestamp)
-      let payload =
-        serializers.project_delegate_destroy_payload(
-          store_after,
-          True,
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("delegateAccessTokenDestroy", [record.id], store.Staged)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [record.id],
-          log_drafts: [draft],
-        ),
-        store_after,
-        identity_after_ts,
-      )
+      let allowed =
+        record.api_client_id
+        == delegate_tokens.caller_api_client_id(store, request_headers)
+        && delegate_tokens.destroy_in_hierarchy(record, active_token_hash)
+      case allowed {
+        False -> {
+          let payload =
+            serializers.project_delegate_destroy_payload(
+              store,
+              False,
+              [delegate_tokens.destroy_error("Access denied.", "ACCESS_DENIED")],
+              field,
+              fragments,
+            )
+          let draft =
+            make_log_draft("delegateAccessTokenDestroy", [], store.Failed)
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+              log_drafts: [draft],
+            ),
+            store,
+            identity,
+          )
+        }
+        True -> {
+          let #(timestamp, identity_after_ts) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let store_after =
+            store.destroy_delegated_access_token(store, record.id, timestamp)
+          let payload =
+            serializers.project_delegate_destroy_payload(
+              store_after,
+              True,
+              [],
+              field,
+              fragments,
+            )
+          let draft =
+            make_log_draft(
+              "delegateAccessTokenDestroy",
+              [record.id],
+              store.Staged,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [record.id],
+              log_drafts: [draft],
+            ),
+            store_after,
+            identity_after_ts,
+          )
+        }
+      }
     }
   }
 }

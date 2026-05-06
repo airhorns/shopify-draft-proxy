@@ -968,6 +968,14 @@ pub fn delegated_access_token_decoder() -> Decoder(
   types.DelegatedAccessTokenRecord,
 ) {
   use id <- decode.field("id", decode.string)
+  use api_client_id <- optional_field(
+    "apiClientId",
+    "shopify-draft-proxy-local-app",
+    decode.string,
+  )
+  use parent_access_token_sha256 <- optional_string_field(
+    "parentAccessTokenSha256",
+  )
   use access_token_sha256 <- decode.field("accessTokenSha256", decode.string)
   use access_token_preview <- decode.field("accessTokenPreview", decode.string)
   use access_scopes <- string_list_field("accessScopes")
@@ -980,6 +988,8 @@ pub fn delegated_access_token_decoder() -> Decoder(
   use destroyed_at <- optional_string_field("destroyedAt")
   decode.success(types.DelegatedAccessTokenRecord(
     id: id,
+    api_client_id: api_client_id,
+    parent_access_token_sha256: parent_access_token_sha256,
     access_token_sha256: access_token_sha256,
     access_token_preview: access_token_preview,
     access_scopes: access_scopes,

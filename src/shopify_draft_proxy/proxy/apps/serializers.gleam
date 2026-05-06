@@ -798,7 +798,7 @@ fn delegate_user_error_to_source(
     None -> SrcNull
   }
   src_object([
-    #("__typename", SrcString("app_types.UserError")),
+    #("__typename", SrcString("UserError")),
     #("field", field_source),
     #("message", SrcString(message)),
     #("code", code_source),
@@ -921,9 +921,13 @@ fn user_errors_source(errors: List(app_types.UserError)) -> SourceValue {
 }
 
 fn user_error_to_source(error: app_types.UserError) -> SourceValue {
+  let field = case error.field {
+    [marker] if marker == app_types.null_user_error_field_marker -> SrcNull
+    parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
+  }
   let base = [
-    #("__typename", SrcString("app_types.UserError")),
-    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
+    #("__typename", SrcString("UserError")),
+    #("field", field),
     #("message", SrcString(error.message)),
   ]
   let full = case error.code {

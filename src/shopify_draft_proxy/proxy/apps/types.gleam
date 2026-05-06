@@ -27,3 +27,9 @@ pub const minimum_one_time_purchase_amount_label = "0.50"
 
 @internal
 pub const synthetic_shop_id = "gid://shopify/Shop/1?shopify-draft-proxy=synthetic"
+
+@internal
+pub const default_delegate_api_client_id = "shopify-draft-proxy-local-app"
+
+@internal
+pub const null_user_error_field_marker = "__shopify_draft_proxy_null_field"
