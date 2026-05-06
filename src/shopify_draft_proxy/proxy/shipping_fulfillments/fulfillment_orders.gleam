@@ -8,6 +8,8 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -37,7 +39,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers
   synthetic_timestamp_string, update_shipping_order_display_status,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
-  captured_array_field, captured_connection, captured_field,
+  captured_array_field, captured_connection, captured_field, captured_int_field,
   captured_string_field, option_to_captured_string, read_bool, read_object,
   read_object_array, read_string, read_string_array, resolved_args,
   update_fulfillment_order_fields,
@@ -1537,7 +1539,20 @@ fn validate_fulfillment_order_merge_inputs(
     [] ->
       case fulfillment_order_merge_line_item_quantity_errors(args) {
         [_, ..] as errors -> errors
-        [] -> fulfillment_order_merge_status_errors(draft_store, ids)
+        [] ->
+          case fulfillment_order_merge_line_item_id_errors(draft_store, args) {
+            [_, ..] as errors -> errors
+            [] ->
+              case
+                fulfillment_order_merge_line_item_excess_errors(
+                  draft_store,
+                  args,
+                )
+              {
+                [_, ..] as errors -> errors
+                [] -> fulfillment_order_merge_status_errors(draft_store, ids)
+              }
+          }
       }
   }
 }
@@ -1557,7 +1572,7 @@ fn fulfillment_order_merge_missing_order_errors(
   {
     True -> [
       fulfillment_order_merge_user_error(
-        SrcList([SrcString("base")]),
+        SrcNull,
         "Fulfillment order does not exist.",
         SrcString("FULFILLMENT_ORDER_NOT_FOUND"),
       ),
@@ -1618,7 +1633,7 @@ fn fulfillment_order_merge_line_item_quantity_error(
     Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
       Some(fulfillment_order_merge_user_error(
         field,
-        "Line item quantity must be greater than 0.",
+        "You must select at least one item to merge into a new fulfillment order.",
         SrcString("GREATER_THAN"),
       ))
     Ok(root_field.IntVal(_)) -> None
@@ -1631,28 +1646,162 @@ fn fulfillment_order_merge_line_item_quantity_error(
   }
 }
 
+fn fulfillment_order_merge_line_item_id_errors(
+  draft_store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  read_object_array(args, "fulfillmentOrderMergeInputs")
+  |> list.index_fold([], fn(errors, input, _input_index) {
+    let intent_errors =
+      read_object_array(input, "mergeIntents")
+      |> list.index_fold([], fn(intent_errors, intent, _intent_index) {
+        let order_id = case dict.get(intent, "fulfillmentOrderId") {
+          Ok(root_field.StringVal(id)) -> Some(id)
+          _ -> None
+        }
+        let line_item_errors =
+          read_object_array(intent, "fulfillmentOrderLineItems")
+          |> list.filter_map(fn(line_item) {
+            case order_id {
+              Some(id) ->
+                case
+                  store.get_effective_fulfillment_order_by_id(draft_store, id)
+                {
+                  Some(order) ->
+                    case dict.get(line_item, "id") {
+                      Ok(root_field.StringVal(line_item_id)) ->
+                        case
+                          fulfillment_order_has_line_item_id(
+                            order.data,
+                            line_item_id,
+                          )
+                        {
+                          True -> Error(Nil)
+                          False ->
+                            Ok(fulfillment_order_merge_user_error(
+                              SrcNull,
+                              "Fulfillment order line item does not exist.",
+                              SrcNull,
+                            ))
+                        }
+                      _ ->
+                        Ok(fulfillment_order_merge_user_error(
+                          SrcNull,
+                          "Fulfillment order line item does not exist.",
+                          SrcNull,
+                        ))
+                    }
+                  None -> Error(Nil)
+                }
+              None -> Error(Nil)
+            }
+          })
+        list.append(intent_errors, line_item_errors)
+      })
+    list.append(errors, intent_errors)
+  })
+}
+
+fn fulfillment_order_merge_line_item_excess_errors(
+  draft_store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  read_object_array(args, "fulfillmentOrderMergeInputs")
+  |> list.index_fold([], fn(errors, input, _input_index) {
+    let intent_errors =
+      read_object_array(input, "mergeIntents")
+      |> list.index_fold([], fn(intent_errors, intent, _intent_index) {
+        let order_id = case dict.get(intent, "fulfillmentOrderId") {
+          Ok(root_field.StringVal(id)) -> Some(id)
+          _ -> None
+        }
+        let line_item_errors =
+          read_object_array(intent, "fulfillmentOrderLineItems")
+          |> list.filter_map(fn(line_item) {
+            case
+              order_id,
+              dict.get(line_item, "id"),
+              dict.get(line_item, "quantity")
+            {
+              Some(id),
+                Ok(root_field.StringVal(line_item_id)),
+                Ok(root_field.IntVal(quantity))
+              ->
+                case
+                  store.get_effective_fulfillment_order_by_id(draft_store, id)
+                {
+                  Some(order) ->
+                    case
+                      fulfillment_order_line_item_total(
+                        order.data,
+                        line_item_id,
+                      )
+                    {
+                      Some(total) if quantity > total ->
+                        Ok(fulfillment_order_merge_user_error(
+                          SrcNull,
+                          "Invalid fulfillment order line item quantity requested.",
+                          SrcNull,
+                        ))
+                      _ -> Error(Nil)
+                    }
+                  None -> Error(Nil)
+                }
+              _, _, _ -> Error(Nil)
+            }
+          })
+        list.append(intent_errors, line_item_errors)
+      })
+    list.append(errors, intent_errors)
+  })
+}
+
+fn fulfillment_order_line_item_total(
+  data: CapturedJsonValue,
+  id: String,
+) -> Option(Int) {
+  data
+  |> captured_array_field("lineItems", "nodes")
+  |> list.find_map(fn(node) {
+    case captured_string_field(node, "id") == Some(id) {
+      True -> Ok(captured_int_field(node, "totalQuantity", ""))
+      False -> Error(Nil)
+    }
+  })
+  |> result.unwrap(None)
+}
+
 fn fulfillment_order_merge_status_errors(
   draft_store: Store,
   ids: List(String),
 ) -> List(SourceValue) {
-  case
+  let non_open_id =
     ids
-    |> list.any(fn(id) {
+    |> list.find(fn(id) {
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> order.status != "OPEN"
         None -> False
       }
     })
-  {
-    True -> [
+  case non_open_id {
+    Ok(id) -> [
       fulfillment_order_merge_user_error(
-        SrcList([SrcString("base")]),
-        "Fulfillment order is not actionable.",
+        SrcNull,
+        "Fulfillment order: "
+          <> fulfillment_order_numeric_id(id)
+          <> " is currently not in a mergeable state.",
         SrcNull,
       ),
     ]
-    False -> []
+    Error(_) -> []
   }
+}
+
+fn fulfillment_order_numeric_id(id: String) -> String {
+  id
+  |> string.split("/")
+  |> list.last
+  |> result.unwrap(id)
 }
 
 fn fulfillment_order_merge_user_error(

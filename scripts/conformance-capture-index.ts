@@ -3192,6 +3192,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-merge-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-merge-validation-conformance.ts',
+    purpose:
+      'fulfillmentOrderMerge missing fulfillment order, invalid quantity/line-item, non-open fulfillment order, success, and downstream read-after-merge behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-merge-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-merge-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-merge-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders, splits fulfillment orders to produce mergeable pairs, captures validation and success branches, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-delete-transfer',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-service-delete-transfer-conformance.ts',

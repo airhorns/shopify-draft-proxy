@@ -3,7 +3,7 @@ query FulfillmentOrderMergeValidationOrderRead($id: ID!) {
     id
     name
     displayFulfillmentStatus
-    fulfillmentOrders(first: 10, includeClosed: true) {
+    fulfillmentOrders(first: 10) {
       nodes {
         id
         status

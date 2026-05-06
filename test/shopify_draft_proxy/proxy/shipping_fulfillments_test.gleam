@@ -3105,7 +3105,7 @@ pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
       empty_upstream_context(),
     )
   assert json.to_string(missing_order.data)
-    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
 
   let zero_quantity =
     shipping_fulfillments.process_mutation(
@@ -3127,7 +3127,7 @@ pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
       empty_upstream_context(),
     )
   assert json.to_string(zero_quantity.data)
-    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderMergeInputs\",\"0\",\"mergeIntents\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"Line item quantity must be greater than 0.\",\"code\":\"GREATER_THAN\"}]}}}"
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderMergeInputs\",\"0\",\"mergeIntents\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"You must select at least one item to merge into a new fulfillment order.\",\"code\":\"GREATER_THAN\"}]}}}"
 
   let invalid_quantity =
     shipping_fulfillments.process_mutation(
@@ -3151,6 +3151,55 @@ pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
   assert json.to_string(invalid_quantity.data)
     == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderMergeInputs\",\"0\",\"mergeIntents\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"Line item quantity is invalid.\",\"code\":\"INVALID_LINE_ITEM_QUANTITY\"}]}}}"
 
+  let invalid_line_item_id =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, [
+                #(
+                  "gid://shopify/FulfillmentOrderLineItem/har-874-missing",
+                  root_field.IntVal(1),
+                ),
+              ]),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_line_item_id.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order line item does not exist.\",\"code\":null}]}}}"
+
+  let excessive_quantity =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      merge_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderMergeInputs",
+          root_field.ListVal([
+            merge_input([
+              #(order_a_id, [#(line_a, root_field.IntVal(999))]),
+              #(order_b_id, []),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(excessive_quantity.data)
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Invalid fulfillment order line item quantity requested.\",\"code\":null}]}}}"
+
   let closed_order =
     shipping_fulfillments.process_mutation(
       base_store,
@@ -3171,7 +3220,7 @@ pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
       empty_upstream_context(),
     )
   assert json.to_string(closed_order.data)
-    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Fulfillment order is not actionable.\",\"code\":null}]}}}"
+    == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order: har-874-closed is currently not in a mergeable state.\",\"code\":null}]}}}"
 
   let success =
     shipping_fulfillments.process_mutation(
