@@ -1,6 +1,5 @@
 //// Shared internal marketing constants and types.
 
-import gleam/option.{type Option}
 import shopify_draft_proxy/state/types.{type MarketingRecord}
 
 @internal

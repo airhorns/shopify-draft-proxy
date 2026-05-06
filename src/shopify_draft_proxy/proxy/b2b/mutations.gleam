@@ -1,114 +1,65 @@
 //// B2B local mutation dispatch and lifecycle staging.
 
 import gleam/dict.{type Dict}
-import gleam/int
-import gleam/json.{type Json}
+
+import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
-import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/b2b/assignments.{
-  detach_address_from_locations, effective_staff_assignment_ids,
   handle_address_delete, handle_assign_address, handle_assign_staff,
-  handle_assign_staff_under_limit, handle_remove_staff,
-  handle_remove_staff_under_limit, handle_tax_settings_update,
-  has_any_tax_settings_update_input, read_string_values, staff_member_exists,
-  validate_tax_settings_update_args,
+  handle_remove_staff, handle_tax_settings_update,
 }
+
 import shopify_draft_proxy/proxy/b2b/role_assignments.{
-  append_unique_assignment, assignment_matches_filters, assignment_ref,
-  build_role_assignment, bulk_contact_role_assignment_lookup_errors,
-  bulk_location_role_assignment_lookup_errors,
-  contact_has_role_assignment_for_location, filter_removed_assignments,
-  filter_removed_role_assignments, get_effective_contact, get_effective_location,
-  handle_contact_assign_role, handle_contact_assign_roles,
-  handle_contact_assign_roles_under_limit, handle_contact_revoke_role,
-  handle_contact_revoke_roles, handle_contact_revoke_roles_under_limit,
-  handle_location_assign_roles, handle_location_assign_roles_under_limit,
-  handle_location_revoke_roles, handle_location_revoke_roles_under_limit,
-  list_effective_role_assignments, option_or, read_arg_or_null,
-  resolve_role_assignments, resolve_role_revocations, revoke_role_assignments,
-  role_assignment_can_be_revoked, role_assignment_field,
-  role_assignment_item_field, role_assignment_lookup_errors,
-  role_assignment_missing_field, single_role_assignment_lookup_errors,
-  stage_role_assignments,
+  assignment_ref, build_role_assignment, handle_contact_assign_role,
+  handle_contact_assign_roles, handle_contact_revoke_role,
+  handle_contact_revoke_roles, handle_location_assign_roles,
+  handle_location_revoke_roles, stage_role_assignments,
 }
 import shopify_draft_proxy/proxy/b2b/serializers.{
-  address_from_input, address_id, append_unique, append_unique_list,
-  bulk_action_limit_reached, bulk_action_limit_reached_error,
-  company_contact_cap_error, company_contact_cap_reached,
-  company_contact_does_not_exist_at, company_contact_mutation_error,
-  company_contacts, company_location_not_found_at, company_locations,
-  company_metafield_to_core, company_role_does_not_exist_at,
-  company_role_not_found_at, company_roles, company_source,
+  address_from_input, address_id, append_unique, bulk_action_limit_reached,
+  bulk_action_limit_reached_error, company_contact_cap_error,
+  company_contact_cap_reached, company_contact_mutation_error, company_contacts,
   company_update_empty_input_error, contact_create_empty_input_error,
-  contact_customer_id, contact_is_main_contact, contact_notes_source,
-  contact_source, contact_source_with_main_flag,
-  contact_update_empty_input_error, contains_html_tag_loop, contains_html_tags,
-  contains_tag_close, customer_contact_source, customer_email, data_get,
-  data_to_source, detailed_user_error, empty_payload, existing_orders_error,
-  existing_orders_error_at, external_id_char_allowed, field_path,
-  filter_companies_by_query, find_company_contact_by_customer_id,
-  has_any_non_null_input, has_duplicate_strings, has_duplicate_strings_loop,
-  has_explicit_null_field, has_non_empty_object_field, indexed_field_path,
-  indexed_nested_field_path, is_html_tag_start, location_source,
-  location_update_empty_input_error, make_gid, maybe_put_bool, maybe_put_string,
-  no_input_error, one_role_already_assigned_at, option_from_result,
-  optional_json_string, optional_src_string, paginate_records, project_source,
-  put_source, read_bool, read_id_arg, read_object, read_object_list,
-  read_object_sources, read_string, read_string_list, record_source,
-  remove_string, resource_not_found, role_source, sanitize_name_field,
-  selected_children, serialize_company, serialize_company_address_node_by_id,
-  serialize_company_connection,
-  serialize_company_contact_role_assignment_node_by_id,
-  serialize_company_metafield, serialize_company_metafields_connection,
-  serialize_contact, serialize_contact_connection, serialize_count,
-  serialize_location, serialize_location_connection, serialize_mutation_payload,
-  serialize_role_connection, serialize_source_connection, serialize_tax_settings,
-  serialize_user_error, source_field, source_id, source_string, source_to_value,
-  strip_html, strip_html_loop, timestamp, user_error,
-  validate_billing_same_as_shipping, validate_company_input,
-  validate_contact_input, validate_external_id_charset,
-  validate_external_id_field, validate_external_id_length, validate_html,
-  validate_length, validate_location_input, validate_tax_exempt_input,
-  validate_text_field, value_is_present, value_to_source,
+  contact_update_empty_input_error, customer_contact_source, customer_email,
+  data_get, detailed_user_error, empty_payload, existing_orders_error,
+  existing_orders_error_at, field_path, find_company_contact_by_customer_id,
+  has_any_non_null_input, indexed_field_path, location_update_empty_input_error,
+  make_gid, maybe_put_bool, maybe_put_string, no_input_error,
+  optional_src_string, put_source, read_object, read_object_sources, read_string,
+  read_string_list, remove_string, resource_not_found,
+  serialize_mutation_payload, source_id, source_string, source_to_value,
+  timestamp, user_error, validate_company_input, validate_contact_input,
+  validate_location_input,
 }
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type ConnectionWindow, type FragmentMap, type SourceValue,
-  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
-  SrcObject, SrcString, default_connection_page_info_options,
-  default_connection_window_options, default_selected_field_options,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  serialize_empty_connection, source_to_json, src_object,
+  type SourceValue, SrcBool, SrcInt, SrcList, SrcObject, SrcString,
+  get_document_fragments, get_field_response_key, src_object,
 }
-import shopify_draft_proxy/proxy/metafields
+
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
+
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
-  type CustomerRecord, type ProductMetafieldRecord, type StorePropertyValue,
-  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
-  B2BCompanyRecord, CapturedObject, CapturedString, StorePropertyBool,
-  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
-  StorePropertyObject, StorePropertyString,
+  type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord, B2BCompanyRecord, CapturedObject, CapturedString,
+  StorePropertyInt, StorePropertyList, StorePropertyObject, StorePropertyString,
 }
 
 @internal

@@ -8,7 +8,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
-import shopify_draft_proxy/graphql/parse_operation
+
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
@@ -17,29 +17,20 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
   SrcObject, SrcString, default_connection_page_info_options,
   default_connection_window_options, default_selected_field_options,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  serialize_empty_connection, source_to_json, src_object,
+  get_field_response_key, get_selected_child_fields, paginate_connection_items,
+  project_graphql_value, serialize_connection, serialize_empty_connection,
+  source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/metafields
-import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, single_root_log_draft,
-}
-import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
-import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
-  type CustomerRecord, type ProductMetafieldRecord, type StorePropertyValue,
-  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
-  B2BCompanyRecord, CapturedObject, CapturedString, StorePropertyBool,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
+  type ProductMetafieldRecord, type StorePropertyValue, StorePropertyBool,
   StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
   StorePropertyObject, StorePropertyString,
 }

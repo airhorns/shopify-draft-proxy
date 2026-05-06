@@ -7,13 +7,12 @@ import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import gleam/uri
+
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcBool, SrcFloat, SrcInt, SrcList,
   SrcNull, SrcObject, SrcString, project_graphql_value, source_to_json,
-  src_object,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
