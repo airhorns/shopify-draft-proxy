@@ -44,8 +44,9 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   is_flat_rate_shipping_package, is_fulfillment_service_location,
   local_pickup_custom_pickup_time_not_allowed, local_pickup_location_not_found,
   normalize_fulfillment_service_handle, strip_query_from_gid,
-  validate_carrier_service_name, validate_fulfillment_service_callback_url,
-  validate_fulfillment_service_name,
+  validate_carrier_service_create_callback_url, validate_carrier_service_name,
+  validate_carrier_service_update_callback_url,
+  validate_fulfillment_service_callback_url, validate_fulfillment_service_name,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
 import shopify_draft_proxy/state/store.{type Store}
@@ -72,7 +73,10 @@ pub fn handle_carrier_service_create(
   let args = resolved_args(field, variables)
   let input = read_object(args, "input") |> option.unwrap(dict.new())
   let name = read_trimmed_string(input, "name")
-  let user_errors = validate_carrier_service_name(name)
+  let callback_url = read_carrier_service_callback_url(input)
+  let user_errors =
+    validate_carrier_service_name(name)
+    |> list.append(validate_carrier_service_create_callback_url(callback_url))
   case user_errors, name {
     [], Some(valid_name) -> {
       let #(id, identity_after_id) =
@@ -87,7 +91,7 @@ pub fn handle_carrier_service_create(
           id: id,
           name: Some(valid_name),
           formatted_name: carrier_service_formatted_name(Some(valid_name)),
-          callback_url: read_carrier_service_callback_url(input),
+          callback_url: callback_url,
           active: read_bool(input, "active") |> option.unwrap(False),
           supports_service_discovery: read_bool(
             input,
@@ -192,7 +196,16 @@ pub fn update_existing_carrier_service(
     Some(value) -> Some(value)
     None -> existing.name
   }
-  let user_errors = validate_carrier_service_name(next_name)
+  let next_callback_url = case dict.has_key(input, "callbackUrl") {
+    True -> read_carrier_service_callback_url(input)
+    False -> existing.callback_url
+  }
+  let user_errors =
+    validate_carrier_service_name(next_name)
+    |> list.append(validate_carrier_service_update_callback_url(
+      next_callback_url,
+      existing.callback_url,
+    ))
   case user_errors, next_name {
     [], Some(valid_name) -> {
       let #(updated_at, next_identity) =
@@ -202,10 +215,7 @@ pub fn update_existing_carrier_service(
           ..existing,
           name: Some(valid_name),
           formatted_name: carrier_service_formatted_name(Some(valid_name)),
-          callback_url: case dict.has_key(input, "callbackUrl") {
-            True -> read_carrier_service_callback_url(input)
-            False -> existing.callback_url
-          },
+          callback_url: next_callback_url,
           active: read_bool(input, "active") |> option.unwrap(existing.active),
           supports_service_discovery: read_bool(
               input,

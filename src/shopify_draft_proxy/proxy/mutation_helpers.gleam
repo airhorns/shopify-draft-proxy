@@ -575,6 +575,17 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    "carrierServiceCreate" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "input",
+        "DeliveryCarrierServiceCreateInput",
+        operation_name,
+        operation_path,
+        source_body,
+        schema,
+      )
     "orderEditAddCustomItem" ->
       validate_direct_literal_input_fields(
         mutation,
@@ -1315,7 +1326,13 @@ fn invalid_variable_errors_for(
     Error(_) -> []
     Ok(root_field.NullVal) -> []
     Ok(resolved) -> {
-      let problems = collect_value_problems(resolved, declared_type, schema, [])
+      let problems =
+        collect_value_problems(resolved, declared_type, schema, [])
+        |> list.append(top_level_required_input_field_problems(
+          resolved,
+          declared_type,
+          schema,
+        ))
       case problems {
         [] -> []
         _ -> {
@@ -1336,6 +1353,40 @@ fn invalid_variable_errors_for(
         }
       }
     }
+  }
+}
+
+fn top_level_required_input_field_problems(
+  resolved: root_field.ResolvedValue,
+  declared_type: mutation_schema.SchemaType,
+  schema: MutationSchema,
+) -> List(ValueProblem) {
+  case mutation_schema.named_leaf(declared_type), resolved {
+    Some("DeliveryCarrierServiceCreateInput"), root_field.ObjectVal(fields) ->
+      case
+        mutation_schema_lookup.get_input_object(
+          schema,
+          "DeliveryCarrierServiceCreateInput",
+        )
+      {
+        Some(input_object) ->
+          list.filter_map(input_object.input_fields, fn(field) {
+            let required =
+              mutation_schema.is_non_null(field.type_)
+              && option.is_none(field.default_value)
+            case required, dict.has_key(fields, field.name) {
+              True, False ->
+                Ok(ValueProblem(
+                  path: [StringSegment(field.name)],
+                  explanation: "Expected value to not be null",
+                  message: None,
+                ))
+              _, _ -> Error(Nil)
+            }
+          })
+        None -> []
+      }
+    _, _ -> []
   }
 }
 
@@ -1465,7 +1516,51 @@ fn scalar_value_problems(
 ) -> List(ValueProblem) {
   case type_name {
     "Decimal" -> decimal_value_problems(resolved, path)
+    "URL" -> url_value_problems(resolved, path)
     _ -> []
+  }
+}
+
+fn url_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved {
+    root_field.StringVal(value) ->
+      case string.split_once(value, "://") {
+        Ok(#("", _)) -> [invalid_url_problem(value, "empty scheme", path)]
+        Ok(#(_, "")) -> [invalid_url_problem(value, "missing host", path)]
+        Ok(#(_, after_scheme)) ->
+          case url_authority(after_scheme) {
+            "" -> [invalid_url_problem(value, "missing host", path)]
+            _ -> []
+          }
+        Error(_) -> [invalid_url_problem(value, "missing scheme", path)]
+      }
+    _ -> []
+  }
+}
+
+fn invalid_url_problem(
+  value: String,
+  reason: String,
+  path: List(PathSegment),
+) -> ValueProblem {
+  let message = "Invalid url '" <> value <> "', " <> reason
+  ValueProblem(path: path, explanation: message, message: Some(message))
+}
+
+fn url_authority(after_scheme: String) -> String {
+  after_scheme
+  |> string_before("/")
+  |> string_before("?")
+  |> string_before("#")
+}
+
+fn string_before(value: String, delimiter: String) -> String {
+  case string.split(value, on: delimiter) {
+    [head, ..] -> head
+    [] -> value
   }
 }
 
