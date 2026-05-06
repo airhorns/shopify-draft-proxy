@@ -1,0 +1,93 @@
+{
+  "capturedAt": "2026-05-06T02:27:33.370Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "SSF-motft0f4",
+  "notes": [
+    "SavedSearch PRODUCT create rejects made_up_filter as an invalid filter with field [\"input\", \"query\"].",
+    "SavedSearch PRODUCT create accepts vendor as a valid filter and returns an empty userErrors list.",
+    "The positive-control saved search is deleted during cleanup."
+  ],
+  "savedSearchUnknownFilterField": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql",
+    "variables": {
+      "unknownProduct": {
+        "resourceType": "PRODUCT",
+        "name": "Unknown Filter SSF-motft0f4",
+        "query": "made_up_filter:foo"
+      },
+      "productPositive": {
+        "resourceType": "PRODUCT",
+        "name": "Known Vendor SSF-motft0f4",
+        "query": "vendor:Acme"
+      }
+    },
+    "payload": {
+      "data": {
+        "unknownProduct": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Query is invalid, 'made_up_filter' is not a valid filter"
+            }
+          ]
+        },
+        "productPositive": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008061763890",
+            "name": "Known Vendor SSF-motft0f4",
+            "query": "vendor:Acme",
+            "resourceType": "PRODUCT",
+            "filters": [
+              {
+                "key": "vendor",
+                "value": "Acme"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4008061763890"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4008061763890",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

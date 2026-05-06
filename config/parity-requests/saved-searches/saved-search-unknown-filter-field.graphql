@@ -1,0 +1,37 @@
+mutation SavedSearchUnknownFilterField(
+  $unknownProduct: SavedSearchCreateInput!
+  $productPositive: SavedSearchCreateInput!
+) {
+  unknownProduct: savedSearchCreate(input: $unknownProduct) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productPositive: savedSearchCreate(input: $productPositive) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
