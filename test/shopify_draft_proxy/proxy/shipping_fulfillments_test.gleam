@@ -277,11 +277,13 @@ fn delivery_profile_lifecycle_store() -> store.Store {
     LocationRecord(
       id: "gid://shopify/Location/1",
       name: "Shop location",
+      is_active: Some(True),
       cursor: None,
     ),
     LocationRecord(
       id: "gid://shopify/Location/2",
       name: "Warehouse",
+      is_active: Some(True),
       cursor: None,
     ),
   ])
