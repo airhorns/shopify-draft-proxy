@@ -75,6 +75,7 @@ import shopify_draft_proxy/shopify/upstream_client.{type SyncTransport}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/serialization as state_serialization
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -402,17 +403,17 @@ fn serialize_interpreted_metadata(meta: store.InterpretedMetadata) -> Json {
 
 fn operation_type_to_string(op: store.OperationType) -> String {
   case op {
-    store.Query -> "query"
-    store.Mutation -> "mutation"
+    store_types.Query -> "query"
+    store_types.Mutation -> "mutation"
   }
 }
 
 fn entry_status_to_string(status: store.EntryStatus) -> String {
   case status {
-    store.Staged -> "staged"
-    store.Proxied -> "proxied"
-    store.Committed -> "committed"
-    store.Failed -> "failed"
+    store_types.Staged -> "staged"
+    store_types.Proxied -> "proxied"
+    store_types.Committed -> "committed"
+    store_types.Failed -> "failed"
   }
 }
 
@@ -617,7 +618,7 @@ fn record_proxied_mutation(
       query: Some(body.query),
       variables: Some(body.variables),
       staged_resource_ids: [],
-      status: store.Proxied,
+      status: store_types.Proxied,
       notes: Some(
         "Mutation passthrough placeholder until supported local staging is implemented.",
       ),
@@ -1918,7 +1919,7 @@ pub fn restore_snapshot(
   Ok(
     DraftProxy(
       ..proxy,
-      store: store.Store(
+      store: store_types.Store(
         base_state: base_state,
         staged_state: store.empty_staged_state(),
         mutation_log: [],
@@ -2027,7 +2028,7 @@ fn mutation_log_entry_decoder() -> decode.Decoder(store.MutationLogEntry) {
   use status <- decode.field("status", decode.string)
   use interpreted <- decode.field("interpreted", interpreted_metadata_decoder())
   use notes <- decode.field("notes", decode.optional(decode.string))
-  decode.success(store.MutationLogEntry(
+  decode.success(store_types.MutationLogEntry(
     id: id,
     received_at: received_at,
     operation_name: operation_name,
@@ -2050,7 +2051,7 @@ fn interpreted_metadata_decoder() -> decode.Decoder(store.InterpretedMetadata) {
     decode.optional(decode.string),
   )
   use capability <- decode.field("capability", capability_decoder())
-  decode.success(store.InterpretedMetadata(
+  decode.success(store_types.InterpretedMetadata(
     operation_type: parse_operation_type(op_type),
     operation_name: op_name,
     root_fields: root_fields,
@@ -2063,7 +2064,7 @@ fn capability_decoder() -> decode.Decoder(store.Capability) {
   use op_name <- decode.field("operationName", decode.optional(decode.string))
   use domain <- decode.field("domain", decode.string)
   use execution <- decode.field("execution", decode.string)
-  decode.success(store.Capability(
+  decode.success(store_types.Capability(
     operation_name: op_name,
     domain: domain,
     execution: execution,
@@ -2072,17 +2073,17 @@ fn capability_decoder() -> decode.Decoder(store.Capability) {
 
 fn parse_entry_status(value: String) -> store.EntryStatus {
   case value {
-    "staged" -> store.Staged
-    "proxied" -> store.Proxied
-    "committed" -> store.Committed
-    _ -> store.Failed
+    "staged" -> store_types.Staged
+    "proxied" -> store_types.Proxied
+    "committed" -> store_types.Committed
+    _ -> store_types.Failed
   }
 }
 
 fn parse_operation_type(value: String) -> store.OperationType {
   case value {
-    "mutation" -> store.Mutation
-    _ -> store.Query
+    "mutation" -> store_types.Mutation
+    _ -> store_types.Query
   }
 }
 
@@ -2091,7 +2092,7 @@ fn restore_store_slice(
   staged_state: store.StagedState,
   mutation_log: List(store.MutationLogEntry),
 ) -> Store {
-  store.Store(
+  store_types.Store(
     base_state: base_state,
     staged_state: staged_state,
     mutation_log: mutation_log,

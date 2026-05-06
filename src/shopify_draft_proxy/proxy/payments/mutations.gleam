@@ -41,6 +41,7 @@ import shopify_draft_proxy/proxy/payments/types.{
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -250,7 +251,7 @@ fn handle_mutation_fields(
         query: Some(query),
         variables: Some(variables),
         staged_resource_ids: staged_ids,
-        status: store.Staged,
+        status: store_types.Staged,
         notes: Some(
           "Staged payments mutations locally in the in-memory draft store; payment credentials, gateway side effects, customer-facing URLs, and reminder delivery are scrubbed or synthetic.",
         ),

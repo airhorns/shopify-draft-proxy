@@ -64,6 +64,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -156,7 +157,7 @@ pub fn handle_draft_order_complete(
                     single_root_log_draft(
                       "draftOrderComplete",
                       [completed_draft_order.id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -236,7 +237,7 @@ pub fn handle_draft_order_delete(
                 single_root_log_draft(
                   "draftOrderDelete",
                   [id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -320,7 +321,7 @@ pub fn handle_order_delete_mutation(
             single_root_log_draft(
               "orderDelete",
               [order_id],
-              store.Staged,
+              store_types.Staged,
               "orders",
               "stage-locally",
               Some("Locally staged orderDelete in shopify-draft-proxy."),
@@ -418,7 +419,7 @@ pub fn handle_draft_order_duplicate(
             single_root_log_draft(
               "draftOrderDuplicate",
               [duplicated_draft_order.id],
-              store.Staged,
+              store_types.Staged,
               "orders",
               "stage-locally",
               Some("Locally staged draftOrderDuplicate in shopify-draft-proxy."),
@@ -528,8 +529,8 @@ pub fn handle_draft_order_invoice_send(
           "draftOrderInvoiceSend",
           [],
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "orders",
           "stage-locally",
@@ -672,7 +673,7 @@ pub fn handle_draft_order_calculate(
                 single_root_log_draft(
                   "draftOrderCalculate",
                   [],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -693,7 +694,7 @@ pub fn handle_draft_order_calculate(
                 single_root_log_draft(
                   "draftOrderCalculate",
                   [],
-                  store.Failed,
+                  store_types.Failed,
                   "orders",
                   "stage-locally",
                   Some(
@@ -797,8 +798,8 @@ pub fn handle_draft_order_invoice_preview(
           "draftOrderInvoicePreview",
           [],
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "orders",
           "stage-locally",
@@ -893,8 +894,8 @@ pub fn handle_draft_order_bulk_helper(
       root_name,
       changed_ids,
       case user_errors {
-        [] -> store.Staged
-        _ -> store.Failed
+        [] -> store_types.Staged
+        _ -> store_types.Failed
       },
       "orders",
       "stage-locally",
@@ -1134,7 +1135,7 @@ pub fn handle_draft_order_update(
                 single_root_log_draft(
                   "draftOrderUpdate",
                   [id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(

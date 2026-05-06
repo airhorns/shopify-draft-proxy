@@ -21,6 +21,7 @@ import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{is_proxy_synthetic_gid}
 
 @internal
