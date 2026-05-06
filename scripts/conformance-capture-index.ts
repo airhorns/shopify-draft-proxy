@@ -1684,6 +1684,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-update-delete-malformed-gid',
+    scriptPath: 'scripts/capture-segment-update-delete-malformed-gid-conformance.ts',
+    purpose:
+      'segmentUpdate/segmentDelete malformed, empty, wrong-resource, and unknown Segment id validation response envelopes.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-update-delete-malformed-gid.json`,
+      'config/parity-specs/segments/segment-update-delete-malformed-gid.json',
+      'config/parity-requests/segments/segment-*-malformed-gid.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no live segment setup or cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'customer-segment-members-query-create-validation-and-shape',
     scriptPath: 'scripts/capture-customer-segment-members-query-create-conformance.ts',
     purpose:
