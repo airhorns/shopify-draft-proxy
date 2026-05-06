@@ -1304,6 +1304,7 @@ pub fn integration_user_error(
 pub fn integration_user_error_typename(kind: String) -> Option(String) {
   case kind {
     "webPixel" -> Some("WebPixelUserError")
+    "serverPixel" -> Some("ServerPixelUserError")
     "scriptTag" -> Some("ScriptTagUserError")
     "theme" -> Some("ThemeUserError")
     _ -> None

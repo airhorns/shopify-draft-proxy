@@ -65,6 +65,10 @@ fn meta_state_request() -> Request {
   Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
 }
 
+fn meta_log_request() -> Request {
+  Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+}
+
 fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
   let #(Response(status: status, body: body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(query))
@@ -239,6 +243,13 @@ pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test(
 fn read_state(proxy: DraftProxy) -> String {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_state_request())
+  assert status == 200
+  json.to_string(body)
+}
+
+fn read_log(proxy: DraftProxy) -> String {
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, meta_log_request())
   assert status == 200
   json.to_string(body)
 }
@@ -777,6 +788,136 @@ pub fn server_pixel_state_keeps_webhook_endpoint_address_test() {
   let state = read_state(proxy)
   assert string.contains(state, "onlineStoreServerPixels")
   assert string.contains(state, "webhookEndpointAddress")
+}
+
+pub fn server_pixel_endpoint_updates_stage_valid_addresses_test() {
+  let #(create_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { code field message } } }",
+    )
+  assert create_body
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+
+  let arn = "arn:aws:events:us-east-1:123456789012:event-bus/local"
+  let #(eventbridge_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { eventBridgeServerPixelUpdate(arn: \""
+        <> arn
+        <> "\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert eventbridge_body
+    == "{\"data\":{\"eventBridgeServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":\"arn:aws:events:us-east-1:123456789012:event-bus/local\"},\"userErrors\":[]}}}"
+
+  let #(pubsub_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert pubsub_body
+    == "{\"data\":{\"pubSubServerPixelUpdate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":\"project/topic\"},\"userErrors\":[]}}}"
+
+  let state = read_state(proxy)
+  assert string.contains(state, "\"webhookEndpointAddress\":\"project/topic\"")
+  let log = read_log(proxy)
+  assert string.contains(log, "eventBridgeServerPixelUpdate")
+  assert string.contains(log, "pubSubServerPixelUpdate")
+}
+
+pub fn server_pixel_eventbridge_endpoint_update_rejects_invalid_arn_test() {
+  let #(create_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert create_body
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    "mutation { malformed: eventBridgeServerPixelUpdate(arn: \"not-an-arn\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } blank: eventBridgeServerPixelUpdate(arn: \"\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: invalid_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_update))
+  assert status == 200
+  let serialized = json.to_string(invalid_body)
+  assert string.contains(serialized, "\"message\":\"Invalid ARN 'not-an-arn'\"")
+  assert string.contains(serialized, "\"message\":\"Invalid ARN ''\"")
+  assert string.contains(
+    serialized,
+    "\"path\":[\"mutation\",\"eventBridgeServerPixelUpdate\",\"arn\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+
+  let state = read_state(proxy)
+  assert string.contains(state, "not-an-arn") == False
+  assert string.contains(state, "\"webhookEndpointAddress\":null")
+}
+
+pub fn server_pixel_pubsub_endpoint_update_rejects_blank_fields_test() {
+  let #(create_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { serverPixelCreate { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }",
+    )
+  assert create_body
+    == "{\"data\":{\"serverPixelCreate\":{\"serverPixel\":{\"id\":\"gid://shopify/ServerPixel/1?shopify-draft-proxy=synthetic\",\"webhookEndpointAddress\":null},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    "mutation { blankProject: pubSubServerPixelUpdate(pubSubProject: \"\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } blankTopic: pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \" \") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } bothBlank: pubSubServerPixelUpdate(pubSubProject: \"\", pubSubTopic: \"\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: invalid_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_update))
+  assert status == 200
+  let serialized = json.to_string(invalid_body)
+  assert string.contains(
+    serialized,
+    "\"message\":\"pubSubProject can't be blank\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"pubSubTopic can't be blank\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_FIELD_ARGUMENTS\"")
+  assert string.contains(serialized, "\"path\":[\"pubSubServerPixelUpdate\"]")
+
+  let state = read_state(proxy)
+  assert string.contains(state, "/topic") == False
+  assert string.contains(state, "project/") == False
+  assert string.contains(state, "\"webhookEndpointAddress\":null")
+}
+
+pub fn server_pixel_endpoint_update_missing_arguments_use_schema_errors_test() {
+  let #(Response(status: eventbridge_status, body: eventbridge_body, ..), _) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { eventBridgeServerPixelUpdate { serverPixel { id } userErrors { code field message } } }",
+      ),
+    )
+  assert eventbridge_status == 200
+  assert json.to_string(eventbridge_body)
+    == "{\"errors\":[{\"message\":\"Field 'eventBridgeServerPixelUpdate' is missing required arguments: arn\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"eventBridgeServerPixelUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"eventBridgeServerPixelUpdate\",\"arguments\":\"arn\"}}]}"
+
+  let #(Response(status: pubsub_status, body: pubsub_body, ..), _) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { pubSubServerPixelUpdate(pubSubProject: \"project\") { serverPixel { id } userErrors { code field message } } }",
+      ),
+    )
+  assert pubsub_status == 200
+  assert json.to_string(pubsub_body)
+    == "{\"errors\":[{\"message\":\"Field 'pubSubServerPixelUpdate' is missing required arguments: pubSubTopic\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"pubSubServerPixelUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"pubSubServerPixelUpdate\",\"arguments\":\"pubSubTopic\"}}]}"
+}
+
+pub fn server_pixel_endpoint_updates_require_existing_pixel_test() {
+  let query =
+    "mutation { eventBridge: eventBridgeServerPixelUpdate(arn: \"arn:aws:events:us-east-1:123456789012:event-bus/missing\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } pubsub: pubSubServerPixelUpdate(pubSubProject: \"project\", pubSubTopic: \"topic\") { serverPixel { id webhookEndpointAddress } userErrors { __typename code field message } } }"
+  let #(body, _) = run_graphql(proxy(), query)
+  assert body
+    == "{\"data\":{\"eventBridge\":{\"serverPixel\":null,\"userErrors\":[{\"__typename\":\"ServerPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"pubsub\":{\"serverPixel\":null,\"userErrors\":[{\"__typename\":\"ServerPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]}}}"
 }
 
 pub fn content_create_missing_or_blank_title_returns_blank_user_error_test() {
