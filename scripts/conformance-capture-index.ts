@@ -1688,6 +1688,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-fixed-prices-variant-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-fixed-prices-variant-lifecycle-conformance.mts',
+    purpose:
+      'Variant-level price-list fixed-price add, update, delete, and downstream PriceList.prices(originType: FIXED) read-after-write behavior.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-fixed-prices-variant-lifecycle.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-variant-lifecycle.json',
+      'config/parity-requests/markets/price-list-fixed-prices-*.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes the target variant fixed price before and after recording the add/update/delete lifecycle.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-create-handle-dedupe',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
