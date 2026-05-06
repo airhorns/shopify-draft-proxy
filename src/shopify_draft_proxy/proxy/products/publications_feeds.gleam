@@ -242,15 +242,19 @@ pub fn make_shop_resource_feedback_record(
 
 @internal
 pub fn product_feed_create_payload(
-  feed: ProductFeedRecord,
+  feed: Option(ProductFeedRecord),
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
+  let feed_source = case feed {
+    Some(record) -> product_feed_source(record)
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductFeedCreatePayload")),
-      #("productFeed", product_feed_source(feed)),
+      #("productFeed", feed_source),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -453,31 +457,139 @@ pub fn handle_product_feed_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  // The captured local-runtime fixture comes from the TS path where the
-  // mutation-log entry consumes the first synthetic id before the feed is
-  // minted, so preserve that observable id sequence for this staged root.
-  let #(_, identity_after_log_slot) =
-    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
-  let #(feed_id, next_identity) =
-    synthetic_identity.make_synthetic_gid(
-      identity_after_log_slot,
-      "ProductFeed",
-    )
-  let feed =
-    ProductFeedRecord(
-      id: feed_id,
-      country: read_string_field(input, "country"),
-      language: read_string_field(input, "language"),
-      status: "ACTIVE",
-    )
-  let #(staged_feed, next_store) = store.upsert_staged_product_feed(store, feed)
-  mutation_result(
-    key,
-    product_feed_create_payload(staged_feed, [], field, fragments),
-    next_store,
-    next_identity,
-    [staged_feed.id],
-  )
+  let country = read_string_field(input, "country")
+  let language = read_string_field(input, "language")
+  let validation_errors =
+    product_feed_input_validation_errors(country, language)
+  case validation_errors, country, language {
+    [_, ..] as errors, _, _ ->
+      mutation_result(
+        key,
+        product_feed_create_payload(None, errors, field, fragments),
+        store,
+        identity,
+        [],
+      )
+    [], Some(country), Some(language) ->
+      case product_feed_pair_exists(store, country, language) {
+        True ->
+          mutation_result(
+            key,
+            product_feed_create_payload(
+              None,
+              [
+                ProductUserError(
+                  ["country"],
+                  "Product feed already exists for this country/language pair",
+                  Some("TAKEN"),
+                ),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+        False -> {
+          let feed =
+            ProductFeedRecord(
+              id: product_feed_id(country, language),
+              country: Some(country),
+              language: Some(language),
+              status: "ACTIVE",
+            )
+          let #(staged_feed, next_store) =
+            store.upsert_staged_product_feed(store, feed)
+          mutation_result(
+            key,
+            product_feed_create_payload(Some(staged_feed), [], field, fragments),
+            next_store,
+            identity,
+            [staged_feed.id],
+          )
+        }
+      }
+    [], _, _ ->
+      mutation_result(
+        key,
+        product_feed_create_payload(
+          None,
+          product_feed_input_validation_errors(country, language),
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn product_feed_input_validation_errors(
+  country: Option(String),
+  language: Option(String),
+) -> List(ProductUserError) {
+  let country_errors = case country {
+    Some(value) ->
+      case is_product_feed_country_code(value) {
+        True -> []
+        False -> [
+          ProductUserError(["country"], "Country is invalid", Some("INVALID")),
+        ]
+      }
+    None -> [
+      ProductUserError(["country"], "Country is invalid", Some("INVALID")),
+    ]
+  }
+  let language_errors = case language {
+    Some(value) ->
+      case is_product_feed_language_code(value) {
+        True -> []
+        False -> [
+          ProductUserError(["language"], "Language is invalid", Some("INVALID")),
+        ]
+      }
+    None -> [
+      ProductUserError(["language"], "Language is invalid", Some("INVALID")),
+    ]
+  }
+  list.append(country_errors, language_errors)
+}
+
+fn product_feed_pair_exists(
+  store: Store,
+  country: String,
+  language: String,
+) -> Bool {
+  store.list_effective_product_feeds(store)
+  |> list.any(fn(feed) {
+    feed.country == Some(country) && feed.language == Some(language)
+  })
+}
+
+fn product_feed_id(country: String, language: String) -> String {
+  "gid://shopify/ProductFeed/" <> country <> "-" <> language
+}
+
+fn is_product_feed_country_code(value: String) -> Bool {
+  product_feed_country_code_values()
+  |> list.contains(value)
+}
+
+fn is_product_feed_language_code(value: String) -> Bool {
+  product_feed_language_code_values()
+  |> list.contains(value)
+}
+
+fn product_feed_country_code_values() -> List(String) {
+  "AC, AD, AE, AF, AG, AI, AL, AM, AN, AO, AR, AT, AU, AW, AX, AZ, BA, BB, BD, BE, BF, BG, BH, BI, BJ, BL, BM, BN, BO, BQ, BR, BS, BT, BV, BW, BY, BZ, CA, CC, CD, CF, CG, CH, CI, CK, CL, CM, CN, CO, CR, CU, CV, CW, CX, CY, CZ, DE, DJ, DK, DM, DO, DZ, EC, EE, EG, EH, ER, ES, ET, FI, FJ, FK, FO, FR, GA, GB, GD, GE, GF, GG, GH, GI, GL, GM, GN, GP, GQ, GR, GS, GT, GW, GY, HK, HM, HN, HR, HT, HU, ID, IE, IL, IM, IN, IO, IQ, IR, IS, IT, JE, JM, JO, JP, KE, KG, KH, KI, KM, KN, KP, KR, KW, KY, KZ, LA, LB, LC, LI, LK, LR, LS, LT, LU, LV, LY, MA, MC, MD, ME, MF, MG, MK, ML, MM, MN, MO, MQ, MR, MS, MT, MU, MV, MW, MX, MY, MZ, NA, NC, NE, NF, NG, NI, NL, NO, NP, NR, NU, NZ, OM, PA, PE, PF, PG, PH, PK, PL, PM, PN, PS, PT, PY, QA, RE, RO, RS, RU, RW, SA, SB, SC, SD, SE, SG, SH, SI, SJ, SK, SL, SM, SN, SO, SR, SS, ST, SV, SX, SY, SZ, TA, TC, TD, TF, TG, TH, TJ, TK, TL, TM, TN, TO, TR, TT, TV, TW, TZ, UA, UG, UM, US, UY, UZ, VA, VC, VE, VG, VN, VU, WF, WS, XK, YE, YT, ZA, ZM, ZW, ZZ"
+  |> string.split(", ")
+}
+
+fn product_feed_language_code_values() -> List(String) {
+  "AF, AK, AM, AR, AS, AZ, BE, BG, BM, BN, BO, BR, BS, CA, CE, CKB, CS, CU, CY, DA, DE, DZ, EE, EL, EN, EO, ES, ET, EU, FA, FF, FI, FIL, FO, FR, FY, GA, GD, GL, GU, GV, HA, HE, HI, HR, HU, HY, IA, ID, IG, II, IS, IT, JA, JV, KA, KI, KK, KL, KM, KN, KO, KS, KU, KW, KY, LB, LG, LN, LO, LT, LU, LV, MG, MI, MK, ML, MN, MR, MS, MT, MY, NB, ND, NE, NL, NN, NO, OM, OR, OS, PA, PL, PS, PT, PT_BR, PT_PT, QU, RM, RN, RO, RU, RW, SA, SC, SD, SE, SG, SI, SK, SL, SN, SO, SQ, SR, SU, SV, SW, TA, TE, TG, TH, TI, TK, TO, TR, TT, UG, UK, UR, UZ, VI, VO, WO, XH, YI, YO, ZH, ZH_CN, ZH_TW, ZU"
+  |> string.split(", ")
 }
 
 @internal

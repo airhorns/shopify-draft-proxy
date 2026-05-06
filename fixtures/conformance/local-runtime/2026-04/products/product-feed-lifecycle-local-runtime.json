@@ -12,7 +12,7 @@
       "data": {
         "productFeedCreate": {
           "productFeed": {
-            "id": "gid://shopify/ProductFeed/2",
+            "id": "gid://shopify/ProductFeed/US-EN",
             "country": "US",
             "language": "EN",
             "status": "ACTIVE"
@@ -26,7 +26,7 @@
     "response": {
       "data": {
         "productFullSync": {
-          "id": "gid://shopify/ProductFeed/2",
+          "id": "gid://shopify/ProductFeed/US-EN",
           "userErrors": []
         }
       }
@@ -36,7 +36,7 @@
     "response": {
       "data": {
         "productFeed": {
-          "id": "gid://shopify/ProductFeed/2",
+          "id": "gid://shopify/ProductFeed/US-EN",
           "country": "US",
           "language": "EN",
           "status": "ACTIVE"
@@ -44,7 +44,7 @@
         "productFeeds": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductFeed/2",
+              "id": "gid://shopify/ProductFeed/US-EN",
               "country": "US",
               "language": "EN",
               "status": "ACTIVE"
@@ -53,8 +53,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "cursor:gid://shopify/ProductFeed/2",
-            "endCursor": "cursor:gid://shopify/ProductFeed/2"
+            "startCursor": "cursor:gid://shopify/ProductFeed/US-EN",
+            "endCursor": "cursor:gid://shopify/ProductFeed/US-EN"
           }
         }
       }
@@ -64,7 +64,7 @@
     "response": {
       "data": {
         "productFeedDelete": {
-          "deletedId": "gid://shopify/ProductFeed/2",
+          "deletedId": "gid://shopify/ProductFeed/US-EN",
           "userErrors": []
         }
       }

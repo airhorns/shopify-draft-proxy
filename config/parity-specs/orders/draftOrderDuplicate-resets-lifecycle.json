@@ -1,0 +1,126 @@
+{
+  "scenarioId": "draft-order-duplicate-resets-lifecycle",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete", "draftOrderDuplicate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "lifecycle-parity", "runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-duplicate-resets-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderDuplicate-lifecycle-create.graphql",
+    "variablesCapturePath": "$.openSource.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-open-source",
+        "capturePath": "$.openDuplicate.response.data.draftOrderDuplicate",
+        "proxyPath": "$.data.draftOrderDuplicate",
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live duplicate and local duplicate allocate independent draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify allocates draft order names from store state; local staging uses a deterministic synthetic sequence."
+          },
+          {
+            "path": "$.draftOrder.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Duplicate creation timestamps are generated independently by Shopify and the local synthetic identity registry."
+          },
+          {
+            "path": "$.draftOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Duplicate update timestamps are generated independently by Shopify and the local synthetic identity registry."
+          },
+          {
+            "path": "$.draftOrder.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderDuplicate-resets-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "create-completed-source",
+        "capturePath": "$.completedSource.create.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderDuplicate-lifecycle-create.graphql",
+          "variablesCapturePath": "$.completedSource.create.variables"
+        }
+      },
+      {
+        "name": "complete-source",
+        "capturePath": "$.completedSource.complete.response.data.draftOrderComplete.userErrors",
+        "proxyPath": "$.data.draftOrderComplete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderDuplicate-lifecycle-complete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-completed-source",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "duplicate-completed-source",
+        "capturePath": "$.completedSource.duplicate.response.data.draftOrderDuplicate",
+        "proxyPath": "$.data.draftOrderDuplicate",
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live duplicate and local duplicate allocate independent draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify allocates draft order names from store state; local staging uses a deterministic synthetic sequence."
+          },
+          {
+            "path": "$.draftOrder.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Duplicate creation timestamps are generated independently by Shopify and the local synthetic identity registry."
+          },
+          {
+            "path": "$.draftOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Duplicate update timestamps are generated independently by Shopify and the local synthetic identity registry."
+          },
+          {
+            "path": "$.draftOrder.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderDuplicate-resets-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "complete-source",
+              "path": "$.data.draftOrderComplete.draftOrder.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live API 2025-01 evidence captured on harry-test-heelo verifies draftOrderDuplicate creates OPEN duplicates for both OPEN and COMPLETED sources, clears completedAt/invoiceSentAt/order, regenerates invoiceUrl and timestamps, and preserves Shopify's current ready:true payload for these ready source drafts. The replay earns state through draftOrderCreate and draftOrderComplete requests before duplicating; it does not pre-seed parity runner state."
+}

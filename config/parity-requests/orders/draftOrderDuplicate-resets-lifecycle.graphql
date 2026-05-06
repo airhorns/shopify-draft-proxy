@@ -1,0 +1,22 @@
+mutation DraftOrderDuplicateResetsLifecycle($id: ID) {
+  draftOrderDuplicate(id: $id) {
+    draftOrder {
+      id
+      name
+      status
+      ready
+      completedAt
+      createdAt
+      updatedAt
+      invoiceSentAt
+      invoiceUrl
+      order {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
