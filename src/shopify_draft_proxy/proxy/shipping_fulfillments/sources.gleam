@@ -815,6 +815,15 @@ pub fn blank_fulfillment_service_name_errors() -> List(
 }
 
 @internal
+pub fn fulfillment_service_name_taken_error() -> shipping_types.FulfillmentServiceUserError {
+  shipping_types.FulfillmentServiceUserError(
+    field: Some(["name"]),
+    message: "Name has already been taken",
+    code: None,
+  )
+}
+
+@internal
 pub fn validate_fulfillment_service_callback_url(
   callback_url: Option(String),
 ) -> List(shipping_types.FulfillmentServiceUserError) {

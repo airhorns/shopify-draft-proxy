@@ -498,6 +498,8 @@ pub fn hydrate_mutation_prerequisites(
 ) -> Store {
   let args = resolved_args(field, variables)
   case root_name {
+    "fulfillmentServiceCreate" | "fulfillmentServiceUpdate" ->
+      maybe_hydrate_fulfillment_services_catalog(store_in, upstream)
     "deliveryProfileCreate" -> {
       // Pattern 2: delivery profiles project `profileItems` with
       // product/variant titles, which are upstream product-domain data.
@@ -579,6 +581,37 @@ pub fn hydrate_mutation_prerequisites(
         upstream,
       )
     _ -> store_in
+  }
+}
+
+@internal
+pub fn maybe_hydrate_fulfillment_services_catalog(
+  store_in: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query ShippingFulfillmentServicesCatalogHydrate {
+  shop {
+    fulfillmentServices {
+      id handle serviceName callbackUrl inventoryManagement
+      requiresShippingMethod trackingSupport type
+      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+    }
+  }
+}
+"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "ShippingFulfillmentServicesCatalogHydrate",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) -> hydrate_from_upstream_response(store_in, value)
+    Error(_) -> store_in
   }
 }
 

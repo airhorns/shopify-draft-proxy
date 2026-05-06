@@ -4523,6 +4523,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-uniqueness',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-uniqueness-conformance.ts',
+    purpose:
+      'fulfillmentServiceCreate and fulfillmentServiceUpdate per-shop name and generated-handle uniqueness validation.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-uniqueness.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-uniqueness.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable fulfillment services for uniqueness probes, records rejected duplicate create/update branches, then deletes all created services.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'shipping-user-error-codes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-shipping-user-error-codes-conformance.ts',

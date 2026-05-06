@@ -5,11 +5,16 @@ import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  UpstreamContext, empty_upstream_context,
+}
+import shopify_draft_proxy/shopify/upstream_client.{SyncTransport}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -23,6 +28,77 @@ import shopify_draft_proxy/state/types.{
   ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
   StorePropertyRecord, StorePropertyString,
+}
+
+fn fulfillment_service_create_document() -> String {
+  "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id handle serviceName location { id name isFulfillmentService } } userErrors { field message code } } }"
+}
+
+fn fulfillment_service_update_document() -> String {
+  "mutation UpdateFs($id: ID!, $name: String!) { fulfillmentServiceUpdate(id: $id, name: $name, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id handle serviceName location { id name isFulfillmentService } } userErrors { field message code } } }"
+}
+
+fn fulfillment_service_create(
+  draft_store: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  name: String,
+) -> MutationOutcome {
+  shipping_fulfillments.process_mutation(
+    draft_store,
+    identity,
+    "/admin/api/2026-04/graphql.json",
+    fulfillment_service_create_document(),
+    dict.from_list([#("name", root_field.StringVal(name))]),
+    empty_upstream_context(),
+  )
+}
+
+fn fulfillment_service_create_with_upstream(
+  name: String,
+  upstream_body: String,
+) -> MutationOutcome {
+  let transport =
+    SyncTransport(send: fn(_req) {
+      Ok(commit.HttpOutcome(status: 200, body: upstream_body, headers: []))
+    })
+  shipping_fulfillments.process_mutation(
+    store.new(),
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    fulfillment_service_create_document(),
+    dict.from_list([#("name", root_field.StringVal(name))]),
+    UpstreamContext(
+      transport: Some(transport),
+      origin: "https://example.myshopify.com",
+      headers: dict.new(),
+      allow_upstream_reads: True,
+    ),
+  )
+}
+
+fn fulfillment_service_update(
+  draft_store: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  id: String,
+  name: String,
+) -> MutationOutcome {
+  shipping_fulfillments.process_mutation(
+    draft_store,
+    identity,
+    "/admin/api/2026-04/graphql.json",
+    fulfillment_service_update_document(),
+    dict.from_list([
+      #("id", root_field.StringVal(id)),
+      #("name", root_field.StringVal(name)),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
+fn fulfillment_service_name_taken_payload(root: String) -> String {
+  "{\"data\":{\""
+  <> root
+  <> "\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name has already been taken\",\"code\":null}]}}}"
 }
 
 fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
@@ -1728,6 +1804,104 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
       location_id,
     )
     == None
+}
+
+pub fn fulfillment_service_create_rejects_case_insensitive_duplicate_name_test() {
+  let first =
+    fulfillment_service_create(store.new(), synthetic_identity.new(), "Acme")
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(first.store)
+  let location_id = created.location_id |> option.unwrap("")
+
+  let duplicate =
+    fulfillment_service_create(first.store, first.identity, "ACME")
+
+  assert json.to_string(duplicate.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
+  assert store.list_effective_fulfillment_services(duplicate.store) == [created]
+  assert store.get_effective_store_property_location_by_id(
+      duplicate.store,
+      location_id,
+    )
+    != None
+  assert store.get_log(duplicate.store) == []
+}
+
+pub fn fulfillment_service_create_rejects_generated_handle_collision_test() {
+  let first =
+    fulfillment_service_create(store.new(), synthetic_identity.new(), "A B")
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(first.store)
+
+  let duplicate = fulfillment_service_create(first.store, first.identity, "a-b")
+
+  assert json.to_string(duplicate.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
+  assert store.list_effective_fulfillment_services(duplicate.store) == [created]
+}
+
+pub fn fulfillment_service_update_rejects_name_or_handle_collision_with_other_service_test() {
+  let first =
+    fulfillment_service_create(
+      store.new(),
+      synthetic_identity.new(),
+      "Hermes A",
+    )
+  let assert [service_a, ..] =
+    store.list_effective_fulfillment_services(first.store)
+  let second =
+    fulfillment_service_create(first.store, first.identity, "Hermes B")
+  let assert [service_a_after_second, service_b] =
+    store.list_effective_fulfillment_services(second.store)
+
+  let duplicate_name =
+    fulfillment_service_update(
+      second.store,
+      second.identity,
+      service_b.id,
+      "hermes a",
+    )
+  assert json.to_string(duplicate_name.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceUpdate")
+  assert store.list_effective_fulfillment_services(duplicate_name.store)
+    == [service_a_after_second, service_b]
+
+  let handle_holder =
+    fulfillment_service_create(second.store, second.identity, "A B")
+  let assert [_, _, handle_service] =
+    store.list_effective_fulfillment_services(handle_holder.store)
+  let handle_collision =
+    fulfillment_service_update(
+      handle_holder.store,
+      handle_holder.identity,
+      handle_service.id,
+      "hermes-a",
+    )
+  assert json.to_string(handle_collision.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceUpdate")
+  assert store.get_effective_fulfillment_service_by_id(
+      handle_collision.store,
+      service_a.id,
+    )
+    == Some(service_a_after_second)
+}
+
+pub fn fulfillment_service_create_rejects_upstream_catalog_name_collision_test() {
+  let upstream_body =
+    "{\"data\":{\"shop\":{\"fulfillmentServices\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentService/9001\",\"handle\":\"upstream-fs\",\"serviceName\":\"Upstream FS\",\"callbackUrl\":null,\"inventoryManagement\":true,\"requiresShippingMethod\":true,\"trackingSupport\":false,\"type\":\"THIRD_PARTY\",\"location\":{\"id\":\"gid://shopify/Location/9001\",\"name\":\"Upstream FS\",\"isFulfillmentService\":true,\"fulfillsOnlineOrders\":true,\"shipsInventory\":false}}]}}}}"
+  let duplicate =
+    fulfillment_service_create_with_upstream("upstream fs", upstream_body)
+
+  assert json.to_string(duplicate.data)
+    == fulfillment_service_name_taken_payload("fulfillmentServiceCreate")
+  let assert [upstream_service] =
+    store.list_effective_fulfillment_services(duplicate.store)
+  assert upstream_service.id == "gid://shopify/FulfillmentService/9001"
+  assert store.get_effective_store_property_location_by_id(
+      duplicate.store,
+      "gid://shopify/Location/9001",
+    )
+    != None
 }
 
 pub fn fulfillment_service_validation_branches_return_user_errors_test() {

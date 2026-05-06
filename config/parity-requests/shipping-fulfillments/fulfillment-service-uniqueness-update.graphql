@@ -1,0 +1,31 @@
+mutation FulfillmentServiceUniquenessUpdate($id: ID!, $name: String!) {
+  fulfillmentServiceUpdate(
+    id: $id
+    name: $name
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      handle
+      serviceName
+      callbackUrl
+      trackingSupport
+      inventoryManagement
+      requiresShippingMethod
+      type
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
