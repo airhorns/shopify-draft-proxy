@@ -1732,6 +1732,17 @@ pub fn market_localizations_register_returns_translation_error_for_missing_resou
     == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"resourceId\"],\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
 }
 
+pub fn market_localizations_remove_returns_translation_error_for_missing_resource_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/missing\", marketLocalizationKeys: [], marketIds: []) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"resourceId\"],\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
+}
+
 pub fn market_localizations_register_validates_market_key_digest_and_value_test() {
   let proxy = market_localization_proxy()
   let #(Response(status: market_status, body: market_body, ..), _) =
@@ -1786,7 +1797,63 @@ pub fn market_localizations_register_stages_seeded_content_test() {
     == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizableContent\":[{\"key\":\"title\",\"value\":\"Title\",\"digest\":\"digest-title\"}],\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizableContent\":[{\"key\":\"title\",\"value\":\"Title\",\"digest\":\"digest-title\"},{\"key\":\"subtitle\",\"value\":\"Subtitle\",\"digest\":\"digest-subtitle\"}],\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+}
+
+pub fn market_localizations_remove_deletes_matching_staged_records_test() {
+  let #(Response(status: first_status, body: first_body, ..), first_proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }, { marketId: \"gid://shopify/Market/ca\", key: \"subtitle\", value: \"Sous-titre\", marketLocalizableContentDigest: \"digest-subtitle\" }]) { marketLocalizations { key value market { id name } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: remove_status, body: remove_body, ..), removed_proxy) =
+    graphql_with_proxy(
+      first_proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value market { id name } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      removed_proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizations { key value market { id name } } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}},{\"key\":\"subtitle\",\"value\":\"Sous-titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[{\"key\":\"subtitle\",\"value\":\"Sous-titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+}
+
+pub fn market_localizations_remove_returns_null_when_no_staged_records_match_test() {
+  let #(Response(status: register_status, body: register_body, ..), proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: remove_status, body: remove_body, ..), removed_proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"subtitle\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      removed_proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizations { key value } } }",
+    )
+
+  assert register_status == 200
+  assert json.to_string(register_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\"}],\"userErrors\":[]}}}"
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\"}]}}}"
 }
 
 fn too_many_market_localization_inputs() -> String {
@@ -1843,6 +1910,11 @@ fn market_localization_metafield() -> ProductMetafieldRecord {
         key: "title",
         value: "Title",
         digest: "digest-title",
+      ),
+      MarketLocalizableContentRecord(
+        key: "subtitle",
+        value: "Subtitle",
+        digest: "digest-subtitle",
       ),
     ],
   )
@@ -1988,6 +2060,160 @@ pub fn catalog_create_stages_market_context_test() {
     json.to_string(read_body),
     "\"title\":\"EU Catalog\",\"status\":\"ACTIVE\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
   )
+}
+
+pub fn market_update_adds_and_removes_catalog_links_test() {
+  let #(Response(status: first_market_status, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Primary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_market_status, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Secondary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Linked Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/3\"] } }) { catalog { id markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: noop_status, body: noop_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToDelete: [\"gid://shopify/MarketCatalog/5\"] }) { market { id catalogs(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToAdd: [\"gid://shopify/MarketCatalog/5\"] }) { market { id catalogs(first: 5) { nodes { id ... on MarketCatalog { markets(first: 5) { nodes { id } } } } } } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: catalog_read_status, body: catalog_read_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/5\") { id ... on MarketCatalog { markets(first: 5) { nodes { id } } } } }",
+    )
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToDelete: [\"gid://shopify/MarketCatalog/5\"] }) { market { id catalogs(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: deleted_catalog_status, body: deleted_catalog_body, ..),
+    _,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/5\") { id ... on MarketCatalog { markets(first: 5) { nodes { id } } } } }",
+    )
+
+  assert first_market_status == 200
+  assert second_market_status == 200
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/5\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}},\"userErrors\":[]}}}"
+  assert noop_status == 200
+  assert json.to_string(noop_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"catalogs\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+  assert add_status == 200
+  assert string.contains(
+    json.to_string(add_body),
+    "\"catalogs\":{\"nodes\":[{\"id\":\"gid://shopify/MarketCatalog/5\"",
+  )
+  assert string.contains(
+    json.to_string(add_body),
+    "\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"},{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert catalog_read_status == 200
+  assert string.contains(
+    json.to_string(catalog_read_body),
+    "\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"},{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"catalogs\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+  assert deleted_catalog_status == 200
+  assert json.to_string(deleted_catalog_body)
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/5\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}}}}"
+}
+
+pub fn market_update_adds_and_removes_web_presence_links_test() {
+  let #(Response(status: market_status, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { marketCreate(input: { name: \"Primary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: web_presence_status, body: web_presence_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"intl\" }) { webPresence { id markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { webPresencesToAdd: [\"gid://shopify/MarketWebPresence/3\"] }) { market { id webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } } } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: web_presence_read_status, body: web_presence_read_body, ..),
+    proxy,
+  ) =
+    graphql_with_proxy(
+      proxy,
+      "query { webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } } }",
+    )
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { webPresencesToDelete: [\"gid://shopify/MarketWebPresence/3\"] }) { market { id webPresences(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert web_presence_status == 200
+  assert json.to_string(web_presence_body)
+    == "{\"data\":{\"webPresenceCreate\":{\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/3\",\"markets\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+  assert add_status == 200
+  assert string.contains(
+    json.to_string(add_body),
+    "\"webPresences\":{\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/3\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert web_presence_read_status == 200
+  assert string.contains(
+    json.to_string(web_presence_read_body),
+    "\"id\":\"gid://shopify/MarketWebPresence/3\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
+  )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"webPresences\":{\"nodes\":[]}},\"userErrors\":[]}}}"
+}
+
+pub fn market_update_rejects_unknown_link_add_ids_test() {
+  let #(Response(status: market_status, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Primary\" }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { catalogsToAdd: [\"gid://shopify/MarketCatalog/9999999999\"] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: web_presence_status, body: web_presence_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { webPresencesToAdd: [\"gid://shopify/MarketWebPresence/9999999999\"] }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"catalogsToAdd\"],\"message\":\"The following customization IDs were not found: 9999999999\",\"code\":\"CUSTOMIZATIONS_NOT_FOUND\"}]}}}"
+  assert web_presence_status == 200
+  assert json.to_string(web_presence_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"webPresencesToAdd\"],\"message\":\"The following customization IDs were not found: 9999999999\",\"code\":\"CUSTOMIZATIONS_NOT_FOUND\"}]}}}"
 }
 
 pub fn catalog_create_rejects_unknown_price_list_id_test() {

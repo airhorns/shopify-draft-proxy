@@ -1,0 +1,446 @@
+{
+  "capturedAt": "2026-05-06T21:27:24.888Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scope": "marketUpdate linkage add/delete validation",
+  "cases": [
+    {
+      "name": "target market create",
+      "query": "#graphql\nmutation MarketUpdateLinkageMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Link Target moukitbu"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97986674994",
+                "name": "Draft Proxy Link Target moukitbu",
+                "handle": "draft-proxy-link-target-moukitbu",
+                "status": "DRAFT"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "source market create",
+      "query": "#graphql\nmutation MarketUpdateLinkageMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Link Source moukitbu"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97986707762",
+                "name": "Draft Proxy Link Source moukitbu",
+                "handle": "draft-proxy-link-source-moukitbu",
+                "status": "DRAFT"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog create with source market",
+      "query": "#graphql\nmutation MarketUpdateLinkageCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Draft Proxy Link Catalog moukitbu",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/97986707762"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809178930",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/97986707762"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketUpdate catalogsToAdd",
+      "query": "#graphql\nmutation MarketUpdateLinkageUpdate($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      catalogs(first: 5) {\n        nodes {\n          id\n          ... on MarketCatalog {\n            markets(first: 5) {\n              nodes {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97986674994",
+        "input": {
+          "catalogsToAdd": ["gid://shopify/MarketCatalog/145809178930"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketUpdate": {
+              "market": {
+                "id": "gid://shopify/Market/97986674994",
+                "catalogs": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MarketCatalog/145809178930",
+                      "markets": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/Market/97986707762"
+                          },
+                          {
+                            "id": "gid://shopify/Market/97986674994"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "market read after catalogsToAdd",
+      "query": "#graphql\nquery MarketUpdateLinkageMarketRead($id: ID!) {\n  market(id: $id) {\n    id\n    catalogs(first: 5) {\n      nodes {\n        id\n        ... on MarketCatalog {\n          markets(first: 5) {\n            nodes {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97986674994"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/97986674994",
+              "catalogs": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MarketCatalog/145809178930",
+                    "markets": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Market/97986707762"
+                        },
+                        {
+                          "id": "gid://shopify/Market/97986674994"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog read after catalogsToAdd",
+      "query": "#graphql\nquery MarketUpdateLinkageCatalogRead($id: ID!) {\n  catalog(id: $id) {\n    id\n    ... on MarketCatalog {\n      markets(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MarketCatalog/145809178930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "id": "gid://shopify/MarketCatalog/145809178930",
+              "markets": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Market/97986707762"
+                  },
+                  {
+                    "id": "gid://shopify/Market/97986674994"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketUpdate unknown catalogsToAdd validation",
+      "query": "#graphql\nmutation MarketUpdateLinkageUpdate($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      catalogs(first: 5) {\n        nodes {\n          id\n          ... on MarketCatalog {\n            markets(first: 5) {\n              nodes {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97986674994",
+        "input": {
+          "catalogsToAdd": ["gid://shopify/MarketCatalog/9999999999"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketUpdate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "catalogsToAdd"],
+                  "message": "The following customization IDs were not found: 9999999999",
+                  "code": "CUSTOMIZATIONS_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketUpdate unknown webPresencesToAdd validation",
+      "query": "#graphql\nmutation MarketUpdateLinkageUpdate($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      catalogs(first: 5) {\n        nodes {\n          id\n          ... on MarketCatalog {\n            markets(first: 5) {\n              nodes {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97986674994",
+        "input": {
+          "webPresencesToAdd": ["gid://shopify/MarketWebPresence/9999999999"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketUpdate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "webPresencesToAdd"],
+                  "message": "The following customization IDs were not found: 9999999999",
+                  "code": "CUSTOMIZATIONS_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "type": "marketLink",
+      "id": "gid://shopify/Market/97986674994",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketUpdate": {
+              "market": {
+                "id": "gid://shopify/Market/97986674994",
+                "catalogs": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/145809178930",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145809178930",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "market",
+      "id": "gid://shopify/Market/97986707762",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97986707762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "market",
+      "id": "gid://shopify/Market/97986674994",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97986674994",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

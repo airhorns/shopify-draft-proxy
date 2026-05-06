@@ -1,0 +1,6 @@
+#graphql
+query BulkOperationMalformedInlineIdValidation {
+  bulkOperation(id: "not-a-gid") {
+    id
+  }
+}
