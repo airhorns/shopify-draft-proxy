@@ -207,6 +207,91 @@ pub fn metafield_definition_create_rejects_unknown_type_test() {
   assert string.contains(body, "totally_made_up_type is not a valid type")
 }
 
+pub fn metafield_definition_create_rejects_ineligible_unique_values_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Tier\",
+          namespace: \"loyalty\",
+          key: \"tier\",
+          ownerType: PRODUCT,
+          type: \"json\",
+          capabilities: { uniqueValues: { enabled: true } }
+        }) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let body = json.to_string(result.data)
+
+  assert result.staged_resource_ids == []
+  assert string.contains(body, "\"createdDefinition\":null")
+  assert string.contains(body, "\"field\":[\"definition\"]")
+  assert string.contains(body, "\"code\":\"INVALID_CAPABILITY\"")
+}
+
+pub fn metafield_definition_create_auto_enables_id_unique_values_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"External ID\",
+          namespace: \"loyalty\",
+          key: \"external_id\",
+          ownerType: PRODUCT,
+          type: \"id\"
+        }) {
+          createdDefinition {
+            id
+            capabilities { uniqueValues { enabled eligible } }
+          }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let body = json.to_string(result.data)
+
+  assert result.staged_resource_ids != []
+  assert string.contains(body, "\"userErrors\":[]")
+  assert string.contains(
+    body,
+    "\"uniqueValues\":{\"enabled\":true,\"eligible\":true}",
+  )
+}
+
+pub fn metafield_definition_create_rejects_smart_collection_for_customer_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Tier\",
+          namespace: \"loyalty\",
+          key: \"tier\",
+          ownerType: CUSTOMER,
+          type: \"single_line_text_field\",
+          capabilities: { smartCollectionCondition: { enabled: true } }
+        }) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let body = json.to_string(result.data)
+
+  assert result.staged_resource_ids == []
+  assert string.contains(body, "\"createdDefinition\":null")
+  assert string.contains(body, "\"field\":[\"definition\"]")
+  assert string.contains(body, "\"code\":\"INVALID_CAPABILITY\"")
+}
+
 pub fn metafield_definition_create_rejects_reserved_namespaces_test() {
   let shopify_standard =
     run_mutation(
@@ -241,6 +326,44 @@ pub fn metafield_definition_create_rejects_reserved_namespaces_test() {
     == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"namespace\"],\"message\":\"Namespace protected is reserved.\",\"code\":\"RESERVED\"}]}}}"
 }
 
+fn create_admin_filterable(
+  acc: #(store.Store, synthetic_identity.SyntheticIdentityRegistry, String),
+  i: Int,
+) {
+  let #(current_store, current_identity, _) = acc
+  let key = "filter_" <> int.to_string(i)
+  let created = run_mutation(current_store, current_identity, "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Filter " <> int.to_string(i) <> "\",
+          namespace: \"admin_filter_limit\",
+          key: \"" <> key <> "\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\",
+          capabilities: { adminFilterable: { enabled: true } }
+        }) {
+          createdDefinition { id key capabilities { adminFilterable { enabled eligible status } } }
+          userErrors { field message code }
+        }
+      }")
+  #(created.store, created.identity, json.to_string(created.data))
+}
+
+pub fn metafield_definition_create_rejects_fifty_first_admin_filterable_test() {
+  let #(_, _, last_json) =
+    list.fold(
+      int_range(from: 1, to: 51),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_admin_filterable,
+    )
+
+  assert string.contains(last_json, "\"createdDefinition\":null")
+  assert string.contains(last_json, "\"field\":[\"definition\"]")
+  assert string.contains(
+    last_json,
+    "\"code\":\"OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS\"",
+  )
+}
+
 pub fn metafield_definition_create_rejects_long_name_and_description_test() {
   let name =
     run_mutation(
@@ -273,6 +396,48 @@ pub fn metafield_definition_create_rejects_long_name_and_description_test() {
   assert description.staged_resource_ids == []
   assert json.to_string(description.data)
     == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"description\"],\"message\":\"Description is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+}
+
+pub fn metafield_definition_update_rejects_ineligible_unique_values_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Payload\",
+          namespace: \"loyalty\",
+          key: \"payload\",
+          ownerType: PRODUCT,
+          type: \"json\"
+        }) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let updated =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metafieldDefinitionUpdate(definition: {
+          namespace: \"loyalty\",
+          key: \"payload\",
+          ownerType: PRODUCT,
+          capabilities: { uniqueValues: { enabled: true } }
+        }) {
+          updatedDefinition { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let body = json.to_string(updated.data)
+
+  assert updated.staged_resource_ids == []
+  assert string.contains(body, "\"updatedDefinition\":null")
+  assert string.contains(body, "\"field\":[\"definition\"]")
+  assert string.contains(body, "\"code\":\"INVALID_CAPABILITY\"")
 }
 
 pub fn metafield_definition_app_namespace_resolution_lifecycle_test() {
@@ -930,6 +1095,24 @@ pub fn standard_metafield_definition_enable_with_pin_rejects_constrained_templat
   assert result.staged_resource_ids == []
   assert json.to_string(result.data)
     == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_rejects_ineligible_capability_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
+        ", capabilities: { uniqueValues: { enabled: true } }",
+      ),
+    )
+  let body = json.to_string(result.data)
+
+  assert result.staged_resource_ids == []
+  assert string.contains(body, "\"createdDefinition\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(body, "\"code\":\"INVALID_CAPABILITY\"")
 }
 
 pub fn standard_metafield_definition_enable_resolves_captured_namespace_key_template_test() {

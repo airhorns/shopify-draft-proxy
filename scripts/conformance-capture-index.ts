@@ -1110,6 +1110,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-capability-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-capability-eligibility.mts',
+    purpose:
+      'Metafield definition capability eligibility, required uniqueValues, and PRODUCT admin-filterable owner limit behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-capability-eligibility.json`,
+      'config/parity-specs/metafields/metafield-definition-capability-eligibility.json',
+      'config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions in one namespace, captures validation and limit branches, then deletes the created definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-owner-types',
     scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
     purpose:
@@ -2112,6 +2129,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-update-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
+    purpose:
+      'orderUpdate empty-input, malformed phone, malformed shipping address, and happy-path note update validation parity.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-input-validation.json`,
+      'config/parity-specs/orders/orderUpdate-input-validation.json',
+      'config/parity-requests/orders/orderUpdate-input-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
