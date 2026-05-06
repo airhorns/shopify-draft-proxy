@@ -944,6 +944,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-unknown-filter-field',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-unknown-filter-field-conformance.ts',
+    purpose:
+      'SavedSearch per-resource unknown-filter validation for PRODUCT create plus known-filter positive control.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-unknown-filter-field.json`,
+      'config/parity-specs/saved-searches/saved-search-unknown-filter-field.json',
+      'config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product saved search for positive-control validation and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',
@@ -1388,6 +1404,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, enables French only when needed, captures no-op/error translation mutation branches, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization-shop-locale-enable-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-shop-locale-enable-validation-conformance.mts',
+    purpose:
+      'shopLocaleEnable unsupported-locale, duplicate-locale, max-locale validation plus shopLocaleUpdate market-web-presence-only missing-locale behavior.',
+    requiredAuthScopes: ['read_markets', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-shop-locale-enable-validation.json`,
+      'config/parity-specs/localization/localization-shop-locale-enable-validation.json',
+      'config/parity-requests/localization/localization-shop-locale-update-market-web-presences.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily disables pre-existing alternate locales, enables disposable alternates to reach the locale cap, records validation branches, disables captured locales, and restores the pre-capture alternate locales.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

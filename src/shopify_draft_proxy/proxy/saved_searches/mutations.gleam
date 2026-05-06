@@ -28,6 +28,7 @@ import shopify_draft_proxy/search_query_parser.{parse_search_query_term}
 import shopify_draft_proxy/state/store.{
   type Store, list_effective_saved_searches,
 }
+import shopify_draft_proxy/state/store/shared.{dedupe_strings}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -750,6 +751,7 @@ fn has_query_grammar_error(errors: List(saved_search_types.UserError)) -> Bool {
       Some(["input", "query"]) | Some(["input", "searchTerms"]) ->
         string.starts_with(error.message, "Search terms is invalid")
         || string.starts_with(error.message, "Query has incompatible filters")
+        || string.starts_with(error.message, "Query is invalid,")
         || error.message == "Query is invalid"
       _ -> False
     }
@@ -923,20 +925,24 @@ fn validate_query_for_resource_type(
   case first_reserved_filter(resource_type, keys) {
     Some(filter) -> [reserved_filter_error(operation, filter)]
     None ->
-      case product_incompatible_filter_pair(resource_type, keys) {
-        Some(pair) -> {
-          let #(left, right) = pair
-          [
-            saved_search_types.UserError(
-              field: Some(["input", "query"]),
-              message: "Query has incompatible filters: "
-                <> left
-                <> ", "
-                <> right,
-            ),
-          ]
-        }
-        None -> []
+      case unknown_filter_errors(resource_type, keys, operation) {
+        [_, ..] as errors -> errors
+        [] ->
+          case product_incompatible_filter_pair(resource_type, keys) {
+            Some(pair) -> {
+              let #(left, right) = pair
+              [
+                saved_search_types.UserError(
+                  field: Some(["input", "query"]),
+                  message: "Query has incompatible filters: "
+                    <> left
+                    <> ", "
+                    <> right,
+                ),
+              ]
+            }
+            None -> []
+          }
       }
   }
 }
@@ -944,12 +950,25 @@ fn validate_query_for_resource_type(
 fn saved_search_query_filter_keys(query: String) -> List(String) {
   saved_search_types.split_saved_search_top_level_tokens(query)
   |> list.filter_map(fn(token) {
-    let term = parse_search_query_term(token)
-    case term.field {
-      Some(field) if field != "" -> Ok(field)
-      _ -> Error(Nil)
+    case is_top_level_filter_token(token) {
+      True -> {
+        let term = parse_search_query_term(token)
+        case term.field {
+          Some(field) if field != "" -> Ok(field)
+          _ -> Error(Nil)
+        }
+      }
+      False -> Error(Nil)
     }
   })
+}
+
+fn is_top_level_filter_token(token: String) -> Bool {
+  let normalized = string.trim(token)
+  normalized != ""
+  && string.uppercase(normalized) != "OR"
+  && !string.contains(normalized, "(")
+  && !string.contains(normalized, ")")
 }
 
 fn first_reserved_filter(
@@ -986,6 +1005,76 @@ fn reserved_filter_error(
       <> filter
       <> "' is a reserved filter name",
   )
+}
+
+fn unknown_filter_errors(
+  resource_type: String,
+  keys: List(String),
+  operation: SavedSearchValidationOperation,
+) -> List(saved_search_types.UserError) {
+  case valid_filter_fields_for_resource_type(resource_type) {
+    Some(valid_fields) ->
+      keys
+      |> dedupe_strings
+      |> list.filter(fn(key) {
+        !list.contains(valid_fields, string.lowercase(key))
+      })
+      |> list.sort(by: string.compare)
+      |> list.map(fn(key) { unknown_filter_error(operation, key) })
+    None -> []
+  }
+}
+
+fn unknown_filter_error(
+  operation: SavedSearchValidationOperation,
+  filter: String,
+) -> saved_search_types.UserError {
+  let field = case operation {
+    CreateValidation -> ["input", "query"]
+    UpdateValidation -> ["input", "searchTerms"]
+  }
+  saved_search_types.UserError(
+    field: Some(field),
+    message: "Query is invalid, '" <> filter <> "' is not a valid filter",
+  )
+}
+
+fn valid_filter_fields_for_resource_type(
+  resource_type: String,
+) -> Option(List(String)) {
+  case resource_type {
+    "PRODUCT" ->
+      Some([
+        "collection_id", "created_at", "error_feedback", "handle", "id",
+        "inventory_total", "product_type", "published_at", "published_status",
+        "sku", "status", "tag", "title", "updated_at", "vendor",
+      ])
+    "COLLECTION" ->
+      Some([
+        "collection_type", "handle", "id", "product_id",
+        "product_publication_status", "publishable_status", "published_at",
+        "published_status", "title", "updated_at",
+      ])
+    "ORDER" ->
+      Some([
+        "channel_id", "created_at", "customer_id", "email", "financial_status",
+        "fulfillment_status", "id", "location_id", "name", "processed_at",
+        "sales_channel", "status", "tag", "test", "updated_at",
+      ])
+    "DRAFT_ORDER" ->
+      Some([
+        "created_at", "customer_id", "email", "id", "name", "status", "tag",
+        "updated_at",
+      ])
+    "FILE" ->
+      Some([
+        "created_at", "filename", "id", "media_type", "original_source",
+        "status", "updated_at",
+      ])
+    "DISCOUNT_REDEEM_CODE" ->
+      Some(["code", "created_at", "discount_id", "id", "status", "updated_at"])
+    _ -> None
+  }
 }
 
 fn product_incompatible_filter_pair(

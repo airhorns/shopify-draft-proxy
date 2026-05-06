@@ -30,6 +30,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types as state_types
 
+const maximum_alternate_shop_locales = 20
+
 @internal
 pub fn is_localization_mutation_root(name: String) -> Bool {
   case name {
@@ -226,7 +228,7 @@ fn handle_shop_locale_enable(
           field,
           None,
           None,
-          [serializers.shop_locale_does_not_exist_error()],
+          [serializers.invalid_locale_error()],
           "ShopLocaleEnablePayload",
           fragments,
         )
@@ -244,38 +246,92 @@ fn handle_shop_locale_enable(
         None -> []
       }
       let existing = serializers.get_shop_locale(store_in, locale)
-      let existing_primary = case existing {
-        Some(record) -> record.primary
-        None -> False
+      case
+        existing,
+        enabled_alternate_locale_count(store_in)
+        >= maximum_alternate_shop_locales
+      {
+        Some(_), _ -> {
+          let payload =
+            serializers.project_shop_locale_payload(
+              store_in,
+              field,
+              None,
+              None,
+              [serializers.shop_locale_taken_error()],
+              "ShopLocaleEnablePayload",
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+            ),
+            store_in,
+            identity,
+          )
+        }
+        None, True -> {
+          let payload =
+            serializers.project_shop_locale_payload(
+              store_in,
+              field,
+              None,
+              None,
+              [serializers.shop_locale_limit_reached_error(name)],
+              "ShopLocaleEnablePayload",
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+            ),
+            store_in,
+            identity,
+          )
+        }
+        None, False -> {
+          let record =
+            state_types.ShopLocaleRecord(
+              locale: locale,
+              name: name,
+              primary: False,
+              published: False,
+              market_web_presence_ids: market_web_presence_ids,
+            )
+          let #(_, store_after) = store.stage_shop_locale(store_in, record)
+          let payload =
+            serializers.project_shop_locale_payload(
+              store_after,
+              field,
+              Some(record),
+              None,
+              [],
+              "ShopLocaleEnablePayload",
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [serializers.shop_locale_staged_id(record)],
+            ),
+            store_after,
+            identity,
+          )
+        }
       }
-      let record =
-        state_types.ShopLocaleRecord(
-          locale: locale,
-          name: name,
-          primary: existing_primary,
-          published: False,
-          market_web_presence_ids: market_web_presence_ids,
-        )
-      let #(_, store_after) = store.stage_shop_locale(store_in, record)
-      let payload =
-        serializers.project_shop_locale_payload(
-          store_after,
-          field,
-          Some(record),
-          None,
-          [],
-          "ShopLocaleEnablePayload",
-          fragments,
-        )
-      #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          serializers.shop_locale_staged_id(record),
-        ]),
-        store_after,
-        identity,
-      )
     }
   }
+}
+
+fn enabled_alternate_locale_count(store_in: Store) -> Int {
+  serializers.list_shop_locales(store_in, None)
+  |> list.filter(fn(locale) { !locale.primary })
+  |> list.length
 }
 
 // shopLocaleUpdate
@@ -293,16 +349,17 @@ fn handle_shop_locale_update(
     None -> ""
   }
   let existing = serializers.get_shop_locale(store_in, locale)
+  let input = serializers.read_input_object(args, "shopLocale")
+  let published_input = graphql_helpers.read_arg_bool(input, "published")
   case existing {
     Some(current) -> {
-      let input = serializers.read_input_object(args, "shopLocale")
       let market_web_presence_ids = case
         read_optional_string_array(input, "marketWebPresenceIds")
       {
         Some(ids) -> ids
         None -> current.market_web_presence_ids
       }
-      let published = case graphql_helpers.read_arg_bool(input, "published") {
+      let published = case published_input {
         Some(b) -> b
         None -> current.published
       }
@@ -363,21 +420,68 @@ fn handle_shop_locale_update(
       }
     }
     None -> {
-      let payload =
-        serializers.project_shop_locale_payload(
-          store_in,
-          field,
-          None,
-          None,
-          [serializers.shop_locale_does_not_exist_error()],
-          "ShopLocaleUpdatePayload",
-          fragments,
-        )
-      #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
-        store_in,
-        identity,
-      )
+      case published_input {
+        Some(_) -> {
+          let payload =
+            serializers.project_shop_locale_payload(
+              store_in,
+              field,
+              None,
+              None,
+              [serializers.shop_locale_does_not_exist_error()],
+              "ShopLocaleUpdatePayload",
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+            ),
+            store_in,
+            identity,
+          )
+        }
+        None -> {
+          let market_web_presence_ids = case
+            read_optional_string_array(input, "marketWebPresenceIds")
+          {
+            Some(ids) -> ids
+            None -> []
+          }
+          let name =
+            serializers.locale_name(store_in, locale)
+            |> option.unwrap(locale)
+          let record =
+            state_types.ShopLocaleRecord(
+              locale: locale,
+              name: name,
+              primary: False,
+              published: False,
+              market_web_presence_ids: market_web_presence_ids,
+            )
+          let #(_, store_after) = store.stage_shop_locale(store_in, record)
+          let payload =
+            serializers.project_shop_locale_payload(
+              store_after,
+              field,
+              Some(record),
+              None,
+              [],
+              "ShopLocaleUpdatePayload",
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [serializers.shop_locale_staged_id(record)],
+            ),
+            store_after,
+            identity,
+          )
+        }
+      }
     }
   }
 }

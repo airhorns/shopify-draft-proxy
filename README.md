@@ -33,8 +33,8 @@ normal test runs mutating a dev store.
 
 The runtime is implemented in Gleam and compiled to JavaScript and Erlang from
 the same domain model. JavaScript and TypeScript consumers use the
-`shopify-draft-proxy` package surface; Elixir and other BEAM consumers use the
-`shopify_draft_proxy` package surface.
+`shopify-draft-proxy` npm package, and then Elixir and other BEAM consumers use the
+`shopify_draft_proxy` mix package.
 
 ## Install From Source
 
@@ -227,48 +227,8 @@ discounts, apps/functions, payments, privacy, online store, store properties,
 shipping/fulfillment surfaces, and Admin Platform utilities. Endpoint-specific
 coverage notes live under `docs/endpoints/`.
 
-## Conformance Workflow
+## Conformance testing
 
-Conformance remains the fidelity standard:
+We prove that the proxy correctly emulates Shopify by taking extensive recordings of Shopify's real behavior and then making sure that the proxy acts the same as Shopify, with the exception of doing the real-world side effects and some non-deterministic things like id and timestamp generation.
 
-1. Capture real Shopify request/response fixtures against disposable test
-   shops.
-2. Keep parity specs and fixture bytes stable.
-3. Replay runnable scenarios against the proxy.
-4. Compare strict JSON payload slices, allowing only explicit volatile paths.
-5. Use failures to drive domain modeling rather than weakening scenario files.
-
-Local checks:
-
-```sh
-corepack pnpm conformance:check
-corepack pnpm parity:run
-```
-
-Live capture credentials are intentionally separate from normal runtime config
-and are loaded through the repository conformance auth helpers, not from copied
-workspace `.env` token values.
-
-## TypeScript Retirement Boundary
-
-The runtime is Gleam. The legacy TypeScript runtime and TypeScript runtime tests
-have been removed after the full strict parity corpus moved to the Gleam runner.
-
-TypeScript still exists where it is the right repository tooling: the JavaScript
-interop shim under `js/src`, live conformance capture scripts, registry
-checks, and report generation. Those files do not own Shopify domain runtime
-behavior.
-
-## Important Docs
-
-- `GLEAM_PORT_INTENT.md`: why the port exists and the non-negotiable parity bar
-- `GLEAM_PORT_LOG.md`: newest-first narrative of landed Gleam port passes
-- `shopify_draft_proxy` package README: detailed Gleam, JS, and Elixir
-  embedder notes
-- `docs/original-intent.md`: project intent, non-goals, and fidelity standard
-- `docs/architecture.md`: request flow, state model, runtime modes, and meta API
-- `docs/conformance-capture.md`: indexed capture-command lookup by domain
-- `docs/parity-runner.md`: cassette-backed parity runner contract
-- `docs/helpers.md`: shared helper APIs to use before adding new utilities
-- `docs/hard-and-weird-notes.md`: captured Shopify quirks and fidelity traps
-- `docs/endpoints/`: endpoint-specific behavior and coverage notes
+See the conformance specs at `config/parity-specs`.
