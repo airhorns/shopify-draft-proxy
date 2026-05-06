@@ -4,14 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-cancel-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/fulfillment-cancel-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/fulfillmentCancel-parity-plan.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured HAR-187 happy-path `fulfillmentCancel` slice after fulfillment access was restored. The fixture records the safe setup fulfillment/tracking update, the cancel mutation payload, and immediate downstream order fulfillment visibility.",
+  "notes": "Captured happy-path `fulfillmentCancel` against a disposable fulfilled order. The fixture records the setup fulfillment/tracking update, the pre-cancel hydrate used by local emulation, the cancel mutation payload, and immediate downstream order fulfillment visibility.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

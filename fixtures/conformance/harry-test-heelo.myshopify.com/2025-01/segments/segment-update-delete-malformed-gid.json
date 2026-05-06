@@ -1,0 +1,319 @@
+{
+  "capturedAt": "2026-05-06T01:58:23.461Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentUpdateMalformedGid",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) {\n    segmentUpdate(id: $id, name: $name) {\n      segment {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "not-a-gid",
+          "name": "x"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "not-a-gid",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id 'not-a-gid'",
+                    "message": "Invalid global id 'not-a-gid'"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateEmptyGid",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) {\n    segmentUpdate(id: $id, name: $name) {\n      segment {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "",
+          "name": "x"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateWrongTypeGid",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) {\n    segmentUpdate(id: $id, name: $name) {\n      segment {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Order/1",
+          "name": "x"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["segmentUpdate"]
+            }
+          ],
+          "data": {
+            "segmentUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateUnknownSegment",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateMalformedGid($id: ID!, $name: String!) {\n    segmentUpdate(id: $id, name: $name) {\n      segment {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/999999999999",
+          "name": "x"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Segment does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteMalformedGid",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteMalformedGid($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "not-a-gid"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "not-a-gid",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id 'not-a-gid'",
+                    "message": "Invalid global id 'not-a-gid'"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteEmptyGid",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteMalformedGid($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteWrongTypeGid",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteMalformedGid($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Order/1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["segmentDelete"]
+            }
+          ],
+          "data": {
+            "segmentDelete": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteUnknownSegment",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteMalformedGid($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Segment does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Malformed and empty segment ids are rejected as top-level variable errors before resolver execution.",
+    "Non-Segment Shopify GIDs are rejected as top-level resource-not-found errors with null mutation data.",
+    "Well-formed but unknown Segment GIDs keep the payload-level UserError shape."
+  ],
+  "upstreamCalls": []
+}
