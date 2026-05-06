@@ -451,6 +451,81 @@ pub fn maximum_shop_policy_body_size_succeeds_test() {
   )
 }
 
+pub fn blank_subscription_policy_body_returns_user_error_without_staging_test() {
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id type body } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"SUBSCRIPTION_POLICY\",\"body\":\"\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"shopPolicy\":null")
+  assert string.contains(serialized, "\"field\":[\"shopPolicy\",\"body\"]")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Purchase options cancellation policy required\"",
+  )
+  assert string.contains(serialized, "\"code\":null")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+
+  let read_body =
+    "{\"query\":\"query { shop { shopPolicies { type body } } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_body_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_body_json)
+
+  assert read_status == 200
+  assert string.contains(read_serialized, "\"shopPolicies\":[]")
+  assert !string.contains(read_serialized, "SUBSCRIPTION_POLICY")
+}
+
+pub fn whitespace_subscription_policy_body_returns_user_error_without_staging_test() {
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id type body } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"SUBSCRIPTION_POLICY\",\"body\":\"   \"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"shopPolicy\":null")
+  assert string.contains(serialized, "\"field\":[\"shopPolicy\",\"body\"]")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Purchase options cancellation policy required\"",
+  )
+  assert string.contains(serialized, "\"code\":null")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+
+  let read_body =
+    "{\"query\":\"query { shop { shopPolicies { type body } } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_body_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_body_json)
+
+  assert read_status == 200
+  assert string.contains(read_serialized, "\"shopPolicies\":[]")
+  assert !string.contains(read_serialized, "SUBSCRIPTION_POLICY")
+}
+
+pub fn blank_refund_policy_body_still_succeeds_test() {
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id type body } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"REFUND_POLICY\",\"body\":\"\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"type\":\"REFUND_POLICY\"")
+  assert string.contains(serialized, "\"body\":\"\"")
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "\"stagedResourceIds\":[\"gid://shopify/ShopPolicy/1\"]",
+  )
+}
+
 pub fn admin_platform_node_resolves_store_property_records_test() {
   let policy = make_policy("<p>Relay contact policy</p>")
   let proxy = draft_proxy.new()

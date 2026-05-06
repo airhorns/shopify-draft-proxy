@@ -1,0 +1,55 @@
+{
+  "scenarioId": "catalog-context-update-no-args",
+  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-catalog",
+        "capturePath": "$.cases[1].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[1].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "marketIds": [{ "fromPrimaryProxyPath": "$.data.marketCreate.market.id" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "no-args-error",
+        "capturePath": "$.cases[2].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-no-args.graphql",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "setup-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "contextsToAdd": null,
+            "contextsToRemove": null
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture proves catalogContextUpdate without contextsToAdd or contextsToRemove returns REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE at field [\"contextsToAdd\"]. The setup market/catalog mutations are replayed first so local state is earned through supported mutations rather than seeded."
+}

@@ -1,0 +1,85 @@
+{
+  "scenarioId": "catalog-context-update-removes-only",
+  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate", "catalog"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+    "variablesCapturePath": "$.cases[3].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-remaining-market",
+        "capturePath": "$.cases[4].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+          "variablesCapturePath": "$.cases[4].variables"
+        }
+      },
+      {
+        "name": "setup-removes-catalog",
+        "capturePath": "$.cases[5].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[5].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "marketIds": [
+                  { "fromPrimaryProxyPath": "$.data.marketCreate.market.id" },
+                  {
+                    "fromProxyResponse": "setup-remaining-market",
+                    "path": "$.data.marketCreate.market.id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "removes-only-payload",
+        "capturePath": "$.cases[6].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-removes-only.graphql",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "setup-removes-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "contextsToRemove": {
+              "marketIds": [{ "fromPrimaryProxyPath": "$.data.marketCreate.market.id" }]
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-remove",
+        "capturePath": "$.cases[7].response.payload.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-removes-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture proves contextsToRemove can be supplied without contextsToAdd, removes only the requested Market ID, and downstream catalog(id:) observes the remaining market context. The replay creates both markets and the catalog through local mutations first."
+}

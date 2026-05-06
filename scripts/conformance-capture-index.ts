@@ -1891,6 +1891,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'catalog-context-update-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-catalog-context-update-conformance.ts',
+    purpose:
+      'catalogContextUpdate required-context validation, remove-only context updates, duplicate market add behavior, catalog-not-found typing, and downstream catalog reads.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}catalog-context-update-lifecycle.json`,
+      'config/parity-specs/markets/catalog-context-update-no-args.json',
+      'config/parity-specs/markets/catalog-context-update-removes-only.json',
+      'config/parity-specs/markets/catalog-context-update-market-taken.json',
+      'config/parity-specs/markets/catalog-context-update-catalog-not-found.json',
+      'config/parity-requests/markets/catalog-context-update-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'quantity-rules-add-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-quantity-rules-add-validation-conformance.mts',
@@ -2215,6 +2235,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-comment-delete-true-destroy',
+    scriptPath: 'scripts/capture-online-store-comment-delete-true-destroy-conformance.ts',
+    purpose:
+      'commentDelete true-destroy behavior for singular comment reads, root/nested comment connections, and Article.commentsCount.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}comment-delete-true-destroy.json`,
+      'config/parity-specs/online-store/comment-delete-true-destroy.json',
+      'config/parity-requests/online-store/comment-delete-true-destroy-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog/article and one REST article comment, approves and deletes the comment during the scenario, then deletes the article and blog in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-comment-moderation-state-transitions',
     scriptPath: 'scripts/capture-online-store-comment-moderation-state-transitions-conformance.ts',
     purpose:
@@ -2517,6 +2553,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Restores prior policy content when a write branch is captured. Newly created policy rows may remain on shops where Shopify does not expose deletion, but their bodies are reset to the prior empty fallback.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'shop-policy-subscription-blank-body',
+    scriptPath: 'scripts/capture-shop-policy-subscription-blank-body-conformance.ts',
+    purpose:
+      'shopPolicyUpdate SUBSCRIPTION_POLICY blank and whitespace body validation plus downstream shopPolicies non-presence.',
+    requiredAuthScopes: ['read_content', 'write_content or policy-management access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
+      'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body*.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'privacy',
@@ -3161,6 +3213,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes HAR-416 validations and cart transforms for the captured Function; no Shopify Function execution or tax callbacks are invoked.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-cart-transform-api-mismatch',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-cart-transform-api-mismatch-conformance.ts',
+    purpose:
+      'cartTransformCreate API-mismatched Function identifier userError code split for functionId versus functionHandle plus downstream empty cartTransforms read.',
+    requiredAuthScopes: [
+      'read_cart_transforms',
+      'write_cart_transforms for cleanup of pre-existing conformance cart transforms',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-cart-transform-create-api-mismatch-by-identifier.json`,
+      'config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json',
+      'config/parity-requests/functions/functions-cart-transform-create-api-mismatch-by-id.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-api-mismatch-by-handle.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes pre-existing cartTransforms before capturing validation Function mismatch probes, then verifies the failed probes leave cartTransforms empty.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

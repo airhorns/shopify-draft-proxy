@@ -1,0 +1,25 @@
+#graphql
+mutation CatalogContextUpdateNoArgs(
+  $catalogId: ID!
+  $contextsToAdd: CatalogContextInput
+  $contextsToRemove: CatalogContextInput
+) {
+  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd, contextsToRemove: $contextsToRemove) {
+    catalog {
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            name
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
