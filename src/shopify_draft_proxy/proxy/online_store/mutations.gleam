@@ -2165,45 +2165,14 @@ fn create_mobile_app(
       "input",
     )
     |> option.unwrap(dict.new())
-  let app_type =
-    serializers.option_string(
-      serializers.input_string(input, "applicationType"),
-      "ANDROID",
-    )
-  let typename = case app_type {
-    "APPLE" -> "AppleApplication"
-    _ -> "AndroidApplication"
-  }
+  let typename = mobile_platform_create_typename(input)
   let app_input = serializers.mobile_platform_payload(input)
   let #(record, identity) =
-    serializers.make_integration(outcome.identity, "mobilePlatformApplication", [
-      #("__typename", SrcString(typename)),
-      #(
-        "applicationId",
-        serializers.option_source(
-          serializers.input_string(app_input, "applicationId"),
-          "com.example.local",
-        ),
-      ),
-      #(
-        "appId",
-        serializers.option_source(
-          serializers.input_string(app_input, "appId"),
-          "com.example.local",
-        ),
-      ),
-      #(
-        "appLinksEnabled",
-        serializers.bool_source(
-          serializers.input_bool(app_input, "appLinksEnabled"),
-          True,
-        ),
-      ),
-      #(
-        "sha256CertFingerprints",
-        serializers.value_source_from_dict(app_input, "sha256CertFingerprints"),
-      ),
-    ])
+    serializers.make_integration(
+      outcome.identity,
+      "mobilePlatformApplication",
+      mobile_platform_create_entries(typename, app_input),
+    )
   let #(_, store) =
     store.upsert_staged_online_store_integration(outcome.store, record)
   integration_payload_result(
@@ -2221,6 +2190,86 @@ fn create_mobile_app(
   )
 }
 
+fn mobile_platform_create_typename(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case mobile_platform_has_object(input, "apple") {
+    True -> "AppleApplication"
+    False ->
+      case serializers.input_string(input, "applicationType") {
+        Some("APPLE") -> "AppleApplication"
+        _ -> "AndroidApplication"
+      }
+  }
+}
+
+fn mobile_platform_create_entries(
+  typename: String,
+  app_input: Dict(String, root_field.ResolvedValue),
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  case typename {
+    "AppleApplication" -> [
+      #("__typename", SrcString(typename)),
+      #(
+        "appId",
+        serializers.option_source(
+          serializers.input_string(app_input, "appId"),
+          "com.example.local",
+        ),
+      ),
+      #(
+        "universalLinksEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "universalLinksEnabled"),
+          True,
+        ),
+      ),
+      #(
+        "sharedWebCredentialsEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "sharedWebCredentialsEnabled"),
+          True,
+        ),
+      ),
+      #(
+        "appClipsEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "appClipsEnabled"),
+          False,
+        ),
+      ),
+      #(
+        "appClipApplicationId",
+        serializers.option_source(
+          serializers.input_string(app_input, "appClipApplicationId"),
+          "",
+        ),
+      ),
+    ]
+    _ -> [
+      #("__typename", SrcString("AndroidApplication")),
+      #(
+        "applicationId",
+        serializers.option_source(
+          serializers.input_string(app_input, "applicationId"),
+          "com.example.local",
+        ),
+      ),
+      #(
+        "appLinksEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "appLinksEnabled"),
+          True,
+        ),
+      ),
+      #(
+        "sha256CertFingerprints",
+        serializers.value_source_from_dict(app_input, "sha256CertFingerprints"),
+      ),
+    ]
+  }
+}
+
 fn update_mobile_app(
   outcome: MutationOutcome,
   field: Selection,
@@ -2229,6 +2278,8 @@ fn update_mobile_app(
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = serializers.input_string(args, "id")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case
     serializers.lookup_integration_by_id(
       outcome.store,
@@ -2236,20 +2287,63 @@ fn update_mobile_app(
       id,
     )
   {
-    serializers.IntegrationFound(record) ->
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        "mobilePlatformApplicationUpdate",
-        "mobilePlatformApplication",
-        Some(record),
-        [],
-        outcome.store,
-        outcome.identity,
-        [record.id],
-      )
+    serializers.IntegrationFound(record) -> {
+      let typename = mobile_platform_record_typename(record)
+      case mobile_platform_has_wrong_platform_input(input, typename) {
+        True ->
+          integration_validation_error_payload(
+            outcome,
+            field,
+            fragments,
+            "mobilePlatformApplicationUpdate",
+            "mobilePlatformApplication",
+            [
+              mobile_platform_user_error(
+                ["mobilePlatformApplication"],
+                "Mobile platform application platform is invalid",
+                "INVALID",
+              ),
+            ],
+          )
+        False -> {
+          let platform_input = mobile_platform_update_payload(input, typename)
+          let errors = mobile_platform_update_errors(platform_input, typename)
+          case errors {
+            [] -> {
+              let record =
+                mobile_platform_updated_record(record, platform_input, typename)
+              let #(_, store) =
+                store.upsert_staged_online_store_integration(
+                  outcome.store,
+                  record,
+                )
+              integration_payload_result(
+                outcome,
+                field,
+                fragments,
+                variables,
+                "mobilePlatformApplicationUpdate",
+                "mobilePlatformApplication",
+                Some(record),
+                [],
+                store,
+                outcome.identity,
+                [record.id],
+              )
+            }
+            _ ->
+              integration_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                "mobilePlatformApplicationUpdate",
+                "mobilePlatformApplication",
+                errors,
+              )
+          }
+        }
+      }
+    }
     serializers.IntegrationInvalidId ->
       integration_payload_result(
         outcome,
@@ -2279,6 +2373,194 @@ fn update_mobile_app(
         [],
       )
   }
+}
+
+fn mobile_platform_record_typename(
+  record: OnlineStoreIntegrationRecord,
+) -> String {
+  serializers.source_string_field(
+    serializers.captured_to_source(record.data),
+    "__typename",
+    "AndroidApplication",
+  )
+}
+
+fn mobile_platform_has_wrong_platform_input(
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> Bool {
+  case typename {
+    "AppleApplication" -> mobile_platform_has_object(input, "android")
+    "AndroidApplication" -> mobile_platform_has_object(input, "apple")
+    _ -> False
+  }
+}
+
+fn mobile_platform_has_object(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(input, key) {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+}
+
+fn mobile_platform_update_payload(
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  let key = case typename {
+    "AppleApplication" -> "apple"
+    _ -> "android"
+  }
+  case dict.get(input, key) {
+    Ok(root_field.ObjectVal(fields)) -> fields
+    _ -> input
+  }
+}
+
+fn mobile_platform_update_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> List(graphql_helpers.SourceValue) {
+  case typename {
+    "AppleApplication" ->
+      mobile_platform_blank_string_errors(
+        input,
+        "appId",
+        ["mobilePlatformApplication", "apple", "appId"],
+        "App ID can't be blank",
+      )
+    _ ->
+      mobile_platform_blank_string_errors(
+        input,
+        "applicationId",
+        ["mobilePlatformApplication", "android", "applicationId"],
+        "Application ID can't be blank",
+      )
+  }
+}
+
+fn mobile_platform_blank_string_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  input_key: String,
+  field: List(String),
+  message: String,
+) -> List(graphql_helpers.SourceValue) {
+  case serializers.input_string(input, input_key) {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> [mobile_platform_user_error(field, message, "BLANK")]
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn mobile_platform_updated_record(
+  record: OnlineStoreIntegrationRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> OnlineStoreIntegrationRecord {
+  let prior = serializers.captured_to_source(record.data)
+  let entries = case typename {
+    "AppleApplication" -> mobile_platform_updated_apple_entries(input, prior)
+    _ -> mobile_platform_updated_android_entries(input, prior)
+  }
+  OnlineStoreIntegrationRecord(
+    ..record,
+    data: serializers.base_source(prior, entries)
+      |> serializers.source_to_captured,
+  )
+}
+
+fn mobile_platform_updated_android_entries(
+  input: Dict(String, root_field.ResolvedValue),
+  prior: graphql_helpers.SourceValue,
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  [
+    #(
+      "applicationId",
+      serializers.value_or_default(
+        input,
+        "applicationId",
+        serializers.source_field(prior, "applicationId", SrcNull),
+      ),
+    ),
+    #(
+      "appLinksEnabled",
+      serializers.value_or_default(
+        input,
+        "appLinksEnabled",
+        serializers.source_field(prior, "appLinksEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "sha256CertFingerprints",
+      serializers.value_or_default(
+        input,
+        "sha256CertFingerprints",
+        serializers.source_field(prior, "sha256CertFingerprints", SrcNull),
+      ),
+    ),
+  ]
+}
+
+fn mobile_platform_updated_apple_entries(
+  input: Dict(String, root_field.ResolvedValue),
+  prior: graphql_helpers.SourceValue,
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  [
+    #(
+      "appId",
+      serializers.value_or_default(
+        input,
+        "appId",
+        serializers.source_field(prior, "appId", SrcNull),
+      ),
+    ),
+    #(
+      "universalLinksEnabled",
+      serializers.value_or_default(
+        input,
+        "universalLinksEnabled",
+        serializers.source_field(prior, "universalLinksEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "sharedWebCredentialsEnabled",
+      serializers.value_or_default(
+        input,
+        "sharedWebCredentialsEnabled",
+        serializers.source_field(prior, "sharedWebCredentialsEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "appClipsEnabled",
+      serializers.value_or_default(
+        input,
+        "appClipsEnabled",
+        serializers.source_field(prior, "appClipsEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "appClipApplicationId",
+      serializers.value_or_default(
+        input,
+        "appClipApplicationId",
+        serializers.source_field(prior, "appClipApplicationId", SrcNull),
+      ),
+    ),
+  ]
+}
+
+fn mobile_platform_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  serializers.user_error_with_code(field, message, code)
 }
 
 fn delete_integration(
