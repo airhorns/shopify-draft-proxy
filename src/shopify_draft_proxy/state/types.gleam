@@ -1153,6 +1153,8 @@ pub type AppUsageRecord {
 pub type DelegatedAccessTokenRecord {
   DelegatedAccessTokenRecord(
     id: String,
+    api_client_id: String,
+    parent_access_token_sha256: Option(String),
     access_token_sha256: String,
     access_token_preview: String,
     access_scopes: List(String),
