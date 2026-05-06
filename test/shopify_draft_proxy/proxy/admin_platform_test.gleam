@@ -431,6 +431,9 @@ fn seeded_product_option_store() {
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
+      combined_listing_role: None,
+      combined_listing_parent_id: None,
+      combined_listing_child_ids: [],
     ),
   ])
   |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [

@@ -293,6 +293,7 @@ query ProductsHydrateNodes($ids: [ID!]!) {
       title
       handle
       status
+      combinedListingRole
       vendor
       productType
       tags

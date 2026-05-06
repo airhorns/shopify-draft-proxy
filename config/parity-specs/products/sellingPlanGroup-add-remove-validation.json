@@ -1,0 +1,270 @@
+{
+  "scenarioId": "sellingPlanGroup-add-remove-validation",
+  "operationNames": [
+    "sellingPlanGroupCreate",
+    "sellingPlanGroupAddProducts",
+    "sellingPlanGroupAddProductVariants",
+    "sellingPlanGroupRemoveProducts",
+    "sellingPlanGroupRemoveProductVariants"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-add-remove-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/selling-plan-group-create.graphql",
+    "documentCapturePath": "$.captures[2].request.query",
+    "variablesCapturePath": "$.captures[2].request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-validation-group",
+        "capturePath": "$.captures[2].response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
+        ]
+      },
+      {
+        "name": "duplicate-add-product",
+        "capturePath": "$.captures[3].response.data.sellingPlanGroupAddProducts",
+        "proxyPath": "$.data.sellingPlanGroupAddProducts",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-add-products.graphql",
+          "documentCapturePath": "$.captures[3].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.memberProduct.id"
+              }
+            ],
+            "productId": {
+              "fromCapturePath": "$.memberProduct.id"
+            },
+            "variantId": {
+              "fromCapturePath": "$.memberProduct.variantId"
+            }
+          }
+        }
+      },
+      {
+        "name": "duplicate-add-variant",
+        "capturePath": "$.captures[4].response.data.sellingPlanGroupAddProductVariants",
+        "proxyPath": "$.data.sellingPlanGroupAddProductVariants",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-add-variants.graphql",
+          "documentCapturePath": "$.captures[4].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productVariantIds": [
+              {
+                "fromCapturePath": "$.memberProduct.variantId"
+              }
+            ],
+            "productId": {
+              "fromCapturePath": "$.memberProduct.id"
+            },
+            "variantId": {
+              "fromCapturePath": "$.memberProduct.variantId"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-add-product",
+        "capturePath": "$.captures[5].response.data.sellingPlanGroupAddProducts",
+        "proxyPath": "$.data.sellingPlanGroupAddProducts",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-add-products.graphql",
+          "documentCapturePath": "$.captures[5].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.unknownProductId"
+              }
+            ],
+            "productId": {
+              "fromCapturePath": "$.memberProduct.id"
+            },
+            "variantId": {
+              "fromCapturePath": "$.memberProduct.variantId"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-add-variant",
+        "capturePath": "$.captures[6].response.data.sellingPlanGroupAddProductVariants",
+        "proxyPath": "$.data.sellingPlanGroupAddProductVariants",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-add-variants.graphql",
+          "documentCapturePath": "$.captures[6].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productVariantIds": [
+              {
+                "fromCapturePath": "$.unknownVariantId"
+              }
+            ],
+            "productId": {
+              "fromCapturePath": "$.memberProduct.id"
+            },
+            "variantId": {
+              "fromCapturePath": "$.memberProduct.variantId"
+            }
+          }
+        }
+      },
+      {
+        "name": "remove-known-non-member-product",
+        "capturePath": "$.captures[7].response.data.sellingPlanGroupRemoveProducts",
+        "proxyPath": "$.data.sellingPlanGroupRemoveProducts",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-remove-products.graphql",
+          "documentCapturePath": "$.captures[7].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.nonMemberProduct.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "remove-known-non-member-variant",
+        "capturePath": "$.captures[8].response.data.sellingPlanGroupRemoveProductVariants",
+        "proxyPath": "$.data.sellingPlanGroupRemoveProductVariants",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-remove-variants.graphql",
+          "documentCapturePath": "$.captures[8].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productVariantIds": [
+              {
+                "fromCapturePath": "$.nonMemberProduct.variantId"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "remove-unknown-product",
+        "capturePath": "$.captures[9].response.data.sellingPlanGroupRemoveProducts",
+        "proxyPath": "$.data.sellingPlanGroupRemoveProducts",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-remove-products.graphql",
+          "documentCapturePath": "$.captures[9].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.unknownProductId"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "remove-unknown-variant",
+        "capturePath": "$.captures[10].response.data.sellingPlanGroupRemoveProductVariants",
+        "proxyPath": "$.data.sellingPlanGroupRemoveProductVariants",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-remove-variants.graphql",
+          "documentCapturePath": "$.captures[10].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productVariantIds": [
+              {
+                "fromCapturePath": "$.unknownVariantId"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "remove-malformed-product",
+        "capturePath": "$.captures[11].response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-remove-products.graphql",
+          "documentCapturePath": "$.captures[11].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.malformedProductId"
+              }
+            ]
+          }
+        },
+        "excludedPaths": ["$[*].locations"]
+      },
+      {
+        "name": "remove-malformed-variant",
+        "capturePath": "$.captures[12].response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-remove-variants.graphql",
+          "documentCapturePath": "$.captures[12].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "productVariantIds": [
+              {
+                "fromCapturePath": "$.malformedVariantId"
+              }
+            ]
+          }
+        },
+        "excludedPaths": ["$[*].locations"]
+      }
+    ]
+  },
+  "notes": "Captures Admin GraphQL 2026-04 selling-plan group add/remove validation for duplicate memberships, unknown add resources, valid non-member remove no-ops, unknown remove no-ops, and malformed remove variable errors. The harry-test-heelo capture showed known and unknown valid remove IDs return empty successful removals, while malformed IDs are rejected at the GraphQL variable layer."
+}

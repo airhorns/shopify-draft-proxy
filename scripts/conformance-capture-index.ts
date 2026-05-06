@@ -384,6 +384,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'combined-listing-update-validation',
+    scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
+    purpose:
+      'combinedListingUpdate parent role, child relation, optionsAndValues, duplicate, missing child, already-child, edit/remove overlap, and title validation payloads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}combinedListingUpdate-validation.json`,
+      'config/parity-specs/products/combinedListingUpdate-validation.json',
+      'config/parity-requests/products/combinedListingUpdate-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PARENT, plain, and child products; records validation failures plus setup success branches; deletes all setup products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-with-options',
     scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
     purpose:
@@ -417,6 +433,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable products, one synchronous duplicate, and disposable collections, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'selling-plan-group-add-remove-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-add-remove-validation-conformance.ts',
+    purpose:
+      'Selling-plan group add/remove product and product-variant validation for unknown ids, duplicate membership, known non-member removal, and malformed removal ids.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-add-remove-validation.json`,
+      'config/parity-specs/products/sellingPlanGroup-add-remove-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable products and a disposable selling-plan group, records validation branches, then deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1840,6 +1872,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable merchant-managed locations, temporary products/inventory levels, and a fulfillment service, then cleans them up after guard capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'location-deactivate-state-machine',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-deactivate-state-machine-conformance.mts',
+    purpose:
+      'locationDeactivate destination-location validation and source deactivation state-machine guards for same destination, inactive destination, active inventory, only-online fulfillment, and permanent deactivation block.',
+    requiredAuthScopes: ['read_locations', 'write_locations', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-deactivate-state-machine.json`,
+      'config/parity-specs/store-properties/location-deactivate-state-machine.json',
+      'config/parity-requests/store-properties/location-deactivate-state-machine*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable merchant-managed locations and a temporary product/inventory level, temporarily disables/restores online fulfillment on pre-existing locations for the only-online branch, then deactivates/deletes disposable locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
