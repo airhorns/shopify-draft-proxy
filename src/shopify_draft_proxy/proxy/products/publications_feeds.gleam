@@ -60,11 +60,11 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type ChannelRecord, type ProductFeedRecord, type ProductOperationRecord,
-  type ProductOperationUserErrorRecord, type ProductOptionRecord,
-  type ProductRecord, type ProductResourceFeedbackRecord,
-  type ShopResourceFeedbackRecord, ProductCollectionRecord, ProductFeedRecord,
-  ProductOperationRecord, ProductOperationUserErrorRecord, ProductRecord,
-  ProductResourceFeedbackRecord, ProductSeoRecord, ShopResourceFeedbackRecord,
+  type ProductOptionRecord, type ProductRecord,
+  type ProductResourceFeedbackRecord, type ShopResourceFeedbackRecord,
+  ProductCollectionRecord, ProductFeedRecord, ProductOperationRecord,
+  ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
+  ShopResourceFeedbackRecord,
 }
 
 // ===== from publications_l02 =====
@@ -959,39 +959,20 @@ pub fn handle_product_bundle_mutation(
         [operation_id],
       )
     }
-    _ -> {
-      let #(operation_id, next_identity) =
-        make_synthetic_gid(identity, "ProductBundleOperation")
-      let operation_user_errors =
-        list.map(user_errors, nullable_bundle_user_error_to_operation_error)
-      let completed_operation =
-        ProductOperationRecord(
-          id: operation_id,
-          type_name: "ProductBundleOperation",
-          product_id: None,
-          new_product_id: None,
-          status: "COMPLETE",
-          user_errors: operation_user_errors,
-        )
-      let #(staged_operation, next_store) =
-        store.stage_product_operation(store, completed_operation)
-      let initial_operation =
-        ProductOperationRecord(..staged_operation, status: "CREATED")
-      mutation_result(
+    _ ->
+      mutation_rejected_result(
         key,
         product_bundle_mutation_payload(
-          next_store,
+          store,
           root_name,
-          Some(initial_operation),
+          None,
           user_errors,
           field,
           fragments,
         ),
-        next_store,
-        next_identity,
-        [operation_id],
+        store,
+        identity,
       )
-    }
   }
 }
 
@@ -1059,13 +1040,6 @@ fn stage_product_bundle_product(
       #(next_store, next_identity, Some(staged.id))
     }
   }
-}
-
-fn nullable_bundle_user_error_to_operation_error(
-  error: NullableFieldUserError,
-) -> ProductOperationUserErrorRecord {
-  let NullableFieldUserError(field: field, message: message) = error
-  ProductOperationUserErrorRecord(field: field, message: message, code: None)
 }
 
 const product_bundle_quantity_max = 2000

@@ -3122,24 +3122,11 @@ pub fn product_bundle_create_rejects_component_validation_branches_test() {
     )
   assert missing_status == 200
   assert json.to_string(missing_body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\",\"product\":null,\"userErrors\":[{\"field\":null,\"message\":\"Failed to locate the following products: [0]\"}]},\"userErrors\":[{\"field\":null,\"message\":\"Failed to locate the following products: [0]\"}]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Failed to locate the following products: [0]\"}]}}}"
   let assert [missing_entry] = store.get_log(missing_proxy.store)
   assert missing_entry.operation_name == Some("productBundleCreate")
-  assert missing_entry.status == store_types.Staged
-  assert missing_entry.staged_resource_ids
-    == [
-      "gid://shopify/ProductBundleOperation/1",
-    ]
-  let missing_operation_read =
-    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/1\\\") { __typename status product { id } ... on ProductBundleOperation { id userErrors { field message } } } }"
-  let #(Response(status: missing_read_status, body: missing_read_body, ..), _) =
-    draft_proxy.process_request(
-      missing_proxy,
-      graphql_request(missing_operation_read),
-    )
-  assert missing_read_status == 200
-  assert json.to_string(missing_read_body)
-    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"COMPLETE\",\"product\":null,\"id\":\"gid://shopify/ProductBundleOperation/1\",\"userErrors\":[{\"field\":null,\"message\":\"Failed to locate the following products: [0]\"}]}}}"
+  assert missing_entry.status == store_types.Failed
+  assert missing_entry.staged_resource_ids == []
 
   let valid_option_selections =
     "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }"
@@ -3159,13 +3146,10 @@ pub fn product_bundle_create_rejects_component_validation_branches_test() {
     )
   assert max_quantity_status == 200
   assert json.to_string(max_quantity_body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\"},\"userErrors\":[{\"field\":null,\"message\":\"Quantity cannot be greater than 2000. The following products have a quantity that exceeds the maximum: [optioned]\"}]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Quantity cannot be greater than 2000. The following products have a quantity that exceeds the maximum: [optioned]\"}]}}}"
   let assert [max_quantity_entry] = store.get_log(max_quantity_proxy.store)
-  assert max_quantity_entry.status == store_types.Staged
-  assert max_quantity_entry.staged_resource_ids
-    == [
-      "gid://shopify/ProductBundleOperation/1",
-    ]
+  assert max_quantity_entry.status == store_types.Failed
+  assert max_quantity_entry.staged_resource_ids == []
 
   let quantity_option_query =
     "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantityOption: { name: \\\"Pack\\\", values: [{ name: \\\"One\\\", quantity: 1 }] }, optionSelections: ["
@@ -3183,14 +3167,11 @@ pub fn product_bundle_create_rejects_component_validation_branches_test() {
     )
   assert quantity_option_status == 200
   assert json.to_string(quantity_option_body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\"},\"userErrors\":[{\"field\":null,\"message\":\"Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids [optioned].\"}]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids [optioned].\"}]}}}"
   let assert [quantity_option_entry] =
     store.get_log(quantity_option_proxy.store)
-  assert quantity_option_entry.status == store_types.Staged
-  assert quantity_option_entry.staged_resource_ids
-    == [
-      "gid://shopify/ProductBundleOperation/1",
-    ]
+  assert quantity_option_entry.status == store_types.Failed
+  assert quantity_option_entry.staged_resource_ids == []
 
   let invalid_mapping_query =
     "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 1, optionSelections: ["
@@ -3208,14 +3189,11 @@ pub fn product_bundle_create_rejects_component_validation_branches_test() {
     )
   assert invalid_mapping_status == 200
   assert json.to_string(invalid_mapping_body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\"},\"userErrors\":[{\"field\":null,\"message\":\"Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids [optioned].\"}]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids [optioned].\"}]}}}"
   let assert [invalid_mapping_entry] =
     store.get_log(invalid_mapping_proxy.store)
-  assert invalid_mapping_entry.status == store_types.Staged
-  assert invalid_mapping_entry.staged_resource_ids
-    == [
-      "gid://shopify/ProductBundleOperation/1",
-    ]
+  assert invalid_mapping_entry.status == store_types.Failed
+  assert invalid_mapping_entry.staged_resource_ids == []
 
   let consolidated_option_selections =
     "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/material\\\", name: \\\"Material\\\", values: [\\\"Cotton\\\"] }"
@@ -3239,14 +3217,11 @@ pub fn product_bundle_create_rejects_component_validation_branches_test() {
     )
   assert invalid_consolidated_status == 200
   assert json.to_string(invalid_consolidated_body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\"},\"userErrors\":[{\"field\":null,\"message\":\"Consolidated option selections are invalid.\"}]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Consolidated option selections are invalid.\"}]}}}"
   let assert [invalid_consolidated_entry] =
     store.get_log(invalid_consolidated_proxy.store)
-  assert invalid_consolidated_entry.status == store_types.Staged
-  assert invalid_consolidated_entry.staged_resource_ids
-    == [
-      "gid://shopify/ProductBundleOperation/1",
-    ]
+  assert invalid_consolidated_entry.status == store_types.Failed
+  assert invalid_consolidated_entry.staged_resource_ids == []
 }
 
 pub fn product_bundle_create_stages_operation_and_operation_read_test() {
