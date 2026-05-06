@@ -1688,6 +1688,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-fixed-prices-variant-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-fixed-prices-variant-lifecycle-conformance.mts',
+    purpose:
+      'Variant-level price-list fixed-price add, update, delete, and downstream PriceList.prices(originType: FIXED) read-after-write behavior.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-fixed-prices-variant-lifecycle.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-variant-lifecycle.json',
+      'config/parity-requests/markets/price-list-fixed-prices-*.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes the target variant fixed price before and after recording the add/update/delete lifecycle.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-create-handle-dedupe',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
@@ -2967,6 +2984,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'order-capture-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-capture-validation-conformance.ts',
+    purpose:
+      'orderCapture multi-currency currency validation, missing parent transaction, invalid amount, over-capture, public manual-gateway finalCapture rejection, and follow-up capture behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-capture-validation.json`,
+      'config/parity-specs/payments/order_capture_validation.json',
+      'config/parity-requests/payments/order-capture-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable multi-currency authorization order, records validation and capture branches, then cancels the order during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'finance-risk',
     scriptPath: 'scripts/capture-finance-risk-conformance.ts',
     purpose: 'Finance, risk, POS, dispute, and Shop Pay receipt read/access evidence.',
@@ -3188,6 +3222,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable orders, captures validation and success branches, merges split fulfillment orders back where possible, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-merge-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-merge-validation-conformance.ts',
+    purpose:
+      'fulfillmentOrderMerge missing fulfillment order, invalid quantity/line-item, non-open fulfillment order, success, and downstream read-after-merge behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-merge-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-merge-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-merge-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders, splits fulfillment orders to produce mergeable pairs, captures validation and success branches, then cancels the orders.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
