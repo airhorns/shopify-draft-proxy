@@ -15,7 +15,9 @@ import shopify_draft_proxy/state/types.{
   OnlineStoreIntegrationRecord,
 }
 
-const comment_id: String = "gid://shopify/Comment/moderation-fixture"
+const comment_id: String = "gid://shopify/Comment/local-moderation"
+
+const article_id: String = "gid://shopify/Article/local-moderation"
 
 fn proxy() -> DraftProxy {
   draft_proxy.new()
@@ -26,38 +28,44 @@ fn proxy_with_comment(status: String) -> DraftProxy {
   let proxy = proxy()
   let article =
     types.OnlineStoreContentRecord(
-      id: "gid://shopify/Article/moderation-fixture",
+      id: article_id,
       kind: "article",
       cursor: None,
-      parent_id: Some("gid://shopify/Blog/moderation-fixture"),
+      parent_id: Some("gid://shopify/Blog/local-moderation"),
       created_at: Some("2026-05-05T00:00:00.000Z"),
       updated_at: Some("2026-05-05T00:00:00.000Z"),
       data: types.CapturedObject([
         #("__typename", types.CapturedString("Article")),
-        #(
-          "id",
-          types.CapturedString("gid://shopify/Article/moderation-fixture"),
-        ),
+        #("id", types.CapturedString(article_id)),
         #("title", types.CapturedString("Comment Moderation Article")),
         #("isPublished", types.CapturedBool(True)),
       ]),
     )
+  let published_at = case status {
+    "PUBLISHED" -> [
+      #("publishedAt", types.CapturedString("2026-05-05T01:00:00.000Z")),
+    ]
+    _ -> [#("publishedAt", types.CapturedNull)]
+  }
   let comment =
     types.OnlineStoreContentRecord(
       id: comment_id,
       kind: "comment",
       cursor: None,
-      parent_id: Some("gid://shopify/Article/moderation-fixture"),
+      parent_id: Some(article_id),
       created_at: Some("2026-05-05T00:00:00.000Z"),
       updated_at: Some("2026-05-05T00:00:00.000Z"),
-      data: types.CapturedObject([
-        #("__typename", types.CapturedString("Comment")),
-        #("id", types.CapturedString(comment_id)),
-        #("status", types.CapturedString(status)),
-        #("isPublished", types.CapturedBool(status == "PUBLISHED")),
-        #("body", types.CapturedString("Comment moderation fixture")),
-        #("bodyHtml", types.CapturedString("<p>Comment moderation fixture</p>")),
-      ]),
+      data: types.CapturedObject(list.append(
+        [
+          #("__typename", types.CapturedString("Comment")),
+          #("id", types.CapturedString(comment_id)),
+          #("status", types.CapturedString(status)),
+          #("isPublished", types.CapturedBool(status == "PUBLISHED")),
+          #("body", types.CapturedString("Local moderation fixture")),
+          #("bodyHtml", types.CapturedString("<p>Local moderation fixture</p>")),
+        ],
+        published_at,
+      )),
     )
   let seeded_store =
     store.upsert_base_online_store_content(proxy.store, [article, comment])
@@ -265,7 +273,7 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
         <> "\") { comment { id status } userErrors { field message code } } }",
     )
   assert approved
-    == "{\"data\":{\"commentApprove\":{\"comment\":{\"id\":\"gid://shopify/Comment/moderation-fixture\",\"status\":\"PUBLISHED\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"commentApprove\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\"},\"userErrors\":[]}}}"
 
   let #(spam, proxy) =
     run_graphql(
@@ -275,7 +283,7 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
         <> "\") { comment { id status } userErrors { field message code } } }",
     )
   assert spam
-    == "{\"data\":{\"commentSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/moderation-fixture\",\"status\":\"SPAM\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"commentSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"SPAM\"},\"userErrors\":[]}}}"
 
   let #(not_spam, proxy) =
     run_graphql(
@@ -285,17 +293,19 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
         <> "\") { comment { id status } userErrors { field message code } } }",
     )
   assert not_spam
-    == "{\"data\":{\"commentNotSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/moderation-fixture\",\"status\":\"UNAPPROVED\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"commentNotSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\"},\"userErrors\":[]}}}"
 
   let #(read_before_delete, proxy) =
     run_graphql(
       proxy,
       "query { comment(id: \""
         <> comment_id
-        <> "\") { id status } comments(first: 10) { nodes { id } } article(id: \"gid://shopify/Article/moderation-fixture\") { comments(first: 10) { nodes { id } } commentsCount { count precision } } }",
+        <> "\") { id status } comments(first: 10) { nodes { id } } article(id: \""
+        <> article_id
+        <> "\") { comments(first: 10) { nodes { id } } commentsCount { count precision } } }",
     )
   assert read_before_delete
-    == "{\"data\":{\"comment\":{\"id\":\"gid://shopify/Comment/moderation-fixture\",\"status\":\"UNAPPROVED\"},\"comments\":{\"nodes\":[{\"id\":\"gid://shopify/Comment/moderation-fixture\"}]},\"article\":{\"comments\":{\"nodes\":[{\"id\":\"gid://shopify/Comment/moderation-fixture\"}]},\"commentsCount\":{\"count\":1,\"precision\":\"EXACT\"}}}}"
+    == "{\"data\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\"},\"comments\":{\"nodes\":[{\"id\":\"gid://shopify/Comment/local-moderation\"}]},\"article\":{\"comments\":{\"nodes\":[{\"id\":\"gid://shopify/Comment/local-moderation\"}]},\"commentsCount\":{\"count\":1,\"precision\":\"EXACT\"}}}}"
 
   let #(deleted, proxy) =
     run_graphql(
@@ -305,14 +315,16 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
         <> "\") { deletedCommentId userErrors { field message code } } }",
     )
   assert deleted
-    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/moderation-fixture\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
 
   let #(read_after_delete, _) =
     run_graphql(
       proxy,
       "query { comment(id: \""
         <> comment_id
-        <> "\") { id status } comments(first: 10) { nodes { id } } article(id: \"gid://shopify/Article/moderation-fixture\") { comments(first: 10) { nodes { id } } commentsCount { count precision } } }",
+        <> "\") { id status } comments(first: 10) { nodes { id } } article(id: \""
+        <> article_id
+        <> "\") { comments(first: 10) { nodes { id } } commentsCount { count precision } } }",
     )
   assert read_after_delete
     == "{\"data\":{\"comment\":null,\"comments\":{\"nodes\":[]},\"article\":{\"comments\":{\"nodes\":[]},\"commentsCount\":{\"count\":0,\"precision\":\"EXACT\"}}}}"
@@ -330,6 +342,60 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
   assert delete_log.query == expected_delete_query
 }
 
+pub fn comment_moderation_enforces_state_machine_preconditions_test() {
+  let #(approve_published, _) =
+    run_graphql(
+      proxy_with_comment("PUBLISHED"),
+      "mutation { commentApprove(id: \""
+        <> comment_id
+        <> "\") { comment { id status isPublished publishedAt } userErrors { field message code } } }",
+    )
+  assert approve_published
+    == "{\"data\":{\"commentApprove\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\",\"isPublished\":true,\"publishedAt\":\"2026-05-05T01:00:00.000Z\"},\"userErrors\":[]}}}"
+
+  let #(approve_spam, _) =
+    run_graphql(
+      proxy_with_comment("SPAM"),
+      "mutation { commentApprove(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert approve_spam
+    == "{\"data\":{\"commentApprove\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Status cannot transition via \\\"approve\\\"\",\"code\":null}]}}}"
+
+  let #(not_spam_published, _) =
+    run_graphql(
+      proxy_with_comment("PUBLISHED"),
+      "mutation { commentNotSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status isPublished publishedAt } userErrors { field message code } } }",
+    )
+  assert not_spam_published
+    == "{\"data\":{\"commentNotSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\",\"isPublished\":true,\"publishedAt\":\"2026-05-05T01:00:00.000Z\"},\"userErrors\":[]}}}"
+
+  let #(not_spam_unapproved, _) =
+    run_graphql(
+      proxy_with_comment("UNAPPROVED"),
+      "mutation { commentNotSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert not_spam_unapproved
+    == "{\"data\":{\"commentNotSpam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Status cannot transition via \\\"not spam\\\"\",\"code\":null}]}}}"
+
+  let #(spam_idempotent, proxy) =
+    run_graphql(
+      proxy_with_comment("SPAM"),
+      "mutation { commentSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status isPublished publishedAt } userErrors { field message code } } }",
+    )
+  assert spam_idempotent
+    == "{\"data\":{\"commentSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"SPAM\",\"isPublished\":false,\"publishedAt\":null},\"userErrors\":[]}}}"
+  let assert [spam_log] = store.get_log(proxy.store)
+  assert spam_log.staged_resource_ids == []
+}
+
 pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test() {
   let #(body, proxy) =
     run_graphql(
@@ -343,7 +409,7 @@ pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test(
         <> "\") { deletedCommentId userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"delete\":{\"deletedCommentId\":\"gid://shopify/Comment/moderation-fixture\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"delete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
 
   let assert [_approve_log, _spam_log, delete_log] = store.get_log(proxy.store)
   assert delete_log.status == store_types.Staged
@@ -359,7 +425,7 @@ pub fn comment_delete_repeated_after_local_delete_is_idempotent_test() {
         <> "\") { deletedCommentId userErrors { field message code } } }",
     )
   assert first_body
-    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/moderation-fixture\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
 
   let staged_after_first =
     dict.size(proxy.store.staged_state.online_store_content)
@@ -374,7 +440,7 @@ pub fn comment_delete_repeated_after_local_delete_is_idempotent_test() {
         <> "\") { deletedCommentId userErrors { field message code } } }",
     )
   assert second_body
-    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/moderation-fixture\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
   assert dict.size(proxy.store.staged_state.online_store_content)
     == staged_after_first
   assert dict.size(proxy.store.staged_state.deleted_online_store_content_ids)

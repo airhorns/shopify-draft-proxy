@@ -35,6 +35,12 @@ import shopify_draft_proxy/state/types.{
   OnlineStoreContentRecord, OnlineStoreIntegrationRecord,
 }
 
+type CommentModerationTransition {
+  CommentTransitionNoop
+  CommentTransitionInvalid(message: String, code: Option(String))
+  CommentTransitionTo(status: String)
+}
+
 @internal
 pub fn process_mutation(
   store: Store,
@@ -1322,27 +1328,39 @@ fn moderate_comment(
   let key = get_field_response_key(field)
   let id =
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
-  let target_status = comment_target_status(root)
   let #(comment, errors, store, identity) = case id {
     Some(id) -> {
       case online_store_content_id_deleted(outcome.store, id) {
         True -> #(
           SrcNull,
-          [comment_removed_user_error()],
+          [
+            comment_invalid_transition_user_error(
+              "Comment has been removed",
+              Some("INVALID"),
+            ),
+          ],
           outcome.store,
           outcome.identity,
         )
         False ->
           case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
             #(Some(existing), hydrated_store) -> {
-              case comment_status(existing) == "REMOVED" {
-                True -> #(
-                  SrcNull,
-                  [comment_removed_user_error()],
+              case
+                comment_moderation_transition(root, comment_status(existing))
+              {
+                CommentTransitionNoop -> #(
+                  serializers.content_payload_source(hydrated_store, existing),
+                  [],
                   hydrated_store,
                   outcome.identity,
                 )
-                False -> {
+                CommentTransitionInvalid(message, code) -> #(
+                  SrcNull,
+                  [comment_invalid_transition_user_error(message, code)],
+                  hydrated_store,
+                  outcome.identity,
+                )
+                CommentTransitionTo(target_status) -> {
                   let #(record, identity) =
                     comment_record_with_status(
                       existing,
@@ -1559,12 +1577,48 @@ fn comment_parent_article_id(value: commit.JsonValue) -> Option(String) {
   |> option.then(json_get_string(_, "id"))
 }
 
-fn comment_target_status(root: String) -> String {
+fn comment_moderation_transition(
+  root: String,
+  status: String,
+) -> CommentModerationTransition {
   case root {
-    "commentApprove" -> "PUBLISHED"
-    "commentSpam" -> "SPAM"
-    "commentNotSpam" -> "UNAPPROVED"
-    _ -> "UNAPPROVED"
+    "commentApprove" ->
+      case status {
+        "PUBLISHED" -> CommentTransitionNoop
+        "UNAPPROVED" -> CommentTransitionTo("PUBLISHED")
+        "REMOVED" ->
+          CommentTransitionInvalid("Comment has been removed", Some("INVALID"))
+        _ ->
+          CommentTransitionInvalid(
+            "Status cannot transition via \"approve\"",
+            None,
+          )
+      }
+    "commentSpam" ->
+      case status {
+        "SPAM" -> CommentTransitionNoop
+        "UNAPPROVED" | "PUBLISHED" | "PENDING" -> CommentTransitionTo("SPAM")
+        "REMOVED" ->
+          CommentTransitionInvalid("Comment has been removed", Some("INVALID"))
+        _ ->
+          CommentTransitionInvalid(
+            "Status cannot transition via \"spam\"",
+            None,
+          )
+      }
+    "commentNotSpam" ->
+      case status {
+        "PUBLISHED" -> CommentTransitionNoop
+        "SPAM" -> CommentTransitionTo("PUBLISHED")
+        "REMOVED" ->
+          CommentTransitionInvalid("Comment has been removed", Some("INVALID"))
+        _ ->
+          CommentTransitionInvalid(
+            "Status cannot transition via \"not spam\"",
+            None,
+          )
+      }
+    _ -> CommentTransitionInvalid("Status cannot transition", None)
   }
 }
 
@@ -1634,12 +1688,14 @@ fn comment_not_found_user_error() -> graphql_helpers.SourceValue {
   serializers.user_error(["id"], "Comment does not exist")
 }
 
-fn comment_removed_user_error() -> graphql_helpers.SourceValue {
-  serializers.user_error_with_code(
-    ["id"],
-    "Comment has been removed",
-    "INVALID",
-  )
+fn comment_invalid_transition_user_error(
+  message: String,
+  code: Option(String),
+) -> graphql_helpers.SourceValue {
+  case code {
+    Some(code) -> serializers.user_error_with_code(["id"], message, code)
+    None -> serializers.user_error(["id"], message)
+  }
 }
 
 fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {

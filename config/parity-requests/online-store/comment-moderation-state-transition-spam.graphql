@@ -1,0 +1,15 @@
+mutation CommentModerationStateSpam($id: ID!) {
+  commentSpam(id: $id) {
+    comment {
+      id
+      status
+      isPublished
+      publishedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
