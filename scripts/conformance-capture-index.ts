@@ -1295,6 +1295,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-update-error-codes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-update-error-codes-conformance.ts',
+    purpose:
+      'metaobjectUpdate bad-id RECORD_NOT_FOUND, duplicate metaobjectCreate fields[] key validation, and non-display-field update displayName preservation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-update-error-codes.json`,
+      'config/parity-specs/metaobjects/metaobject_update_error_codes.json',
+      'config/parity-requests/metaobjects/metaobject-update-error-codes-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one row; deletes the row and definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'standard-metaobject-definition-enable-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
