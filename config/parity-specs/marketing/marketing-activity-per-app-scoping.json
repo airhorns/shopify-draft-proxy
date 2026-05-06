@@ -48,17 +48,13 @@
         "name": "appB-updateExternal-by-remoteId-userErrors",
         "capturePath": null,
         "proxyPath": "$.data.appBUpdate.userErrors",
-        "expected": [
-          { "field": ["remoteId"], "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }
-        ]
+        "expected": [{ "field": ["remoteId"], "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }]
       },
       {
         "name": "appB-deleteExternal-by-remoteId-userErrors",
         "capturePath": null,
         "proxyPath": "$.data.appBDelete.userErrors",
-        "expected": [
-          { "field": ["remoteId"], "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }
-        ]
+        "expected": [{ "field": ["remoteId"], "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }]
       },
       {
         "name": "appA-activity-survives-appB-deleteAllExternal",
@@ -70,9 +66,7 @@
         "name": "appB-engagement-on-foreign-activity",
         "capturePath": null,
         "proxyPath": "$.data.appBEngagement.userErrors",
-        "expected": [
-          { "field": ["remoteId"], "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }
-        ]
+        "expected": [{ "field": ["remoteId"], "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }]
       }
     ]
   }

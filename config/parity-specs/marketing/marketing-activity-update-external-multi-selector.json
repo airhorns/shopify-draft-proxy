@@ -2,10 +2,7 @@
   "scenarioId": "marketing-activity-update-external-multi-selector",
   "scenarioStatus": "draft",
   "assertionKinds": ["user-errors-parity", "payload-shape"],
-  "operationNames": [
-    "marketingActivityCreateExternal",
-    "marketingActivityUpdateExternal"
-  ],
+  "operationNames": ["marketingActivityCreateExternal", "marketingActivityUpdateExternal"],
   "liveCaptureFiles": [],
   "proxyRequest": {
     "documentPath": "config/parity-requests/marketing/marketing-activity-update-external-multi-selector.graphql",
@@ -45,9 +42,7 @@
         "name": "conflicting-selectors-userErrors",
         "capturePath": null,
         "proxyPath": "$.data.conflictingUpdate.userErrors",
-        "expected": [
-          { "field": null, "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }
-        ]
+        "expected": [{ "field": null, "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }]
       },
       {
         "name": "conflicting-selectors-marketingActivity-null",
