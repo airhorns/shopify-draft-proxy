@@ -65,20 +65,6 @@ fn unsupported_mutation_request() -> Request {
   )
 }
 
-@target(javascript)
-fn unported_registry_request() -> Request {
-  // `priceListFixedPricesAdd` is an implemented TypeScript registry root,
-  // but price-list fixed-price mutation execution is not yet ported to Gleam.
-  // Live-hybrid dispatch must therefore use the unsupported passthrough
-  // branch instead of claiming a local dispatcher exists.
-  Request(
-    method: "POST",
-    path: "/admin/api/2025-01/graphql.json",
-    headers: dict.new(),
-    body: "{\"query\":\"mutation { priceListFixedPricesAdd(priceListId: \\\"gid://shopify/PriceList/1\\\", prices: []) { userErrors { field message } } }\"}",
-  )
-}
-
 @target(erlang)
 pub fn substrate_passthrough_returns_upstream_body_verbatim_erl_test() {
   let proxy = live_hybrid_proxy()
@@ -201,19 +187,6 @@ pub fn passthrough_sync_dispatch_returns_501_on_js_test() {
     draft_proxy.process_request(proxy, request)
 
   assert status == 501
-}
-
-@target(javascript)
-pub fn unported_implemented_root_uses_passthrough_on_js_test() {
-  let proxy = live_hybrid_proxy()
-  let request = unported_registry_request()
-
-  let #(Response(status: status, body: body, ..), _next) =
-    draft_proxy.process_request(proxy, request)
-
-  assert status == 501
-  assert json.to_string(body)
-    == "{\"ok\":false,\"message\":\"Live-hybrid passthrough requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) and await the returned Promise.\"}"
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,1463 @@
+{
+  "metadata": {
+    "capturedAt": "2026-05-06T15:38:58.530Z",
+    "startedAt": "2026-05-06T15:38:54.568Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderMerge"],
+    "createdOrders": [
+      {
+        "id": "gid://shopify/Order/8732469526834",
+        "name": "#1234",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117735730"
+      },
+      {
+        "id": "gid://shopify/Order/8732469592370",
+        "name": "#1235",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952539954",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117997874"
+      }
+    ],
+    "unknownFulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999",
+    "unknownFulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/999999999999999"
+  },
+  "workflows": {
+    "validation": {
+      "create": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderMergeValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "order": {
+            "email": "fulfillment-order-merge-validation-validation-20260506153854@example.com",
+            "note": "fulfillment-order merge validation validation 20260506153854",
+            "tags": ["fulfillment-order-merge-validation", "validation"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Merge",
+              "lastName": "Validation",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "fulfillment-order merge validation validation 20260506153854",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8732469526834",
+                  "name": "#1234",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "fulfillBy": null,
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                              "totalQuantity": 2,
+                              "remainingQuantity": 2,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19306922246450",
+                                "title": "fulfillment-order merge validation validation 20260506153854",
+                                "quantity": 2,
+                                "fulfillableQuantity": 2
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 56,
+                "actualQueryCost": 15,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1985,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "split": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeValidationSplit($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderSplits": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderSplit": {
+                "fulfillmentOrderSplits": [
+                  {
+                    "fulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "remainingFulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952474418",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117768498",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "replacementFulfillmentOrder": null
+                  }
+                ],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 43,
+                "actualQueryCost": 21,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1979,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "pair": {
+        "primaryFulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+        "primaryLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+        "siblingFulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952474418",
+        "siblingLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117768498"
+      },
+      "orderRead": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderMergeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8732469526834"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8732469526834",
+                "name": "#1234",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952474418",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117768498",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 47,
+                "actualQueryCost": 7,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1993,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "missing": {
+        "query": "mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          id\n          status\n          fulfillBy\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderMergeInputs": [
+            {
+              "mergeIntents": [
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650"
+                },
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999"
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderMerge": {
+                "fulfillmentOrderMerges": null,
+                "userErrors": [
+                  {
+                    "field": null,
+                    "message": "Fulfillment order does not exist.",
+                    "code": "FULFILLMENT_ORDER_NOT_FOUND"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "zeroQuantity": {
+        "query": "mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          id\n          status\n          fulfillBy\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderMergeInputs": [
+            {
+              "mergeIntents": [
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+                  "fulfillmentOrderLineItems": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952474418"
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderMerge": {
+                "fulfillmentOrderMerges": null,
+                "userErrors": [
+                  {
+                    "field": [
+                      "fulfillmentOrderMergeInputs",
+                      "0",
+                      "mergeIntents",
+                      "0",
+                      "fulfillmentOrderLineItems",
+                      "0",
+                      "quantity"
+                    ],
+                    "message": "You must select at least one item to merge into a new fulfillment order.",
+                    "code": "GREATER_THAN"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "invalidLineItem": {
+        "query": "mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          id\n          status\n          fulfillBy\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderMergeInputs": [
+            {
+              "mergeIntents": [
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+                  "fulfillmentOrderLineItems": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/999999999999999",
+                      "quantity": 1
+                    }
+                  ]
+                },
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952474418"
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderMerge": {
+                "fulfillmentOrderMerges": null,
+                "userErrors": [
+                  {
+                    "field": null,
+                    "message": "Fulfillment order line item does not exist.",
+                    "code": null
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "excessiveQuantity": {
+        "query": "mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          id\n          status\n          fulfillBy\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderMergeInputs": [
+            {
+              "mergeIntents": [
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+                  "fulfillmentOrderLineItems": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                      "quantity": 999
+                    }
+                  ]
+                },
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952474418"
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderMerge": {
+                "fulfillmentOrderMerges": null,
+                "userErrors": [
+                  {
+                    "field": null,
+                    "message": "Invalid fulfillment order line item quantity requested.",
+                    "code": null
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "nonOpen": {
+      "create": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderMergeValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "order": {
+            "email": "fulfillment-order-merge-validation-non-open-20260506153856@example.com",
+            "note": "fulfillment-order merge validation non-open 20260506153856",
+            "tags": ["fulfillment-order-merge-validation", "non-open"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Merge",
+              "lastName": "Validation",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "fulfillment-order merge validation non-open 20260506153856",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8732469592370",
+                  "name": "#1235",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9655952539954",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "fulfillBy": null,
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19456117997874",
+                              "totalQuantity": 2,
+                              "remainingQuantity": 2,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19306922508594",
+                                "title": "fulfillment-order merge validation non-open 20260506153856",
+                                "quantity": 2,
+                                "fulfillableQuantity": 2
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 56,
+                "actualQueryCost": 15,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1985,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "split": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeValidationSplit($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderSplits": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952539954",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19456117997874",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderSplit": {
+                "fulfillmentOrderSplits": [
+                  {
+                    "fulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952539954",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117997874",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922508594",
+                              "title": "fulfillment-order merge validation non-open 20260506153856",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "remainingFulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952605490",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456118063410",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922508594",
+                              "title": "fulfillment-order merge validation non-open 20260506153856",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "replacementFulfillmentOrder": null
+                  }
+                ],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 43,
+                "actualQueryCost": 21,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1979,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "pair": {
+        "primaryFulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952539954",
+        "primaryLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117997874",
+        "siblingFulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952605490",
+        "siblingLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456118063410"
+      },
+      "cancelSibling": {
+        "query": "mutation FulfillmentOrderMergeValidationCancel($id: ID!) {\n    fulfillmentOrderCancel(id: $id) {\n      fulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      replacementFulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9655952605490"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderCancel": {
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9655952605490",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                "replacementFulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9655952671026",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "orderRead": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderMergeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8732469592370"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8732469592370",
+                "name": "#1235",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952539954",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117997874",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922508594",
+                              "title": "fulfillment-order merge validation non-open 20260506153856",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952605490",
+                      "status": "CLOSED",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": []
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952671026",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456118063410",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922508594",
+                              "title": "fulfillment-order merge validation non-open 20260506153856",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 47,
+                "actualQueryCost": 8,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1992,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "merge": {
+        "query": "mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          id\n          status\n          fulfillBy\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderMergeInputs": [
+            {
+              "mergeIntents": [
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952539954"
+                },
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952605490"
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderMerge": {
+                "fulfillmentOrderMerges": null,
+                "userErrors": [
+                  {
+                    "field": null,
+                    "message": "Fulfillment order: 9655952605490 is currently not in a mergeable state.",
+                    "code": null
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "happy": {
+      "create": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 10) {\n          nodes {\n            ...FulfillmentOrderMergeValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "order": {
+            "email": "fulfillment-order-merge-validation-validation-20260506153854@example.com",
+            "note": "fulfillment-order merge validation validation 20260506153854",
+            "tags": ["fulfillment-order-merge-validation", "validation"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Merge",
+              "lastName": "Validation",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "fulfillment-order merge validation validation 20260506153854",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8732469526834",
+                  "name": "#1234",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "fulfillBy": null,
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                              "totalQuantity": 2,
+                              "remainingQuantity": 2,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19306922246450",
+                                "title": "fulfillment-order merge validation validation 20260506153854",
+                                "quantity": 2,
+                                "fulfillableQuantity": 2
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 56,
+                "actualQueryCost": 15,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1985,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "split": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMergeValidationSplit($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderSplits": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderSplit": {
+                "fulfillmentOrderSplits": [
+                  {
+                    "fulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "remainingFulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952474418",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117768498",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "replacementFulfillmentOrder": null
+                  }
+                ],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 43,
+                "actualQueryCost": 21,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1979,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "pair": {
+        "primaryFulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650",
+        "primaryLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+        "siblingFulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952474418",
+        "siblingLineItemId": "gid://shopify/FulfillmentOrderLineItem/19456117768498"
+      },
+      "orderRead": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderMergeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8732469526834"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8732469526834",
+                "name": "#1234",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952474418",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117768498",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 47,
+                "actualQueryCost": 7,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1993,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "merge": {
+        "query": "mutation FulfillmentOrderMergeValidation($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          id\n          status\n          fulfillBy\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "fulfillmentOrderMergeInputs": [
+            {
+              "mergeIntents": [
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952441650"
+                },
+                {
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9655952474418"
+                }
+              ]
+            }
+          ]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderMerge": {
+                "fulfillmentOrderMerges": [
+                  {
+                    "fulfillmentOrder": {
+                      "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                      "status": "OPEN",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 17,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "afterMergeOrderRead": {
+        "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderMergeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/Order/8732469526834"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8732469526834",
+                "name": "#1234",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9655952474418",
+                      "status": "CLOSED",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillBy": null,
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19456117768498",
+                            "totalQuantity": 0,
+                            "remainingQuantity": 0,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19306922246450",
+                              "title": "fulfillment-order merge validation validation 20260506153854",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 47,
+                "actualQueryCost": 7,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1993,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation FulfillmentOrderMergeValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8732469526834",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/c8751781-2fc8-49b6-8f4a-6fcc24cc6627"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FulfillmentOrderMergeValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8732469592370",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/c8751781-2fc8-49b6-8f4a-6fcc24cc6627"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentOrderMergeValidationOrderRead",
+      "variables": {
+        "id": "gid://shopify/Order/8732469526834"
+      },
+      "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderMergeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8732469526834",
+              "name": "#1234",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9655952441650",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19456117735730",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19306922246450",
+                            "title": "fulfillment-order merge validation validation 20260506153854",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9655952474418",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19456117768498",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19306922246450",
+                            "title": "fulfillment-order merge validation validation 20260506153854",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 47,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderMergeValidationOrderRead",
+      "variables": {
+        "id": "gid://shopify/Order/8732469592370"
+      },
+      "query": "#graphql\n  fragment FulfillmentOrderMergeValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillBy\n    lineItems(first: 10) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  query FulfillmentOrderMergeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes {\n          ...FulfillmentOrderMergeValidationFields\n        }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8732469592370",
+              "name": "#1235",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9655952539954",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19456117997874",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19306922508594",
+                            "title": "fulfillment-order merge validation non-open 20260506153856",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9655952605490",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9655952671026",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "fulfillBy": null,
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19456118063410",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19306922508594",
+                            "title": "fulfillment-order merge validation non-open 20260506153856",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 47,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
