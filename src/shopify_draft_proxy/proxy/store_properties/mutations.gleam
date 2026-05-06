@@ -32,6 +32,7 @@ import shopify_draft_proxy/proxy/store_properties/serializers.{
 import shopify_draft_proxy/proxy/store_properties/types as store_properties_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -2614,7 +2615,7 @@ fn record_mutation_log(
   let #(received_at, identity_final) =
     synthetic_identity.make_synthetic_timestamp(identity_after_log_id)
   let entry =
-    store.MutationLogEntry(
+    store_types.MutationLogEntry(
       id: log_id,
       received_at: received_at,
       operation_name: None,
@@ -2622,13 +2623,13 @@ fn record_mutation_log(
       query: document,
       variables: dict.new(),
       staged_resource_ids: staged_ids,
-      status: store.Staged,
-      interpreted: store.InterpretedMetadata(
-        operation_type: store.Mutation,
+      status: store_types.Staged,
+      interpreted: store_types.InterpretedMetadata(
+        operation_type: store_types.Mutation,
         operation_name: None,
         root_fields: [root_name],
         primary_root_field: Some(root_name),
-        capability: store.Capability(
+        capability: store_types.Capability(
           operation_name: Some(root_name),
           domain: "store-properties",
           execution: "stage-locally",

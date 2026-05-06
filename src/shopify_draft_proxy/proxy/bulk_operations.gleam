@@ -46,6 +46,7 @@ import shopify_draft_proxy/proxy/upstream_query.{
 }
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -510,8 +511,8 @@ fn handle_mutation_fields(
     Error(_) -> None
   }
   let outer_status = case primary_root, field_drafts {
-    Some("bulkOperationRunMutation"), [] -> store.Failed
-    _, _ -> store.Staged
+    Some("bulkOperationRunMutation"), [] -> store_types.Failed
+    _, _ -> store_types.Staged
   }
   let outer_log_drafts = [
     LogDraft(
@@ -1610,7 +1611,7 @@ fn bulk_import_log_draft(
     query: Some(mutation),
     variables: Some(variables),
     staged_resource_ids: staged_resource_ids,
-    status: store.Staged,
+    status: store_types.Staged,
     notes: Some(
       "Staged locally from bulkOperationRunMutation JSONL import; commit replay uses this original inner mutation and line variables.",
     ),

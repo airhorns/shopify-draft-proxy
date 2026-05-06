@@ -30,6 +30,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -224,13 +225,13 @@ fn handle_mutation_fields(
 fn gift_cards_status_for(
   root_field_name: String,
   staged_resource_ids: List(String),
-) -> store.EntryStatus {
+) -> store_types.EntryStatus {
   case root_field_name, staged_resource_ids {
     "giftCardSendNotificationToCustomer", _
     | "giftCardSendNotificationToRecipient", _
-    -> store.Staged
-    _, [] -> store.Failed
-    _, [_, ..] -> store.Staged
+    -> store_types.Staged
+    _, [] -> store_types.Failed
+    _, [_, ..] -> store_types.Staged
   }
 }
 

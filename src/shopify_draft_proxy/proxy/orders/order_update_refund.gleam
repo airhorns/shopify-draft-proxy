@@ -69,6 +69,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -160,7 +161,7 @@ pub fn handle_order_update_mutation(
                     single_root_log_draft(
                       "orderUpdate",
                       [id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some("Locally staged orderUpdate in shopify-draft-proxy."),
@@ -226,7 +227,7 @@ pub fn handle_refund_create_mutation(
           identity,
           [],
           [],
-          [refund_create_log_draft([], store.Failed)],
+          [refund_create_log_draft([], store_types.Failed)],
         )
         Some(input) -> {
           let order_id = read_string(input, "orderId")
@@ -260,7 +261,7 @@ pub fn handle_refund_create_mutation(
               identity,
               [],
               [],
-              [refund_create_log_draft([], store.Failed)],
+              [refund_create_log_draft([], store_types.Failed)],
             )
             Some(order) -> {
               let line_item_errors =
@@ -279,7 +280,7 @@ pub fn handle_refund_create_mutation(
                   identity,
                   [],
                   [],
-                  [refund_create_log_draft([order.id], store.Failed)],
+                  [refund_create_log_draft([order.id], store_types.Failed)],
                 )
                 [] -> {
                   let refund_amount =
@@ -315,7 +316,12 @@ pub fn handle_refund_create_mutation(
                         identity,
                         [],
                         [],
-                        [refund_create_log_draft([order.id], store.Failed)],
+                        [
+                          refund_create_log_draft(
+                            [order.id],
+                            store_types.Failed,
+                          ),
+                        ],
                       )
                     }
                     False -> {
@@ -341,7 +347,10 @@ pub fn handle_refund_create_mutation(
                         [order.id],
                         [],
                         [
-                          refund_create_log_draft([order.id], store.Staged),
+                          refund_create_log_draft(
+                            [order.id],
+                            store_types.Staged,
+                          ),
                         ],
                       )
                     }

@@ -48,6 +48,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -74,7 +75,7 @@ pub fn handle_access_denied_guardrail(
     single_root_log_draft(
       root_name,
       [],
-      store.Failed,
+      store_types.Failed,
       "orders",
       "stage-locally",
       Some(root_name <> " failed local access-denied guardrail."),
@@ -194,7 +195,7 @@ pub fn handle_abandonment_delivery_status(
               let draft =
                 abandonment_log_draft(
                   [abandonment.id],
-                  store.Staged,
+                  store_types.Staged,
                   Some(
                     "Locally staged abandonmentUpdateActivitiesDeliveryStatuses in shopify-draft-proxy.",
                   ),
@@ -244,7 +245,7 @@ pub fn unknown_abandonment_result(
   let draft =
     abandonment_log_draft(
       [],
-      store.Failed,
+      store_types.Failed,
       Some(
         "abandonmentUpdateActivitiesDeliveryStatuses failed local validation.",
       ),
