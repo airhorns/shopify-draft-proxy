@@ -1,0 +1,6 @@
+query MarketingActivityPerAppRead($activityId: ID!) {
+  marketingActivity(id: $activityId) {
+    title
+    remoteId
+  }
+}

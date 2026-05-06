@@ -56,5 +56,5 @@
       }
     ]
   },
-  "notes": "Executable sibling scenario for the successful orderCreateMandatePayment branch. It replays a pending synthetic order, stages a mandate payment locally, and verifies the repeat call with the same idempotency key does not create duplicate payment transactions."
+  "notes": "Executable sibling scenario for the successful orderCreateMandatePayment branch. It replays a pending synthetic order, stages a mandate payment locally with Shopify's composite order/idempotency paymentReferenceId, and verifies the repeat call with the same idempotency key does not create duplicate payment transactions."
 }

@@ -1,0 +1,22 @@
+mutation MetaobjectCapabilityDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      capabilities {
+        publishable {
+          enabled
+        }
+        onlineStore {
+          enabled
+        }
+      }
+      metaobjectsCount
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

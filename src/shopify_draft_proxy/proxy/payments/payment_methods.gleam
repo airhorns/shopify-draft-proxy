@@ -293,6 +293,7 @@ fn shop_from_hydrate_node(
       ),
       payment_settings: state_types.PaymentSettingsRecord(
         supported_digital_wallets: [],
+        payment_gateways: [],
       ),
       shop_policies: [],
     ),

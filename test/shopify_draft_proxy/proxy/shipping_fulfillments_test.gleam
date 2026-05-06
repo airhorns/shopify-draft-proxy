@@ -1,4 +1,4 @@
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -1717,6 +1717,97 @@ pub fn fulfillment_service_delete_transfer_validates_destination_test() {
     == Some(created)
 }
 
+pub fn fulfillment_service_delete_rejects_destination_for_keep_and_delete_test() {
+  assert_delete_rejects_destination_for_non_transfer_action("KEEP")
+  assert_delete_rejects_destination_for_non_transfer_action("DELETE")
+}
+
+fn assert_delete_rejects_destination_for_non_transfer_action(
+  inventory_action: String,
+) {
+  let destination_id =
+    "gid://shopify/Location/non-transfer-destination-" <> inventory_action
+  let fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/non-transfer-" <> inventory_action
+
+  let create_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id } userErrors { field message } } }",
+      dict.from_list([#("name", root_field.StringVal("Hermes FS"))]),
+      empty_upstream_context(),
+    )
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(create_outcome.store)
+  let service_location_id = created.location_id |> option.unwrap("")
+  let assert Some(service_location) =
+    store.get_effective_store_property_location_by_id(
+      create_outcome.store,
+      service_location_id,
+    )
+  let #(_, store_with_local_state) =
+    create_outcome.store
+    |> store.upsert_base_store_property_location(location(
+      destination_id,
+      "Destination location",
+      True,
+      False,
+    ))
+    |> store.stage_upsert_fulfillment_order(fulfillment_order_at_location(
+      fulfillment_order_id,
+      service_location_id,
+      "Hermes FS",
+    ))
+  let assert Some(destination_location) =
+    store.get_effective_store_property_location_by_id(
+      store_with_local_state,
+      destination_id,
+    )
+  let assert Some(existing_order) =
+    store.get_effective_fulfillment_order_by_id(
+      store_with_local_state,
+      fulfillment_order_id,
+    )
+
+  let delete_outcome =
+    shipping_fulfillments.process_mutation(
+      store_with_local_state,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteFs($id: ID!, $destinationLocationId: ID!, $inventoryAction: FulfillmentServiceDeleteInventoryAction!) { fulfillmentServiceDelete(id: $id, destinationLocationId: $destinationLocationId, inventoryAction: $inventoryAction) { deletedId userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #("destinationLocationId", root_field.StringVal(destination_id)),
+        #("inventoryAction", root_field.StringVal(inventory_action)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(delete_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"inventoryAction\"],\"message\":\"Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service.\",\"code\":\"DESTINATION_LOCATION_ID_SHOULD_NOT_PRESENT\"}]}}}"
+  assert store.get_effective_fulfillment_service_by_id(
+      delete_outcome.store,
+      created.id,
+    )
+    == Some(created)
+  assert store.get_effective_store_property_location_by_id(
+      delete_outcome.store,
+      service_location_id,
+    )
+    == Some(service_location)
+  assert store.get_effective_store_property_location_by_id(
+      delete_outcome.store,
+      destination_id,
+    )
+    == Some(destination_location)
+  assert store.get_effective_fulfillment_order_by_id(
+      delete_outcome.store,
+      fulfillment_order_id,
+    )
+    == Some(existing_order)
+}
+
 pub fn fulfillment_service_delete_transfer_reassigns_fulfillment_orders_test() {
   let destination_id = "gid://shopify/Location/destination"
   let fulfillment_order_id = "gid://shopify/FulfillmentOrder/har-571-transfer"
@@ -2420,6 +2511,143 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
     )
   assert json.to_string(success_move.data)
     == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-success\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+}
+
+pub fn fulfillment_orders_set_deadline_validation_errors_test() {
+  let valid_order_id = "gid://shopify/FulfillmentOrder/deadline-valid"
+  let unknown_order_id = "gid://shopify/FulfillmentOrder/deadline-missing"
+  let closed_order_id = "gid://shopify/FulfillmentOrder/deadline-closed"
+  let cancelled_order_id = "gid://shopify/FulfillmentOrder/deadline-cancelled"
+  let deadline = "2026-12-01T00:00:00Z"
+  let valid_order =
+    fulfillment_order_record(valid_order_id, "OPEN", "UNSUBMITTED")
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      valid_order,
+      fulfillment_order_record(closed_order_id, "CLOSED", "UNSUBMITTED"),
+      fulfillment_order_record(cancelled_order_id, "CANCELLED", "UNSUBMITTED"),
+    ])
+
+  let unknown_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      deadline_mutation(),
+      deadline_variables([unknown_order_id], deadline),
+      empty_upstream_context(),
+    )
+  assert json.to_string(unknown_outcome.data)
+    == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":false,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The fulfillment orders could not be found.\",\"code\":\"FULFILLMENT_ORDERS_NOT_FOUND\"}]}}}"
+
+  let mixed_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      deadline_mutation(),
+      deadline_variables([valid_order_id, unknown_order_id], deadline),
+      empty_upstream_context(),
+    )
+  assert json.to_string(mixed_outcome.data)
+    == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":false,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The fulfillment orders could not be found.\",\"code\":\"FULFILLMENT_ORDERS_NOT_FOUND\"}]}}}"
+  assert store.get_effective_fulfillment_order_by_id(
+      mixed_outcome.store,
+      valid_order_id,
+    )
+    == Some(valid_order)
+
+  let closed_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      deadline_mutation(),
+      deadline_variables([closed_order_id], deadline),
+      empty_upstream_context(),
+    )
+  assert json.to_string(closed_outcome.data)
+    == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":false,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.\",\"code\":null}]}}}"
+
+  let cancelled_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      deadline_mutation(),
+      deadline_variables([cancelled_order_id], deadline),
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancelled_outcome.data)
+    == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":false,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.\",\"code\":null}]}}}"
+}
+
+pub fn fulfillment_orders_set_deadline_updates_open_orders_test() {
+  let first_order_id = "gid://shopify/FulfillmentOrder/deadline-open-a"
+  let second_order_id = "gid://shopify/FulfillmentOrder/deadline-open-b"
+  let deadline = "2026-12-01T00:00:00Z"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      fulfillment_order_record(first_order_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record(second_order_id, "IN_PROGRESS", "ACCEPTED"),
+    ])
+
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      deadline_mutation(),
+      deadline_variables([first_order_id, second_order_id], deadline),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":true,\"userErrors\":[]}}}"
+
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      outcome.store,
+      "query ReadDeadlines($firstId: ID!, $secondId: ID!) { first: fulfillmentOrder(id: $firstId) { id fulfillBy } second: fulfillmentOrder(id: $secondId) { id fulfillBy } }",
+      dict.from_list([
+        #("firstId", root_field.StringVal(first_order_id)),
+        #("secondId", root_field.StringVal(second_order_id)),
+      ]),
+    )
+  assert json.to_string(read_response)
+    == "{\"data\":{\"first\":{\"id\":\"gid://shopify/FulfillmentOrder/deadline-open-a\",\"fulfillBy\":\"2026-12-01T00:00:00Z\"},\"second\":{\"id\":\"gid://shopify/FulfillmentOrder/deadline-open-b\",\"fulfillBy\":\"2026-12-01T00:00:00Z\"}}}"
+}
+
+fn deadline_mutation() -> String {
+  "
+    mutation Deadline($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+      fulfillmentOrdersSetFulfillmentDeadline(
+        fulfillmentOrderIds: $fulfillmentOrderIds
+        fulfillmentDeadline: $fulfillmentDeadline
+      ) {
+        success
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn deadline_variables(
+  fulfillment_order_ids: List(String),
+  deadline: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #(
+      "fulfillmentOrderIds",
+      root_field.ListVal(list.map(fulfillment_order_ids, root_field.StringVal)),
+    ),
+    #("fulfillmentDeadline", root_field.StringVal(deadline)),
+  ])
 }
 
 fn fulfillment_order_record(

@@ -36,8 +36,9 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   carrier_service_not_found_for_delete, carrier_service_not_found_for_update,
   delivery_profile_default_remove_error, delivery_profile_remove_not_found,
   delivery_profile_update_not_found, find_active_store_property_location,
-  flat_rate_shipping_package_not_updatable, fulfillment_service_location_record,
-  fulfillment_service_not_found,
+  flat_rate_shipping_package_not_updatable,
+  fulfillment_service_destination_location_should_not_be_present,
+  fulfillment_service_location_record, fulfillment_service_not_found,
   invalid_fulfillment_service_destination_location,
   invalid_shipping_package_result, is_active_location,
   is_flat_rate_shipping_package, is_fulfillment_service_location,
@@ -906,7 +907,14 @@ pub fn fulfillment_service_delete_destination(
         Some(location) -> Ok(Some(location))
         None -> Error([invalid_fulfillment_service_destination_location()])
       }
-    _ -> Ok(None)
+    _ ->
+      case destination_location_id {
+        Some(_) ->
+          Error([
+            fulfillment_service_destination_location_should_not_be_present(),
+          ])
+        None -> Ok(None)
+      }
   }
 }
 
