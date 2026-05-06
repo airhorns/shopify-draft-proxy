@@ -1,0 +1,17 @@
+mutation MetaobjectHandleValidationUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+  metaobjectUpdate(id: $id, metaobject: $metaobject) {
+    metaobject {
+      id
+      handle
+      type
+      displayName
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

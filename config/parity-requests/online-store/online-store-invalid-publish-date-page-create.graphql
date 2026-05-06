@@ -1,0 +1,15 @@
+mutation OnlineStoreInvalidPublishDatePageCreate($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      isPublished
+      publishedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

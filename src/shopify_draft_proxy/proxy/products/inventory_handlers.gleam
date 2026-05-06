@@ -26,11 +26,12 @@ import shopify_draft_proxy/proxy/products/inventory_apply.{
   sync_product_summaries_for_inventory_group,
 }
 import shopify_draft_proxy/proxy/products/inventory_core.{
-  find_inventory_level, find_inventory_level_target,
+  active_inventory_levels, find_inventory_level, find_inventory_level_target,
   invalid_inventory_set_quantity_name_error, inventory_activate_staged_ids,
   inventory_adjust_product_total_inventory_sync, inventory_adjustment_app_source,
   inventory_change_location, inventory_item_variant_cursor,
   inventory_level_is_active, inventory_set_quantity_changes,
+  product_set_inventory_level_id, product_set_inventory_location,
   quantity_compare_quantity, quantity_source, reactivate_inventory_level,
   read_inventory_adjustment_change_inputs, read_inventory_set_quantity_inputs,
   replace_inventory_level, reverse_inventory_item_variants,
@@ -43,8 +44,8 @@ import shopify_draft_proxy/proxy/products/inventory_validation.{
   read_inventory_move_quantity_inputs, read_variant_inventory_item,
   serialize_inventory_item_level_field, serialize_inventory_item_levels_field,
   stage_variant_inventory_levels, validate_inventory_adjust_inputs,
-  validate_inventory_move_inputs, validate_inventory_set_quantity_inputs,
-  variant_with_inventory_levels,
+  validate_inventory_item_update_input, validate_inventory_move_inputs,
+  validate_inventory_set_quantity_inputs, variant_with_inventory_levels,
 }
 import shopify_draft_proxy/proxy/products/media_core.{
   variant_media_connection_source,
@@ -54,18 +55,17 @@ import shopify_draft_proxy/proxy/products/product_types.{
   type InventoryAdjustmentGroup, type InventoryMoveQuantityInput,
   type InventorySetQuantityInput, type MutationFieldResult,
   type ProductUserError, InventoryAdjustmentChange, ProductUserError,
-  RecomputeProductTotalInventory, product_user_error,
-  product_user_error_code_invalid_inventory_item,
-  product_user_error_code_invalid_location,
+  RecomputeProductTotalInventory,
 }
 import shopify_draft_proxy/proxy/products/products_core.{enumerate_items}
 import shopify_draft_proxy/proxy/products/selling_plans_core.{
   selling_plan_group_connection_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, mutation_error_with_null_data_result, mutation_result,
-  read_arg_object_list, read_bool_field, read_non_empty_string_field,
-  read_string_argument, read_string_field, user_errors_source,
+  count_source, mutation_error_with_null_data_result, mutation_rejected_result,
+  mutation_result, read_arg_object_list, read_bool_field, read_int_field,
+  read_non_empty_string_field, read_string_argument, read_string_field,
+  user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   selected_option_source, variant_staged_ids,
@@ -82,7 +82,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type InventoryLevelRecord, type ProductVariantRecord, ProductVariantRecord,
+  type InventoryLevelRecord, type InventoryLocationRecord,
+  type ProductVariantRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryQuantityRecord, ProductVariantRecord,
 }
 
 // ===== from inventory_l07 =====
@@ -735,6 +737,99 @@ pub fn inventory_adjustment_group_source(
 }
 
 // ===== from inventory_l12 =====
+fn known_inventory_location(
+  store: Store,
+  location_id: String,
+) -> Option(InventoryLocationRecord) {
+  case store.get_effective_location_by_id(store, location_id) {
+    Some(location) ->
+      Some(InventoryLocationRecord(id: location.id, name: location.name))
+    None -> {
+      store.list_effective_product_variants(store)
+      |> list.filter_map(fn(variant) {
+        case
+          find_inventory_level(variant_inventory_levels(variant), location_id)
+        {
+          Some(level) -> Ok(level.location)
+          None -> Error(Nil)
+        }
+      })
+      |> list.first
+      |> option.from_result
+    }
+  }
+}
+
+fn negative_inventory_activate_quantity_errors(
+  available: Option(Int),
+  on_hand: Option(Int),
+) -> List(ProductUserError) {
+  let available_errors = case available {
+    Some(quantity) if quantity < 0 -> [
+      ProductUserError(
+        ["available"],
+        "Available must be greater than or equal to 0",
+        Some("NEGATIVE"),
+      ),
+    ]
+    _ -> []
+  }
+  let on_hand_errors = case on_hand {
+    Some(quantity) if quantity < 0 -> [
+      ProductUserError(
+        ["onHand"],
+        "On hand must be greater than or equal to 0",
+        Some("NEGATIVE"),
+      ),
+    ]
+    _ -> []
+  }
+  list.append(available_errors, on_hand_errors)
+}
+
+fn inventory_activate_not_found_error(field: List(String)) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The product couldn't be stocked because the location wasn't found.",
+    Some("NOT_FOUND"),
+  )
+}
+
+fn inventory_activate_item_not_found_error() -> ProductUserError {
+  ProductUserError(
+    ["inventoryItemId"],
+    "Inventory item does not exist",
+    Some("NOT_FOUND"),
+  )
+}
+
+fn inventory_activate_taken_error() -> ProductUserError {
+  ProductUserError(
+    ["locationId"],
+    "Inventory level has already been taken",
+    Some("TAKEN"),
+  )
+}
+
+fn new_inventory_activation_level(
+  store: Store,
+  inventory_item_id: String,
+  location_id: String,
+) -> InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: product_set_inventory_level_id(inventory_item_id, location_id),
+    cursor: None,
+    is_active: Some(True),
+    location: product_set_inventory_location(store, None, location_id),
+    quantities: [
+      InventoryQuantityRecord(name: "available", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "on_hand", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "incoming", quantity: 0, updated_at: None),
+      InventoryQuantityRecord(name: "reserved", quantity: 0, updated_at: None),
+    ],
+  )
+}
+
 @internal
 pub fn handle_inventory_activate(
   store: Store,
@@ -747,6 +842,8 @@ pub fn handle_inventory_activate(
   let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "inventoryItemId")
   let location_id = read_string_field(args, "locationId")
+  let available = read_int_field(args, "available")
+  let on_hand = read_int_field(args, "onHand")
   let available_supplied = case dict.get(args, "available") {
     Ok(_) -> True
     Error(_) -> False
@@ -769,46 +866,70 @@ pub fn handle_inventory_activate(
       }
     _, _, _ -> None
   }
+  let location = case location_id {
+    Some(location_id) -> known_inventory_location(store, location_id)
+    None -> None
+  }
   let user_errors = case inventory_item_id, location_id, variant {
-    None, _, _ -> [
-      product_user_error(
-        ["inventoryItemId"],
-        "Inventory item does not exist",
-        product_user_error_code_invalid_inventory_item,
-      ),
-    ]
-    Some(_), _, None -> [
-      product_user_error(
-        ["inventoryItemId"],
-        "Inventory item does not exist",
-        product_user_error_code_invalid_inventory_item,
-      ),
-    ]
-    _, None, _ -> [
-      product_user_error(
-        ["locationId"],
-        "Location does not exist",
-        product_user_error_code_invalid_location,
-      ),
-    ]
+    None, _, _ -> [inventory_activate_item_not_found_error()]
+    Some(_), _, None -> [inventory_activate_item_not_found_error()]
+    _, None, _ -> [inventory_activate_not_found_error(["locationId"])]
     _, _, _ ->
-      case resolved, available_supplied {
-        Some(#(_, level)), True ->
-          case inventory_level_is_active(level) {
-            True -> [
-              ProductUserError(
-                ["available"],
-                "Not allowed to set available quantity when the item is already active at the location.",
-                None,
-              ),
-            ]
-            False -> []
+      case location {
+        None -> [inventory_activate_not_found_error(["locationId"])]
+        Some(_) -> {
+          let quantity_errors =
+            negative_inventory_activate_quantity_errors(available, on_hand)
+          case resolved, inventory_item_id, location_id, available_supplied {
+            Some(#(_, level)), Some(item_id), Some(location_id), _ -> {
+              case
+                inventory_level_is_active(level)
+                && level.id
+                == product_set_inventory_level_id(item_id, location_id)
+              {
+                True -> [inventory_activate_taken_error()]
+                False ->
+                  case available_supplied {
+                    True ->
+                      case inventory_level_is_active(level) {
+                        True -> [
+                          ProductUserError(
+                            ["available"],
+                            "Not allowed to set available quantity when the item is already active at the location.",
+                            None,
+                          ),
+                        ]
+                        False -> quantity_errors
+                      }
+                    False -> quantity_errors
+                  }
+              }
+            }
+            Some(#(_, level)), _, _, True ->
+              case inventory_level_is_active(level) {
+                True -> [
+                  ProductUserError(
+                    ["available"],
+                    "Not allowed to set available quantity when the item is already active at the location.",
+                    None,
+                  ),
+                ]
+                False -> quantity_errors
+              }
+            _, _, _, _ -> {
+              quantity_errors
+            }
           }
-        _, _ -> []
+        }
       }
   }
-  let activation_result = case resolved, user_errors {
-    Some(#(variant, level)), [] -> {
+  let activation_result = case
+    resolved,
+    user_errors,
+    inventory_item_id,
+    location_id
+  {
+    Some(#(variant, level)), [], _, _ -> {
       case inventory_level_is_active(level) {
         True -> #(store, identity, resolved)
         False -> {
@@ -829,7 +950,24 @@ pub fn handle_inventory_activate(
         }
       }
     }
-    _, _ -> #(store, identity, resolved)
+    None, [], Some(item_id), Some(location_id) -> {
+      case variant, location {
+        Some(variant), Some(_) -> {
+          let next_level =
+            new_inventory_activation_level(store, item_id, location_id)
+          let next_levels =
+            list.append(variant_inventory_levels(variant), [next_level])
+          let next_variant = variant_with_inventory_levels(variant, next_levels)
+          #(
+            stage_variant_inventory_levels(store, variant, next_levels),
+            identity,
+            Some(#(next_variant, next_level)),
+          )
+        }
+        _, _ -> #(store, identity, resolved)
+      }
+    }
+    _, _, _, _ -> #(store, identity, resolved)
   }
   let #(next_store, next_identity, next_resolved) = activation_result
   let staged_ids = inventory_activate_staged_ids(next_resolved)
@@ -889,16 +1027,56 @@ pub fn handle_inventory_bulk_toggle_activation(
       }
     _, _ -> None
   }
-  let user_errors = case variant, location_id, target, activate {
-    Some(_variant), Some(_location_id), None, _ -> [
+  let location = case location_id {
+    Some(location_id) -> known_inventory_location(store, location_id)
+    None -> None
+  }
+  let user_errors = case
+    inventory_item_id,
+    variant,
+    location_id,
+    location,
+    target,
+    activate
+  {
+    None, _, _, _, _, _ -> [
+      ProductUserError(
+        ["inventoryItemId"],
+        "Inventory item does not exist",
+        Some("ITEM_NOT_FOUND"),
+      ),
+    ]
+    Some(_), None, _, _, _, _ -> [
+      ProductUserError(
+        ["inventoryItemId"],
+        "Inventory item does not exist",
+        Some("ITEM_NOT_FOUND"),
+      ),
+    ]
+    Some(_), Some(_variant), Some(_location_id), None, None, _ -> [
       ProductUserError(
         ["inventoryItemUpdates", "0", "locationId"],
         "The quantity couldn't be updated because the location was not found.",
         Some("LOCATION_NOT_FOUND"),
       ),
     ]
-    Some(variant),
+    Some(_),
+      Some(_variant),
       Some(_location_id),
+      Some(_location),
+      None,
+      Some(False)
+    -> [
+      ProductUserError(
+        ["inventoryItemUpdates", "0", "locationId"],
+        "The quantity couldn't be updated because the location was not found.",
+        Some("LOCATION_NOT_FOUND"),
+      ),
+    ]
+    Some(_),
+      Some(variant),
+      Some(_location_id),
+      _,
       Some(#(_target_variant, level)),
       Some(False)
     -> {
@@ -912,16 +1090,40 @@ pub fn handle_inventory_bulk_toggle_activation(
             Some("CANNOT_DEACTIVATE_FROM_ONLY_LOCATION"),
           ),
         ]
-        False -> []
+        False ->
+          case
+            list.length(
+              active_inventory_levels(variant_inventory_levels(variant)),
+            )
+            <= 1
+          {
+            True -> [
+              ProductUserError(
+                ["inventoryItemUpdates", "0", "locationId"],
+                "The variant couldn't be unstocked from "
+                  <> level.location.name
+                  <> " because products need to be stocked at a minimum of 1 location.",
+                Some("CANNOT_DEACTIVATE_FROM_ONLY_LOCATION"),
+              ),
+            ]
+            False -> []
+          }
       }
     }
-    _, _, _, _ -> []
+    _, _, _, _, _, _ -> []
   }
-  let outcome = case target, activate, user_errors {
-    Some(#(variant, level)), Some(False), [] -> {
+  let outcome = case
+    target,
+    activate,
+    user_errors,
+    inventory_item_id,
+    location_id
+  {
+    Some(#(variant, level)), Some(False), [], _, _ -> {
+      let next_level = InventoryLevelRecord(..level, is_active: Some(False))
       let next_levels =
         variant_inventory_levels(variant)
-        |> list.filter(fn(candidate) { candidate.id != level.id })
+        |> replace_inventory_level(level.location.id, next_level)
       let next_store =
         stage_variant_inventory_levels(store, variant, next_levels)
       #(
@@ -934,7 +1136,34 @@ pub fn handle_inventory_bulk_toggle_activation(
         [level.id],
       )
     }
-    Some(#(variant, level)), _, [] -> #(
+    None, Some(True), [], Some(item_id), Some(location_id) -> {
+      case variant, location {
+        Some(variant), Some(_) -> {
+          let next_level =
+            new_inventory_activation_level(store, item_id, location_id)
+          let next_levels =
+            list.append(variant_inventory_levels(variant), [next_level])
+          let next_store =
+            stage_variant_inventory_levels(store, variant, next_levels)
+          let next_variant =
+            store.find_effective_variant_by_inventory_item_id(
+              next_store,
+              item_id,
+            )
+          #(
+            next_store,
+            next_variant,
+            option.map(next_variant, fn(variant) { [#(variant, next_level)] }),
+            case variant.inventory_item {
+              Some(item) -> [next_level.id, item.id]
+              None -> [next_level.id]
+            },
+          )
+        }
+        _, _ -> #(store, None, None, [])
+      }
+    }
+    Some(#(variant, level)), _, [], _, _ -> #(
       store,
       Some(variant),
       Some([#(variant, level)]),
@@ -943,8 +1172,8 @@ pub fn handle_inventory_bulk_toggle_activation(
         None -> [level.id]
       },
     )
-    _, _, [] -> #(store, variant, None, [])
-    _, _, _ -> #(store, None, None, [])
+    _, _, [], _, _ -> #(store, variant, None, [])
+    _, _, _, _, _ -> #(store, None, None, [])
   }
   let #(next_store, payload_variant, response_levels, staged_ids) = outcome
   mutation_result(
@@ -988,65 +1217,85 @@ pub fn handle_inventory_item_update(
     Some(variant) ->
       case variant.inventory_item {
         Some(existing_item) -> {
-          let #(next_item, _) =
-            read_variant_inventory_item(
-              identity,
-              Some(input),
-              Some(existing_item),
-            )
-          case next_item {
-            Some(next_item) -> {
-              let next_variant =
-                ProductVariantRecord(..variant, inventory_item: Some(next_item))
-              let next_variants =
-                store.get_effective_variants_by_product_id(
-                  store,
-                  variant.product_id,
-                )
-                |> list.map(fn(candidate) {
-                  case candidate.id == variant.id {
-                    True -> next_variant
-                    False -> candidate
-                  }
-                })
-              let next_store =
-                store.replace_staged_variants_for_product(
-                  store,
-                  variant.product_id,
-                  next_variants,
-                )
-              let #(_, synced_store, synced_identity) =
-                sync_product_inventory_summary(
-                  next_store,
-                  identity,
-                  variant.product_id,
-                  RecomputeProductTotalInventory,
-                )
-              let updated_variant =
-                store.get_effective_variant_by_id(synced_store, variant.id)
-                |> option.unwrap(next_variant)
-              mutation_result(
-                key,
+          let user_errors =
+            validate_inventory_item_update_input(input, existing_item)
+          case user_errors {
+            [_, ..] -> {
+              let payload =
                 inventory_item_update_payload(
-                  synced_store,
-                  Some(updated_variant),
-                  [],
+                  store,
+                  None,
+                  user_errors,
                   field,
                   fragments,
-                ),
-                synced_store,
-                synced_identity,
-                variant_staged_ids(updated_variant),
-              )
+                )
+              mutation_rejected_result(key, payload, store, identity)
             }
-            None ->
-              inventory_item_update_missing_result(
-                key,
-                store,
-                identity,
-                field,
-                fragments,
-              )
+            [] -> {
+              let #(next_item, _) =
+                read_variant_inventory_item(
+                  identity,
+                  Some(input),
+                  Some(existing_item),
+                )
+              case next_item {
+                Some(next_item) -> {
+                  let next_variant =
+                    ProductVariantRecord(
+                      ..variant,
+                      inventory_item: Some(next_item),
+                    )
+                  let next_variants =
+                    store.get_effective_variants_by_product_id(
+                      store,
+                      variant.product_id,
+                    )
+                    |> list.map(fn(candidate) {
+                      case candidate.id == variant.id {
+                        True -> next_variant
+                        False -> candidate
+                      }
+                    })
+                  let next_store =
+                    store.replace_staged_variants_for_product(
+                      store,
+                      variant.product_id,
+                      next_variants,
+                    )
+                  let #(_, synced_store, synced_identity) =
+                    sync_product_inventory_summary(
+                      next_store,
+                      identity,
+                      variant.product_id,
+                      RecomputeProductTotalInventory,
+                    )
+                  let updated_variant =
+                    store.get_effective_variant_by_id(synced_store, variant.id)
+                    |> option.unwrap(next_variant)
+                  mutation_result(
+                    key,
+                    inventory_item_update_payload(
+                      synced_store,
+                      Some(updated_variant),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    synced_store,
+                    synced_identity,
+                    variant_staged_ids(updated_variant),
+                  )
+                }
+                None ->
+                  inventory_item_update_missing_result(
+                    key,
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                  )
+              }
+            }
           }
         }
         None ->

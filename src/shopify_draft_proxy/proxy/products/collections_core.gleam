@@ -36,12 +36,12 @@ import shopify_draft_proxy/proxy/products/products_core.{
 }
 import shopify_draft_proxy/proxy/products/products_records.{product_source}
 import shopify_draft_proxy/proxy/products/shared.{
-  connection_page_info_source, count_source, dedupe_preserving_order, job_source,
-  mutation_result, parse_unsigned_int_string, read_arg_object_list,
-  read_arg_string_list, read_bool_argument, read_bool_field,
-  read_non_empty_string_field, read_object_field, read_object_list_field,
-  read_string_argument, read_string_field, read_string_list_field,
-  resource_id_matches, resource_tail, user_errors_source,
+  connection_page_info_source, count_source, dedupe_preserving_order,
+  mutation_error_result, mutation_result, parse_unsigned_int_string,
+  read_arg_object_list, read_arg_string_list, read_bool_argument,
+  read_bool_field, read_non_empty_string_field, read_object_field,
+  read_object_list_field, read_string_argument, read_string_field,
+  read_string_list_field, resource_id_matches, resource_tail, user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   optional_int_json, optional_string_json, product_search_parse_options,
@@ -56,11 +56,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CollectionImageRecord, type CollectionRecord, type CollectionRuleRecord,
-  type CollectionRuleSetRecord, type ProductCollectionRecord, type ProductRecord,
+  type AdminPlatformGenericNodeRecord, type CollectionImageRecord,
+  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
+  type ProductCollectionRecord, type ProductRecord,
+  AdminPlatformGenericNodeRecord, CapturedBool, CapturedObject, CapturedString,
   CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
   ProductCollectionRecord, ProductSeoRecord,
 }
+
+const collection_product_ids_input_limit = 250
 
 // ===== from collections_l00 =====
 @internal
@@ -409,6 +413,64 @@ pub fn collection_is_smart(collection: CollectionRecord) -> Bool {
   }
 }
 
+fn collection_product_ids_max_input_size_error(
+  root_name: String,
+  product_ids: List(String),
+  field: Selection,
+  document: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(list.length(product_ids))
+        <> " is greater than the maximum allowed of "
+        <> int.to_string(collection_product_ids_input_limit)
+        <> ".",
+      ),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #("path", json.array([root_name, "productIds"], json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+    ),
+  ])
+}
+
+fn product_ids_exceed_collection_input_limit(
+  product_ids: List(String),
+) -> Bool {
+  list.length(product_ids) > collection_product_ids_input_limit
+}
+
+fn collection_job_record(job_id: String) -> AdminPlatformGenericNodeRecord {
+  AdminPlatformGenericNodeRecord(
+    id: job_id,
+    typename: "Job",
+    data: CapturedObject([
+      #("id", CapturedString(job_id)),
+      #("done", CapturedBool(True)),
+      #("query", CapturedObject([#("__typename", CapturedString("QueryRoot"))])),
+    ]),
+  )
+}
+
+fn stage_collection_job(store: Store, job_id: String) -> Store {
+  store.upsert_staged_admin_platform_generic_nodes(store, [
+    collection_job_record(job_id),
+  ])
+}
+
+fn collection_job_payload_source(id: String, done: Bool) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Job")),
+    #("id", SrcString(id)),
+    #("done", SrcBool(done)),
+  ])
+}
+
 @internal
 pub fn remove_products_from_collection(
   store: Store,
@@ -603,7 +665,7 @@ pub fn collection_add_products_v2_payload(
   fragments: FragmentMap,
 ) -> Json {
   let job_value = case job_id {
-    Some(id) -> job_source(id, False)
+    Some(id) -> collection_job_payload_source(id, False)
     None -> SrcNull
   }
   project_graphql_value(
@@ -647,7 +709,7 @@ pub fn collection_remove_products_payload(
   fragments: FragmentMap,
 ) -> Json {
   let job_value = case job_id {
-    Some(id) -> job_source(id, False)
+    Some(id) -> collection_job_payload_source(id, False)
     None -> SrcNull
   }
   project_graphql_value(
@@ -669,7 +731,7 @@ pub fn collection_reorder_products_payload(
   fragments: FragmentMap,
 ) -> Json {
   let job_value = case job_id {
-    Some(id) -> job_source(id, False)
+    Some(id) -> collection_job_payload_source(id, False)
     None -> SrcNull
   }
   project_graphql_value(
@@ -939,34 +1001,30 @@ pub fn handle_collection_remove_products(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  document: String,
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case graphql_helpers.read_arg_string(args, "id") {
-    None ->
-      mutation_result(
-        key,
-        collection_remove_products_payload(
-          None,
-          [
-            ProductUserError(["id"], "Collection id is required", None),
-          ],
+  let product_ids = read_arg_string_list(args, "productIds")
+  case product_ids_exceed_collection_input_limit(product_ids) {
+    True ->
+      mutation_error_result(key, store, identity, [
+        collection_product_ids_max_input_size_error(
+          "collectionRemoveProducts",
+          product_ids,
           field,
-          fragments,
+          document,
         ),
-        store,
-        identity,
-        [],
-      )
-    Some(collection_id) ->
-      case store.get_effective_collection_by_id(store, collection_id) {
+      ])
+    False ->
+      case graphql_helpers.read_arg_string(args, "id") {
         None ->
           mutation_result(
             key,
             collection_remove_products_payload(
               None,
               [
-                ProductUserError(["id"], "Collection not found", None),
+                ProductUserError(["id"], "Collection id is required", None),
               ],
               field,
               fragments,
@@ -975,19 +1033,15 @@ pub fn handle_collection_remove_products(
             identity,
             [],
           )
-        Some(collection) ->
-          case collection_is_smart(collection) {
-            True ->
+        Some(collection_id) ->
+          case store.get_effective_collection_by_id(store, collection_id) {
+            None ->
               mutation_result(
                 key,
                 collection_remove_products_payload(
                   None,
                   [
-                    ProductUserError(
-                      ["id"],
-                      "Can't manually remove products from a smart collection",
-                      None,
-                    ),
+                    ProductUserError(["id"], "Collection not found", None),
                   ],
                   field,
                   fragments,
@@ -996,38 +1050,66 @@ pub fn handle_collection_remove_products(
                 identity,
                 [],
               )
-            False -> {
-              let next_store =
-                remove_products_from_collection(
-                  store,
-                  collection,
-                  read_arg_string_list(args, "productIds"),
-                )
-              let next_count =
-                store.list_effective_products_for_collection(
-                  next_store,
-                  collection.id,
-                )
-                |> list.length
-              let next_collection =
-                CollectionRecord(..collection, products_count: Some(next_count))
-              let next_store =
-                store.upsert_staged_collections(next_store, [next_collection])
-              let #(job_id, next_identity) =
-                synthetic_identity.make_synthetic_gid(identity, "Job")
-              mutation_result(
-                key,
-                collection_remove_products_payload(
-                  Some(job_id),
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                next_identity,
-                [collection.id],
-              )
-            }
+            Some(collection) ->
+              case collection_is_smart(collection) {
+                True ->
+                  mutation_result(
+                    key,
+                    collection_remove_products_payload(
+                      None,
+                      [
+                        ProductUserError(
+                          ["id"],
+                          "Can't manually remove products from a smart collection",
+                          None,
+                        ),
+                      ],
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+                False -> {
+                  let next_store =
+                    remove_products_from_collection(
+                      store,
+                      collection,
+                      product_ids,
+                    )
+                  let next_count =
+                    store.list_effective_products_for_collection(
+                      next_store,
+                      collection.id,
+                    )
+                    |> list.length
+                  let next_collection =
+                    CollectionRecord(
+                      ..collection,
+                      products_count: Some(next_count),
+                    )
+                  let next_store =
+                    store.upsert_staged_collections(next_store, [
+                      next_collection,
+                    ])
+                  let #(job_id, next_identity) =
+                    synthetic_identity.make_synthetic_gid(identity, "Job")
+                  let next_store = stage_collection_job(next_store, job_id)
+                  mutation_result(
+                    key,
+                    collection_remove_products_payload(
+                      Some(job_id),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    next_identity,
+                    [collection.id],
+                  )
+                }
+              }
           }
       }
   }
@@ -1342,31 +1424,29 @@ pub fn handle_collection_add_products_v2(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  document: String,
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case graphql_helpers.read_arg_string(args, "id") {
-    None ->
-      mutation_result(
-        key,
-        collection_add_products_v2_payload(
-          None,
-          [ProductUserError(["id"], "Collection id is required", None)],
+  let product_ids = read_arg_string_list(args, "productIds")
+  case product_ids_exceed_collection_input_limit(product_ids) {
+    True ->
+      mutation_error_result(key, store, identity, [
+        collection_product_ids_max_input_size_error(
+          "collectionAddProductsV2",
+          product_ids,
           field,
-          fragments,
+          document,
         ),
-        store,
-        identity,
-        [],
-      )
-    Some(collection_id) ->
-      case store.get_effective_collection_by_id(store, collection_id) {
+      ])
+    False ->
+      case graphql_helpers.read_arg_string(args, "id") {
         None ->
           mutation_result(
             key,
             collection_add_products_v2_payload(
               None,
-              [ProductUserError(["id"], "Collection does not exist", None)],
+              [ProductUserError(["id"], "Collection id is required", None)],
               field,
               fragments,
             ),
@@ -1374,41 +1454,14 @@ pub fn handle_collection_add_products_v2(
             identity,
             [],
           )
-        Some(collection) -> {
-          let placement = case collection.sort_order {
-            Some("MANUAL") -> AppendProducts
-            _ -> PrependReverseProducts
-          }
-          let #(next_store, result_collection, user_errors) =
-            add_products_to_collection(
-              store,
-              collection,
-              read_arg_string_list(args, "productIds"),
-              placement,
-            )
-          case user_errors, result_collection {
-            [], Some(record) -> {
-              let #(job_id, next_identity) =
-                synthetic_identity.make_synthetic_gid(identity, "Job")
-              mutation_result(
-                key,
-                collection_add_products_v2_payload(
-                  Some(job_id),
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                next_identity,
-                [record.id],
-              )
-            }
-            _, _ ->
+        Some(collection_id) ->
+          case store.get_effective_collection_by_id(store, collection_id) {
+            None ->
               mutation_result(
                 key,
                 collection_add_products_v2_payload(
                   None,
-                  user_errors,
+                  [ProductUserError(["id"], "Collection does not exist", None)],
                   field,
                   fragments,
                 ),
@@ -1416,8 +1469,52 @@ pub fn handle_collection_add_products_v2(
                 identity,
                 [],
               )
+            Some(collection) -> {
+              let placement = case collection.sort_order {
+                Some("MANUAL") -> AppendProducts
+                _ -> PrependReverseProducts
+              }
+              let #(next_store, result_collection, user_errors) =
+                add_products_to_collection(
+                  store,
+                  collection,
+                  product_ids,
+                  placement,
+                )
+              case user_errors, result_collection {
+                [], Some(record) -> {
+                  let #(job_id, next_identity) =
+                    synthetic_identity.make_synthetic_gid(identity, "Job")
+                  let next_store = stage_collection_job(next_store, job_id)
+                  mutation_result(
+                    key,
+                    collection_add_products_v2_payload(
+                      Some(job_id),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    next_identity,
+                    [record.id],
+                  )
+                }
+                _, _ ->
+                  mutation_result(
+                    key,
+                    collection_add_products_v2_payload(
+                      None,
+                      user_errors,
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+              }
+            }
           }
-        }
       }
   }
 }
@@ -1829,28 +1926,23 @@ pub fn handle_collection_add_products(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
+  document: String,
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case graphql_helpers.read_arg_string(args, "id") {
-    None ->
-      mutation_result(
-        key,
-        collection_add_products_payload(
-          store,
-          None,
-          [
-            ProductUserError(["id"], "Collection id is required", None),
-          ],
+  let product_ids = read_arg_string_list(args, "productIds")
+  case product_ids_exceed_collection_input_limit(product_ids) {
+    True ->
+      mutation_error_result(key, store, identity, [
+        collection_product_ids_max_input_size_error(
+          "collectionAddProducts",
+          product_ids,
           field,
-          fragments,
+          document,
         ),
-        store,
-        identity,
-        [],
-      )
-    Some(collection_id) ->
-      case store.get_effective_collection_by_id(store, collection_id) {
+      ])
+    False ->
+      case graphql_helpers.read_arg_string(args, "id") {
         None ->
           mutation_result(
             key,
@@ -1858,7 +1950,7 @@ pub fn handle_collection_add_products(
               store,
               None,
               [
-                ProductUserError(["id"], "Collection does not exist", None),
+                ProductUserError(["id"], "Collection id is required", None),
               ],
               field,
               fragments,
@@ -1867,33 +1959,52 @@ pub fn handle_collection_add_products(
             identity,
             [],
           )
-        Some(collection) -> {
-          let result =
-            add_products_to_collection(
-              store,
-              collection,
-              read_arg_string_list(args, "productIds"),
-              AppendProducts,
-            )
-          let #(next_store, result_collection, user_errors) = result
-          let staged_ids = case user_errors, result_collection {
-            [], Some(record) -> [record.id]
-            _, _ -> []
+        Some(collection_id) ->
+          case store.get_effective_collection_by_id(store, collection_id) {
+            None ->
+              mutation_result(
+                key,
+                collection_add_products_payload(
+                  store,
+                  None,
+                  [
+                    ProductUserError(["id"], "Collection does not exist", None),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(collection) -> {
+              let result =
+                add_products_to_collection(
+                  store,
+                  collection,
+                  product_ids,
+                  AppendProducts,
+                )
+              let #(next_store, result_collection, user_errors) = result
+              let staged_ids = case user_errors, result_collection {
+                [], Some(record) -> [record.id]
+                _, _ -> []
+              }
+              mutation_result(
+                key,
+                collection_add_products_payload(
+                  next_store,
+                  result_collection,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                next_store,
+                identity,
+                staged_ids,
+              )
+            }
           }
-          mutation_result(
-            key,
-            collection_add_products_payload(
-              next_store,
-              result_collection,
-              user_errors,
-              field,
-              fragments,
-            ),
-            next_store,
-            identity,
-            staged_ids,
-          )
-        }
       }
   }
 }

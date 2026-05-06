@@ -1,0 +1,22 @@
+mutation FulfillmentOrderHoldInputArguments($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+  fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+    fulfillmentHold {
+      handle
+      externalId
+      __draftProxyNotifyMerchant
+    }
+    fulfillmentOrder {
+      status
+      fulfillmentHolds {
+        handle
+        externalId
+        __draftProxyNotifyMerchant
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

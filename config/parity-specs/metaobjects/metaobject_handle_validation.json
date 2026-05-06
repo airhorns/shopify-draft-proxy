@@ -1,0 +1,199 @@
+{
+  "scenarioId": "metaobject-handle-validation",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjectUpdate", "metaobjectUpsert"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject_handle_validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_definition_create.graphql",
+    "variablesCapturePath": "$.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for explicit metaobject handle validation. The scenario stages a definition and valid row, then compares invalid-character and over-255-character handle errors across metaobjectCreate, metaobjectUpdate, and metaobjectUpsert. It also captures public Admin blank-handle behavior, which treats an empty create handle like omission and generates a handle from display name. Rejected branches compare null metaobject payloads plus userError field/code only; runtime tests cover no-persistence and generated-handle capping.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create-setup",
+        "capturePath": "$.definitionCreate.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors"
+      },
+      {
+        "name": "setup-metaobject-create",
+        "capturePath": "$.setupMetaobjectCreate.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_create.graphql",
+          "variablesCapturePath": "$.setupMetaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-invalid",
+        "capturePath": "$.invalidCreateCases.invalid.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectCreate.metaobject",
+          "$.metaobjectCreate.userErrors[*].field",
+          "$.metaobjectCreate.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-invalid",
+        "capturePath": "$.invalidUpdateCases.invalid.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectUpdate.metaobject",
+          "$.metaobjectUpdate.userErrors[*].field",
+          "$.metaobjectUpdate.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "upsert-invalid",
+        "capturePath": "$.invalidUpsertCases.invalid.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectUpsert.metaobject",
+          "$.metaobjectUpsert.userErrors[*].field",
+          "$.metaobjectUpsert.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_upsert.graphql",
+          "variablesCapturePath": "$.invalidUpsertCases.invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-too-long",
+        "capturePath": "$.invalidCreateCases.too-long.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectCreate.metaobject",
+          "$.metaobjectCreate.userErrors[*].field",
+          "$.metaobjectCreate.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.too-long.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-too-long",
+        "capturePath": "$.invalidUpdateCases.too-long.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectUpdate.metaobject",
+          "$.metaobjectUpdate.userErrors[*].field",
+          "$.metaobjectUpdate.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.too-long.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "upsert-too-long",
+        "capturePath": "$.invalidUpsertCases.too-long.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectUpsert.metaobject",
+          "$.metaobjectUpsert.userErrors[*].field",
+          "$.metaobjectUpsert.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_upsert.graphql",
+          "variablesCapturePath": "$.invalidUpsertCases.too-long.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-blank",
+        "capturePath": "$.invalidCreateCases.blank.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectCreate.metaobject.handle",
+          "$.metaobjectCreate.metaobject.type",
+          "$.metaobjectCreate.metaobject.displayName",
+          "$.metaobjectCreate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.blank.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-blank",
+        "capturePath": "$.invalidUpdateCases.blank.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectUpdate.metaobject",
+          "$.metaobjectUpdate.userErrors[*].field",
+          "$.metaobjectUpdate.userErrors[*].code"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.blank.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "upsert-blank",
+        "capturePath": "$.invalidUpsertCases.blank.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.metaobjectUpsert.metaobject.handle",
+          "$.metaobjectUpsert.metaobject.type",
+          "$.metaobjectUpsert.metaobject.displayName",
+          "$.metaobjectUpsert.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_upsert.graphql",
+          "variablesCapturePath": "$.invalidUpsertCases.blank.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+mutation OnlineStoreArticleUpdateValidationArticleCreate($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      handle
+      image {
+        altText
+        url
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

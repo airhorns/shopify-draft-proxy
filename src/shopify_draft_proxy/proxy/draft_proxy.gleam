@@ -23,8 +23,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Location, type Selection, Field, FragmentDefinition, FragmentSpread,
-  InlineFragment, SelectionSet,
+  type Argument, type Location, type Selection, Argument, Field,
+  FragmentDefinition, FragmentSpread, InlineFragment, SelectionSet,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation.{
@@ -55,6 +55,7 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/mutation_schema_lookup
 import shopify_draft_proxy/proxy/online_store
+import shopify_draft_proxy/proxy/online_store/server_pixel_validation
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/passthrough
@@ -805,6 +806,12 @@ fn schema_validation_errors(
               operation_path,
               query,
             ))
+            |> list.append(server_pixel_endpoint_argument_errors(
+              field,
+              variables,
+              operation_path,
+              query,
+            ))
             |> list.append(payment_reminder_send_selection_errors(
               field,
               operation_path,
@@ -853,6 +860,139 @@ fn payment_reminder_send_selection_errors(
       })
     _ -> []
   }
+}
+
+fn server_pixel_endpoint_argument_errors(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, arguments: arguments, loc: field_loc, ..) -> {
+      let args = case root_field.get_field_arguments(field, variables) {
+        Ok(args) -> args
+        Error(_) -> dict.new()
+      }
+      case name.value {
+        "eventBridgeServerPixelUpdate" ->
+          case dict.get(args, "arn") {
+            Ok(root_field.StringVal(arn)) ->
+              case server_pixel_validation.valid_eventbridge_arn(arn) {
+                True -> []
+                False -> [
+                  build_eventbridge_server_pixel_arn_error(
+                    arn,
+                    operation_path,
+                    field_loc,
+                    source_body,
+                  ),
+                ]
+              }
+            _ -> []
+          }
+        "pubSubServerPixelUpdate" ->
+          list.flat_map(["pubSubProject", "pubSubTopic"], fn(argument_name) {
+            case dict.get(args, argument_name) {
+              Ok(root_field.StringVal(value)) ->
+                case server_pixel_validation.non_blank(value) {
+                  True -> []
+                  False -> [
+                    build_pubsub_server_pixel_blank_error(
+                      argument_name,
+                      field_loc,
+                      argument_location(arguments, argument_name),
+                      source_body,
+                    ),
+                  ]
+                }
+              _ -> []
+            }
+          })
+        _ -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn argument_location(
+  arguments: List(Argument),
+  argument_name: String,
+) -> Option(Location) {
+  case mutation_helpers.find_argument(arguments, argument_name) {
+    Some(argument) -> {
+      let Argument(loc: loc, ..) = argument
+      loc
+    }
+    None -> None
+  }
+}
+
+fn build_eventbridge_server_pixel_arn_error(
+  arn: String,
+  operation_path: String,
+  field_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [#("message", json.string("Invalid ARN '" <> arn <> "'"))]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, "eventBridgeServerPixelUpdate", "arn"],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("CoercionError")),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn build_pubsub_server_pixel_blank_error(
+  argument_name: String,
+  field_loc: Option(Location),
+  argument_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #("message", json.string(argument_name <> " can't be blank")),
+  ]
+  let with_locations =
+    [field_loc, argument_loc]
+    |> list.filter_map(fn(loc) {
+      case location_object(loc, source_body) {
+        Some(location) -> Ok(location)
+        None -> Error(Nil)
+      }
+    })
+  let pairs = case with_locations {
+    [] -> base
+    _ ->
+      list.append(base, [
+        #("locations", json.preprocessed_array(with_locations)),
+      ])
+  }
+  json.object(
+    list.append(pairs, [
+      #(
+        "extensions",
+        json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+      ),
+      #("path", json.array(["pubSubServerPixelUpdate"], json.string)),
+    ]),
+  )
 }
 
 fn payment_reminder_payload_field_allowed(field_name: String) -> Bool {
@@ -1053,17 +1193,25 @@ fn locations_payload(
   field_loc: Option(Location),
   source_body: String,
 ) -> Option(Json) {
+  case location_object(field_loc, source_body) {
+    Some(location) -> Some(json.preprocessed_array([location]))
+    None -> None
+  }
+}
+
+fn location_object(
+  field_loc: Option(Location),
+  source_body: String,
+) -> Option(Json) {
   case field_loc {
     None -> None
     Some(loc) -> {
       let source = graphql_source.new(source_body)
       let computed = graphql_location.get_location(source, position: loc.start)
       Some(
-        json.preprocessed_array([
-          json.object([
-            #("line", json.int(computed.line)),
-            #("column", json.int(computed.column)),
-          ]),
+        json.object([
+          #("line", json.int(computed.line)),
+          #("column", json.int(computed.column)),
         ]),
       )
     }

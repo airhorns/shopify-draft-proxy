@@ -10,7 +10,10 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/proxy_state.{DraftProxy, Request, Response}
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{type FileRecord, FileRecord}
+import shopify_draft_proxy/state/types.{
+  type FileRecord, FileRecord, ProductMediaRecord, ProductRecord,
+  ProductSeoRecord, ProductVariantRecord,
+}
 
 fn run(query: String) -> String {
   let assert Ok(data) = media.handle_media_query(store.new(), query, dict.new())
@@ -78,6 +81,86 @@ fn ready_video() -> FileRecord {
 
 fn processing_image() -> FileRecord {
   FileRecord(..ready_image(), file_status: "PROCESSING")
+}
+
+fn seeded_variant_media_proxy() {
+  let product_id = "gid://shopify/Product/1"
+  let media_id = "gid://shopify/MediaImage/1"
+  let variant_id = "gid://shopify/ProductVariant/1"
+  let product =
+    ProductRecord(
+      id: product_id,
+      legacy_resource_id: None,
+      title: "Seed product",
+      handle: "seed-product",
+      status: "ACTIVE",
+      vendor: None,
+      product_type: None,
+      tags: [],
+      price_range_min: None,
+      price_range_max: None,
+      total_variants: Some(1),
+      has_only_default_variant: Some(True),
+      has_out_of_stock_variants: None,
+      total_inventory: None,
+      tracks_inventory: None,
+      created_at: None,
+      updated_at: None,
+      published_at: None,
+      description_html: "",
+      online_store_preview_url: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      category: None,
+      publication_ids: [],
+      contextual_pricing: None,
+      cursor: None,
+      combined_listing_role: None,
+      combined_listing_parent_id: None,
+      combined_listing_child_ids: [],
+    )
+  let media =
+    ProductMediaRecord(
+      key: product_id <> ":media:0",
+      product_id: product_id,
+      position: 0,
+      id: Some(media_id),
+      media_content_type: Some("IMAGE"),
+      alt: Some("Seed"),
+      status: Some("READY"),
+      product_image_id: None,
+      image_url: Some("https://cdn.example.com/seed.jpg"),
+      image_width: None,
+      image_height: None,
+      preview_image_url: Some("https://cdn.example.com/seed.jpg"),
+      source_url: Some("https://cdn.example.com/seed.jpg"),
+    )
+  let variant =
+    ProductVariantRecord(
+      id: variant_id,
+      product_id: product_id,
+      title: "Default Title",
+      sku: None,
+      barcode: None,
+      price: None,
+      compare_at_price: None,
+      taxable: None,
+      inventory_policy: None,
+      inventory_quantity: None,
+      selected_options: [],
+      media_ids: [media_id],
+      inventory_item: None,
+      contextual_pricing: None,
+      cursor: None,
+    )
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_products([product])
+    |> store.upsert_base_files([ready_image()])
+    |> store.replace_base_media_for_product(product_id, [media])
+    |> store.upsert_base_product_variants([variant])
+  let proxy = registry_proxy()
+  DraftProxy(..proxy, store: seeded_store)
 }
 
 pub fn is_media_query_root_test() {
@@ -320,6 +403,64 @@ pub fn file_delete_re_resolves_wrong_typed_gid_to_actual_file_type_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"fileDelete\":{\"deletedFileIds\":[\"gid://shopify/MediaImage/2\"],\"userErrors\":[]}}}"
+}
+
+pub fn file_delete_clears_variant_media_ids_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      seeded_variant_media_proxy(),
+      "mutation { fileDelete(fileIds: [\"gid://shopify/MediaImage/1\"]) { deletedFileIds userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileDelete\":{\"deletedFileIds\":[\"gid://shopify/MediaImage/1\"],\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { productVariant(id: \"gid://shopify/ProductVariant/1\") { media(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productVariant\":{\"media\":{\"nodes\":[]}}}}"
+
+  let DraftProxy(store: final_store, ..) = proxy
+  let assert Some(variant) =
+    store.get_effective_variant_by_id(
+      final_store,
+      "gid://shopify/ProductVariant/1",
+    )
+  assert variant.media_ids == []
+}
+
+pub fn file_update_references_to_remove_clears_variant_media_ids_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      seeded_variant_media_proxy(),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", referencesToRemove: [\"gid://shopify/Product/1\"] }]) { files { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\"}],\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { productVariant(id: \"gid://shopify/ProductVariant/1\") { media(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productVariant\":{\"media\":{\"nodes\":[]}}}}"
+
+  let DraftProxy(store: final_store, ..) = proxy
+  let assert Some(variant) =
+    store.get_effective_variant_by_id(
+      final_store,
+      "gid://shopify/ProductVariant/1",
+    )
+  assert variant.media_ids == []
 }
 
 pub fn file_update_rejects_non_ready_file_test() {

@@ -1,0 +1,212 @@
+{
+  "scenarioId": "draftOrderBulkTag-validation",
+  "operationNames": ["draftOrderCreate", "draftOrderBulkAddTags", "draftOrderBulkRemoveTags", "draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/draft-order-bulk-tag-validation.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql",
+    "variablesCapturePath": "$.setup.simpleDraftOrderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-simple-draft",
+        "capturePath": "$.expected.setupSimpleDraft.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "partial-success-with-unknown-id",
+        "capturePath": "$.expected.partialSuccessWithUnknownId.data.draftOrderBulkAddTags",
+        "proxyPath": "$.data.draftOrderBulkAddTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              },
+              "gid://shopify/DraftOrder/draft-order-bulk-tag-missing"
+            ],
+            "tags": [" added ", "ADDED"]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while live Shopify returns an async Job id."
+          }
+        ]
+      },
+      {
+        "name": "read-after-partial-success",
+        "capturePath": "$.expected.readAfterPartialSuccess.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The local setup draft gets a synthetic DraftOrder GID."
+          }
+        ]
+      },
+      {
+        "name": "long-tag-rejected",
+        "capturePath": "$.expected.longTagRejected.data.draftOrderBulkAddTags",
+        "proxyPath": "$.data.draftOrderBulkAddTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ],
+            "tags": [
+              {
+                "fromCapturePath": "$.inputs.longTag"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while live Shopify returns an async Job id."
+          }
+        ]
+      },
+      {
+        "name": "read-after-long-tag-reject",
+        "capturePath": "$.expected.readAfterLongTagReject.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The local setup draft gets a synthetic DraftOrder GID."
+          }
+        ]
+      },
+      {
+        "name": "remove-normalizes-tag-identity",
+        "capturePath": "$.expected.removeNormalizesTagIdentity.data.draftOrderBulkRemoveTags",
+        "proxyPath": "$.data.draftOrderBulkRemoveTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ],
+            "tags": [" INITIAL "]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while live Shopify returns an async Job id."
+          }
+        ]
+      },
+      {
+        "name": "read-after-normalized-remove",
+        "capturePath": "$.expected.readAfterNormalizedRemove.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The local setup draft gets a synthetic DraftOrder GID."
+          }
+        ]
+      },
+      {
+        "name": "too-many-input-tags",
+        "capturePath": "$.expected.tooManyInputTags.data.draftOrderBulkAddTags",
+        "proxyPath": "$.data.draftOrderBulkAddTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ],
+            "tags": {
+              "fromCapturePath": "$.inputs.tooManyTags"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-too-many-reject",
+        "capturePath": "$.expected.readAfterTooManyReject.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The local setup draft gets a synthetic DraftOrder GID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Local-runtime executable parity covers the draft-order bulk tag validation contract that public Admin 2025-01 does not expose synchronously: a live probe accepted the long-tag plus unknown-ID bulk add as an async job with no userErrors, while this proxy deliberately models the internal Tagging guardrails required by the issue. The scenario earns state through draftOrderCreate, uses no upstream cassette calls, and verifies downstream reads after accepted and rejected tag inputs."
+}

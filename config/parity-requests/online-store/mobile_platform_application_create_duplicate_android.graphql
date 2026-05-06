@@ -1,0 +1,16 @@
+mutation MobilePlatformApplicationCreateDuplicateAndroid {
+  mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.app", appLinksEnabled: true } }) {
+    mobilePlatformApplication {
+      __typename
+      ... on AndroidApplication {
+        applicationId
+        appLinksEnabled
+      }
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

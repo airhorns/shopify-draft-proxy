@@ -1,0 +1,14 @@
+mutation ThemeUpdateValidationCreateUnpublished($source: URL!, $name: String) {
+  themeCreate(source: $source, name: $name, role: UNPUBLISHED) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

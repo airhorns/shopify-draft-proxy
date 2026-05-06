@@ -1,6 +1,13 @@
 mutation ProductFeedSyncLocalRuntime($id: ID!) {
   productFullSync(id: $id) {
     id
+    job {
+      id
+      done
+      query {
+        __typename
+      }
+    }
     userErrors {
       field
       message

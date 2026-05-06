@@ -1,0 +1,25 @@
+mutation MetaobjectHandleValidationDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      displayNameKey
+      fieldDefinitions {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

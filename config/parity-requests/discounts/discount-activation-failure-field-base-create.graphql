@@ -1,0 +1,35 @@
+mutation DiscountActivationFailureFieldBaseCreate(
+  $codeInput: DiscountCodeAppInput!
+  $automaticInput: DiscountAutomaticAppInput!
+) {
+  discountCodeAppCreate(codeAppDiscount: $codeInput) {
+    codeAppDiscount {
+      discountId
+      title
+      status
+      appDiscountType {
+        functionId
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+    automaticAppDiscount {
+      discountId
+      title
+      status
+      appDiscountType {
+        functionId
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

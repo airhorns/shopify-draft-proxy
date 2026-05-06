@@ -1,0 +1,12 @@
+mutation {
+  pubSubServerPixelUpdate(pubSubProject: "project") {
+    serverPixel {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

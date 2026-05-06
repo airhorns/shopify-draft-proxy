@@ -1,0 +1,88 @@
+{
+  "scenarioId": "abandonmentUpdateActivitiesDeliveryStatuses-edge-cases",
+  "operationNames": ["abandonmentUpdateActivitiesDeliveryStatuses"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
+    "variablesCapturePath": "$.cases.forward.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "forward-transition",
+        "capturePath": "$.cases.forward.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses"
+      },
+      {
+        "name": "read-after-forward-transition",
+        "capturePath": "$.cases.forwardRead.expected.data.abandonment",
+        "proxyPath": "$.data.abandonment",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses.abandonment.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-marketing-activity",
+        "capturePath": "$.cases.unknownMarketingActivity.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
+          "variablesCapturePath": "$.cases.unknownMarketingActivity.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "backwards-transition",
+        "capturePath": "$.cases.backwards.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
+          "variablesCapturePath": "$.cases.backwards.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "same-status-no-op",
+        "capturePath": "$.cases.sameStatus.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
+          "variablesCapturePath": "$.cases.sameStatus.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "future-delivered-at",
+        "capturePath": "$.cases.futureDeliveredAt.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
+          "variablesCapturePath": "$.cases.futureDeliveredAt.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for abandonmentUpdateActivitiesDeliveryStatuses edge cases. Public Admin Abandonment reads do not expose the internal marketing-activity delivery map, so this scenario earns known abandonment state through cassette-backed local-runtime hydration and then strictly compares the mutation payloads plus downstream read-after-write behavior without sending the supported mutation upstream."
+}
