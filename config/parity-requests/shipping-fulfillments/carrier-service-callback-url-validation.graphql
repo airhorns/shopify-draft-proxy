@@ -1,0 +1,42 @@
+mutation CarrierServiceCallbackUrlValidation(
+  $validInput: DeliveryCarrierServiceCreateInput!
+  $httpCreateInput: DeliveryCarrierServiceCreateInput!
+  $bannedCreateInput: DeliveryCarrierServiceCreateInput!
+) {
+  validCreate: carrierServiceCreate(input: $validInput) {
+    carrierService {
+      id
+      name
+      callbackUrl
+      active
+      supportsServiceDiscovery
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  httpCreate: carrierServiceCreate(input: $httpCreateInput) {
+    carrierService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  bannedCreate: carrierServiceCreate(input: $bannedCreateInput) {
+    carrierService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -2275,8 +2275,15 @@ pub fn validate_discount_top_level_errors(
   field: Selection,
   document: String,
 ) -> List(Json) {
+  let errors =
+    validate_customer_gets_value_type_top_level_errors(input, field, document)
+  let errors =
+    list.append(
+      errors,
+      validate_customer_selection_top_level_errors(input, field, document),
+    )
   list.append(
-    validate_customer_gets_value_type_top_level_errors(input, field, document),
+    errors,
     validate_cart_line_combination_tag_top_level_errors(input, field, document),
   )
 }
@@ -2328,6 +2335,100 @@ pub fn customer_gets_value_type_count(
     True -> count + 1
     False -> count
   }
+}
+
+@internal
+pub fn validate_customer_selection_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case customer_selection_fields(input) {
+    Some(fields) ->
+      case customer_selection_all_is_true(fields) {
+        True ->
+          case
+            customer_selection_has_customers(fields)
+            || customer_selection_has_customer_saved_searches(fields)
+          {
+            True -> [
+              discount_bad_request_error(
+                field,
+                document,
+                "A discount cannot have customerSelection set to all, when customers or customerSavedSearches is specified.",
+              ),
+            ]
+            False ->
+              case customer_selection_has_customer_segments(fields) {
+                True -> [
+                  discount_bad_request_error(
+                    field,
+                    document,
+                    "A discount cannot have customerSelection set to all, when customerSegments is specified.",
+                  ),
+                ]
+                False -> []
+              }
+          }
+        False -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn customer_selection_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case discount_types.read_value(input, "customerSelection") {
+    root_field.ObjectVal(fields) -> Some(fields)
+    _ -> None
+  }
+}
+
+@internal
+pub fn customer_selection_all_is_true(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(fields, "all") {
+    Ok(root_field.BoolVal(True)) -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn customer_selection_has_customers(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  input_value_is_present(fields, "customers")
+}
+
+@internal
+pub fn customer_selection_has_customer_saved_searches(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  input_value_is_present(fields, "customerSavedSearches")
+}
+
+@internal
+pub fn customer_selection_has_customer_segments(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  input_value_is_present(fields, "customerSegments")
+}
+
+@internal
+pub fn discount_bad_request_error(
+  field: Selection,
+  document: String,
+  message: String,
+) -> Json {
+  json.object([
+    #("message", json.string(message)),
+    #("locations", field_locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("BAD_REQUEST"))])),
+    #("path", json.array([get_field_response_key(field)], json.string)),
+  ])
 }
 
 @internal

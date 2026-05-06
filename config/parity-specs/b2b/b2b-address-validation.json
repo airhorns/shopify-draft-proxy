@@ -1,0 +1,169 @@
+{
+  "scenarioId": "b2b-address-validation",
+  "operationNames": ["companyCreate", "companyLocationAssignAddress", "companyLocationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "validation-semantics",
+    "no-local-staging-on-validation-error"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-address-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-address-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity for B2B CompanyAddressInput validation: country, zone, zip, HTML, emoji, and name URL validation branches across companyLocationCreate, companyLocationAssignAddress, and nested companyCreate companyLocation address input paths. `CompanyLocationUpdateInput` does not expose address fields in the public Admin GraphQL schema on the live capture target, so local update-path validation is covered by focused runtime tests rather than fabricated Shopify evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-create-invalid-country",
+        "capturePath": "$.locationCreateInvalidCountry.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateInvalidCountry.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-invalid-zone",
+        "capturePath": "$.locationCreateInvalidZone.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateInvalidZone.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-invalid-zip",
+        "capturePath": "$.locationCreateInvalidZip.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateInvalidZip.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-html-address1",
+        "capturePath": "$.locationCreateHtmlAddress1.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateHtmlAddress1.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-html-recipient",
+        "capturePath": "$.locationCreateHtmlRecipient.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateHtmlRecipient.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-html-address2",
+        "capturePath": "$.locationCreateHtmlAddress2.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateHtmlAddress2.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-emoji-city",
+        "capturePath": "$.locationCreateEmojiCity.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateEmojiCity.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-emoji-first-name",
+        "capturePath": "$.locationCreateEmojiFirstName.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateEmojiFirstName.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-url-last-name",
+        "capturePath": "$.locationCreateUrlLastName.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateUrlLastName.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "assign-address-invalid-country",
+        "capturePath": "$.assignAddressInvalidCountry.response.data.companyLocationAssignAddress",
+        "proxyPath": "$.data.companyLocationAssignAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-assign-address.graphql",
+          "variables": {
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "address": { "fromCapturePath": "$.assignAddressInvalidCountry.request.variables.address" },
+            "addressTypes": { "fromCapturePath": "$.assignAddressInvalidCountry.request.variables.addressTypes" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-create-nested-invalid-country",
+        "capturePath": "$.companyCreateNestedInvalidCountry.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-address-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateNestedInvalidCountry.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

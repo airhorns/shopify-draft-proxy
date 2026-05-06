@@ -891,6 +891,215 @@ pub fn update_discount_inputs_reject_context_customer_selection_conflicts_test()
   })
 }
 
+pub fn create_discount_inputs_reject_customer_selection_all_with_legacy_targets_test() {
+  let cases = [
+    #(
+      "discountCodeBasicCreate",
+      "multiple",
+      "mutation { basicCustomers: discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic all customers\", code: \"ALL-CUST-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "basicCustomers",
+    ),
+    #(
+      "discountCodeBasicCreate",
+      "multiple",
+      "mutation { basicSavedSearches: discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic all searches\", code: \"ALL-SEARCH-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSavedSearches: { add: [\"gid://shopify/SavedSearch/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "basicSavedSearches",
+    ),
+    #(
+      "discountCodeBasicCreate",
+      "segments",
+      "mutation { basicSegments: discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic all segments\", code: \"ALL-SEG-BASIC\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "basicSegments",
+    ),
+    #(
+      "discountCodeBxgyCreate",
+      "multiple",
+      "mutation { bxgyCustomers: discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY all customers\", code: \"ALL-CUST-BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "bxgyCustomers",
+    ),
+    #(
+      "discountCodeBxgyCreate",
+      "segments",
+      "mutation { bxgySegments: discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY all segments\", code: \"ALL-SEG-BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "bxgySegments",
+    ),
+    #(
+      "discountCodeFreeShippingCreate",
+      "multiple",
+      "mutation { freeShippingCustomers: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping all customers\", code: \"ALL-CUST-SHIP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "freeShippingCustomers",
+    ),
+    #(
+      "discountCodeFreeShippingCreate",
+      "segments",
+      "mutation { freeShippingSegments: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping all segments\", code: \"ALL-SEG-SHIP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "freeShippingSegments",
+    ),
+    #(
+      "discountCodeAppCreate",
+      "multiple",
+      "mutation { appCustomers: discountCodeAppCreate(codeAppDiscount: { title: \"App all customers\", code: \"ALL-CUST-APP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+      "appCustomers",
+    ),
+    #(
+      "discountCodeAppCreate",
+      "segments",
+      "mutation { appSegments: discountCodeAppCreate(codeAppDiscount: { title: \"App all segments\", code: \"ALL-SEG-APP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+      "appSegments",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(root, kind, document, response_key) = test_case
+    let store = case root {
+      "discountCodeAppCreate" -> discount_function_store()
+      _ -> store.new()
+    }
+    let outcome = run_mutation_from(store, synthetic_identity.new(), document)
+
+    assert_customer_selection_bad_request(outcome.data, response_key, kind)
+    assert outcome.staged_resource_ids == []
+    assert outcome.log_drafts == []
+  })
+}
+
+pub fn update_discount_inputs_reject_customer_selection_all_with_legacy_targets_test() {
+  let cases = [
+    #(
+      "discountCodeBasicUpdate",
+      "multiple",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic valid\", code: \"ALL-CUST-BASIC-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { basicCustomersUpdate: discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic all customers update\", code: \"ALL-CUST-BASIC-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "basicCustomersUpdate",
+    ),
+    #(
+      "discountCodeBasicUpdate",
+      "segments",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic valid\", code: \"ALL-SEG-BASIC-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { basicSegmentsUpdate: discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic all segments update\", code: \"ALL-SEG-BASIC-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "basicSegmentsUpdate",
+    ),
+    #(
+      "discountCodeBxgyUpdate",
+      "multiple",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY valid\", code: \"ALL-CUST-BXGY-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { bxgyCustomersUpdate: discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY all customers update\", code: \"ALL-CUST-BXGY-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "bxgyCustomersUpdate",
+    ),
+    #(
+      "discountCodeBxgyUpdate",
+      "segments",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY valid\", code: \"ALL-SEG-BXGY-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { bxgySegmentsUpdate: discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY all segments update\", code: \"ALL-SEG-BXGY-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "bxgySegmentsUpdate",
+    ),
+    #(
+      "discountCodeFreeShippingUpdate",
+      "multiple",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping valid\", code: \"ALL-CUST-SHIP-UP\", startsAt: \"2026-04-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { freeShippingCustomersUpdate: discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping all customers update\", code: \"ALL-CUST-SHIP-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "freeShippingCustomersUpdate",
+    ),
+    #(
+      "discountCodeFreeShippingUpdate",
+      "segments",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping valid\", code: \"ALL-SEG-SHIP-UP\", startsAt: \"2026-04-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code } } }",
+      "mutation { freeShippingSegmentsUpdate: discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping all segments update\", code: \"ALL-SEG-SHIP-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "freeShippingSegmentsUpdate",
+    ),
+    #(
+      "discountCodeAppUpdate",
+      "multiple",
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App valid\", code: \"ALL-CUST-APP-UP\", startsAt: \"2026-04-01T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code } } }",
+      "mutation { appCustomersUpdate: discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App all customers update\", code: \"ALL-CUST-APP-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customers: { add: [\"gid://shopify/Customer/1\"] } }, functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+      "appCustomersUpdate",
+    ),
+    #(
+      "discountCodeAppUpdate",
+      "segments",
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App valid\", code: \"ALL-SEG-APP-UP\", startsAt: \"2026-04-01T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code } } }",
+      "mutation { appSegmentsUpdate: discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App all segments update\", code: \"ALL-SEG-APP-UP\", startsAt: \"2026-04-25T00:00:00Z\", customerSelection: { all: true, customerSegments: { add: [\"gid://shopify/Segment/1\"] } }, functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+      "appSegmentsUpdate",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(root, kind, create_document, update_document, response_key) =
+      test_case
+    let base_store = case root {
+      "discountCodeAppUpdate" -> discount_function_store()
+      _ -> store.new()
+    }
+    let create_outcome =
+      run_mutation_from(base_store, synthetic_identity.new(), create_document)
+    let update_outcome =
+      run_mutation_from(
+        create_outcome.store,
+        create_outcome.identity,
+        update_document,
+      )
+
+    assert_customer_selection_bad_request(
+      update_outcome.data,
+      response_key,
+      kind,
+    )
+    assert update_outcome.staged_resource_ids == []
+    assert update_outcome.log_drafts == []
+  })
+}
+
+pub fn rejected_customer_selection_all_conflict_does_not_stage_or_log_test() {
+  let body =
+    "{\"query\":\"mutation { rejected: discountCodeBasicCreate(basicCodeDiscount: { title: \\\"Rejected\\\", code: \\\"REJECTED-ALL-CUSTOMERS\\\", startsAt: \\\"2026-04-25T00:00:00Z\\\", customerSelection: { all: true, customers: { add: [\\\"gid://shopify/Customer/1\\\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }\"}"
+  let #(Response(status: status, body: create_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: ""),
+    )
+  let assert Ok(read_body) =
+    discounts.handle_discount_query(
+      next_proxy.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { id } }",
+      dict.new(),
+    )
+
+  assert status == 200
+  assert log_status == 200
+  assert_customer_selection_bad_request(create_body, "rejected", "multiple")
+  assert json.to_string(log_body) == "{\"entries\":[]}"
+  assert json.to_string(read_body) == "{\"codeDiscountNode\":null}"
+}
+
+pub fn customer_saved_searches_public_schema_rejection_does_not_stage_or_log_test() {
+  let body =
+    "{\"query\":\"mutation DiscountCustomerSelectionInternalConflictsCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }\",\"variables\":{\"input\":{\"title\":\"Saved searches rejected\",\"code\":\"REJECTED-SAVED-SEARCHES\",\"startsAt\":\"2026-04-25T00:00:00Z\",\"customerSelection\":{\"all\":true,\"customerSavedSearches\":{\"add\":[\"gid://shopify/SavedSearch/1\"]}},\"customerGets\":{\"value\":{\"percentage\":0.1},\"items\":{\"all\":true}}}}}"
+  let #(Response(status: status, body: create_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: ""),
+    )
+  let rendered = json.to_string(create_body)
+
+  assert status == 200
+  assert log_status == 200
+  assert string.contains(
+    rendered,
+    "Variable $input of type DiscountCodeBasicInput! was provided invalid value for customerSelection.customerSavedSearches",
+  )
+  assert string.contains(rendered, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    rendered,
+    "\"explanation\":\"Field is not defined on DiscountCustomerSelectionInput\"",
+  )
+  assert !string.contains(rendered, "discountCodeBasicCreate")
+  assert json.to_string(log_body) == "{\"entries\":[]}"
+}
+
 pub fn code_basic_create_keeps_single_buyer_selection_inputs_valid_test() {
   let context_only =
     run_mutation(
@@ -1418,6 +1627,26 @@ fn assert_customer_gets_value_bad_request(data: json.Json, root: String) {
     body,
     "\"message\":\"A discount can only have one of percentage, discountOnQuantity or discountAmount.\"",
   )
+  assert string.contains(body, "\"extensions\":{\"code\":\"BAD_REQUEST\"}")
+  assert string.contains(body, "\"path\":[\"" <> root <> "\"]")
+  assert string.contains(body, "\"data\":{\"" <> root <> "\":null}")
+  assert !string.contains(body, "userErrors")
+}
+
+fn assert_customer_selection_bad_request(
+  data: json.Json,
+  root: String,
+  kind: String,
+) {
+  let body = json.to_string(data)
+  let message = case kind {
+    "segments" ->
+      "A discount cannot have customerSelection set to all, when customerSegments is specified."
+    _ ->
+      "A discount cannot have customerSelection set to all, when customers or customerSavedSearches is specified."
+  }
+
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
   assert string.contains(body, "\"extensions\":{\"code\":\"BAD_REQUEST\"}")
   assert string.contains(body, "\"path\":[\"" <> root <> "\"]")
   assert string.contains(body, "\"data\":{\"" <> root <> "\":null}")

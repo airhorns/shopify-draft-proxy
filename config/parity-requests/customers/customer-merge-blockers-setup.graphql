@@ -1,0 +1,87 @@
+mutation CustomerMergeBlockerSetup(
+  $tagsOne: CustomerInput!
+  $tagsTwo: CustomerInput!
+  $noteOne: CustomerInput!
+  $noteTwo: CustomerInput!
+  $giftOne: CustomerInput!
+  $giftTwo: CustomerInput!
+) {
+  tagsOne: customerCreate(input: $tagsOne) {
+    customer {
+      id
+      displayName
+      email
+      tags
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  tagsTwo: customerCreate(input: $tagsTwo) {
+    customer {
+      id
+      displayName
+      email
+      tags
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  noteOne: customerCreate(input: $noteOne) {
+    customer {
+      id
+      displayName
+      email
+      tags
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  noteTwo: customerCreate(input: $noteTwo) {
+    customer {
+      id
+      displayName
+      email
+      tags
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  giftOne: customerCreate(input: $giftOne) {
+    customer {
+      id
+      displayName
+      email
+      tags
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  giftTwo: customerCreate(input: $giftTwo) {
+    customer {
+      id
+      displayName
+      email
+      tags
+      note
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
