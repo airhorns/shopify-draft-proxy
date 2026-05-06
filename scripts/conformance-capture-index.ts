@@ -1674,7 +1674,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-capability-invariants.json`,
       'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-capability-invariants.json',
-      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-*.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-read.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-update.graphql',
     ],
     cleanupBehavior:
       'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
@@ -2180,7 +2183,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/catalog-context-update-removes-only.json',
       'config/parity-specs/markets/catalog-context-update-market-taken.json',
       'config/parity-specs/markets/catalog-context-update-catalog-not-found.json',
-      'config/parity-requests/markets/catalog-context-update-*.graphql',
+      'config/parity-requests/markets/catalog-context-update-catalog-create.graphql',
+      'config/parity-requests/markets/catalog-context-update-catalog-not-found.graphql',
+      'config/parity-requests/markets/catalog-context-update-market-create.graphql',
+      'config/parity-requests/markets/catalog-context-update-market-taken.graphql',
+      'config/parity-requests/markets/catalog-context-update-no-args.graphql',
+      'config/parity-requests/markets/catalog-context-update-read.graphql',
+      'config/parity-requests/markets/catalog-context-update-removes-only.graphql',
+      'config/parity-requests/markets/catalog-context-update-unknown-id-validation.graphql',
     ],
     cleanupBehavior:
       'Creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order.',
@@ -2527,7 +2537,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}comment-delete-true-destroy.json`,
       'config/parity-specs/online-store/comment-delete-true-destroy.json',
-      'config/parity-requests/online-store/comment-delete-true-destroy-*.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-approve.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-delete.graphql',
+      'config/parity-requests/online-store/comment-delete-true-destroy-read.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable blog/article and one REST article comment, approves and deletes the comment during the scenario, then deletes the article and blog in cleanup.',
@@ -2913,7 +2925,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
       'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
-      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body*.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql',
     ],
     cleanupBehavior:
       'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',
@@ -4039,6 +4052,79 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates and fulfills disposable orders for requested, open/closed, cancelable, declined, and processed return states, records status precondition behavior, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-request-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-request-lifecycle-conformance.ts',
+    purpose:
+      'fulfillment-order fulfillment-request and cancellation-request lifecycle behavior using disposable orders and a temporary API fulfillment service.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-request-lifecycle.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-submit-request-lifecycle.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-accept-request-lifecycle.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-submit-cancellation-request-lifecycle.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-accept-cancellation-request-lifecycle.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-reject-request-lifecycle.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-reject-cancellation-request-lifecycle.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders and a temporary API fulfillment service, records fulfillment request/cancellation transitions, cancels orders where Shopify permits, and deletes the fulfillment service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'orphaned-shipping-fulfillment-fixtures',
+    scriptPath: 'scripts/capture-orphaned-shipping-fulfillment-fixtures-conformance.ts',
+    purpose:
+      'Re-records cassette-backed parity evidence for restored shipping and fulfillment fixture files that are consumed by standard parity specs.',
+    requiredAuthScopes: [
+      'read_shipping',
+      'write_shipping',
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/delivery-customization-promise-settings-blockers.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-lifecycle.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-lifecycle.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json',
+      'config/parity-specs/shipping-fulfillments/delivery-settings-read.json',
+      'config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-lifecycle.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json',
+    ],
+    cleanupBehavior:
+      'Delegates to the parity cassette recorder for existing captured scenarios; mutation side effects remain local to the proxy and read cassettes are refreshed from Shopify.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'orphaned-store-property-fixtures',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-orphaned-store-property-fixtures-conformance.ts',
+    purpose:
+      'Re-records cassette-backed parity evidence for restored location validation fixture files that are consumed by standard parity specs.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-lifecycle-validation.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-mutation-validation.json',
+      'config/parity-specs/store-properties/location-activate-missing-idempotency-validation.json',
+      'config/parity-specs/store-properties/location-deactivate-missing-idempotency-validation.json',
+      'config/parity-specs/store-properties/location-delete-active-location-validation.json',
+      'config/parity-specs/store-properties/location-add-blank-name-validation.json',
+      'config/parity-specs/store-properties/location-edit-unknown-id-validation.json',
+    ],
+    cleanupBehavior:
+      'Delegates to the parity cassette recorder for existing captured validation scenarios; the replayed validation branches do not create merchant resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
