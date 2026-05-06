@@ -1,0 +1,506 @@
+{
+  "scenarioId": "comment-delete-true-destroy",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T20:47:54.635Z",
+  "setup": {
+    "blogCreate": {
+      "request": {
+        "query": "#graphql\n  mutation CommentDeleteTrueDestroyBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Comment Delete True Destroy Blog 20260506204747",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120991121714",
+              "title": "Comment Delete True Destroy Blog 20260506204747",
+              "handle": "comment-delete-true-destroy-blog-20260506204747"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "articleCreate": {
+      "request": {
+        "query": "#graphql\n  mutation CommentDeleteTrueDestroyArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "Comment Delete True Destroy 20260506204747",
+            "body": "<p>Comment Delete True Destroy 20260506204747</p>",
+            "blogId": "gid://shopify/Blog/120991121714",
+            "author": {
+              "name": "Comment Delete Author"
+            },
+            "isPublished": true
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683155980594",
+              "title": "Comment Delete True Destroy 20260506204747",
+              "handle": "comment-delete-true-destroy-20260506204747"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "restComments": [
+      {
+        "id": 134990463282,
+        "body": "comment delete true destroy 20260506204747",
+        "body_html": "<p>comment delete true destroy 20260506204747</p>",
+        "author": "Comment Delete Fixture",
+        "email": "comment-delete@example.com",
+        "status": "pending",
+        "article_id": 683155980594,
+        "blog_id": 120991121714,
+        "created_at": "2026-05-06T16:47:48-04:00",
+        "updated_at": "2026-05-06T16:47:48-04:00",
+        "ip": "127.0.0.1",
+        "user_agent": null,
+        "published_at": null
+      }
+    ]
+  },
+  "approve": {
+    "request": {
+      "query": "#graphql\n  mutation CommentDeleteTrueDestroyApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment { id status }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990463282"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentApprove": {
+          "comment": {
+            "id": "gid://shopify/Comment/134990463282",
+            "status": "PUBLISHED"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "hydrate": {
+    "comment": {
+      "request": {
+        "query": "#graphql\n  query OnlineStoreCommentHydrate($id: ID!) {\n    comment(id: $id) {\n      __typename\n      id\n      status\n      body\n      bodyHtml\n      isPublished\n      publishedAt\n      createdAt\n      updatedAt\n      article { id }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Comment/134990463282"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "comment": {
+            "__typename": "Comment",
+            "id": "gid://shopify/Comment/134990463282",
+            "status": "PUBLISHED",
+            "body": "comment delete true destroy 20260506204747",
+            "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+            "isPublished": true,
+            "publishedAt": "2026-05-06T20:47:48Z",
+            "createdAt": "2026-05-06T20:47:48Z",
+            "updatedAt": "2026-05-06T20:47:48Z",
+            "article": {
+              "id": "gid://shopify/Article/683155980594"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "article": {
+      "request": {
+        "query": "#graphql\n  query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) {\n    article(id: $id) {\n      __typename\n      id\n      title\n      handle\n      createdAt\n      updatedAt\n      blog { id }\n      comments(first: 50) {\n        nodes {\n          __typename\n          id\n          status\n          body\n          bodyHtml\n          isPublished\n          publishedAt\n          createdAt\n          updatedAt\n          article { id }\n        }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683155980594"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "article": {
+            "__typename": "Article",
+            "id": "gid://shopify/Article/683155980594",
+            "title": "Comment Delete True Destroy 20260506204747",
+            "handle": "comment-delete-true-destroy-20260506204747",
+            "createdAt": "2026-05-06T20:47:48Z",
+            "updatedAt": "2026-05-06T20:47:48Z",
+            "blog": {
+              "id": "gid://shopify/Blog/120991121714"
+            },
+            "comments": {
+              "nodes": [
+                {
+                  "__typename": "Comment",
+                  "id": "gid://shopify/Comment/134990463282",
+                  "status": "PUBLISHED",
+                  "body": "comment delete true destroy 20260506204747",
+                  "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+                  "isPublished": true,
+                  "publishedAt": "2026-05-06T20:47:48Z",
+                  "createdAt": "2026-05-06T20:47:48Z",
+                  "updatedAt": "2026-05-06T20:47:48Z",
+                  "article": {
+                    "id": "gid://shopify/Article/683155980594"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readBeforeDelete": {
+    "request": {
+      "query": "#graphql\n  query CommentDeleteTrueDestroyRead($articleId: ID!, $commentQuery: String!) {\n    comments(first: 10, query: $commentQuery) { nodes { id } }\n    article(id: $articleId) {\n      comments(first: 10) { nodes { id } }\n      commentsCount { count precision }\n    }\n  }\n",
+      "variables": {
+        "articleId": "gid://shopify/Article/683155980594",
+        "commentQuery": "\"comment delete true destroy 20260506204747\""
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "comments": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Comment/134990463282"
+            }
+          ]
+        },
+        "article": {
+          "comments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Comment/134990463282"
+              }
+            ]
+          },
+          "commentsCount": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 23,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "request": {
+      "query": "#graphql\n  mutation CommentDeleteTrueDestroyDelete($id: ID!) {\n    commentDelete(id: $id) {\n      deletedCommentId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990463282"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentDelete": {
+          "deletedCommentId": "gid://shopify/Comment/134990463282",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "request": {
+      "query": "#graphql\n  query CommentDeleteTrueDestroyRead($articleId: ID!, $commentQuery: String!) {\n    comments(first: 10, query: $commentQuery) { nodes { id } }\n    article(id: $articleId) {\n      comments(first: 10) { nodes { id } }\n      commentsCount { count precision }\n    }\n  }\n",
+      "variables": {
+        "articleId": "gid://shopify/Article/683155980594",
+        "commentQuery": "\"comment delete true destroy 20260506204747\""
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "comments": {
+          "nodes": []
+        },
+        "article": {
+          "comments": {
+            "nodes": []
+          },
+          "commentsCount": {
+            "count": 0,
+            "precision": "EXACT"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 23,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "directCommentAfterDelete": {
+    "request": {
+      "query": "#graphql\n  query CommentDeleteTrueDestroyDirectCommentRead($id: ID!) {\n    comment(id: $id) { id status }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990463282"
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 98d1bdf0-2ff1-4f2d-b811-5fc81384594b-1778100474 (include this in support requests).",
+          "extensions": {
+            "requestId": "98d1bdf0-2ff1-4f2d-b811-5fc81384594b-1778100474",
+            "code": "INTERNAL_SERVER_ERROR"
+          }
+        }
+      ],
+      "data": null
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n          mutation CommentDeleteTrueDestroyArticleCleanup($id: ID!) {\n            articleDelete(id: $id) {\n              deletedArticleId\n              userErrors { field message code }\n            }\n          }\n        ",
+        "variables": {
+          "id": "gid://shopify/Article/683155980594"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683155980594",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n          mutation CommentDeleteTrueDestroyBlogCleanup($id: ID!) {\n            blogDelete(id: $id) {\n              deletedBlogId\n              userErrors { field message code }\n            }\n          }\n        ",
+        "variables": {
+          "id": "gid://shopify/Blog/120991121714"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120991121714",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/134990463282"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "comment": {
+              "__typename": "Comment",
+              "id": "gid://shopify/Comment/134990463282",
+              "status": "PUBLISHED",
+              "body": "comment delete true destroy 20260506204747",
+              "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+              "isPublished": true,
+              "publishedAt": "2026-05-06T20:47:48Z",
+              "createdAt": "2026-05-06T20:47:48Z",
+              "updatedAt": "2026-05-06T20:47:48Z",
+              "article": {
+                "id": "gid://shopify/Article/683155980594"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreArticleDeleteCascadeHydrate",
+      "variables": {
+        "id": "gid://shopify/Article/683155980594"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/683155980594",
+              "title": "Comment Delete True Destroy 20260506204747",
+              "handle": "comment-delete-true-destroy-20260506204747",
+              "createdAt": "2026-05-06T20:47:48Z",
+              "updatedAt": "2026-05-06T20:47:48Z",
+              "blog": {
+                "id": "gid://shopify/Blog/120991121714"
+              },
+              "comments": {
+                "nodes": [
+                  {
+                    "__typename": "Comment",
+                    "id": "gid://shopify/Comment/134990463282",
+                    "status": "PUBLISHED",
+                    "body": "comment delete true destroy 20260506204747",
+                    "bodyHtml": "<p>comment delete true destroy 20260506204747</p>",
+                    "isPublished": true,
+                    "publishedAt": "2026-05-06T20:47:48Z",
+                    "createdAt": "2026-05-06T20:47:48Z",
+                    "updatedAt": "2026-05-06T20:47:48Z",
+                    "article": {
+                      "id": "gid://shopify/Article/683155980594"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

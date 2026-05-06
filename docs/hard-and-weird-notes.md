@@ -3085,6 +3085,7 @@ Captured facts:
 - empty `articles`, `articleAuthors`, and `comments` roots returned normal empty connections with false/null `pageInfo`
 - missing `article(id:)`, `blog(id:)`, and `page(id:)` returned `null`
 - missing `comment(id:)` returned a Shopify internal error for the sampled synthetic unknown ID
+- `comment(id:)` after public `commentDelete` also returned a Shopify internal error for the destroyed ID in the 2025-01/2026-04 public API, even though root `comments`, `Article.comments`, and `Article.commentsCount` reflected true deletion
 - unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal payload-level `userErrors`: `field: ["id"]`, message `Comment does not exist`
 - the disposable success capture for `blogCreate`/`blogUpdate`/`blogDelete`, `pageCreate`/`pageUpdate`/`pageDelete`, and `articleCreate`/`articleUpdate`/`articleDelete` confirmed the content mutation roots can be exercised with explicit cleanup evidence
 
@@ -3092,6 +3093,7 @@ Practical rule:
 
 - keep local snapshot `comment(id:)` missing behavior stable as `null` rather than reproducing Shopify's internal-error branch
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
+- model public `commentDelete` as true local deletion, not a `REMOVED` moderation transition; the `REMOVED` state is still useful for legacy snapshots and dependent-destroy guardrails
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
 ## 70. Fulfillment-order lifecycle roots split work into replacement orders
