@@ -15,11 +15,11 @@ import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/products/collections_core as collections
 import shopify_draft_proxy/proxy/products/hydration
 import shopify_draft_proxy/proxy/products/mutations
+import shopify_draft_proxy/proxy/products/product_types
 import shopify_draft_proxy/proxy/products/products_handlers as product_serializers
 import shopify_draft_proxy/proxy/products/products_records as product_sources
 import shopify_draft_proxy/proxy/products/queries
 import shopify_draft_proxy/proxy/products/selling_plans_core as selling_plans
-import shopify_draft_proxy/proxy/products/types as product_types
 import shopify_draft_proxy/proxy/products/variants_options as options
 import shopify_draft_proxy/proxy/products/variants_options_core as option_values
 import shopify_draft_proxy/proxy/products/variants_sources as variants

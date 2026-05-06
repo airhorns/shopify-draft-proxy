@@ -39,6 +39,8 @@ Product membership and product-variant membership are tracked independently, mat
 
 HAR-299 also supports Shopify's product-centric membership roots. `productJoinSellingPlanGroups` / `productLeaveSellingPlanGroups` mutate the selected groups' `productIds` membership lists and return the selected `Product` payload. `productVariantJoinSellingPlanGroups` / `productVariantLeaveSellingPlanGroups` mutate `productVariantIds` and return the selected `ProductVariant` payload. These roots share the same normalized membership model as the group-centric add/remove mutations, so downstream product, variant, and selling-plan group reads stay consistent without runtime Shopify writes.
 
+Product-centric and variant-centric join/leave roots reject validation failures before staging any membership changes. Empty `sellingPlanGroupIds` returns a `BLANK` userError, duplicate IDs within one request return `DUPLICATE`, join requests that would leave a product or variant in more than 31 distinct selling-plan groups return `TOO_MANY_SELLING_PLAN_GROUPS`, and leave requests for a known group the product or variant is not directly a member of return `NOT_A_MEMBER`. Rejected requests are retained in the mutation log as failed entries with the original raw mutation for observability, but commit replay skips them.
+
 Unknown group IDs for update/delete/add/remove return Shopify-like `GROUP_DOES_NOT_EXIST` userErrors with `field: ["id"]`; remove payloads return `removedProductIds: null` or `removedProductVariantIds: null` on that branch. HAR-432 adds explicit local runtime coverage that unknown product, unknown product variant, and unknown selling-plan group association attempts stay side-effect free, return local userErrors, and never runtime-proxy to Shopify.
 
 Shopify's Admin docs describe selling-plan groups as app-scoped purchase options that can be associated directly with products or product variants. The local model keeps those association lists explicit instead of deriving variant membership from product membership, because the captured 2026-04 lifecycle showed those read paths diverging.
@@ -69,6 +71,7 @@ Validation entry points:
 - `corepack pnpm conformance:capture -- --run selling-plan-group-input-validation`
 - `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
 - `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
+- `config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
 - `config/parity-specs/products/selling-plan-group-lifecycle.json`
 - `corepack pnpm conformance:check`
