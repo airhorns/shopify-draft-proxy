@@ -9,6 +9,12 @@ description: Extend Shopify Admin GraphQL conformance coverage in shopify-draft-
 
 Treat conformance as the fidelity source of truth. Do not guess Shopify behavior when a safe live capture or existing fixture can answer it. Preserve the project goal: broad, high-fidelity Shopify Admin GraphQL draft proxy behavior, not a generic mock server.
 
+Checked-in conformance fixture JSON must be a recorded real Shopify interaction
+from a committed capture script. Do not hand-author, synthesize, or regenerate
+fixture data from assumptions, local proxy output, or edited examples. If a
+capture cannot be run yet, leave the gap in Linear/workpad notes instead of
+adding fixture JSON.
+
 ## Why a live target exists
 
 The proxy can be implemented without a live Shopify target, but **high-fidelity behavior cannot be validated from guesswork alone**. A real dev store plus Admin API credentials is needed to:
@@ -43,6 +49,9 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
     If the store lacks required objects, create/update/activate/delete realistic
     setup data in the capture script or setup flow and clean it up afterward
     instead of falling back to validation-only evidence.
+    Every checked-in fixture path must be declared by the recorder's
+    `fixtureOutputs` entry in `scripts/conformance-capture-index.ts` so the
+    provenance profile can prove which capture script creates it.
 11. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
 12. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
 13. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.

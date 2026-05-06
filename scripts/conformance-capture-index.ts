@@ -3885,6 +3885,48 @@ export function validateCaptureIndexAgainstScriptFiles(
   };
 }
 
+export type ConformanceFixtureProvenanceProfile = {
+  fixtureCount: number;
+  indexedFixtureOutputPatterns: string[];
+  orphanedFixturePaths: string[];
+};
+
+export function listConformanceFixturePaths(repoRoot = process.cwd()): string[] {
+  const fixtureRoot = path.join(repoRoot, 'fixtures', 'conformance');
+
+  return walkFiles(fixtureRoot)
+    .filter((filePath) => filePath.endsWith('.json'))
+    .map((filePath) => path.relative(repoRoot, filePath).split(path.sep).join('/'))
+    .sort();
+}
+
+export function listIndexedConformanceFixtureOutputPatterns(
+  entries: ConformanceCaptureIndexEntry[] = conformanceCaptureIndex,
+): string[] {
+  return [
+    ...new Set(
+      entries.flatMap((entry) => entry.fixtureOutputs).filter((output) => output.startsWith('fixtures/conformance/')),
+    ),
+  ].sort();
+}
+
+export function profileConformanceFixtureProvenance(
+  repoRoot = process.cwd(),
+  entries: ConformanceCaptureIndexEntry[] = conformanceCaptureIndex,
+): ConformanceFixtureProvenanceProfile {
+  const fixturePaths = listConformanceFixturePaths(repoRoot);
+  const indexedFixtureOutputPatterns = listIndexedConformanceFixtureOutputPatterns(entries);
+  const indexedFixtureOutputMatchers = indexedFixtureOutputPatterns.map(fixtureOutputPatternToRegExp);
+
+  return {
+    fixtureCount: fixturePaths.length,
+    indexedFixtureOutputPatterns,
+    orphanedFixturePaths: fixturePaths.filter(
+      (fixturePath) => !indexedFixtureOutputMatchers.some((matcher) => matcher.test(fixturePath)),
+    ),
+  };
+}
+
 export function renderCaptureIndexMarkdown(entries: ConformanceCaptureIndexEntry[] = conformanceCaptureIndex): string {
   const lines = [
     '# Conformance Capture Runner Index',
@@ -3919,6 +3961,43 @@ export function renderCaptureIndexMarkdown(entries: ConformanceCaptureIndexEntry
   }
 
   return `${lines.join('\n')}\n`;
+}
+
+function walkFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    return entry.isDirectory() ? walkFiles(entryPath) : [entryPath];
+  });
+}
+
+function fixtureOutputPatternToRegExp(fixtureOutputPattern: string): RegExp {
+  const normalizedPattern = fixtureOutputPattern
+    .replaceAll('<store-domain>', '<store>')
+    .replaceAll('<storeDomain>', '<store>');
+  let source = '';
+
+  for (let index = 0; index < normalizedPattern.length; ) {
+    const placeholder = ['<store>', '<api-version>', '<domain-folder>'].find((candidate) =>
+      normalizedPattern.startsWith(candidate, index),
+    );
+
+    if (placeholder) {
+      source += '[^/]+';
+      index += placeholder.length;
+    } else if (normalizedPattern[index] === '*') {
+      source += '[^/]*';
+      index += 1;
+    } else {
+      source += escapeRegExpLiteral(normalizedPattern[index] ?? '');
+      index += 1;
+    }
+  }
+
+  return new RegExp(`^${source}$`, 'u');
+}
+
+function escapeRegExpLiteral(value: string): string {
+  return value.replace(/[\\^$.*+?()[\]{}|]/gu, '\\$&');
 }
 
 function escapeTableCell(value: string): string {

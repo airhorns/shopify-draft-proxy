@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   conformanceCaptureIndex,
   loadConformanceCaptureScriptPaths,
+  profileConformanceFixtureProvenance,
   renderCaptureIndexMarkdown,
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
@@ -45,5 +46,13 @@ describe('conformance capture index', () => {
     expect(markdown).toContain('Required auth/scopes');
     expect(markdown).toContain('Cleanup');
     expect(markdown).not.toContain('## customers');
+  });
+
+  it('profiles checked-in conformance fixtures without recorder-declared outputs', () => {
+    const profile = profileConformanceFixtureProvenance(repoRoot);
+
+    expect(profile.fixtureCount).toBeGreaterThan(0);
+    expect(profile.indexedFixtureOutputPatterns.length).toBeGreaterThan(0);
+    expect(profile.orphanedFixturePaths).toMatchSnapshot();
   });
 });
