@@ -644,6 +644,7 @@ pub fn validate_discount_input(
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
   require_code: Bool,
+  is_create: Bool,
   ignored_discount_id: Option(String),
 ) -> List(SourceValue) {
   let errors =
@@ -697,6 +698,11 @@ pub fn validate_discount_input(
     list.append(
       errors,
       validate_subscription_fields(store, input_name, input, discount_type),
+    )
+  let errors =
+    list.append(
+      errors,
+      validate_markets_fields(store, input_name, input, is_create),
     )
   let errors =
     list.append(
@@ -755,6 +761,26 @@ pub fn validate_discount_input(
         ),
       )
   }
+}
+
+@internal
+pub fn validate_discount_create_input(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+  require_code: Bool,
+  ignored_discount_id: Option(String),
+) -> List(SourceValue) {
+  validate_discount_input(
+    store,
+    input_name,
+    input,
+    discount_type,
+    require_code,
+    True,
+    ignored_discount_id,
+  )
 }
 
 @internal
@@ -1128,6 +1154,224 @@ pub fn shop_sells_subscriptions_from_response(
         None -> None
       }
     None -> None
+  }
+}
+
+@internal
+pub fn maybe_hydrate_discount_markets_capability(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_shop(store) {
+    Some(_) -> store
+    None ->
+      case discount_markets_fields(input) {
+        Some(_) -> fetch_shop_discount_markets_capability(store, upstream)
+        None -> store
+      }
+  }
+}
+
+@internal
+pub fn fetch_shop_discount_markets_capability(
+  store: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query DraftProxyShopDiscountMarketsCapability {
+  shop {
+    features {
+      sellsSubscriptions
+      discountsByMarketEnabled
+    }
+  }
+}
+"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "DraftProxyShopDiscountMarketsCapability",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) ->
+      case shop_discount_markets_capability_from_response(value) {
+        Some(enabled) -> {
+          let store = store.set_shop_discounts_by_market_enabled(store, enabled)
+          case shop_sells_subscriptions_from_response(value) {
+            Some(sells_subscriptions) ->
+              store.set_shop_sells_subscriptions(store, sells_subscriptions)
+            None -> store
+          }
+        }
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+@internal
+pub fn shop_discount_markets_capability_from_response(
+  value: commit.JsonValue,
+) -> Option(Bool) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shop") {
+        Some(shop) ->
+          case json_get(shop, "features") {
+            Some(features) ->
+              case json_get(features, "discountsByMarketEnabled") {
+                Some(commit.JsonBool(value)) -> Some(value)
+                _ -> None
+              }
+            None -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+@internal
+pub fn validate_markets_fields(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  is_create: Bool,
+) -> List(SourceValue) {
+  case discount_markets_fields(input) {
+    Some(markets) ->
+      case store.shop_discounts_by_market_enabled(store) {
+        False -> [
+          discount_types.user_error(
+            [input_name, "context", "markets"],
+            "Discounts by market is not supported for this shop",
+            "INVALID",
+          ),
+        ]
+        True ->
+          list.append(
+            remove_on_create_market_errors(input_name, markets, is_create),
+            invalid_market_id_errors(store, input_name, markets),
+          )
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn discount_markets_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, "context") {
+    Ok(root_field.ObjectVal(context)) ->
+      case dict.get(context, "markets") {
+        Ok(root_field.ObjectVal(markets)) -> Some(markets)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn remove_on_create_market_errors(
+  input_name: String,
+  markets: Dict(String, root_field.ResolvedValue),
+  is_create: Bool,
+) -> List(SourceValue) {
+  case is_create, input_value_is_present(markets, "remove") {
+    True, True -> [
+      discount_types.user_error(
+        [input_name, "context", "markets", "remove"],
+        "Cannot specify market removal on create",
+        "INVALID",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn invalid_market_id_errors(
+  store: Store,
+  input_name: String,
+  markets: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  list.append(
+    market_input_ids(markets, "add"),
+    market_input_ids(markets, "remove"),
+  )
+  |> list.filter_map(fn(id) {
+    case market_id_is_valid_for_store(store, id) {
+      True -> Error(Nil)
+      False ->
+        Ok(discount_types.user_error(
+          [input_name, "context", "markets"],
+          "Market with id: " <> market_error_id_label(id) <> " is invalid",
+          "INVALID",
+        ))
+    }
+  })
+}
+
+fn market_input_ids(
+  markets: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(String) {
+  case dict.get(markets, name) {
+    Ok(root_field.ListVal(items)) ->
+      list.map(items, fn(item) {
+        case item {
+          root_field.StringVal(value) -> value
+          _ -> ""
+        }
+      })
+    Ok(root_field.NullVal) | Error(_) -> []
+    Ok(root_field.StringVal(value)) -> [value]
+    Ok(_) -> [""]
+  }
+}
+
+fn market_id_is_valid_for_store(store: Store, id: String) -> Bool {
+  case market_gid_has_positive_numeric_tail(id) {
+    False -> False
+    True ->
+      case store.list_effective_markets(store) {
+        [] -> True
+        _ ->
+          case store.get_effective_market_by_id(store, id) {
+            Some(_) -> True
+            None -> False
+          }
+      }
+  }
+}
+
+fn market_gid_has_positive_numeric_tail(id: String) -> Bool {
+  case string.starts_with(id, "gid://shopify/Market/") {
+    False -> False
+    True ->
+      case resource_ids.shopify_gid_tail(id) {
+        Some(tail) ->
+          case int.parse(tail) {
+            Ok(value) -> value > 0
+            Error(_) -> False
+          }
+        None -> False
+      }
+  }
+}
+
+fn market_error_id_label(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/Market/") {
+    True -> resource_ids.shopify_gid_tail(id) |> option.unwrap(id)
+    False ->
+      case id {
+        "" -> "unknown"
+        _ -> id
+      }
   }
 }
 

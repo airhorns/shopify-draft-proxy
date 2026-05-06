@@ -1,14 +1,14 @@
 {
-  "capturedAt": "2026-05-05T00:23:49.005Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
     {
       "name": "marketCreateDraftEnabledMismatch",
-      "query": "#graphql\nmutation MarketCreateStatusEnabledMismatch($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market { id name handle status enabled }\n    userErrors { field message code }\n  }\n}",
+      "query": "mutation MarketCreateStatusEnabledMismatch($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Mismatch",
+          "name": "Mismatch 1778107546263",
           "status": "DRAFT",
           "enabled": true,
           "regions": [
@@ -39,7 +39,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1876,
                 "restoreRate": 100
               }
             }

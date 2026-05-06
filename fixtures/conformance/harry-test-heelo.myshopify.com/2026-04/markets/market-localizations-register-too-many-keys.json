@@ -1,24 +1,24 @@
 {
-  "capturedAt": "2026-05-05T05:10:45.548Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "scope": "HAR-621 marketLocalizationsRegister >100 key cap validation",
-  "disposableProductId": "gid://shopify/Product/10177028260146",
-  "disposableMetafieldId": "gid://shopify/Metafield/43094037987634",
+  "scope": "marketLocalizationsRegister >100 key cap validation",
+  "disposableProductId": "gid://shopify/Product/10178980446514",
+  "disposableMetafieldId": "gid://shopify/Metafield/43116295323954",
   "setup": {
     "productCreate": {
-      "query": "#graphql\nmutation CreateProduct($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id handle metafields(first: 5, namespace: \"custom\") { nodes { id namespace key type value compareDigest createdAt updatedAt ownerType } } }\n    userErrors { field message }\n  }\n}",
+      "query": "#graphql\nmutation CreateMarketLocalizationCapProduct($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      handle\n      metafields(first: 5, namespace: \"custom\") {\n        nodes { id namespace key type value compareDigest createdAt updatedAt ownerType }\n      }\n    }\n    userErrors { field message }\n  }\n}",
       "variables": {
         "product": {
-          "title": "HAR 621 market localizations cap g4zbpnh8",
-          "handle": "har-621-market-localizations-cap-g4zbpnh8",
+          "title": "Market localizations cap mounbntt",
+          "handle": "market-localizations-cap-mounbntt",
           "status": "DRAFT",
           "metafields": [
             {
               "namespace": "custom",
               "key": "market_material",
               "type": "single_line_text_field",
-              "value": "Maple g4zbpnh8"
+              "value": "Cotton"
             }
           ]
         }
@@ -29,19 +29,19 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10177028260146",
-                "handle": "har-621-market-localizations-cap-g4zbpnh8",
+                "id": "gid://shopify/Product/10178980446514",
+                "handle": "market-localizations-cap-mounbntt",
                 "metafields": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/Metafield/43094037987634",
+                      "id": "gid://shopify/Metafield/43116295323954",
                       "namespace": "custom",
                       "key": "market_material",
                       "type": "single_line_text_field",
-                      "value": "Maple g4zbpnh8",
-                      "compareDigest": "f702bf5e673bc97f009cf128ca426b8730c727974c964f241dcee30d78288ff7",
-                      "createdAt": "2026-05-05T05:10:44Z",
-                      "updatedAt": "2026-05-05T05:10:44Z",
+                      "value": "Cotton",
+                      "compareDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe",
+                      "createdAt": "2026-05-06T22:45:46Z",
+                      "updatedAt": "2026-05-06T22:45:46Z",
                       "ownerType": "PRODUCT"
                     }
                   ]
@@ -56,7 +56,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1878,
                 "restoreRate": 100
               }
             }
@@ -68,615 +68,615 @@
   "cases": [
     {
       "name": "marketLocalizationsRegisterTooManyKeys",
-      "query": "#graphql\nmutation MarketLocalizationsRegisterTooManyKeys($resourceId: ID!, $marketLocalizations: [MarketLocalizationRegisterInput!]!) {\n  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n    marketLocalizations { key value updatedAt outdated market { id name } }\n    userErrors { __typename field message code }\n  }\n}",
+      "query": "#graphql\nmutation MarketLocalizationsRegisterTooManyKeys(\n  $resourceId: ID!\n  $marketLocalizations: [MarketLocalizationRegisterInput!]!\n) {\n  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n    marketLocalizations {\n      key\n      value\n      updatedAt\n      outdated\n      market {\n        id\n        name\n      }\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "resourceId": "gid://shopify/Metafield/43094037987634",
+        "resourceId": "gid://shopify/Metafield/43116295323954",
         "marketLocalizations": [
           {
             "marketId": "gid://shopify/Market/900000000000",
             "key": "value",
             "value": "Localized 0",
-            "marketLocalizableContentDigest": "digest-0"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000001",
             "key": "value",
             "value": "Localized 1",
-            "marketLocalizableContentDigest": "digest-1"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000002",
             "key": "value",
             "value": "Localized 2",
-            "marketLocalizableContentDigest": "digest-2"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000003",
             "key": "value",
             "value": "Localized 3",
-            "marketLocalizableContentDigest": "digest-3"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000004",
             "key": "value",
             "value": "Localized 4",
-            "marketLocalizableContentDigest": "digest-4"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000005",
             "key": "value",
             "value": "Localized 5",
-            "marketLocalizableContentDigest": "digest-5"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000006",
             "key": "value",
             "value": "Localized 6",
-            "marketLocalizableContentDigest": "digest-6"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000007",
             "key": "value",
             "value": "Localized 7",
-            "marketLocalizableContentDigest": "digest-7"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000008",
             "key": "value",
             "value": "Localized 8",
-            "marketLocalizableContentDigest": "digest-8"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000009",
             "key": "value",
             "value": "Localized 9",
-            "marketLocalizableContentDigest": "digest-9"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000010",
             "key": "value",
             "value": "Localized 10",
-            "marketLocalizableContentDigest": "digest-10"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000011",
             "key": "value",
             "value": "Localized 11",
-            "marketLocalizableContentDigest": "digest-11"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000012",
             "key": "value",
             "value": "Localized 12",
-            "marketLocalizableContentDigest": "digest-12"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000013",
             "key": "value",
             "value": "Localized 13",
-            "marketLocalizableContentDigest": "digest-13"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000014",
             "key": "value",
             "value": "Localized 14",
-            "marketLocalizableContentDigest": "digest-14"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000015",
             "key": "value",
             "value": "Localized 15",
-            "marketLocalizableContentDigest": "digest-15"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000016",
             "key": "value",
             "value": "Localized 16",
-            "marketLocalizableContentDigest": "digest-16"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000017",
             "key": "value",
             "value": "Localized 17",
-            "marketLocalizableContentDigest": "digest-17"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000018",
             "key": "value",
             "value": "Localized 18",
-            "marketLocalizableContentDigest": "digest-18"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000019",
             "key": "value",
             "value": "Localized 19",
-            "marketLocalizableContentDigest": "digest-19"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000020",
             "key": "value",
             "value": "Localized 20",
-            "marketLocalizableContentDigest": "digest-20"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000021",
             "key": "value",
             "value": "Localized 21",
-            "marketLocalizableContentDigest": "digest-21"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000022",
             "key": "value",
             "value": "Localized 22",
-            "marketLocalizableContentDigest": "digest-22"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000023",
             "key": "value",
             "value": "Localized 23",
-            "marketLocalizableContentDigest": "digest-23"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000024",
             "key": "value",
             "value": "Localized 24",
-            "marketLocalizableContentDigest": "digest-24"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000025",
             "key": "value",
             "value": "Localized 25",
-            "marketLocalizableContentDigest": "digest-25"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000026",
             "key": "value",
             "value": "Localized 26",
-            "marketLocalizableContentDigest": "digest-26"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000027",
             "key": "value",
             "value": "Localized 27",
-            "marketLocalizableContentDigest": "digest-27"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000028",
             "key": "value",
             "value": "Localized 28",
-            "marketLocalizableContentDigest": "digest-28"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000029",
             "key": "value",
             "value": "Localized 29",
-            "marketLocalizableContentDigest": "digest-29"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000030",
             "key": "value",
             "value": "Localized 30",
-            "marketLocalizableContentDigest": "digest-30"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000031",
             "key": "value",
             "value": "Localized 31",
-            "marketLocalizableContentDigest": "digest-31"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000032",
             "key": "value",
             "value": "Localized 32",
-            "marketLocalizableContentDigest": "digest-32"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000033",
             "key": "value",
             "value": "Localized 33",
-            "marketLocalizableContentDigest": "digest-33"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000034",
             "key": "value",
             "value": "Localized 34",
-            "marketLocalizableContentDigest": "digest-34"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000035",
             "key": "value",
             "value": "Localized 35",
-            "marketLocalizableContentDigest": "digest-35"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000036",
             "key": "value",
             "value": "Localized 36",
-            "marketLocalizableContentDigest": "digest-36"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000037",
             "key": "value",
             "value": "Localized 37",
-            "marketLocalizableContentDigest": "digest-37"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000038",
             "key": "value",
             "value": "Localized 38",
-            "marketLocalizableContentDigest": "digest-38"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000039",
             "key": "value",
             "value": "Localized 39",
-            "marketLocalizableContentDigest": "digest-39"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000040",
             "key": "value",
             "value": "Localized 40",
-            "marketLocalizableContentDigest": "digest-40"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000041",
             "key": "value",
             "value": "Localized 41",
-            "marketLocalizableContentDigest": "digest-41"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000042",
             "key": "value",
             "value": "Localized 42",
-            "marketLocalizableContentDigest": "digest-42"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000043",
             "key": "value",
             "value": "Localized 43",
-            "marketLocalizableContentDigest": "digest-43"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000044",
             "key": "value",
             "value": "Localized 44",
-            "marketLocalizableContentDigest": "digest-44"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000045",
             "key": "value",
             "value": "Localized 45",
-            "marketLocalizableContentDigest": "digest-45"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000046",
             "key": "value",
             "value": "Localized 46",
-            "marketLocalizableContentDigest": "digest-46"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000047",
             "key": "value",
             "value": "Localized 47",
-            "marketLocalizableContentDigest": "digest-47"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000048",
             "key": "value",
             "value": "Localized 48",
-            "marketLocalizableContentDigest": "digest-48"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000049",
             "key": "value",
             "value": "Localized 49",
-            "marketLocalizableContentDigest": "digest-49"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000050",
             "key": "value",
             "value": "Localized 50",
-            "marketLocalizableContentDigest": "digest-50"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000051",
             "key": "value",
             "value": "Localized 51",
-            "marketLocalizableContentDigest": "digest-51"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000052",
             "key": "value",
             "value": "Localized 52",
-            "marketLocalizableContentDigest": "digest-52"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000053",
             "key": "value",
             "value": "Localized 53",
-            "marketLocalizableContentDigest": "digest-53"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000054",
             "key": "value",
             "value": "Localized 54",
-            "marketLocalizableContentDigest": "digest-54"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000055",
             "key": "value",
             "value": "Localized 55",
-            "marketLocalizableContentDigest": "digest-55"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000056",
             "key": "value",
             "value": "Localized 56",
-            "marketLocalizableContentDigest": "digest-56"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000057",
             "key": "value",
             "value": "Localized 57",
-            "marketLocalizableContentDigest": "digest-57"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000058",
             "key": "value",
             "value": "Localized 58",
-            "marketLocalizableContentDigest": "digest-58"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000059",
             "key": "value",
             "value": "Localized 59",
-            "marketLocalizableContentDigest": "digest-59"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000060",
             "key": "value",
             "value": "Localized 60",
-            "marketLocalizableContentDigest": "digest-60"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000061",
             "key": "value",
             "value": "Localized 61",
-            "marketLocalizableContentDigest": "digest-61"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000062",
             "key": "value",
             "value": "Localized 62",
-            "marketLocalizableContentDigest": "digest-62"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000063",
             "key": "value",
             "value": "Localized 63",
-            "marketLocalizableContentDigest": "digest-63"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000064",
             "key": "value",
             "value": "Localized 64",
-            "marketLocalizableContentDigest": "digest-64"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000065",
             "key": "value",
             "value": "Localized 65",
-            "marketLocalizableContentDigest": "digest-65"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000066",
             "key": "value",
             "value": "Localized 66",
-            "marketLocalizableContentDigest": "digest-66"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000067",
             "key": "value",
             "value": "Localized 67",
-            "marketLocalizableContentDigest": "digest-67"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000068",
             "key": "value",
             "value": "Localized 68",
-            "marketLocalizableContentDigest": "digest-68"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000069",
             "key": "value",
             "value": "Localized 69",
-            "marketLocalizableContentDigest": "digest-69"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000070",
             "key": "value",
             "value": "Localized 70",
-            "marketLocalizableContentDigest": "digest-70"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000071",
             "key": "value",
             "value": "Localized 71",
-            "marketLocalizableContentDigest": "digest-71"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000072",
             "key": "value",
             "value": "Localized 72",
-            "marketLocalizableContentDigest": "digest-72"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000073",
             "key": "value",
             "value": "Localized 73",
-            "marketLocalizableContentDigest": "digest-73"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000074",
             "key": "value",
             "value": "Localized 74",
-            "marketLocalizableContentDigest": "digest-74"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000075",
             "key": "value",
             "value": "Localized 75",
-            "marketLocalizableContentDigest": "digest-75"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000076",
             "key": "value",
             "value": "Localized 76",
-            "marketLocalizableContentDigest": "digest-76"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000077",
             "key": "value",
             "value": "Localized 77",
-            "marketLocalizableContentDigest": "digest-77"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000078",
             "key": "value",
             "value": "Localized 78",
-            "marketLocalizableContentDigest": "digest-78"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000079",
             "key": "value",
             "value": "Localized 79",
-            "marketLocalizableContentDigest": "digest-79"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000080",
             "key": "value",
             "value": "Localized 80",
-            "marketLocalizableContentDigest": "digest-80"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000081",
             "key": "value",
             "value": "Localized 81",
-            "marketLocalizableContentDigest": "digest-81"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000082",
             "key": "value",
             "value": "Localized 82",
-            "marketLocalizableContentDigest": "digest-82"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000083",
             "key": "value",
             "value": "Localized 83",
-            "marketLocalizableContentDigest": "digest-83"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000084",
             "key": "value",
             "value": "Localized 84",
-            "marketLocalizableContentDigest": "digest-84"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000085",
             "key": "value",
             "value": "Localized 85",
-            "marketLocalizableContentDigest": "digest-85"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000086",
             "key": "value",
             "value": "Localized 86",
-            "marketLocalizableContentDigest": "digest-86"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000087",
             "key": "value",
             "value": "Localized 87",
-            "marketLocalizableContentDigest": "digest-87"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000088",
             "key": "value",
             "value": "Localized 88",
-            "marketLocalizableContentDigest": "digest-88"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000089",
             "key": "value",
             "value": "Localized 89",
-            "marketLocalizableContentDigest": "digest-89"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000090",
             "key": "value",
             "value": "Localized 90",
-            "marketLocalizableContentDigest": "digest-90"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000091",
             "key": "value",
             "value": "Localized 91",
-            "marketLocalizableContentDigest": "digest-91"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000092",
             "key": "value",
             "value": "Localized 92",
-            "marketLocalizableContentDigest": "digest-92"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000093",
             "key": "value",
             "value": "Localized 93",
-            "marketLocalizableContentDigest": "digest-93"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000094",
             "key": "value",
             "value": "Localized 94",
-            "marketLocalizableContentDigest": "digest-94"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000095",
             "key": "value",
             "value": "Localized 95",
-            "marketLocalizableContentDigest": "digest-95"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000096",
             "key": "value",
             "value": "Localized 96",
-            "marketLocalizableContentDigest": "digest-96"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000097",
             "key": "value",
             "value": "Localized 97",
-            "marketLocalizableContentDigest": "digest-97"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000098",
             "key": "value",
             "value": "Localized 98",
-            "marketLocalizableContentDigest": "digest-98"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000099",
             "key": "value",
             "value": "Localized 99",
-            "marketLocalizableContentDigest": "digest-99"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           },
           {
             "marketId": "gid://shopify/Market/900000000100",
             "key": "value",
             "value": "Localized 100",
-            "marketLocalizableContentDigest": "digest-100"
+            "marketLocalizableContentDigest": "3da22ce3865a7939771d683443fdce9096523a483d16049fa1b366265aa54abe"
           }
         ]
       },
@@ -702,7 +702,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1921,
                 "restoreRate": 100
               }
             }
@@ -713,10 +713,10 @@
   ],
   "cleanup": {
     "productDelete": {
-      "query": "#graphql\nmutation DeleteProduct($input: ProductDeleteInput!) { productDelete(input: $input) { deletedProductId userErrors { field message } } }",
+      "query": "#graphql\nmutation DeleteMarketLocalizationCapProduct($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors { field message }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Product/10177028260146"
+          "id": "gid://shopify/Product/10178980446514"
         }
       },
       "response": {
@@ -724,7 +724,7 @@
         "payload": {
           "data": {
             "productDelete": {
-              "deletedProductId": "gid://shopify/Product/10177028260146",
+              "deletedProductId": "gid://shopify/Product/10178980446514",
               "userErrors": []
             }
           },
@@ -734,7 +734,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1923,
                 "restoreRate": 100
               }
             }
