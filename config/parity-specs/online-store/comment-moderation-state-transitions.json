@@ -1,0 +1,88 @@
+{
+  "scenarioId": "comment-moderation-state-transitions",
+  "operationNames": ["commentApprove", "commentSpam", "commentNotSpam"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "user-errors-parity", "state-machine-preconditions"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/comment-moderation-state-transitions.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/comment-moderation-state-transition-approve.graphql",
+    "variables": {
+      "id": {
+        "fromCapturePath": "$.variables.publishedId"
+      }
+    },
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "commentApprove-published-noop",
+        "capturePath": "$.approvePublished.response.data.commentApprove",
+        "proxyPath": "$.data.commentApprove"
+      },
+      {
+        "name": "commentNotSpam-published-noop",
+        "capturePath": "$.notSpamPublished.response.data.commentNotSpam",
+        "proxyPath": "$.data.commentNotSpam",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/comment-moderation-state-transition-not-spam.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.publishedId"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "commentSpam-spam-noop",
+        "capturePath": "$.spamSpam.response.data.commentSpam",
+        "proxyPath": "$.data.commentSpam",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/comment-moderation-state-transition-spam.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.spamId"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "commentApprove-spam-invalid",
+        "capturePath": "$.approveSpam.response.data.commentApprove",
+        "proxyPath": "$.data.commentApprove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/comment-moderation-state-transition-approve.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.spamId"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "commentNotSpam-unapproved-invalid",
+        "capturePath": "$.notSpamUnapproved.response.data.commentNotSpam",
+        "proxyPath": "$.data.commentNotSpam",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/comment-moderation-state-transition-not-spam.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.unapprovedId"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture creates a disposable moderated blog/article and REST article comments, uses Admin GraphQL moderation roots to prepare PUBLISHED and SPAM source states, records idempotent published/spam branches and invalid spam/unapproved preconditions, then deletes the article/blog in cleanup. Proxy replay hydrates each source comment through cassette-backed `comment(id:)` reads before staging or rejecting the supported moderation root locally."
+}
