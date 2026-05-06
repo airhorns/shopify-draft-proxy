@@ -2298,6 +2298,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-plan-limit-markets-home',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-market-create-plan-limit-conformance.mts',
+    purpose: 'marketCreate plan-limit skip on a Markets Home shop when creating a fourth enabled market.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-plan-limit-markets-home.json`,
+      'config/parity-specs/markets/market-create-plan-limit-markets-home.json',
+      'config/parity-requests/markets/market-create-plan-limit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable enabled markets, asserts all four succeed without SHOP_REACHED_PLAN_MARKETS_LIMIT, then deletes created markets in reverse order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-context-update-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-context-update-conformance.ts',

@@ -380,7 +380,7 @@ fn market_create_input_errors(
     market_create_duplicate_name_errors(store, name),
     market_create_status_enabled_errors(input),
     market_create_handle_errors(store, input, None),
-    market_create_plan_limit_errors(store),
+    market_create_plan_limit_errors(store, input),
     market_create_currency_errors(store, input),
     market_create_region_errors(store, input),
   ])
@@ -437,12 +437,8 @@ fn market_create_duplicate_name_errors(
 fn market_create_status_enabled_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  let status =
-    graphql_helpers.read_arg_string_nonempty(input, "status")
-    |> option.unwrap("DRAFT")
-  let enabled =
-    graphql_helpers.read_arg_bool(input, "enabled")
-    |> option.unwrap(status == "ACTIVE")
+  let status = market_create_status(input)
+  let enabled = market_create_enabled(input)
   case enabled == { status == "ACTIVE" } {
     True -> []
     False -> [
@@ -453,6 +449,21 @@ fn market_create_status_enabled_errors(
       ),
     ]
   }
+}
+
+fn market_create_status(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  graphql_helpers.read_arg_string_nonempty(input, "status")
+  |> option.unwrap("DRAFT")
+}
+
+fn market_create_enabled(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let status = market_create_status(input)
+  graphql_helpers.read_arg_bool(input, "enabled")
+  |> option.unwrap(status == "ACTIVE")
 }
 
 fn market_create_handle_errors(
@@ -476,22 +487,64 @@ fn market_create_handle_errors(
   }
 }
 
-fn market_create_plan_limit_errors(store: Store) -> List(CapturedJsonValue) {
-  let market_count = store.list_effective_markets(store) |> list.length
-  case market_count >= default_market_plan_limit() {
-    True -> [
-      user_error(
-        ["input"],
-        "Shop has reached the maximum number of markets for the current plan.",
-        "SHOP_REACHED_PLAN_MARKETS_LIMIT",
-      ),
-    ]
-    False -> []
+fn market_create_plan_limit_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case market_create_enabled(input), store.shop_markets_home_enabled(store) {
+    False, _ -> []
+    _, True -> []
+    True, False -> {
+      let market_count = enabled_legacy_market_count(store)
+      case market_count >= store.shop_market_plan_limit(store) {
+        True -> [
+          user_error(
+            ["input"],
+            "Shop has reached the maximum number of markets for the current plan.",
+            "SHOP_REACHED_PLAN_MARKETS_LIMIT",
+          ),
+        ]
+        False -> []
+      }
+    }
   }
 }
 
-fn default_market_plan_limit() -> Int {
-  3
+fn enabled_legacy_market_count(store: Store) -> Int {
+  store.list_effective_markets(store)
+  |> list.filter(fn(record) {
+    market_record_enabled(record) && market_record_legacy(record)
+  })
+  |> list.length
+}
+
+fn market_record_enabled(record: MarketRecord) -> Bool {
+  case captured_bool_field(record.data, "enabled") {
+    Some(enabled) -> enabled
+    None ->
+      case captured_string_field(record.data, "status") {
+        Some("ACTIVE") -> True
+        _ -> False
+      }
+  }
+}
+
+fn market_record_legacy(record: MarketRecord) -> Bool {
+  case captured_bool_field(record.data, "isLegacyMarket") {
+    Some(is_legacy) -> is_legacy
+    None ->
+      case captured_bool_field(record.data, "isLegacy") {
+        Some(is_legacy) -> is_legacy
+        None -> True
+      }
+  }
+}
+
+fn captured_bool_field(value: CapturedJsonValue, key: String) -> Option(Bool) {
+  case captured_field(value, key) {
+    Some(CapturedBool(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 fn market_create_currency_errors(

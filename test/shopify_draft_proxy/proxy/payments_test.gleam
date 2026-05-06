@@ -1849,6 +1849,7 @@ fn payment_guard_shop() -> ShopRecord {
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
       discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,
