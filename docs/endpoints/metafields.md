@@ -37,7 +37,7 @@ The definition lifecycle slice stages these roots locally without runtime Shopif
 - `metafieldDefinitionUpdate(definition:)`
 - `metafieldDefinitionDelete(id:|identifier:, deleteAllAssociatedMetafields:)`
 
-Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, empty constraints, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, and protected or Shopify-reserved namespaces before staging any local definition.
+Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, selected `constraints`, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, protected or Shopify-reserved namespaces, constrained `pin: true` inputs, and owner-type pin-cap violations before staging any local definition.
 
 Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, and selected `capabilities`. The local `validationJob` payload is currently `null`.
 
@@ -70,7 +70,8 @@ Successful local enablement:
 - creates or replaces a staged `MetafieldDefinition` record without sending the mutation to Shopify
 - supports `id` or `namespace` / `key` template selection for the captured template slice
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
-- when `pin: true`, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
+- when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
+- when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
 - makes downstream `metafieldDefinition(identifier:)` and `metafieldDefinitions(...)` reads observe the staged definition
 
@@ -92,9 +93,11 @@ The product-owner pinning slice supports local staging for existing normalized d
 - `metafieldDefinitionUnpin(definitionId:)`
 - `metafieldDefinitionUnpin(identifier:)`
 
-Captured 2025-01 live behavior shows pinning an unpinned product definition assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
+Captured live behavior shows pinning an unpinned product definition, or creating a product definition with `pin: true`, assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
 
 HAR-699 captured the default 2025-01 product-owner pin cap as 20 pinned definitions. The 21st pin returns `pinnedDefinition: null` with `field: null`, message `Limit of 20 pinned definitions.`, and code `PINNED_LIMIT_REACHED`. Constrained definitions, represented by populated `constraints.key` or `constraints.values`, cannot be pinned and return `pinnedDefinition: null` with code `UNSUPPORTED_PINNING`.
+
+The 2026-04 create-with-pin guard capture records the corresponding create-time branches: after 20 product definitions have been created with `pin: true`, the next pinned create returns `createdDefinition: null`, `field: ["definition"]`, message `Limit of 20 pinned definitions.`, and code `PINNED_LIMIT_REACHED`; constrained create with `pin: true` returns `createdDefinition: null`, `field: ["definition"]`, and code `UNSUPPORTED_PINNING`. A constrained standard template enable with `pin: true` returns `createdDefinition: null`, `field: null`, and code `UNSUPPORTED_PINNING`.
 
 The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. In LiveHybrid, a cold pin/unpin first hydrates the product-owner definition catalog through `upstream_query.fetch_sync`, then stages only the pin or unpin effect locally; parity cassettes provide that read deterministically. It does not create missing definitions through pin/unpin when no upstream definition can be hydrated, and it does not model app-configuration-managed / unsupported-owner error branches yet.
 
@@ -103,6 +106,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 Validation entry points:
 
 - `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
+- `config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json`
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
@@ -112,6 +116,7 @@ Validation entry points:
 - `config/parity-specs/products/metafieldDelete-parity-plan.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
 - `corepack pnpm conformance:capture -- --run metafield-definition-pinning`
+- `corepack pnpm conformance:capture -- --run metafield-definition-create-with-pin-guards`
 - `corepack pnpm conformance:capture -- --run metafield-definition-lifecycle`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`

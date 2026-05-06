@@ -368,13 +368,26 @@ pub fn handle_mutation_fields(
                   "stage-locally",
                   Some(note),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "productCreate" -> {
@@ -455,13 +468,26 @@ pub fn handle_mutation_fields(
                   "stage-locally",
                   Some(note),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "productOptionsDelete" -> {
@@ -1609,16 +1635,24 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store_types.Staged,
+                  "Staged captured combinedListingUpdate guardrails locally.",
+                )
+                True -> #(
+                  store_types.Failed,
+                  "Rejected combinedListingUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some(
-                    "Staged captured combinedListingUpdate guardrails locally.",
-                  ),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -2074,13 +2108,26 @@ pub fn handle_mutation_fields(
                   "stage-locally",
                   Some(note),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "productJoinSellingPlanGroups"

@@ -15,7 +15,7 @@ import shopify_draft_proxy/graphql/ast.{
   type Definition, type Location, type ObjectField, type Selection,
   type VariableDefinition, Argument, Directive, Field, InlineFragment, NullValue,
   ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
-  VariableDefinition, VariableValue,
+  Variable, VariableDefinition, VariableValue,
 }
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/parser
@@ -56,10 +56,11 @@ import shopify_draft_proxy/proxy/products/selling_plans_core.{
   update_variant_selling_plan_group_membership,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  captured_object_field, dedupe_preserving_order, mutation_rejected_result,
-  mutation_result, read_arg_string_list, read_int_field, read_list_field_length,
-  read_object_field, read_object_list_field, read_string_argument,
-  read_string_field, read_string_list_field, serialize_exact_count,
+  captured_object_field, dedupe_preserving_order, mutation_error_result,
+  mutation_rejected_result, mutation_result, read_arg_string_list,
+  read_int_field, read_list_field_length, read_object_field,
+  read_object_list_field, read_string_argument, read_string_field,
+  read_string_list_field, serialize_exact_count,
 }
 import shopify_draft_proxy/proxy/products/types.{
   type MutationFieldResult, type ProductUserError, MutationFieldResult,
@@ -835,44 +836,80 @@ pub fn handle_selling_plan_group_mutation(
             [],
           )
         Some(group) -> {
-          let next_group = case root_name {
+          let errors = case root_name {
             "sellingPlanGroupAddProducts" ->
-              SellingPlanGroupRecord(
-                ..group,
-                product_ids: dedupe_preserving_order(list.append(
-                  group.product_ids,
-                  read_arg_string_list(args, "productIds"),
-                )),
+              selling_plan_group_add_product_errors(
+                store,
+                group,
+                read_arg_string_list(args, "productIds"),
               )
             _ ->
-              SellingPlanGroupRecord(
-                ..group,
-                product_variant_ids: dedupe_preserving_order(list.append(
-                  group.product_variant_ids,
-                  read_arg_string_list(args, "productVariantIds"),
-                )),
+              selling_plan_group_add_variant_errors(
+                store,
+                group,
+                read_arg_string_list(args, "productVariantIds"),
               )
           }
-          let #(_, next_store) =
-            store.upsert_staged_selling_plan_group(store, next_group)
-          mutation_result(
-            key,
-            selling_plan_group_mutation_payload(
-              next_store,
-              field,
-              variables,
-              fragments,
-              Some(next_group),
-              [],
-              None,
-              None,
-              None,
-              None,
-            ),
-            next_store,
-            identity,
-            [next_group.id],
-          )
+          case errors {
+            [_, ..] ->
+              mutation_rejected_result(
+                key,
+                selling_plan_group_mutation_payload(
+                  store,
+                  field,
+                  variables,
+                  fragments,
+                  None,
+                  errors,
+                  None,
+                  None,
+                  None,
+                  None,
+                ),
+                store,
+                identity,
+              )
+            [] -> {
+              let next_group = case root_name {
+                "sellingPlanGroupAddProducts" ->
+                  SellingPlanGroupRecord(
+                    ..group,
+                    product_ids: dedupe_preserving_order(list.append(
+                      group.product_ids,
+                      read_arg_string_list(args, "productIds"),
+                    )),
+                  )
+                _ ->
+                  SellingPlanGroupRecord(
+                    ..group,
+                    product_variant_ids: dedupe_preserving_order(list.append(
+                      group.product_variant_ids,
+                      read_arg_string_list(args, "productVariantIds"),
+                    )),
+                  )
+              }
+              let #(_, next_store) =
+                store.upsert_staged_selling_plan_group(store, next_group)
+              mutation_result(
+                key,
+                selling_plan_group_mutation_payload(
+                  next_store,
+                  field,
+                  variables,
+                  fragments,
+                  Some(next_group),
+                  [],
+                  None,
+                  None,
+                  None,
+                  None,
+                ),
+                next_store,
+                identity,
+                [next_group.id],
+              )
+            }
+          }
         }
       }
     }
@@ -914,75 +951,101 @@ pub fn handle_selling_plan_group_mutation(
           case root_name {
             "sellingPlanGroupRemoveProducts" -> {
               let requested = read_arg_string_list(args, "productIds")
-              let removed =
-                group.product_ids
-                |> list.filter(fn(product_id) {
-                  list.contains(requested, product_id)
-                })
-              let next_group =
-                SellingPlanGroupRecord(
-                  ..group,
-                  product_ids: group.product_ids
+              case first_malformed_shopify_gid(requested, "Product") {
+                Some(invalid) ->
+                  mutation_error_result(key, store, identity, [
+                    invalid_gid_list_variable_error(
+                      remove_resource_variable_name(field, "productIds"),
+                      "[ID!]!",
+                      invalid.0,
+                      invalid.1,
+                    ),
+                  ])
+                None -> {
+                  let removed =
+                    group.product_ids
                     |> list.filter(fn(product_id) {
-                      !list.contains(requested, product_id)
-                    }),
-                )
-              let #(_, next_store) =
-                store.upsert_staged_selling_plan_group(store, next_group)
-              mutation_result(
-                key,
-                selling_plan_group_mutation_payload(
-                  next_store,
-                  field,
-                  variables,
-                  fragments,
-                  None,
-                  [],
-                  None,
-                  None,
-                  Some(Some(removed)),
-                  None,
-                ),
-                next_store,
-                identity,
-                [next_group.id],
-              )
+                      list.contains(requested, product_id)
+                    })
+                  let next_group =
+                    SellingPlanGroupRecord(
+                      ..group,
+                      product_ids: group.product_ids
+                        |> list.filter(fn(product_id) {
+                          !list.contains(requested, product_id)
+                        }),
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_selling_plan_group(store, next_group)
+                  mutation_result(
+                    key,
+                    selling_plan_group_mutation_payload(
+                      next_store,
+                      field,
+                      variables,
+                      fragments,
+                      None,
+                      [],
+                      None,
+                      None,
+                      Some(Some(removed)),
+                      None,
+                    ),
+                    next_store,
+                    identity,
+                    [next_group.id],
+                  )
+                }
+              }
             }
             _ -> {
               let requested = read_arg_string_list(args, "productVariantIds")
-              let removed =
-                group.product_variant_ids
-                |> list.filter(fn(variant_id) {
-                  list.contains(requested, variant_id)
-                })
-              let next_group =
-                SellingPlanGroupRecord(
-                  ..group,
-                  product_variant_ids: group.product_variant_ids
+              case first_malformed_shopify_gid(requested, "ProductVariant") {
+                Some(invalid) ->
+                  mutation_error_result(key, store, identity, [
+                    invalid_gid_list_variable_error(
+                      remove_resource_variable_name(field, "productVariantIds"),
+                      "[ID!]!",
+                      invalid.0,
+                      invalid.1,
+                    ),
+                  ])
+                None -> {
+                  let removed =
+                    group.product_variant_ids
                     |> list.filter(fn(variant_id) {
-                      !list.contains(requested, variant_id)
-                    }),
-                )
-              let #(_, next_store) =
-                store.upsert_staged_selling_plan_group(store, next_group)
-              mutation_result(
-                key,
-                selling_plan_group_mutation_payload(
-                  next_store,
-                  field,
-                  variables,
-                  fragments,
-                  None,
-                  [],
-                  None,
-                  None,
-                  None,
-                  Some(Some(removed)),
-                ),
-                next_store,
-                identity,
-                [next_group.id],
-              )
+                      list.contains(requested, variant_id)
+                    })
+                  let next_group =
+                    SellingPlanGroupRecord(
+                      ..group,
+                      product_variant_ids: group.product_variant_ids
+                        |> list.filter(fn(variant_id) {
+                          !list.contains(requested, variant_id)
+                        }),
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_selling_plan_group(store, next_group)
+                  mutation_result(
+                    key,
+                    selling_plan_group_mutation_payload(
+                      next_store,
+                      field,
+                      variables,
+                      fragments,
+                      None,
+                      [],
+                      None,
+                      None,
+                      None,
+                      Some(Some(removed)),
+                    ),
+                    next_store,
+                    identity,
+                    [next_group.id],
+                  )
+                }
+              }
             }
           }
         }
@@ -990,6 +1053,158 @@ pub fn handle_selling_plan_group_mutation(
     }
     _ -> mutation_result(key, json.null(), store, identity, [])
   }
+}
+
+fn selling_plan_group_add_product_errors(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  requested: List(String),
+) -> List(ProductUserError) {
+  let unknown =
+    requested
+    |> list.filter(fn(product_id) {
+      case store.get_effective_product_by_id(store, product_id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  case unknown {
+    [_, ..] ->
+      list.map(unknown, fn(product_id) {
+        ProductUserError(
+          ["productIds"],
+          "Product " <> product_id <> " does not exist.",
+          Some("NOT_FOUND"),
+        )
+      })
+    [] ->
+      case
+        requested != [] && all_ids_are_members(requested, group.product_ids)
+      {
+        True -> [resource_already_taken_error(["productIds"])]
+        False -> []
+      }
+  }
+}
+
+fn selling_plan_group_add_variant_errors(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  requested: List(String),
+) -> List(ProductUserError) {
+  let unknown =
+    requested
+    |> list.filter(fn(variant_id) {
+      case store.get_effective_variant_by_id(store, variant_id) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+  case unknown {
+    [_, ..] ->
+      list.map(unknown, fn(variant_id) {
+        ProductUserError(
+          ["productVariantIds"],
+          "Product variant " <> variant_id <> " does not exist.",
+          Some("NOT_FOUND"),
+        )
+      })
+    [] ->
+      case
+        requested != []
+        && all_ids_are_members(requested, group.product_variant_ids)
+      {
+        True -> [resource_already_taken_error(["productVariantIds"])]
+        False -> []
+      }
+  }
+}
+
+fn resource_already_taken_error(field: List(String)) -> ProductUserError {
+  ProductUserError(field, "Resource has already been taken", Some("TAKEN"))
+}
+
+fn all_ids_are_members(requested: List(String), members: List(String)) -> Bool {
+  list.all(requested, fn(id) { list.contains(members, id) })
+}
+
+fn first_malformed_shopify_gid(
+  ids: List(String),
+  resource_type: String,
+) -> Option(#(String, Int)) {
+  ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.find(fn(indexed) { !is_shopify_gid_type(indexed.0, resource_type) })
+  |> option.from_result
+}
+
+fn is_shopify_gid_type(id: String, resource_type: String) -> Bool {
+  string.starts_with(id, "gid://shopify/" <> resource_type <> "/")
+}
+
+fn remove_resource_variable_name(
+  field: Selection,
+  argument_name: String,
+) -> String {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: VariableValue(variable), ..)
+            if name.value == argument_name
+          -> {
+            let Variable(name: variable_name, ..) = variable
+            Ok(variable_name.value)
+          }
+          _ -> Error(Nil)
+        }
+      })
+      |> result.unwrap(argument_name)
+    _ -> argument_name
+  }
+}
+
+fn invalid_gid_list_variable_error(
+  variable_name: String,
+  variable_type: String,
+  value: String,
+  index: Int,
+) -> Json {
+  let problem = "Invalid global id '" <> value <> "'"
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Variable $"
+        <> variable_name
+        <> " of type "
+        <> variable_type
+        <> " was provided invalid value for "
+        <> int.to_string(index)
+        <> " ("
+        <> problem
+        <> ")",
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("INVALID_VARIABLE")),
+        #("value", json.array([value], json.string)),
+        #(
+          "problems",
+          json.preprocessed_array([
+            json.object([
+              #("path", json.preprocessed_array([json.int(index)])),
+              #("explanation", json.string(problem)),
+              #("message", json.string(problem)),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn selling_plan_group_input_errors(
