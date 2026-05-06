@@ -35,6 +35,7 @@ pub type UpstreamContext {
     transport: Option(SyncTransport),
     origin: String,
     headers: Dict(String, String),
+    allow_upstream_reads: Bool,
   )
 }
 
@@ -42,7 +43,12 @@ pub type UpstreamContext {
 /// on Erlang and fail with `NoTransportInstalled` on JS. Useful for
 /// tests and callers that don't have headers or origin in scope.
 pub fn empty_upstream_context() -> UpstreamContext {
-  UpstreamContext(transport: None, origin: "", headers: dict.new())
+  UpstreamContext(
+    transport: None,
+    origin: "",
+    headers: dict.new(),
+    allow_upstream_reads: False,
+  )
 }
 
 /// What can go wrong when asking upstream a question. `TransportFailed`
