@@ -1,0 +1,1672 @@
+{
+  "capturedAt": "2026-05-06T21:08:22.165Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "MetaobjectDefinitionUpdate public capability-disable behavior and renderable enable data validation.",
+  "seed": {
+    "runId": "1778101696692",
+    "locale": "fr",
+    "definitions": {
+      "publishable-definition-create": "gid://shopify/MetaobjectDefinition/17908269362",
+      "online-store-definition-create": "gid://shopify/MetaobjectDefinition/17908302130",
+      "renderable-definition-create": "gid://shopify/MetaobjectDefinition/17908334898",
+      "translatable-definition-create": "gid://shopify/MetaobjectDefinition/17908367666",
+      "renderable-missing-definition-create": "gid://shopify/MetaobjectDefinition/17908400434",
+      "renderable-type-definition-create": "gid://shopify/MetaobjectDefinition/17908433202"
+    },
+    "metaobjects": {
+      "publishable-draft-entry-create": "gid://shopify/Metaobject/188268937522",
+      "online-store-active-entry-create": "gid://shopify/Metaobject/188268970290",
+      "renderable-entry-create": "gid://shopify/Metaobject/188269003058",
+      "translatable-entry-create": "gid://shopify/Metaobject/188269035826"
+    }
+  },
+  "captures": {
+    "shop-locales-before": {
+      "name": "shop-locales-before",
+      "request": {
+        "query": "#graphql\n  query MetaobjectDefinitionUpdateCapabilityInvariantsShopLocales {\n    shopLocales {\n      locale\n      primary\n      published\n    }\n  }\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "shopLocales": [
+            {
+              "locale": "en",
+              "primary": true,
+              "published": true
+            },
+            {
+              "locale": "fr",
+              "primary": false,
+              "published": false
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "publishable-definition-create": {
+      "name": "publishable-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate(\n  $definition: MetaobjectDefinitionCreateInput!\n) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "capability_publishable_1778101696692",
+            "name": "Capability Invariants capability_publishable_1778101696692",
+            "displayNameKey": "title",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "count",
+                "name": "Count",
+                "type": "number_integer",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908269362",
+              "type": "capability_publishable_1778101696692",
+              "name": "Capability Invariants capability_publishable_1778101696692",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "name": "Count",
+                  "required": false,
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 0
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "publishable-draft-entry-create": {
+      "name": "publishable-draft-entry-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsEntryCreate(\n  $metaobject: MetaobjectCreateInput!\n) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "capability_publishable_1778101696692",
+            "handle": "publishable-draft-1778101696692",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Draft row"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188268937522",
+              "handle": "publishable-draft-1778101696692",
+              "type": "capability_publishable_1778101696692",
+              "displayName": "Draft row",
+              "capabilities": {
+                "publishable": {
+                  "status": "DRAFT"
+                },
+                "onlineStore": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "publishable-disable-public-allowed": {
+      "name": "publishable-disable-public-allowed",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate(\n  $id: ID!\n  $definition: MetaobjectDefinitionUpdateInput!\n) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908269362",
+          "definition": {
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908269362",
+              "type": "capability_publishable_1778101696692",
+              "name": "Capability Invariants capability_publishable_1778101696692",
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 1
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "publishable-read-after-update": {
+      "name": "publishable-read-after-update",
+      "request": {
+        "query": "query MetaobjectDefinitionUpdateCapabilityInvariantsRead($id: ID!) {\n  metaobjectDefinition(id: $id) {\n    id\n    type\n    name\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      type {\n        name\n        category\n      }\n    }\n    metaobjectsCount\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908269362"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17908269362",
+            "type": "capability_publishable_1778101696692",
+            "name": "Capability Invariants capability_publishable_1778101696692",
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              },
+              {
+                "key": "count",
+                "type": {
+                  "name": "number_integer",
+                  "category": "NUMBER"
+                }
+              }
+            ],
+            "metaobjectsCount": 1
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 8,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "online-store-definition-create": {
+      "name": "online-store-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate(\n  $definition: MetaobjectDefinitionCreateInput!\n) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "capability_online_store_1778101696692",
+            "name": "Capability Invariants capability_online_store_1778101696692",
+            "displayNameKey": "title",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": true,
+                "data": {
+                  "urlHandle": "title"
+                }
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "count",
+                "name": "Count",
+                "type": "number_integer",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908302130",
+              "type": "capability_online_store_1778101696692",
+              "name": "Capability Invariants capability_online_store_1778101696692",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": true
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "name": "Count",
+                  "required": false,
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 0
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "online-store-active-entry-create": {
+      "name": "online-store-active-entry-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsEntryCreate(\n  $metaobject: MetaobjectCreateInput!\n) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "capability_online_store_1778101696692",
+            "handle": "online-store-active-1778101696692",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": {
+                "templateSuffix": ""
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Published row"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188268970290",
+              "handle": "online-store-active-1778101696692",
+              "type": "capability_online_store_1778101696692",
+              "displayName": "Published row",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": {
+                  "templateSuffix": ""
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "online-store-disable-public-allowed": {
+      "name": "online-store-disable-public-allowed",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate(\n  $id: ID!\n  $definition: MetaobjectDefinitionUpdateInput!\n) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908302130",
+          "definition": {
+            "capabilities": {
+              "onlineStore": {
+                "enabled": false
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908302130",
+              "type": "capability_online_store_1778101696692",
+              "name": "Capability Invariants capability_online_store_1778101696692",
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 1
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-definition-create": {
+      "name": "renderable-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate(\n  $definition: MetaobjectDefinitionCreateInput!\n) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "capability_renderable_1778101696692",
+            "name": "Capability Invariants capability_renderable_1778101696692",
+            "displayNameKey": "title",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "renderable": {
+                "enabled": true,
+                "data": {
+                  "metaTitleKey": "title",
+                  "metaDescriptionKey": "title"
+                }
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "count",
+                "name": "Count",
+                "type": "number_integer",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908334898",
+              "type": "capability_renderable_1778101696692",
+              "name": "Capability Invariants capability_renderable_1778101696692",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": true
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "name": "Count",
+                  "required": false,
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 0
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-entry-create": {
+      "name": "renderable-entry-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsEntryCreate(\n  $metaobject: MetaobjectCreateInput!\n) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "capability_renderable_1778101696692",
+            "handle": "renderable-1778101696692",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Renderable row"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188269003058",
+              "handle": "renderable-1778101696692",
+              "type": "capability_renderable_1778101696692",
+              "displayName": "Renderable row",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-disable-public-allowed": {
+      "name": "renderable-disable-public-allowed",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate(\n  $id: ID!\n  $definition: MetaobjectDefinitionUpdateInput!\n) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908334898",
+          "definition": {
+            "capabilities": {
+              "renderable": {
+                "enabled": false
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908334898",
+              "type": "capability_renderable_1778101696692",
+              "name": "Capability Invariants capability_renderable_1778101696692",
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 1
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translatable-definition-create": {
+      "name": "translatable-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate(\n  $definition: MetaobjectDefinitionCreateInput!\n) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "capability_translatable_1778101696692",
+            "name": "Capability Invariants capability_translatable_1778101696692",
+            "displayNameKey": "title",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "translatable": {
+                "enabled": true
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "count",
+                "name": "Count",
+                "type": "number_integer",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908367666",
+              "type": "capability_translatable_1778101696692",
+              "name": "Capability Invariants capability_translatable_1778101696692",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "name": "Count",
+                  "required": false,
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 0
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translatable-entry-create": {
+      "name": "translatable-entry-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsEntryCreate(\n  $metaobject: MetaobjectCreateInput!\n) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "capability_translatable_1778101696692",
+            "handle": "translatable-1778101696692",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Translatable row"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188269035826",
+              "handle": "translatable-1778101696692",
+              "type": "capability_translatable_1778101696692",
+              "displayName": "Translatable row",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translatable-resource-read": {
+      "name": "translatable-resource-read",
+      "request": {
+        "query": "#graphql\n  query MetaobjectDefinitionUpdateCapabilityInvariantsTranslatableResource($resourceId: ID!) {\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n",
+        "variables": {
+          "resourceId": "gid://shopify/Metaobject/188269035826"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "translatableResource": {
+            "resourceId": "gid://shopify/Metaobject/188269035826",
+            "translatableContent": [
+              {
+                "key": "title",
+                "value": "Translatable row",
+                "digest": "3c488756a90f2e29b885228cd3d11aef74d0b8d0679f5beff7834178d9db0218",
+                "locale": "en",
+                "type": "SINGLE_LINE_TEXT_FIELD"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translation-register": {
+      "name": "translation-register",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsTranslationsRegister(\n    $resourceId: ID!\n    $translations: [TranslationInput!]!\n  ) {\n    translationsRegister(resourceId: $resourceId, translations: $translations) {\n      translations {\n        key\n        value\n        locale\n        outdated\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "resourceId": "gid://shopify/Metaobject/188269035826",
+          "translations": [
+            {
+              "key": "title",
+              "locale": "fr",
+              "value": "Ligne traduite",
+              "translatableContentDigest": "3c488756a90f2e29b885228cd3d11aef74d0b8d0679f5beff7834178d9db0218"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "translationsRegister": {
+            "translations": [
+              {
+                "key": "title",
+                "value": "Ligne traduite",
+                "locale": "fr",
+                "outdated": false
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translatable-disable-public-allowed": {
+      "name": "translatable-disable-public-allowed",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate(\n  $id: ID!\n  $definition: MetaobjectDefinitionUpdateInput!\n) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908367666",
+          "definition": {
+            "capabilities": {
+              "translatable": {
+                "enabled": false
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908367666",
+              "type": "capability_translatable_1778101696692",
+              "name": "Capability Invariants capability_translatable_1778101696692",
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 1
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-missing-definition-create": {
+      "name": "renderable-missing-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate(\n  $definition: MetaobjectDefinitionCreateInput!\n) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "capability_render_missing_1778101696692",
+            "name": "Capability Invariants capability_render_missing_1778101696692",
+            "displayNameKey": "title",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {},
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "count",
+                "name": "Count",
+                "type": "number_integer",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908400434",
+              "type": "capability_render_missing_1778101696692",
+              "name": "Capability Invariants capability_render_missing_1778101696692",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "name": "Count",
+                  "required": false,
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 0
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-enable-missing-field-rejected": {
+      "name": "renderable-enable-missing-field-rejected",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate(\n  $id: ID!\n  $definition: MetaobjectDefinitionUpdateInput!\n) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908400434",
+          "definition": {
+            "capabilities": {
+              "renderable": {
+                "enabled": true,
+                "data": {
+                  "metaTitleKey": "missing"
+                }
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "capabilities", "renderable"],
+                "message": "Field definition \"missing\" does not exist",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-type-definition-create": {
+      "name": "renderable-type-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate(\n  $definition: MetaobjectDefinitionCreateInput!\n) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "capability_render_type_1778101696692",
+            "name": "Capability Invariants capability_render_type_1778101696692",
+            "displayNameKey": "title",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {},
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "count",
+                "name": "Count",
+                "type": "number_integer",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908433202",
+              "type": "capability_render_type_1778101696692",
+              "name": "Capability Invariants capability_render_type_1778101696692",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "count",
+                  "name": "Count",
+                  "required": false,
+                  "type": {
+                    "name": "number_integer",
+                    "category": "NUMBER"
+                  }
+                }
+              ],
+              "metaobjectsCount": 0
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "renderable-enable-type-rejected": {
+      "name": "renderable-enable-type-rejected",
+      "request": {
+        "query": "mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate(\n  $id: ID!\n  $definition: MetaobjectDefinitionUpdateInput!\n) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908433202",
+          "definition": {
+            "capabilities": {
+              "renderable": {
+                "enabled": true,
+                "data": {
+                  "metaDescriptionKey": "count"
+                }
+              }
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "capabilities", "renderable"],
+                "message": "Renderable Capability \"meta_description_key\" cannot reference the field definition \"count\" of type \"number_integer\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed.",
+                "code": "FIELD_TYPE_INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188268937522"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188268937522",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188268970290"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188268970290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188269003058"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188269003058",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188269035826"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188269035826",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908269362"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908269362",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908302130"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908302130",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908334898"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908334898",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908367666"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908367666",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908400434"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908400434",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionUpdateCapabilityInvariantsDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908433202"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908433202",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

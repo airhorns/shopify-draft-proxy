@@ -1,0 +1,13 @@
+mutation CommentDeleteTrueDestroyApprove($id: ID!) {
+  commentApprove(id: $id) {
+    comment {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

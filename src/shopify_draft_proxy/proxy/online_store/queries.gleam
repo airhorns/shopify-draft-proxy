@@ -92,6 +92,7 @@ pub fn handle_query_request(
             transport: proxy.upstream_transport,
             origin: proxy.config.shopify_admin_origin,
             headers: request.headers,
+            allow_upstream_reads: proxy.config.read_mode == LiveHybrid,
           ),
         )
       {

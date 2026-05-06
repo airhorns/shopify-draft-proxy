@@ -1,0 +1,8 @@
+query ShopPolicySubscriptionBlankBodyDownstreamRead {
+  shop {
+    shopPolicies {
+      type
+      body
+    }
+  }
+}

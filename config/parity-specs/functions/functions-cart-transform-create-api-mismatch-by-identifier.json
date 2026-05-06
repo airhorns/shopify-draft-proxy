@@ -1,0 +1,54 @@
+{
+  "scenarioId": "functions-cart-transform-create-api-mismatch-by-identifier",
+  "operationNames": ["cartTransformCreate", "cartTransforms"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "function-identifier-validation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-cart-transform-create-api-mismatch-by-id.graphql",
+    "variablesCapturePath": "$.cartTransformCreateApiMismatchById.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cart-transform-create-api-mismatch-by-id",
+        "capturePath": "$.cartTransformCreateApiMismatchById.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate"
+      },
+      {
+        "name": "cart-transform-create-api-mismatch-by-handle",
+        "capturePath": "$.cartTransformCreateApiMismatchByHandle.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-api-mismatch-by-handle.graphql",
+          "variablesCapturePath": "$.cartTransformCreateApiMismatchByHandle.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transforms-after-api-mismatch",
+        "capturePath": "$.cartTransformsAfterApiMismatch.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
+          "variablesCapturePath": "$.cartTransformsAfterApiMismatch.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence for cartTransformCreate API-mismatched Function identifiers. The functionId branch returns FUNCTION_NOT_FOUND while the functionHandle branch returns FUNCTION_DOES_NOT_IMPLEMENT with the same message text. The downstream cartTransforms read compares strictly and verifies neither failed branch stages a CartTransform."
+}
