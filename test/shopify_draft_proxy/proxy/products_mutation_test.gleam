@@ -76,6 +76,19 @@ fn assert_product_option_user_error(
   assert entry.status == store_types.Failed
 }
 
+fn assert_combined_listing_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
 fn assert_selling_plan_group_create_user_error(
   query: String,
   code: String,
@@ -715,6 +728,128 @@ pub fn product_user_error_shape_validation_branches_test() {
   assert activate_status == 200
   assert json.to_string(activate_body)
     == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"INVALID_INVENTORY_ITEM\"}]}}}"
+}
+
+pub fn combined_listing_update_rejects_non_parent_product_test() {
+  assert_combined_listing_user_error(
+    default_option_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/optioned\\\") { product { id } userErrors { field message code } } }",
+    "PARENT_PRODUCT_MUST_BE_A_COMBINED_LISTING",
+  )
+}
+
+pub fn combined_listing_update_rejects_parent_as_child_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/parent\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "CANNOT_HAVE_PARENT_AS_CHILD",
+  )
+}
+
+pub fn combined_listing_update_rejects_duplicate_child_inputs_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }, { childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "CANNOT_HAVE_DUPLICATED_PRODUCTS",
+  )
+}
+
+pub fn combined_listing_update_rejects_missing_child_product_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/missing\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "PRODUCT_NOT_FOUND",
+  )
+}
+
+pub fn combined_listing_update_rejects_empty_selected_parent_option_values_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "MUST_HAVE_SELECTED_OPTION_VALUES",
+  )
+}
+
+pub fn combined_listing_update_rejects_overlong_title_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", title: \\\""
+      <> repeated_text("T", 256)
+      <> "\\\") { product { id } userErrors { field message code } } }",
+    "TITLE_TOO_LONG",
+  )
+}
+
+pub fn combined_listing_update_rejects_missing_options_and_values_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "MISSING_OPTION_VALUES",
+  )
+}
+
+pub fn combined_listing_update_rejects_edit_remove_overlap_test() {
+  assert_combined_listing_user_error(
+    combined_listing_parent_store(),
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsEdited: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], productsRemovedIds: [\\\"gid://shopify/Product/child\\\"], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }",
+    "EDIT_AND_REMOVE_ON_SAME_PRODUCTS",
+  )
+}
+
+pub fn combined_listing_update_stages_child_membership_locally_test() {
+  let query =
+    "mutation { combinedListingUpdate(parentProductId: \"gid://shopify/Product/parent\", productsAdded: [{ childProductId: \"gid://shopify/Product/child\", selectedParentOptionValues: [{ name: \"Title\", value: \"Default Title\" }] }], optionsAndValues: [{ name: \"Title\", values: [\"Default Title\"] }]) { product { id combinedListingRole } userErrors { field message code } } }"
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: combined_listing_parent_store())
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_document_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"combinedListingUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/parent\",\"combinedListingRole\":\"PARENT\"},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Staged
+  assert entry.query == query
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { parent: product(id: \\\"gid://shopify/Product/parent\\\") { id combinedListingRole } child: product(id: \\\"gid://shopify/Product/child\\\") { id combinedListingRole } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"parent\":{\"id\":\"gid://shopify/Product/parent\",\"combinedListingRole\":\"PARENT\"},\"child\":{\"id\":\"gid://shopify/Product/child\",\"combinedListingRole\":\"CHILD\"}}}"
+}
+
+pub fn combined_listing_update_rejects_staged_child_readdition_test() {
+  let add_query =
+    "mutation { combinedListingUpdate(parentProductId: \\\"gid://shopify/Product/parent\\\", productsAdded: [{ childProductId: \\\"gid://shopify/Product/child\\\", selectedParentOptionValues: [{ name: \\\"Title\\\", value: \\\"Default Title\\\" }] }], optionsAndValues: [{ name: \\\"Title\\\", values: [\\\"Default Title\\\"] }]) { product { id } userErrors { field message code } } }"
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: combined_listing_parent_store())
+  let #(Response(status: first_status, body: first_body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"combinedListingUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/parent\"},\"userErrors\":[]}}}"
+
+  let #(Response(status: second_status, body: second_body, ..), next_proxy) =
+    draft_proxy.process_request(next_proxy, graphql_request(add_query))
+  assert second_status == 200
+  assert string.contains(
+    json.to_string(second_body),
+    "\"field\":[\"productsAdded\"]",
+  )
+  assert string.contains(
+    json.to_string(second_body),
+    "\"code\":\"PRODUCT_IS_ALREADY_A_CHILD\"",
+  )
+  let assert [first_entry, second_entry] = store.get_log(next_proxy.store)
+  assert first_entry.status == store_types.Staged
+  assert second_entry.status == store_types.Failed
 }
 
 pub fn product_options_reorder_reorders_variants_test() {
@@ -3168,6 +3303,25 @@ fn tracked_inventory_store_with_levels(
   ])
 }
 
+fn combined_listing_parent_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/parent",
+      title: "Combined Parent",
+      handle: "combined-parent",
+      combined_listing_role: Some("PARENT"),
+    ),
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/child",
+      title: "Child Product",
+      handle: "child-product",
+    ),
+  ])
+}
+
 fn option_update_store() -> store.Store {
   store.new()
   |> store.upsert_base_products([default_product()])
@@ -3313,6 +3467,9 @@ fn default_product() -> ProductRecord {
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }
 
