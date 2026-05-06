@@ -89,6 +89,78 @@ pub fn price_list_create_rejects_invalid_parent_adjustment_type_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"type\"],\"message\":\"Type is invalid\",\"code\":\"INVALID\"}]}}}"
 }
 
+pub fn price_list_create_matches_parent_adjustment_value_bounds_test() {
+  let #(Response(status: zero_status, body: zero_body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"Zero\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 0 } } }) { priceList { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: negative_status, body: negative_body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"Negative\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: -10 } } }) { priceList { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: decrease_status, body: decrease_body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"Too Low\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 250 } } }) { priceList { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: increase_status, body: increase_body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"Too High\", currency: USD, parent: { adjustment: { type: PERCENTAGE_INCREASE, value: 5000 } } }) { priceList { id } userErrors { field message code } } }",
+    )
+
+  assert zero_status == 200
+  assert json.to_string(zero_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\"},\"userErrors\":[]}}}"
+  assert negative_status == 200
+  assert json.to_string(negative_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
+  assert decrease_status == 200
+  assert json.to_string(decrease_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
+  assert increase_status == 200
+  assert json.to_string(increase_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
+}
+
+pub fn price_list_create_and_update_allow_catalog_market_currency_mismatch_test() {
+  let #(Response(status: valid_status, body: valid_body, ..), _) =
+    graphql_with_proxy(
+      catalog_price_list_proxy(),
+      "mutation { priceListCreate(input: { name: \"CAD Catalog\", currency: CAD, catalogId: \"gid://shopify/MarketCatalog/200\", parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id currency catalog { id } } userErrors { field message code } } }",
+    )
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    graphql_with_proxy(
+      catalog_price_list_proxy(),
+      "mutation { priceListCreate(input: { name: \"USD Catalog\", currency: USD, catalogId: \"gid://shopify/MarketCatalog/200\", parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id currency catalog { id } } userErrors { field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_proxy(
+      catalog_price_list_proxy(),
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/300\", input: { currency: USD }) { priceList { id currency catalog { id } } userErrors { field message code } } }",
+    )
+
+  assert valid_status == 200
+  assert json.to_string(valid_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\",\"currency\":\"CAD\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\"}},\"userErrors\":[]}}}"
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\",\"currency\":\"USD\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\"}},\"userErrors\":[]}}}"
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/300\",\"currency\":\"USD\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\"}},\"userErrors\":[]}}}"
+}
+
+pub fn price_list_update_revalidates_existing_parent_adjustment_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      invalid_adjustment_price_list_proxy(),
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/400\", input: { name: \"Still invalid\" }) { priceList { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/400\"},\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
+}
+
 pub fn quantity_rules_add_validates_numeric_inputs_test() {
   let #(proxy, price_list_id, variant_id) = quantity_rules_subject()
   let #(Response(status: minimum_status, body: minimum_body, ..), proxy) =
@@ -273,7 +345,7 @@ fn quantity_rules_subject() -> #(DraftProxy, String, String) {
   let #(Response(status: price_status, body: price_body, ..), proxy) =
     graphql_with_proxy(
       proxy,
-      "mutation { priceListCreate(input: { name: \"USD\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 0 } } }) { priceList { id } userErrors { field message code } } }",
+      "mutation { priceListCreate(input: { name: \"USD\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id } userErrors { field message code } } }",
     )
 
   assert product_status == 200
@@ -1271,6 +1343,111 @@ fn seeded_proxy() -> DraftProxy {
   let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
   let seeded_store = store.upsert_base_shop(proxy.store, acme_shop())
   DraftProxy(..proxy, store: seeded_store)
+}
+
+fn catalog_price_list_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let market = cad_market_record()
+  let catalog = cad_catalog_record(market.data)
+  let price_list = cad_price_list_record(catalog.data)
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_markets([market])
+    |> store.upsert_base_catalogs([catalog])
+    |> store.upsert_base_price_lists([price_list])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn invalid_adjustment_price_list_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_price_lists([invalid_adjustment_price_list_record()])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn cad_market_record() -> MarketRecord {
+  MarketRecord(
+    id: "gid://shopify/Market/100",
+    cursor: Some("gid://shopify/Market/100"),
+    data: CapturedObject([
+      #("__typename", CapturedString("Market")),
+      #("id", CapturedString("gid://shopify/Market/100")),
+      #(
+        "currencySettings",
+        CapturedObject([
+          #(
+            "baseCurrency",
+            CapturedObject([#("currencyCode", CapturedString("CAD"))]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn cad_catalog_record(market_data: CapturedJsonValue) -> CatalogRecord {
+  CatalogRecord(
+    id: "gid://shopify/MarketCatalog/200",
+    cursor: Some("gid://shopify/MarketCatalog/200"),
+    data: CapturedObject([
+      #("__typename", CapturedString("MarketCatalog")),
+      #("id", CapturedString("gid://shopify/MarketCatalog/200")),
+      #("title", CapturedString("Canada Catalog")),
+      #("markets", CapturedObject([#("nodes", CapturedArray([market_data]))])),
+    ]),
+  )
+}
+
+fn cad_price_list_record(catalog_data: CapturedJsonValue) -> PriceListRecord {
+  PriceListRecord(
+    id: "gid://shopify/PriceList/300",
+    cursor: Some("gid://shopify/PriceList/300"),
+    data: CapturedObject([
+      #("__typename", CapturedString("PriceList")),
+      #("id", CapturedString("gid://shopify/PriceList/300")),
+      #("name", CapturedString("CAD Price List")),
+      #("currency", CapturedString("CAD")),
+      #("catalog", catalog_data),
+      #(
+        "parent",
+        CapturedObject([
+          #(
+            "adjustment",
+            CapturedObject([
+              #("type", CapturedString("PERCENTAGE_DECREASE")),
+              #("value", CapturedInt(10)),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn invalid_adjustment_price_list_record() -> PriceListRecord {
+  PriceListRecord(
+    id: "gid://shopify/PriceList/400",
+    cursor: Some("gid://shopify/PriceList/400"),
+    data: CapturedObject([
+      #("__typename", CapturedString("PriceList")),
+      #("id", CapturedString("gid://shopify/PriceList/400")),
+      #("name", CapturedString("Invalid Existing Price List")),
+      #("currency", CapturedString("USD")),
+      #(
+        "parent",
+        CapturedObject([
+          #(
+            "adjustment",
+            CapturedObject([
+              #("type", CapturedString("PERCENTAGE_DECREASE")),
+              #("value", CapturedInt(250)),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn acme_shop() -> ShopRecord {

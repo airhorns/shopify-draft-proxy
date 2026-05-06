@@ -2097,6 +2097,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-input-validation-conformance.ts',
+    purpose:
+      'priceListCreate and priceListUpdate parent adjustment value validation plus catalog-linked currency mismatch acceptance.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-input-validation.json`,
+      'config/parity-specs/markets/price-list-input-validation.json',
+      'config/parity-requests/markets/price-list-input-validation-markets-read.graphql',
+      'config/parity-requests/markets/price-list-create-input-validation.graphql',
+      'config/parity-requests/markets/price-list-update-input-validation.graphql',
+      'config/parity-requests/markets/catalog-create-relation-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable price lists and market catalogs for success/update paths, records validation-only failures that do not create records, then deletes all created price lists and catalogs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin GraphQL 2026-04 accepts zero percentage-decrease adjustments and catalog-linked price-list currency mismatches.',
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-relation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-relation-validation-conformance.mts',
