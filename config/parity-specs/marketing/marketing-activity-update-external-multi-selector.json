@@ -1,0 +1,36 @@
+{
+  "scenarioId": "marketing-activity-update-external-multi-selector",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingActivityUpdateExternal"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-immutable-fields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-create.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "seed-create",
+        "capturePath": "$.cases[0].response.payload.data.marketingActivityCreateExternal",
+        "proxyPath": "$.data.marketingActivityCreateExternal"
+      },
+      {
+        "name": "update-with-remote-id-and-utm-selectors",
+        "capturePath": "$.cases[1].response.payload.data.marketingActivityUpdateExternal",
+        "proxyPath": "$.data.marketingActivityUpdateExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-update-external-multi-selector.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify capture evidence for marketingActivityUpdateExternal when matching remoteId and utm selectors are supplied together. The scenario first replays the captured external activity create, then updates the staged activity with the exact captured multi-selector request and compares Shopify's successful payload shape."
+}
