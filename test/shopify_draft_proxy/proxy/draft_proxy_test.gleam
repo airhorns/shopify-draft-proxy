@@ -920,6 +920,90 @@ pub fn graphql_saved_search_create_duplicate_base_state_name_test() {
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
 }
 
+pub fn graphql_saved_search_create_rejects_reserved_resource_names_test() {
+  assert_reserved_create_name("PRODUCT", "All products")
+  assert_reserved_create_name("PRODUCT", "ALL PRODUCTS")
+  assert_reserved_create_name("COLLECTION", "All collections")
+  assert_reserved_create_name("ORDER", "All")
+  assert_reserved_create_name("DRAFT_ORDER", "All Drafts")
+  assert_reserved_create_name("FILE", "All Files")
+}
+
+pub fn graphql_saved_search_create_allows_reserved_name_for_unscoped_resource_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"All products\\\", query: \\\"code:SUMMER\\\", resourceType: DISCOUNT_REDEEM_CODE }) { savedSearch { name query resourceType } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"name\":\"All products\",\"query\":\"code:SUMMER\",\"resourceType\":\"DISCOUNT_REDEEM_CODE\"},\"userErrors\":[]}}}"
+}
+
+pub fn graphql_saved_search_update_rejects_reserved_resource_name_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Reserved update source\\\", query: \\\"vendor:Acme\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create)
+  let update =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\", name: \\\"All products\\\", query: \\\"vendor:Changed\\\" }) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, update)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Reserved update source\",\"query\":\"vendor:Changed\",\"resourceType\":\"PRODUCT\",\"filters\":[{\"key\":\"vendor\",\"value\":\"Changed\"}]},\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(query: \\\"Reserved update source\\\") { nodes { name query } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Reserved update source\",\"query\":\"vendor:Acme\"}]}}}"
+}
+
+fn assert_reserved_create_name(resource_type: String, name: String) {
+  let proxy = draft_proxy.new()
+  let query = case resource_type {
+    "PRODUCT" -> "vendor:Acme"
+    "COLLECTION" -> "title:Sale"
+    "ORDER" -> "status:open"
+    "DRAFT_ORDER" -> "status:open"
+    "FILE" -> ""
+    _ -> ""
+  }
+  let body =
+    "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\""
+    <> name
+    <> "\\\", query: \\\""
+    <> query
+    <> "\\\", resourceType: "
+    <> resource_type
+    <> " }) { savedSearch { id name query resourceType } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  let #(Response(body: state_body, ..), proxy) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/state"))
+  assert string.contains(json.to_string(state_body), "\"savedSearches\":{}")
+  let #(Response(body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/log"))
+  let serialized_log = json.to_string(log_body)
+  assert string.contains(
+    serialized_log,
+    "\"primaryRootField\":\"savedSearchCreate\"",
+  )
+  assert string.contains(serialized_log, "\"status\":\"failed\"")
+  assert string.contains(serialized_log, "\"stagedResourceIds\":[]")
+}
+
 pub fn meta_state_reflects_staged_saved_search_test() {
   let proxy = draft_proxy.new()
   let create_request = graphql_request(saved_search_create_body)

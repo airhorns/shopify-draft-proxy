@@ -4,7 +4,10 @@ import gleam/dict
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
-import shopify_draft_proxy/state/store/shared.{append_unique_id, dict_has}
+import shopify_draft_proxy/state/store/shared.{
+  type EffectiveSlice, EffectiveSlice, append_unique_id, append_unique_ids,
+  dict_has, effective_get, effective_list, effective_list_ordered,
+}
 import shopify_draft_proxy/state/store/types.{
   type Store, BaseState, StagedState, Store,
 }
@@ -92,59 +95,26 @@ pub fn delete_staged_b2b_company(store: Store, id: String) -> Store {
   )
 }
 
+fn b2b_company_slice(store: Store) -> EffectiveSlice(B2BCompanyRecord) {
+  EffectiveSlice(
+    base_records: store.base_state.b2b_companies,
+    staged_records: store.staged_state.b2b_companies,
+    base_deleted: store.base_state.deleted_b2b_company_ids,
+    staged_deleted: store.staged_state.deleted_b2b_company_ids,
+    base_order: store.base_state.b2b_company_order,
+    staged_order: store.staged_state.b2b_company_order,
+  )
+}
+
 pub fn get_effective_b2b_company_by_id(
   store: Store,
   id: String,
 ) -> Option(B2BCompanyRecord) {
-  case
-    dict_has(store.staged_state.deleted_b2b_company_ids, id)
-    || dict_has(store.base_state.deleted_b2b_company_ids, id)
-  {
-    True -> None
-    False ->
-      case dict.get(store.staged_state.b2b_companies, id) {
-        Ok(record) -> Some(record)
-        Error(_) ->
-          case dict.get(store.base_state.b2b_companies, id) {
-            Ok(record) -> Some(record)
-            Error(_) -> None
-          }
-      }
-  }
+  effective_get(b2b_company_slice(store), id)
 }
 
 pub fn list_effective_b2b_companies(store: Store) -> List(B2BCompanyRecord) {
-  let ids =
-    append_unique_ids(
-      store.base_state.b2b_company_order,
-      store.staged_state.b2b_company_order,
-    )
-  let ordered =
-    ids
-    |> list.filter_map(fn(id) {
-      case get_effective_b2b_company_by_id(store, id) {
-        Some(record) -> Ok(record)
-        None -> Error(Nil)
-      }
-    })
-  let seen =
-    list.fold(ids, dict.new(), fn(acc, id) { dict.insert(acc, id, True) })
-  let extras =
-    dict.to_list(store.base_state.b2b_companies)
-    |> list.append(dict.to_list(store.staged_state.b2b_companies))
-    |> list.filter_map(fn(pair) {
-      let #(id, _) = pair
-      case dict_has(seen, id) {
-        True -> Error(Nil)
-        False ->
-          case get_effective_b2b_company_by_id(store, id) {
-            Some(record) -> Ok(record)
-            None -> Error(Nil)
-          }
-      }
-    })
-    |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
-  list.append(ordered, extras)
+  effective_list(b2b_company_slice(store), fn(record) { record.id })
 }
 
 pub fn upsert_base_b2b_company_contact(
@@ -232,40 +202,30 @@ pub fn delete_staged_b2b_company_contact(store: Store, id: String) -> Store {
   )
 }
 
+fn b2b_company_contact_slice(
+  store: Store,
+) -> EffectiveSlice(B2BCompanyContactRecord) {
+  EffectiveSlice(
+    base_records: store.base_state.b2b_company_contacts,
+    staged_records: store.staged_state.b2b_company_contacts,
+    base_deleted: store.base_state.deleted_b2b_company_contact_ids,
+    staged_deleted: store.staged_state.deleted_b2b_company_contact_ids,
+    base_order: store.base_state.b2b_company_contact_order,
+    staged_order: store.staged_state.b2b_company_contact_order,
+  )
+}
+
 pub fn get_effective_b2b_company_contact_by_id(
   store: Store,
   id: String,
 ) -> Option(B2BCompanyContactRecord) {
-  case
-    dict_has(store.staged_state.deleted_b2b_company_contact_ids, id)
-    || dict_has(store.base_state.deleted_b2b_company_contact_ids, id)
-  {
-    True -> None
-    False ->
-      case dict.get(store.staged_state.b2b_company_contacts, id) {
-        Ok(record) -> Some(record)
-        Error(_) ->
-          case dict.get(store.base_state.b2b_company_contacts, id) {
-            Ok(record) -> Some(record)
-            Error(_) -> None
-          }
-      }
-  }
+  effective_get(b2b_company_contact_slice(store), id)
 }
 
 pub fn list_effective_b2b_company_contacts(
   store: Store,
 ) -> List(B2BCompanyContactRecord) {
-  append_unique_ids(
-    store.base_state.b2b_company_contact_order,
-    store.staged_state.b2b_company_contact_order,
-  )
-  |> list.filter_map(fn(id) {
-    case get_effective_b2b_company_contact_by_id(store, id) {
-      Some(record) -> Ok(record)
-      None -> Error(Nil)
-    }
-  })
+  effective_list_ordered(b2b_company_contact_slice(store))
 }
 
 pub fn upsert_base_b2b_company_contact_role(
@@ -359,25 +319,24 @@ pub fn delete_staged_b2b_company_contact_role(
   )
 }
 
+fn b2b_company_contact_role_slice(
+  store: Store,
+) -> EffectiveSlice(B2BCompanyContactRoleRecord) {
+  EffectiveSlice(
+    base_records: store.base_state.b2b_company_contact_roles,
+    staged_records: store.staged_state.b2b_company_contact_roles,
+    base_deleted: store.base_state.deleted_b2b_company_contact_role_ids,
+    staged_deleted: store.staged_state.deleted_b2b_company_contact_role_ids,
+    base_order: store.base_state.b2b_company_contact_role_order,
+    staged_order: store.staged_state.b2b_company_contact_role_order,
+  )
+}
+
 pub fn get_effective_b2b_company_contact_role_by_id(
   store: Store,
   id: String,
 ) -> Option(B2BCompanyContactRoleRecord) {
-  case
-    dict_has(store.staged_state.deleted_b2b_company_contact_role_ids, id)
-    || dict_has(store.base_state.deleted_b2b_company_contact_role_ids, id)
-  {
-    True -> None
-    False ->
-      case dict.get(store.staged_state.b2b_company_contact_roles, id) {
-        Ok(record) -> Some(record)
-        Error(_) ->
-          case dict.get(store.base_state.b2b_company_contact_roles, id) {
-            Ok(record) -> Some(record)
-            Error(_) -> None
-          }
-      }
-  }
+  effective_get(b2b_company_contact_role_slice(store), id)
 }
 
 pub fn upsert_base_b2b_company_location(
@@ -465,61 +424,30 @@ pub fn delete_staged_b2b_company_location(store: Store, id: String) -> Store {
   )
 }
 
+fn b2b_company_location_slice(
+  store: Store,
+) -> EffectiveSlice(B2BCompanyLocationRecord) {
+  EffectiveSlice(
+    base_records: store.base_state.b2b_company_locations,
+    staged_records: store.staged_state.b2b_company_locations,
+    base_deleted: store.base_state.deleted_b2b_company_location_ids,
+    staged_deleted: store.staged_state.deleted_b2b_company_location_ids,
+    base_order: store.base_state.b2b_company_location_order,
+    staged_order: store.staged_state.b2b_company_location_order,
+  )
+}
+
 pub fn get_effective_b2b_company_location_by_id(
   store: Store,
   id: String,
 ) -> Option(B2BCompanyLocationRecord) {
-  case
-    dict_has(store.staged_state.deleted_b2b_company_location_ids, id)
-    || dict_has(store.base_state.deleted_b2b_company_location_ids, id)
-  {
-    True -> None
-    False ->
-      case dict.get(store.staged_state.b2b_company_locations, id) {
-        Ok(record) -> Some(record)
-        Error(_) ->
-          case dict.get(store.base_state.b2b_company_locations, id) {
-            Ok(record) -> Some(record)
-            Error(_) -> None
-          }
-      }
-  }
+  effective_get(b2b_company_location_slice(store), id)
 }
 
 pub fn list_effective_b2b_company_locations(
   store: Store,
 ) -> List(B2BCompanyLocationRecord) {
-  let ids =
-    append_unique_ids(
-      store.base_state.b2b_company_location_order,
-      store.staged_state.b2b_company_location_order,
-    )
-  let ordered =
-    ids
-    |> list.filter_map(fn(id) {
-      case get_effective_b2b_company_location_by_id(store, id) {
-        Some(record) -> Ok(record)
-        None -> Error(Nil)
-      }
-    })
-  let seen =
-    list.fold(ids, dict.new(), fn(acc, id) { dict.insert(acc, id, True) })
-  let extras =
-    dict.to_list(store.base_state.b2b_company_locations)
-    |> list.append(dict.to_list(store.staged_state.b2b_company_locations))
-    |> list.filter_map(fn(pair) {
-      let #(id, _) = pair
-      case dict_has(seen, id) {
-        True -> Error(Nil)
-        False ->
-          case get_effective_b2b_company_location_by_id(store, id) {
-            Some(record) -> Ok(record)
-            None -> Error(Nil)
-          }
-      }
-    })
-    |> list.sort(fn(a, b) { string.compare(a.id, b.id) })
-  list.append(ordered, extras)
+  effective_list(b2b_company_location_slice(store), fn(record) { record.id })
 }
 
 pub fn upsert_base_store_property_location(
@@ -611,63 +539,30 @@ pub fn delete_staged_store_property_location(
   )
 }
 
+fn store_property_location_slice(
+  store: Store,
+) -> EffectiveSlice(StorePropertyRecord) {
+  EffectiveSlice(
+    base_records: store.base_state.store_property_locations,
+    staged_records: store.staged_state.store_property_locations,
+    base_deleted: store.base_state.deleted_store_property_location_ids,
+    staged_deleted: store.staged_state.deleted_store_property_location_ids,
+    base_order: store.base_state.store_property_location_order,
+    staged_order: store.staged_state.store_property_location_order,
+  )
+}
+
 pub fn get_effective_store_property_location_by_id(
   store: Store,
   id: String,
 ) -> Option(StorePropertyRecord) {
-  case
-    dict_has(store.staged_state.deleted_store_property_location_ids, id)
-    || dict_has(store.base_state.deleted_store_property_location_ids, id)
-  {
-    True -> None
-    False ->
-      case dict.get(store.staged_state.store_property_locations, id) {
-        Ok(record) -> Some(record)
-        Error(_) ->
-          case dict.get(store.base_state.store_property_locations, id) {
-            Ok(record) -> Some(record)
-            Error(_) -> None
-          }
-      }
-  }
+  effective_get(store_property_location_slice(store), id)
 }
 
 pub fn list_effective_store_property_locations(
   store: Store,
 ) -> List(StorePropertyRecord) {
-  let ordered_ids =
-    append_unique_ids(
-      store.base_state.store_property_location_order,
-      store.staged_state.store_property_location_order,
-    )
-  let ordered =
-    ordered_ids
-    |> list.filter_map(fn(id) {
-      case get_effective_store_property_location_by_id(store, id) {
-        Some(record) -> Ok(record)
-        None -> Error(Nil)
-      }
-    })
-  let ordered_lookup =
-    list.fold(ordered_ids, dict.new(), fn(acc, id) {
-      dict.insert(acc, id, True)
-    })
-  let extras =
-    dict.to_list(store.base_state.store_property_locations)
-    |> list.append(dict.to_list(store.staged_state.store_property_locations))
-    |> list.filter_map(fn(pair) {
-      let #(id, _) = pair
-      case dict_has(ordered_lookup, id) {
-        True -> Error(Nil)
-        False ->
-          case get_effective_store_property_location_by_id(store, id) {
-            Some(record) -> Ok(record)
-            None -> Error(Nil)
-          }
-      }
-    })
-    |> sort_store_property_records
-  list.append(ordered, extras)
+  effective_list(store_property_location_slice(store), fn(record) { record.id })
 }
 
 pub fn upsert_base_business_entity(
@@ -827,10 +722,6 @@ pub fn get_store_property_mutation_payload(
         Error(_) -> None
       }
   }
-}
-
-fn append_unique_ids(left: List(String), right: List(String)) -> List(String) {
-  list.fold(right, left, append_unique_id)
 }
 
 fn sort_store_property_records(

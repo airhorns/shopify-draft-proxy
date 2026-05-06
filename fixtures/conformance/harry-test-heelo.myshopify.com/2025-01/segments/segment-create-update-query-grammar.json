@@ -1,0 +1,576 @@
+{
+  "capturedAt": "2026-05-06T18:09:26.079Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateCustomerCountriesAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar Customer countries segment-query-grammar-1778090963061",
+          "query": "customer_countries CONTAINS 'CA'"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550187314",
+                "name": "Query grammar Customer countries segment-query-grammar-1778090963061",
+                "query": "customer_countries CONTAINS 'CA'",
+                "creationDate": "2026-05-06T18:09:23Z",
+                "lastEditDate": "2026-05-06T18:09:23Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateAmountSpentAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar Amount spent segment-query-grammar-1778090963061",
+          "query": "amount_spent > 100"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550220082",
+                "name": "Query grammar Amount spent segment-query-grammar-1778090963061",
+                "query": "amount_spent > 100",
+                "creationDate": "2026-05-06T18:09:23Z",
+                "lastEditDate": "2026-05-06T18:09:23Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateCompaniesNullAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar Companies null segment-query-grammar-1778090963061",
+          "query": "companies IS NULL"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550252850",
+                "name": "Query grammar Companies null segment-query-grammar-1778090963061",
+                "query": "companies IS NULL",
+                "creationDate": "2026-05-06T18:09:24Z",
+                "lastEditDate": "2026-05-06T18:09:24Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateAndAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar Multi clause and segment-query-grammar-1778090963061",
+          "query": "number_of_orders >= 1 AND customer_countries CONTAINS 'CA'"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550285618",
+                "name": "Query grammar Multi clause and segment-query-grammar-1778090963061",
+                "query": "number_of_orders >= 1 AND customer_countries CONTAINS 'CA'",
+                "creationDate": "2026-05-06T18:09:24Z",
+                "lastEditDate": "2026-05-06T18:09:24Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateParenthesizedOrAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar Parenthesized or segment-query-grammar-1778090963061",
+          "query": "(number_of_orders >= 1) OR (number_of_orders = 0)"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550318386",
+                "name": "Query grammar Parenthesized or segment-query-grammar-1778090963061",
+                "query": "(number_of_orders >= 1) OR (number_of_orders = 0)",
+                "creationDate": "2026-05-06T18:09:24Z",
+                "lastEditDate": "2026-05-06T18:09:24Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateRelativeDateAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar Relative date segment-query-grammar-1778090963061",
+          "query": "last_order_date >= -30d"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550351154",
+                "name": "Query grammar Relative date segment-query-grammar-1778090963061",
+                "query": "last_order_date >= -30d",
+                "creationDate": "2026-05-06T18:09:24Z",
+                "lastEditDate": "2026-05-06T18:09:24Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateUpdateSetup",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar update setup segment-query-grammar-1778090963061",
+          "query": "number_of_orders >= 1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550383922",
+                "name": "Query grammar update setup segment-query-grammar-1778090963061",
+                "query": "number_of_orders >= 1",
+                "creationDate": "2026-05-06T18:09:24Z",
+                "lastEditDate": "2026-05-06T18:09:24Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateCustomerCountriesAccept",
+      "request": {
+        "query": "#graphql\n  mutation SegmentUpdateQueryGrammar($id: ID!, $query: String) {\n    segmentUpdate(id: $id, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550383922",
+          "query": "customer_countries CONTAINS 'CA'"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": {
+                "id": "gid://shopify/Segment/648550383922",
+                "name": "Query grammar update setup segment-query-grammar-1778090963061",
+                "query": "customer_countries CONTAINS 'CA'",
+                "creationDate": "2026-05-06T18:09:24Z",
+                "lastEditDate": "2026-05-06T18:09:24Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentCreateMalformedRejected",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "Query grammar malformed segment-query-grammar-1778090963061",
+          "query": "not a valid segment query ???"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": null,
+              "userErrors": [
+                {
+                  "field": ["query"],
+                  "message": "Query Line 1 Column 6: 'valid' is unexpected."
+                },
+                {
+                  "field": ["query"],
+                  "message": "Query Line 1 Column 4: 'a' filter cannot be found."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup1",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550187314"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550187314",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup2",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550220082"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550220082",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup3",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550252850"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550252850",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup4",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550285618"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550285618",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup5",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550318386"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550318386",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup6",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550351154"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550351154",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCreateUpdateGrammarCleanup7",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDeleteQueryGrammarCleanup($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/648550383922"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/648550383922",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence that broader segment query grammar is accepted by segmentCreate and segmentUpdate.",
+    "Accepted branches cover customer country, amount spent, IS NULL, AND, parenthesized OR, and relative date predicates. The malformed branch captures Shopify query userErrors.",
+    "The public Admin API versions tested during capture reject the `country` and `total_spent` aliases, while the proxy still accepts them optimistically for callers that follow those aliases.",
+    "Disposable segments created for this capture are deleted in cleanup cases."
+  ],
+  "upstreamCalls": []
+}
