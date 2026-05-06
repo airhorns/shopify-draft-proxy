@@ -1,0 +1,29 @@
+query MetaobjectDefinitionUpdateCapabilityInvariantsRead($id: ID!) {
+  metaobjectDefinition(id: $id) {
+    id
+    type
+    name
+    capabilities {
+      publishable {
+        enabled
+      }
+      translatable {
+        enabled
+      }
+      renderable {
+        enabled
+      }
+      onlineStore {
+        enabled
+      }
+    }
+    fieldDefinitions {
+      key
+      type {
+        name
+        category
+      }
+    }
+    metaobjectsCount
+  }
+}
