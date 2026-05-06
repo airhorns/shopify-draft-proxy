@@ -13,12 +13,14 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
-  type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
+  type InventoryQuantityRecord, type InventoryTransferRecord,
+  type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductRecord,
   type ProductVariantRecord, type SellingPlanGroupRecord, CollectionRecord,
   CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
   InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
+  InventoryTransferLineItemRecord, InventoryTransferRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
   MetafieldDefinitionValidationRecord, ProductCollectionRecord,
@@ -2956,7 +2958,11 @@ pub fn product_set_rejects_invalid_variant_scalars_test() {
 
 pub fn inventory_shipment_extended_roots_stage_locally_test() {
   let proxy = draft_proxy.new()
-  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_transfer("READY_TO_SHIP", 5),
+    )
   let create_query =
     "mutation { inventoryShipmentCreate(input: { movementId: \\\"gid://shopify/InventoryTransfer/7001\\\", trackingInput: { trackingNumber: \\\"1Z999\\\", company: \\\"UPS\\\" }, lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryShipment { id status lineItemTotalQuantity tracking { trackingNumber company } lineItems(first: 10) { nodes { id quantity unreceivedQuantity } } } userErrors { field message code } } }"
 
@@ -3022,6 +3028,196 @@ pub fn inventory_shipment_extended_roots_stage_locally_test() {
   assert remove_entry.operation_name == Some("inventoryShipmentRemoveItems")
   assert string.contains(create_entry.query, "inventoryShipmentCreate")
   assert string.contains(remove_entry.query, "inventoryShipmentRemoveItems")
+}
+
+pub fn inventory_shipment_create_validates_transfer_membership_and_quantity_test() {
+  let unknown_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/missing\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(unknown_status, unknown_body, unknown_proxy) =
+    run_product_mutation(tracked_inventory_store(), unknown_query)
+  assert unknown_status == 200
+  assert unknown_body
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":null,\"userErrors\":[{\"field\":[\"transferId\"],\"message\":\"The specified inventory transfer could not be found.\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [unknown_entry] = store.get_log(unknown_proxy.store)
+  assert unknown_entry.status == store_types.Failed
+
+  let received_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(received_status, received_body, received_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("RECEIVED", 2),
+      received_query,
+    )
+  assert received_status == 200
+  assert string.contains(received_body, "\"code\":\"INVALID_STATE\"")
+  let assert [received_entry] = store.get_log(received_proxy.store)
+  assert received_entry.status == store_types.Failed
+
+  let wrong_line_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/not-member\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(wrong_line_status, wrong_line_body, wrong_line_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+      wrong_line_query,
+    )
+  assert wrong_line_status == 200
+  assert wrong_line_body
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"inventoryTransferLineItemId\"],\"message\":\"The specified inventory transfer line item could not be found.\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [wrong_line_entry] = store.get_log(wrong_line_proxy.store)
+  assert wrong_line_entry.status == store_types.Failed
+
+  let quantity_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 3 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(quantity_status, quantity_body, quantity_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+      quantity_query,
+    )
+  assert quantity_status == 200
+  assert quantity_body
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"quantity\"],\"message\":\"Quantity exceeds the remaining quantity for the inventory transfer line item.\",\"code\":\"QUANTITY_EXCEEDS_REMAINING\"}]}}}"
+  let assert [quantity_entry] = store.get_log(quantity_proxy.store)
+  assert quantity_entry.status == store_types.Failed
+}
+
+pub fn inventory_shipment_mutators_validate_state_and_remaining_quantity_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+    )
+  let create_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id lineItems(first: 5) { nodes { id quantity } } } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let add_query =
+    "mutation { inventoryShipmentAddItems(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }]) { inventoryShipment { id } addedItems { id } userErrors { field message code } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert add_status == 200
+  assert string.contains(
+    json.to_string(add_body),
+    "\"code\":\"QUANTITY_EXCEEDS_REMAINING\"",
+  )
+
+  let update_query =
+    "mutation { inventoryShipmentUpdateItemQuantities(id: \\\"gid://shopify/InventoryShipment/1\\\", items: [{ shipmentLineItemId: \\\"gid://shopify/InventoryShipmentLineItem/2\\\", quantity: 3 }]) { shipment { id } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert string.contains(
+    json.to_string(update_body),
+    "\"code\":\"QUANTITY_EXCEEDS_REMAINING\"",
+  )
+
+  let receive_query =
+    "mutation { inventoryShipmentReceive(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ shipmentLineItemId: \\\"gid://shopify/InventoryShipmentLineItem/2\\\", quantity: 1, reason: ACCEPTED }]) { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(Response(status: receive_status, body: receive_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(receive_query))
+  assert receive_status == 200
+  assert string.contains(
+    json.to_string(receive_body),
+    "\"code\":\"INVALID_STATE\"",
+  )
+
+  let transit_query =
+    "mutation { inventoryShipmentMarkInTransit(id: \\\"gid://shopify/InventoryShipment/1\\\") { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(Response(status: transit_status, body: transit_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(transit_query))
+  assert transit_status == 200
+  assert string.contains(json.to_string(transit_body), "\"userErrors\":[]")
+
+  let repeated_transit_query =
+    "mutation { inventoryShipmentMarkInTransit(id: \\\"gid://shopify/InventoryShipment/1\\\") { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(
+    Response(status: repeated_transit_status, body: repeated_transit_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(proxy, graphql_request(repeated_transit_query))
+  assert repeated_transit_status == 200
+  assert string.contains(
+    json.to_string(repeated_transit_body),
+    "\"code\":\"INVALID_STATE\"",
+  )
+
+  let receive_after_transit_query =
+    "mutation { inventoryShipmentReceive(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ shipmentLineItemId: \\\"gid://shopify/InventoryShipmentLineItem/2\\\", quantity: 1, reason: ACCEPTED }]) { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(
+    Response(
+      status: receive_after_transit_status,
+      body: receive_after_transit_body,
+      ..,
+    ),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(receive_after_transit_query),
+    )
+  assert receive_after_transit_status == 200
+  assert string.contains(
+    json.to_string(receive_after_transit_body),
+    "\"status\":\"RECEIVED\"",
+  )
+  assert string.contains(
+    json.to_string(receive_after_transit_body),
+    "\"userErrors\":[]",
+  )
+
+  let delete_received_query =
+    "mutation { inventoryShipmentDelete(id: \\\"gid://shopify/InventoryShipment/1\\\") { deletedInventoryShipmentId userErrors { field message code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_received_query))
+  assert delete_status == 200
+  assert string.contains(
+    json.to_string(delete_body),
+    "\"code\":\"INVALID_STATE\"",
+  )
+
+  let assert [
+    create_entry,
+    add_entry,
+    update_entry,
+    receive_entry,
+    transit_entry,
+    repeated_transit_entry,
+    receive_after_transit_entry,
+    delete_received_entry,
+  ] = store.get_log(proxy.store)
+  assert create_entry.status == store_types.Staged
+  assert add_entry.status == store_types.Failed
+  assert update_entry.status == store_types.Failed
+  assert receive_entry.status == store_types.Failed
+  assert transit_entry.status == store_types.Staged
+  assert repeated_transit_entry.status == store_types.Failed
+  assert receive_after_transit_entry.status == store_types.Staged
+  assert delete_received_entry.status == store_types.Failed
+}
+
+pub fn inventory_shipment_tracking_validates_carrier_and_url_test() {
+  let query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", trackingInput: { carrier: BAD_CARRIER, url: \\\"not-a-url\\\" }, lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+      query,
+    )
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"field\":[\"input\",\"trackingInput\",\"carrier\"]",
+  )
+  assert string.contains(
+    body,
+    "\"field\":[\"input\",\"trackingInput\",\"url\"]",
+  )
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
 }
 
 pub fn inventory_set_quantities_validates_name_quantity_and_duplicates_test() {
@@ -3737,6 +3933,43 @@ fn tracked_inventory_level() -> InventoryLevelRecord {
 
 fn tracked_inventory_store() -> store.Store {
   tracked_inventory_store_with_levels([tracked_inventory_level()])
+}
+
+fn tracked_inventory_store_with_transfer(
+  status: String,
+  quantity: Int,
+) -> store.Store {
+  tracked_inventory_store()
+  |> store.upsert_base_inventory_transfers([
+    inventory_transfer(status, quantity),
+  ])
+}
+
+fn inventory_transfer(
+  status: String,
+  quantity: Int,
+) -> InventoryTransferRecord {
+  InventoryTransferRecord(
+    id: "gid://shopify/InventoryTransfer/7001",
+    name: "#T7001",
+    reference_name: Some("shipment validation"),
+    status: status,
+    note: None,
+    tags: [],
+    date_created: "2024-01-01T00:00:00.000Z",
+    origin: None,
+    destination: None,
+    line_items: [
+      InventoryTransferLineItemRecord(
+        id: "gid://shopify/InventoryTransferLineItem/7001",
+        inventory_item_id: "gid://shopify/InventoryItem/tracked",
+        title: Some("Tracked Product"),
+        total_quantity: quantity,
+        shipped_quantity: 0,
+        picked_for_shipment_quantity: 0,
+      ),
+    ],
+  )
 }
 
 fn tracked_inventory_store_with_total_inventory(
