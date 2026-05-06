@@ -1,0 +1,110 @@
+{
+  "scenarioId": "customer-set-email-phone-upsert",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "upsert-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.upsert.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Covers customerSet identifier.email create/update and identifier.phone create/update using the captured request bodies. Follow-up requests reuse state staged by earlier runner requests rather than pre-seeding.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerSet.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerSet locally and returns stable synthetic Customer GIDs instead of Shopify's live Customer GIDs."
+      },
+      {
+        "path": "$.customerSet.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet with deterministic local timestamps while Shopify returns live write timestamps."
+      },
+      {
+        "path": "$.customerSet.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet with deterministic local timestamps while Shopify returns live write timestamps."
+      }
+    ],
+    "targets": [
+      {
+        "name": "email-upsert-create",
+        "capturePath": "$.upsert.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "email-upsert-update",
+        "capturePath": "$.updateByEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.updateByEmail.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSet.customer.addressesV2.nodes[*].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy mints synthetic MailingAddress IDs for staged replacement addresses."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.customerSet.customer.addressesV2.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the proxy derives stable local cursors."
+          }
+        ]
+      },
+      {
+        "name": "empty-address-replacement",
+        "capturePath": "$.clearAddresses.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerSet.customer.id"
+              }
+            },
+            "input": {
+              "email": "hermes-customerset-upsert-1777169079011@example.com",
+              "addresses": []
+            }
+          }
+        }
+      },
+      {
+        "name": "phone-upsert-create",
+        "capturePath": "$.phoneUpsert.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.phoneUpsert.variables"
+        }
+      },
+      {
+        "name": "phone-upsert-update",
+        "capturePath": "$.phoneUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.phoneUpdate.variables"
+        }
+      }
+    ]
+  }
+}

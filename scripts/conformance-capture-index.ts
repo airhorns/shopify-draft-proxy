@@ -419,6 +419,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-bundle-create-validation',
+    scriptPath: 'scripts/capture-product-bundle-create-validation-conformance.ts',
+    purpose:
+      'productBundleCreate component product lookup, option mapping, quantity maximum, quantityOption, consolidatedOptions, and ProductBundleOperation readback behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productBundleCreate-validation.json`,
+      'config/parity-specs/products/productBundleCreate-validation.json',
+      'config/parity-requests/products/productBundleCreate-validation.graphql',
+      'config/parity-requests/products/productBundleOperation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable component product with product options; bundle validation branches create no products and the setup product is deleted in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-handle-dedup',
     scriptPath: 'scripts/capture-product-handle-dedup-conformance.mts',
     purpose:
@@ -766,6 +783,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-create-with-pin-guards',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-create-with-pin-guards.mts',
+    purpose:
+      'metafieldDefinitionCreate(pin: true) pin-limit and constrained-definition validation, plus constrained standardMetafieldDefinitionEnable(pin: true).',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-create-with-pin-guards.json`,
+      'config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json',
+      'config/parity-requests/metafields/metafield-definition-create-with-pin-guards.graphql',
+      'config/parity-requests/metafields/metafield-definition-create-with-pin-guards-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The live standard-enable pin-cap branch currently creates an unpinned definition on the 2026-04 target, so this capture records the constrained standard-enable branch while runtime tests cover the ticket-required cap behavior.',
   },
   {
     domain: 'metafields',

@@ -869,36 +869,27 @@ pub fn handle_customer_set(
   let identifier =
     graphql_helpers.read_arg_object(args, "identifier")
     |> option.unwrap(dict.new())
-  let address_errors = validate_customer_address_inputs(input, ["input"])
-  case address_errors {
-    [_, ..] as errors -> {
-      let payload =
-        customer_payload_json(
-          store,
-          "CustomerSetPayload",
-          None,
-          None,
-          None,
-          errors,
-          field,
-          fragments,
-        )
-      #(
-        MutationFieldResult(
-          get_field_response_key(field),
-          payload,
-          [],
-          "customerSet",
-        ),
-        store,
-        identity,
-      )
-    }
-    [] ->
-      case read_obj_string(identifier, "id") {
-        Some(customer_id) ->
-          case store.get_effective_customer_by_id(store, customer_id) {
-            Some(existing) ->
+  case read_obj_string(identifier, "id") {
+    Some(customer_id) ->
+      case store.get_effective_customer_by_id(store, customer_id) {
+        Some(existing) ->
+          case
+            customer_set_preflight_errors(
+              store,
+              input,
+              identifier,
+              Some(existing),
+            )
+          {
+            [_, ..] as errors ->
+              customer_set_error_result(
+                store,
+                identity,
+                field,
+                fragments,
+                errors,
+              )
+            [] ->
               update_from_set(
                 store,
                 identity,
@@ -907,11 +898,17 @@ pub fn handle_customer_set(
                 input,
                 existing,
               )
-            None ->
-              customer_set_unknown_id_result(store, identity, field, fragments)
           }
         None ->
-          case find_customer_by_customer_set_identifier(store, identifier) {
+          customer_set_unknown_id_result(store, identity, field, fragments)
+      }
+    None -> {
+      let existing = find_customer_by_customer_set_identifier(store, identifier)
+      case customer_set_preflight_errors(store, input, identifier, existing) {
+        [_, ..] as errors ->
+          customer_set_error_result(store, identity, field, fragments, errors)
+        [] ->
+          case existing {
             Some(existing) ->
               update_from_set(
                 store,
@@ -924,6 +921,185 @@ pub fn handle_customer_set(
             None -> create_from_set(store, identity, field, fragments, input)
           }
       }
+    }
+  }
+}
+
+@internal
+pub fn customer_set_error_result(store, identity, field, fragments, errors) {
+  let payload =
+    customer_payload_json(
+      store,
+      "CustomerSetPayload",
+      None,
+      None,
+      None,
+      errors,
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [],
+      "customerSet",
+    ),
+    store,
+    identity,
+  )
+}
+
+@internal
+pub fn customer_set_preflight_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  identifier: Dict(String, root_field.ResolvedValue),
+  existing: Option(CustomerRecord),
+) -> List(UserError) {
+  list.flatten([
+    validate_customer_address_inputs(input, ["input"]),
+    customer_set_tax_exempt_null_errors(input),
+    customer_set_identifier_alignment_errors(input, identifier),
+    customer_set_create_identity_errors(input, existing),
+    customer_set_duplicate_identity_errors(store, input, existing),
+  ])
+}
+
+@internal
+pub fn customer_set_tax_exempt_null_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "taxExempt") {
+    Ok(root_field.NullVal) -> [
+      UserError(
+        ["input", "taxExempt"],
+        "Tax exempt is of unexpected type NilClass",
+        None,
+      ),
+    ]
+    _ -> []
+  }
+}
+
+@internal
+pub fn customer_set_identifier_alignment_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  identifier: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  list.append(
+    customer_set_identifier_value_errors(input, identifier, "email"),
+    customer_set_identifier_value_errors(input, identifier, "phone"),
+  )
+}
+
+@internal
+pub fn customer_set_identifier_value_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  identifier: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(UserError) {
+  case read_obj_string(identifier, key) {
+    Some(identifier_value) ->
+      case read_obj_string(input, key) {
+        None -> [
+          UserError(
+            ["input"],
+            "The input field corresponding to the identifier is required.",
+            None,
+          ),
+        ]
+        Some(input_value) if input_value != identifier_value -> [
+          UserError(
+            ["input"],
+            "The identifier value does not match the value of the corresponding field in the input.",
+            None,
+          ),
+        ]
+        Some(_) -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn customer_set_create_identity_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CustomerRecord),
+) -> List(UserError) {
+  case existing {
+    Some(_) -> []
+    None ->
+      case customer_set_input_has_identity(input) {
+        True -> []
+        False -> [
+          UserError(
+            ["input"],
+            "A name, phone number, or email address must be present",
+            None,
+          ),
+        ]
+      }
+  }
+}
+
+@internal
+pub fn customer_set_input_has_identity(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  option_has_text(read_obj_string(input, "firstName"))
+  || option_has_text(read_obj_string(input, "lastName"))
+  || option_has_text(read_obj_string(input, "email"))
+  || option_has_text(read_obj_string(input, "phone"))
+}
+
+@internal
+pub fn customer_set_duplicate_identity_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CustomerRecord),
+) -> List(UserError) {
+  case existing {
+    Some(_) -> []
+    None ->
+      list.append(
+        customer_set_duplicate_email_errors(store, input),
+        customer_set_duplicate_phone_errors(store, input),
+      )
+  }
+}
+
+@internal
+pub fn customer_set_duplicate_email_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_string(input, "email") {
+    Some(email) ->
+      case customer_email_exists(store, email, None) {
+        True -> [
+          UserError(["input", "email"], "Email has already been taken", None),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn customer_set_duplicate_phone_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_string(input, "phone") {
+    Some(phone) ->
+      case customer_phone_exists(store, phone, None) {
+        True -> [
+          UserError(["input", "phone"], "Phone has already been taken", None),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -945,13 +1121,16 @@ pub fn find_customer_by_customer_set_identifier(
 pub fn update_from_set(store, identity, field, fragments, input, existing) {
   let #(timestamp, after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity)
-  let updated = update_customer_from_input(existing, input, timestamp)
-  let #(stored, next_store) = store.stage_update_customer(store, updated)
+  let updated = update_customer_from_set_input(existing, input, timestamp)
+  let #(stored, store_after_customer) =
+    store.stage_update_customer(store, updated)
+  let #(payload_customer, next_store) =
+    replace_customer_set_input_addresses(store_after_customer, stored, input)
   let payload =
     customer_payload_json(
       next_store,
       "CustomerSetPayload",
-      Some(stored),
+      Some(payload_customer),
       None,
       None,
       [],
@@ -962,7 +1141,7 @@ pub fn update_from_set(store, identity, field, fragments, input, existing) {
     MutationFieldResult(
       get_field_response_key(field),
       payload,
-      [stored.id],
+      [payload_customer.id],
       "customerSet",
     ),
     next_store,
@@ -980,7 +1159,11 @@ pub fn customer_set_unknown_id_result(store, identity, field, fragments) {
       None,
       None,
       [
-        UserError(["input", "id"], "Customer does not exist", Some("INVALID")),
+        UserError(
+          ["input"],
+          "Resource matching the identifier was not found.",
+          Some("INVALID"),
+        ),
       ],
       field,
       fragments,
@@ -1144,6 +1327,58 @@ pub fn update_customer_from_input(
     },
     updated_at: Some(timestamp),
   )
+}
+
+@internal
+pub fn update_customer_from_set_input(
+  existing: CustomerRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  timestamp: String,
+) -> CustomerRecord {
+  let updated = update_customer_from_input(existing, input, timestamp)
+  CustomerRecord(
+    ..updated,
+    tax_exemptions: update_customer_set_string_list(
+      existing.tax_exemptions,
+      input,
+      "taxExemptions",
+    ),
+    tags: case read_present_string_list(input, "tags") {
+      Some(values) -> normalize_tags(values)
+      None -> updated.tags
+    },
+  )
+}
+
+@internal
+pub fn update_customer_set_string_list(
+  existing: List(String),
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(String) {
+  case read_present_string_list(input, key) {
+    Some(values) -> values
+    None -> existing
+  }
+}
+
+@internal
+pub fn read_present_string_list(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(List(String)) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.StringVal(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+      |> Some
+    _ -> None
+  }
 }
 
 @internal
@@ -2025,47 +2260,63 @@ pub fn replace_customer_input_addresses(
   customer: CustomerRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> #(CustomerRecord, Store) {
-  let address_inputs = read_obj_addresses(input)
-  case address_inputs {
-    [] -> #(customer, store)
-    _ -> {
-      let store_after_deletes =
-        store.list_effective_customer_addresses(store, customer.id)
-        |> list.fold(store, fn(acc, address) {
-          store.stage_delete_customer_address(acc, address.id)
-        })
-      let addresses =
-        address_inputs
-        |> list.index_map(fn(address_input, index) {
-          build_address(
-            "gid://shopify/MailingAddress/" <> int.to_string(index + 1),
-            customer.id,
-            index,
-            address_input,
-            customer.first_name,
-            customer.last_name,
-          )
-        })
-        |> dedupe_customer_addresses([])
-      let store_after_addresses =
-        list.fold(addresses, store_after_deletes, fn(acc, address) {
-          let #(_, next_store) =
-            store.stage_upsert_customer_address(acc, address)
-          next_store
-        })
-      let default_address =
-        addresses
-        |> list.first()
-        |> result_to_option()
-        |> option.map(address_to_default)
-      let customer_after_addresses =
-        CustomerRecord(..customer, default_address: default_address)
-      let #(stored, final_store) =
-        store.stage_update_customer(
-          store_after_addresses,
-          customer_after_addresses,
-        )
-      #(stored, final_store)
-    }
+  case dict.get(input, "addresses") {
+    Ok(root_field.ListVal([_, ..])) ->
+      replace_customer_addresses(store, customer, read_obj_addresses(input))
+    _ -> #(customer, store)
   }
+}
+
+@internal
+pub fn replace_customer_set_input_addresses(
+  store: Store,
+  customer: CustomerRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(CustomerRecord, Store) {
+  case dict.get(input, "addresses") {
+    Ok(root_field.ListVal(_)) ->
+      replace_customer_addresses(store, customer, read_obj_addresses(input))
+    _ -> #(customer, store)
+  }
+}
+
+@internal
+pub fn replace_customer_addresses(
+  store: Store,
+  customer: CustomerRecord,
+  address_inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> #(CustomerRecord, Store) {
+  let store_after_deletes =
+    store.list_effective_customer_addresses(store, customer.id)
+    |> list.fold(store, fn(acc, address) {
+      store.stage_delete_customer_address(acc, address.id)
+    })
+  let addresses =
+    address_inputs
+    |> list.index_map(fn(address_input, index) {
+      build_address(
+        "gid://shopify/MailingAddress/" <> int.to_string(index + 1),
+        customer.id,
+        index,
+        address_input,
+        customer.first_name,
+        customer.last_name,
+      )
+    })
+    |> dedupe_customer_addresses([])
+  let store_after_addresses =
+    list.fold(addresses, store_after_deletes, fn(acc, address) {
+      let #(_, next_store) = store.stage_upsert_customer_address(acc, address)
+      next_store
+    })
+  let default_address =
+    addresses
+    |> list.first()
+    |> result_to_option()
+    |> option.map(address_to_default)
+  let customer_after_addresses =
+    CustomerRecord(..customer, default_address: default_address)
+  let #(stored, final_store) =
+    store.stage_update_customer(store_after_addresses, customer_after_addresses)
+  #(stored, final_store)
 }
