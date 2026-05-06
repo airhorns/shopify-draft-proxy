@@ -37,7 +37,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
   captured_array_field, captured_connection, captured_field,
-  captured_string_field, option_to_captured_string, read_object,
+  captured_string_field, option_to_captured_string, read_bool, read_object,
   read_object_array, read_string, read_string_array, resolved_args,
   update_fulfillment_order_fields,
 }
@@ -111,6 +111,9 @@ pub fn handle_fulfillment_order_hold(
                   Some(fulfillment_order_hold_handle(hold_input)),
                   read_string(hold_input, "reason"),
                   read_string(hold_input, "reasonNotes"),
+                  read_string(hold_input, "externalId"),
+                  read_bool(hold_input, "notifyMerchant")
+                    |> option.unwrap(False),
                 )
               let remaining_quantity =
                 max_int(

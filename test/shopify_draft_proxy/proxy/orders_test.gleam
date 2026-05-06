@@ -2646,6 +2646,131 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
     == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"fulfillmentHolds\":[]},{\"status\":\"CLOSED\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[]}}}"
 }
 
+pub fn orders_fulfillment_order_hold_persists_external_id_and_notify_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-hold-inputs"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-inputs"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      "gid://shopify/FulfillmentOrderLineItem/hold-inputs",
+      "gid://shopify/LineItem/fulfillment-order-hold-inputs",
+    )
+  let hold_mutation =
+    "
+    mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+      fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+        fulfillmentHold {
+          handle
+          externalId
+          __draftProxyNotifyMerchant
+        }
+        fulfillmentOrder {
+          status
+          fulfillmentHolds {
+            handle
+            externalId
+            __draftProxyNotifyMerchant
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let first_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("h1")),
+              #("externalId", root_field.StringVal("abc-123")),
+              #("notifyMerchant", root_field.BoolVal(True)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true}]},\"userErrors\":[]}}}"
+
+  let second_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("h2")),
+              #("externalId", root_field.NullVal),
+              #("notifyMerchant", root_field.BoolVal(False)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query HeldReads($id: ID!, $first: Int!) {
+      order(id: $id) {
+        fulfillmentOrders(first: $first) {
+          nodes {
+            status
+            fulfillmentHolds {
+              handle
+              externalId
+              __draftProxyNotifyMerchant
+            }
+          }
+        }
+      }
+      manualHoldsFulfillmentOrders(first: $first) {
+        nodes {
+          status
+          fulfillmentHolds {
+            handle
+            externalId
+            __draftProxyNotifyMerchant
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(held_read) =
+    orders.process(
+      second_outcome.store,
+      read_query,
+      dict.from_list([
+        #("id", root_field.StringVal(order_id)),
+        #("first", root_field.IntVal(5)),
+      ]),
+    )
+  assert json.to_string(held_read)
+    == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false}]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false}]}]}}}"
+}
+
 pub fn orders_fulfillment_order_hold_validation_branches_test() {
   let order_id = "gid://shopify/Order/fulfillment-order-hold-validation"
   let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-validation"
