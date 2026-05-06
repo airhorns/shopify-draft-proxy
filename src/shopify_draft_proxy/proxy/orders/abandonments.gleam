@@ -20,6 +20,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_field_response_key,
 }
 
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, RequiredArgument, single_root_log_draft,
   validate_required_field_arguments,
@@ -29,17 +30,19 @@ import shopify_draft_proxy/proxy/orders/common.{
   serialize_user_error, user_error,
 }
 import shopify_draft_proxy/proxy/orders/serializers.{serialize_abandonment_node}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/state/iso_timestamp
 
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type AbandonmentDeliveryActivityRecord, type AbandonmentRecord,
-  AbandonmentDeliveryActivityRecord,
+  AbandonmentDeliveryActivityRecord, AbandonmentRecord, CapturedNull,
+  CapturedObject, CapturedString,
 }
 
 @internal
@@ -109,6 +112,7 @@ pub fn handle_abandonment_delivery_status(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(
   String,
   Json,
@@ -145,6 +149,12 @@ pub fn handle_abandonment_delivery_status(
       case abandonment_id, marketing_activity_id, delivery_status {
         Some(abandonment_id), Some(marketing_activity_id), Some(delivery_status)
         -> {
+          let store =
+            maybe_hydrate_abandonment_for_delivery_status(
+              store,
+              abandonment_id,
+              upstream,
+            )
           let activity =
             AbandonmentDeliveryActivityRecord(
               marketing_activity_id: marketing_activity_id,
@@ -236,6 +246,154 @@ pub fn handle_abandonment_delivery_status(
           unknown_abandonment_result(key, store, identity, field, fragments)
       }
     }
+  }
+}
+
+const abandonment_delivery_hydrate_query: String = "
+query OrdersAbandonmentDeliveryHydrate($id: ID!) {
+  abandonment(id: $id) {
+    id
+    emailState
+    emailSentAt
+  }
+}
+"
+
+fn maybe_hydrate_abandonment_for_delivery_status(
+  store: Store,
+  abandonment_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_proxy_synthetic_gid(abandonment_id)
+    || option.is_some(store.get_abandonment_by_id(store, abandonment_id))
+  {
+    True -> store
+    False -> {
+      let variables = json.object([#("id", json.string(abandonment_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "OrdersAbandonmentDeliveryHydrate",
+          abandonment_delivery_hydrate_query,
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_abandonment_delivery_response(store, value)
+        Error(_) -> store
+      }
+    }
+  }
+}
+
+fn hydrate_abandonment_delivery_response(
+  store: Store,
+  body: commit.JsonValue,
+) -> Store {
+  case json_get(body, "data") {
+    Some(data) ->
+      case json_get(data, "abandonment") {
+        Some(commit.JsonObject(_) as node) ->
+          case abandonment_record_from_json(node) {
+            Some(record) -> store.upsert_base_abandonments(store, [record])
+            None -> store
+          }
+        _ -> store
+      }
+    None -> store
+  }
+}
+
+fn abandonment_record_from_json(
+  node: commit.JsonValue,
+) -> Option(AbandonmentRecord) {
+  case json_get_string(node, "id") {
+    Some(id) ->
+      Some(AbandonmentRecord(
+        id: id,
+        abandoned_checkout_id: None,
+        cursor: None,
+        data: CapturedObject([
+          #("id", CapturedString(id)),
+          #(
+            "emailState",
+            option_to_captured_string(json_get_string(node, "emailState")),
+          ),
+          #(
+            "emailSentAt",
+            option_to_captured_string(json_get_string(node, "emailSentAt")),
+          ),
+        ]),
+        delivery_activities: delivery_activities_from_json(node),
+      ))
+    None -> None
+  }
+}
+
+fn delivery_activities_from_json(
+  node: commit.JsonValue,
+) -> Dict(String, AbandonmentDeliveryActivityRecord) {
+  case json_get(node, "deliveryActivities") {
+    Some(commit.JsonArray(items)) ->
+      items
+      |> list.filter_map(delivery_activity_pair_from_json)
+      |> dict.from_list
+    _ -> dict.new()
+  }
+}
+
+fn delivery_activity_pair_from_json(
+  value: commit.JsonValue,
+) -> Result(#(String, AbandonmentDeliveryActivityRecord), Nil) {
+  case json_get_string(value, "marketingActivityId") {
+    Some(marketing_activity_id) ->
+      case json_get_string(value, "deliveryStatus") {
+        Some(delivery_status) ->
+          Ok(#(
+            marketing_activity_id,
+            AbandonmentDeliveryActivityRecord(
+              marketing_activity_id: marketing_activity_id,
+              delivery_status: delivery_status,
+              delivered_at: json_get_string(value, "deliveredAt"),
+              delivery_status_change_reason: json_get_string(
+                value,
+                "deliveryStatusChangeReason",
+              ),
+            ),
+          ))
+        None -> Error(Nil)
+      }
+    None -> Error(Nil)
+  }
+}
+
+fn option_to_captured_string(value: Option(String)) {
+  case value {
+    Some(value) -> CapturedString(value)
+    None -> CapturedNull
+  }
+}
+
+fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
+  case value {
+    commit.JsonObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(field_key, field_value) if field_key == key -> Ok(field_value)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(value)) -> Some(value)
+    _ -> None
   }
 }
 
