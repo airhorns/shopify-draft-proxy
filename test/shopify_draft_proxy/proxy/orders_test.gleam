@@ -7093,6 +7093,7 @@ pub fn orders_order_invoice_send_payload_test() {
         data: types.CapturedObject([
           #("id", types.CapturedString(order_id)),
           #("name", types.CapturedString("#1328")),
+          #("email", types.CapturedString("order-recipient@example.test")),
           #("closed", types.CapturedBool(False)),
           #("closedAt", types.CapturedNull),
           #("cancelledAt", types.CapturedNull),
@@ -7135,6 +7136,126 @@ pub fn orders_order_invoice_send_payload_test() {
     == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"name\":\"#1328\",\"closed\":false,\"closedAt\":null,\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_rejects_empty_recipient_test() {
+  let order_id = "gid://shopify/Order/6830646329580"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1330")),
+          #("email", types.CapturedNull),
+          #("customer", types.CapturedNull),
+        ]),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, dict.new())
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":null,\"userErrors\":[{\"field\":null,\"message\":\"No recipient email address was provided\",\"code\":\"ORDER_INVOICE_SEND_UNSUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_rejects_invalid_explicit_email_test() {
+  let order_id = "gid://shopify/Order/6830646329581"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1331")),
+          #("email", types.CapturedString("order-recipient@example.test")),
+        ]),
+      ),
+    ])
+  let variables =
+    dict.from_list([
+      #(
+        "email",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("to", root_field.StringVal("not an email")),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, variables)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":null,\"userErrors\":[{\"field\":null,\"message\":\"To is invalid\",\"code\":\"ORDER_INVOICE_SEND_UNSUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_invoice_send_customer_email_recipient_test() {
+  let order_id = "gid://shopify/Order/6830646329582"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1332")),
+          #("email", types.CapturedNull),
+          #(
+            "customer",
+            types.CapturedObject([
+              #(
+                "email",
+                types.CapturedString("customer-recipient@example.test"),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let outcome =
+    run_order_invoice_send_validation_case(seeded, order_id, dict.new())
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329582\",\"name\":\"#1332\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+fn run_order_invoice_send_validation_case(
+  seeded: store.Store,
+  order_id: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) {
+  let mutation = "
+    mutation OrderInvoiceSendValidation($email: EmailInput) {
+      orderInvoiceSend(id: \"" <> order_id <> "\", email: $email) {
+        order {
+          id
+          name
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    seeded,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    mutation,
+    variables,
+    empty_upstream_context(),
+  )
 }
 
 pub fn orders_order_mark_as_paid_read_after_write_test() {
