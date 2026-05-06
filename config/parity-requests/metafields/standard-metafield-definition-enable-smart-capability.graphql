@@ -1,0 +1,17 @@
+mutation StandardMetafieldDefinitionEnableSmartCapability {
+  standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    id: "gid://shopify/StandardMetafieldDefinitionTemplate/2"
+    capabilities: { smartCollectionCondition: { enabled: true } }
+  ) {
+    createdDefinition {
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

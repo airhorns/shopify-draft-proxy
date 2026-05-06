@@ -1,0 +1,336 @@
+{
+  "capturedAt": "2026-05-06T01:56:30.375Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "document": "#graphql\n  mutation OrderUpdateInputValidation(\n    $emptyInput: OrderInput!\n    $invalidPhone: OrderInput!\n    $badShippingAddress: OrderInput!\n    $happyNote: OrderInput!\n  ) {\n    emptyInput: orderUpdate(input: $emptyInput) {\n      order {\n        id\n        note\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    invalidPhone: orderUpdate(input: $invalidPhone) {\n      order {\n        id\n        phone\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    badShippingAddress: orderUpdate(input: $badShippingAddress) {\n      order {\n        id\n        shippingAddress {\n          countryCodeV2\n          provinceCode\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    happyNote: orderUpdate(input: $happyNote) {\n      order {\n        id\n        name\n        note\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+  "variables": {
+    "emptyInput": {
+      "id": "gid://shopify/Order/8731451883826"
+    },
+    "invalidPhone": {
+      "id": "gid://shopify/Order/8731451883826",
+      "phone": "not a phone"
+    },
+    "badShippingAddress": {
+      "id": "gid://shopify/Order/8731451883826",
+      "shippingAddress": {
+        "address1": "3 Bad Province",
+        "city": "Chicago",
+        "countryCode": "US",
+        "provinceCode": "ON"
+      }
+    },
+    "happyNote": {
+      "id": "gid://shopify/Order/8731451883826",
+      "note": "orderUpdate input validation happy note"
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "document": "mutation OrderUpdateInputValidationCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        \n  id\n  name\n  updatedAt\n  email\n  phone\n  poNumber\n  note\n  tags\n  customer {\n    id\n    email\n    displayName\n  }\n  customAttributes {\n    key\n    value\n  }\n  shippingAddress {\n    firstName\n    lastName\n    address1\n    address2\n    company\n    city\n    province\n    provinceCode\n    country\n    countryCodeV2\n    zip\n    phone\n  }\n  gift: metafield(namespace: \"custom\", key: \"gift\") {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  metafields(first: 10) {\n    nodes {\n      id\n      namespace\n      key\n      type\n      value\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-update-input-validation-1778032588855@example.com",
+          "note": "orderUpdate input validation baseline",
+          "tags": ["order-update-input-validation", "1778032588855"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "orderUpdate input validation item 1778032588855",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "order-update-validation-1778032588855"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8731451883826",
+              "name": "#1171",
+              "updatedAt": "2026-05-06T01:56:29Z",
+              "email": "order-update-input-validation-1778032588855@example.com",
+              "phone": null,
+              "poNumber": null,
+              "note": "orderUpdate input validation baseline",
+              "tags": ["1778032588855", "order-update-input-validation"],
+              "customer": {
+                "id": "gid://shopify/Customer/10583381213490",
+                "email": "order-update-input-validation-1778032588855@example.com",
+                "displayName": "order-update-input-validation-1778032588855@example.com"
+              },
+              "customAttributes": [],
+              "shippingAddress": null,
+              "gift": null,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "beforeRead": {
+      "document": "query OrderUpdateInputValidationRead($id: ID!) {\n    order(id: $id) {\n      \n  id\n  name\n  updatedAt\n  email\n  phone\n  poNumber\n  note\n  tags\n  customer {\n    id\n    email\n    displayName\n  }\n  customAttributes {\n    key\n    value\n  }\n  shippingAddress {\n    firstName\n    lastName\n    address1\n    address2\n    company\n    city\n    province\n    provinceCode\n    country\n    countryCodeV2\n    zip\n    phone\n  }\n  gift: metafield(namespace: \"custom\", key: \"gift\") {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  metafields(first: 10) {\n    nodes {\n      id\n      namespace\n      key\n      type\n      value\n    }\n  }\n\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8731451883826"
+      },
+      "response": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8731451883826",
+            "name": "#1171",
+            "updatedAt": "2026-05-06T01:56:29Z",
+            "email": "order-update-input-validation-1778032588855@example.com",
+            "phone": null,
+            "poNumber": null,
+            "note": "orderUpdate input validation baseline",
+            "tags": ["1778032588855", "order-update-input-validation"],
+            "customer": {
+              "id": "gid://shopify/Customer/10583381213490",
+              "email": "order-update-input-validation-1778032588855@example.com",
+              "displayName": "order-update-input-validation-1778032588855@example.com"
+            },
+            "customAttributes": [],
+            "shippingAddress": null,
+            "gift": null,
+            "metafields": {
+              "nodes": []
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "emptyInput": {
+          "order": {
+            "id": "gid://shopify/Order/8731451883826",
+            "note": "orderUpdate input validation baseline"
+          },
+          "userErrors": [
+            {
+              "field": null,
+              "message": "No valid update parameters have been provided"
+            }
+          ]
+        },
+        "invalidPhone": {
+          "order": {
+            "id": "gid://shopify/Order/8731451883826",
+            "phone": null
+          },
+          "userErrors": [
+            {
+              "field": ["phone"],
+              "message": "Phone is invalid"
+            }
+          ]
+        },
+        "badShippingAddress": {
+          "order": {
+            "id": "gid://shopify/Order/8731451883826",
+            "shippingAddress": null
+          },
+          "userErrors": [
+            {
+              "field": ["shippingAddress", "lastName"],
+              "message": "Enter a last name"
+            },
+            {
+              "field": ["shippingAddress", "zip"],
+              "message": "Enter a ZIP code"
+            },
+            {
+              "field": ["shippingAddress", "province"],
+              "message": "State is not a valid state in United States"
+            }
+          ]
+        },
+        "happyNote": {
+          "order": {
+            "id": "gid://shopify/Order/8731451883826",
+            "name": "#1171",
+            "note": "orderUpdate input validation happy note"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 41,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1959,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8731451883826"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8731451883826",
+          "name": "#1171",
+          "updatedAt": "2026-05-06T01:56:30Z",
+          "email": "order-update-input-validation-1778032588855@example.com",
+          "phone": null,
+          "poNumber": null,
+          "note": "orderUpdate input validation happy note",
+          "tags": ["1778032588855", "order-update-input-validation"],
+          "customer": {
+            "id": "gid://shopify/Customer/10583381213490",
+            "email": "order-update-input-validation-1778032588855@example.com",
+            "displayName": "order-update-input-validation-1778032588855@example.com"
+          },
+          "customAttributes": [],
+          "shippingAddress": null,
+          "gift": null,
+          "metafields": {
+            "nodes": []
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "document": "mutation OrderUpdateInputValidationCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8731451883826",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": false
+    },
+    "response": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/7cbdb52a-79ce-4c64-9442-5318ecd17394",
+            "done": false
+          },
+          "orderCancelUserErrors": [],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8731451883826"
+      },
+      "query": "hand-synthesized from checked-in setup.beforeRead order response for orderUpdate input validation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8731451883826",
+              "name": "#1171",
+              "updatedAt": "2026-05-06T01:56:29Z",
+              "email": "order-update-input-validation-1778032588855@example.com",
+              "phone": null,
+              "poNumber": null,
+              "note": "orderUpdate input validation baseline",
+              "tags": ["1778032588855", "order-update-input-validation"],
+              "customer": {
+                "id": "gid://shopify/Customer/10583381213490",
+                "email": "order-update-input-validation-1778032588855@example.com",
+                "displayName": "order-update-input-validation-1778032588855@example.com"
+              },
+              "customAttributes": [],
+              "shippingAddress": null,
+              "gift": null,
+              "metafields": {
+                "nodes": []
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

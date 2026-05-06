@@ -3,6 +3,7 @@
 
 import gleam/dict.{type Dict}
 
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -17,6 +18,7 @@ import shopify_draft_proxy/graphql/root_field.{
 }
 import shopify_draft_proxy/graphql/source as graphql_source
 
+import shopify_draft_proxy/proxy/customers/inputs as customer_inputs
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
   default_selected_field_options, get_selected_child_fields,
@@ -40,7 +42,7 @@ import shopify_draft_proxy/proxy/products/inventory_core.{
   read_inventory_quantities_available_total, read_inventory_weight_input,
   read_quantity_field, read_variant_weight_input,
   upsert_product_set_quantity_group, valid_inventory_adjust_quantity_name,
-  valid_staged_inventory_quantity_name,
+  valid_staged_inventory_quantity_name, valid_weight_unit,
   validate_inventory_move_ledger_document_uri,
   variant_top_level_weight_unit_problems, variant_weight_unit_problems,
   variant_weight_value_problems,
@@ -51,7 +53,7 @@ import shopify_draft_proxy/proxy/products/product_types.{
   type InventoryMoveQuantityInput, type InventorySetQuantityInput,
   type NullableFieldUserError, type ProductSetInventoryQuantityInput,
   type ProductUserError, type VariantValidationProblem, BulkVariantUserError,
-  InventoryAdjustmentGroup, InventoryMoveQuantityInput,
+  InventoryAdjustmentGroup, InventoryMoveQuantityInput, NumericValue,
   ProductSetInventoryQuantityInput, ProductUserError, QuantityFloat, QuantityInt,
   QuantityMissing, QuantityNotANumber, QuantityNull, max_inventory_quantity,
   min_inventory_quantity, product_set_inventory_quantities_limit,
@@ -954,6 +956,239 @@ pub fn read_variant_inventory_item(
       )
     }
   }
+}
+
+@internal
+pub fn validate_inventory_item_update_input(
+  input: Dict(String, ResolvedValue),
+  existing: InventoryItemRecord,
+) -> List(ProductUserError) {
+  []
+  |> list.append(validate_inventory_item_update_cost(input))
+  |> list.append(validate_inventory_item_update_weight(input))
+  |> list.append(validate_inventory_item_update_origin(input, existing))
+  |> list.append(validate_inventory_item_update_hs_code(input))
+  |> list.append(validate_inventory_item_update_country_hs_codes(input))
+}
+
+fn validate_inventory_item_update_cost(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  case read_numeric_field(input, "cost") {
+    NumericValue(value) if value <. 0.0 -> [
+      ProductUserError(
+        ["input", "cost"],
+        "Cost must be greater than or equal to 0",
+        Some("INVALID"),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_inventory_item_update_weight(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  case read_object_field(input, "measurement") {
+    Some(measurement) ->
+      case read_object_field(measurement, "weight") {
+        Some(weight) -> {
+          let value_errors = case read_numeric_field(weight, "value") {
+            NumericValue(value) if value <. 0.0 -> [
+              ProductUserError(
+                ["input", "measurement", "weight"],
+                "Measurement weight value "
+                  <> format_inventory_item_weight_value(value)
+                  <> " "
+                  <> inventory_item_weight_unit_label(weight)
+                  <> " must be >= 0 "
+                  <> inventory_item_weight_unit_label(weight),
+                Some("GREATER_THAN_OR_EQUAL_TO"),
+              ),
+            ]
+            _ -> []
+          }
+          let unit_errors = case read_string_field(weight, "unit") {
+            Some(unit) ->
+              case valid_weight_unit(unit) {
+                True -> []
+                False -> [
+                  ProductUserError(
+                    ["input", "measurement", "weight", "unit"],
+                    "Weight unit is not included in the list",
+                    Some("INVALID_INPUT"),
+                  ),
+                ]
+              }
+            None -> []
+          }
+          list.append(value_errors, unit_errors)
+        }
+        None -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_inventory_item_update_origin(
+  input: Dict(String, ResolvedValue),
+  existing: InventoryItemRecord,
+) -> List(ProductUserError) {
+  let country_code =
+    read_string_field(input, "countryCodeOfOrigin")
+    |> option.or(existing.country_code_of_origin)
+  let province_code = read_string_field(input, "provinceCodeOfOrigin")
+  let country_errors = case read_string_field(input, "countryCodeOfOrigin") {
+    Some(code) ->
+      case customer_inputs.country_catalog_by_code(code) {
+        Some(_) -> []
+        None -> [
+          ProductUserError(
+            ["input", "countryCodeOfOrigin"],
+            "Country code of origin is invalid",
+            Some("INVALID"),
+          ),
+        ]
+      }
+    None -> []
+  }
+  let province_errors = case country_errors, country_code, province_code {
+    [], Some(code), Some(province) ->
+      case customer_inputs.country_catalog_by_code(code) {
+        Some(#(_, _, zones)) ->
+          case customer_inputs.zone_name_by_code(zones, province) {
+            Some(_) -> []
+            None -> [
+              ProductUserError(
+                ["input", "provinceCodeOfOrigin"],
+                "Province is invalid",
+                Some("INVALID"),
+              ),
+            ]
+          }
+        None -> []
+      }
+    _, _, _ -> []
+  }
+  list.append(country_errors, province_errors)
+}
+
+fn validate_inventory_item_update_hs_code(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  case read_string_field(input, "harmonizedSystemCode") {
+    Some(code) ->
+      case valid_harmonized_system_code(code) {
+        True -> []
+        False -> [
+          ProductUserError(
+            ["input", "harmonizedSystemCode"],
+            "Harmonized system code must be a number between six and thirteen digits",
+            Some("INVALID"),
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn validate_inventory_item_update_country_hs_codes(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  let rows = read_object_list_field(input, "countryHarmonizedSystemCodes")
+  rows
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(row, index) = pair
+    let path = ["input", "countryHarmonizedSystemCodes", int.to_string(index)]
+    let country_errors = case read_string_field(row, "countryCode") {
+      Some(code) ->
+        case customer_inputs.country_catalog_by_code(code) {
+          Some(_) -> duplicate_country_hs_code_errors(rows, index, code, path)
+          None -> [
+            ProductUserError(
+              list.append(path, ["countryCode"]),
+              "Country is invalid",
+              Some("INVALID"),
+            ),
+          ]
+        }
+      None -> []
+    }
+    let hs_errors = case read_string_field(row, "harmonizedSystemCode") {
+      Some(code) ->
+        case valid_harmonized_system_code(code) {
+          True -> []
+          False -> [
+            ProductUserError(
+              list.append(path, ["harmonizedSystemCode"]),
+              "Harmonized system code must be a number between six and thirteen digits",
+              Some("INVALID"),
+            ),
+          ]
+        }
+      None -> []
+    }
+    list.append(country_errors, hs_errors)
+  })
+}
+
+fn duplicate_country_hs_code_errors(
+  rows: List(Dict(String, ResolvedValue)),
+  index: Int,
+  country_code: String,
+  path: List(String),
+) -> List(ProductUserError) {
+  let normalized = string.uppercase(country_code)
+  let seen_before =
+    rows
+    |> list.take(index)
+    |> list.any(fn(row) {
+      read_string_field(row, "countryCode")
+      |> option.map(string.uppercase)
+      == Some(normalized)
+    })
+  case seen_before {
+    True -> [
+      ProductUserError(
+        list.append(path, ["countryCode"]),
+        "Country code has already been taken",
+        Some("TAKEN"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn valid_harmonized_system_code(code: String) -> Bool {
+  let normalized = string.trim(code)
+  let length = string.length(normalized)
+  length >= 6
+  && length <= 13
+  && list.all(string.to_graphemes(normalized), is_digit)
+}
+
+fn inventory_item_weight_unit_label(
+  weight: Dict(String, ResolvedValue),
+) -> String {
+  case read_string_field(weight, "unit") {
+    Some("GRAMS") -> "g"
+    Some("POUNDS") -> "lb"
+    Some("OUNCES") -> "oz"
+    _ -> "kg"
+  }
+}
+
+fn format_inventory_item_weight_value(value: Float) -> String {
+  let truncated = float.truncate(value)
+  case value == int.to_float(truncated) {
+    True -> int.to_string(truncated)
+    False -> float.to_string(value)
+  }
+}
+
+fn is_digit(grapheme: String) -> Bool {
+  string.contains("0123456789", grapheme)
 }
 
 @internal

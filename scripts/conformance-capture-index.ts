@@ -693,7 +693,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory'],
-    fixtureOutputs: [`${CAPTURE_ROOT}inventory-item-mutation-*.json`],
+    fixtureOutputs: [`${CAPTURE_ROOT}inventory-item-*.json`],
     cleanupBehavior: 'Creates disposable products to own inventory items and deletes those products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -1040,6 +1040,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variant-media-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',
+    purpose:
+      'productVariantAppendMedia and productVariantDetachMedia validation for cross-product variants, cross-product media, non-ready media, and unattached detach targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variant-media-validation.json`,
+      'config/parity-specs/products/product_variant_append_media_validation.json',
+      'config/parity-requests/products/product-variant-media-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products plus disposable product media, then deletes both products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-relationship-bulk-update-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-product-variant-relationship-bulk-update-validation-conformance.ts',
@@ -1106,6 +1123,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json',
     ],
     cleanupBehavior: 'Deletes created definitions and disposable product with captured cleanup steps.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-capability-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-capability-eligibility.mts',
+    purpose:
+      'Metafield definition capability eligibility, required uniqueValues, and PRODUCT admin-filterable owner limit behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-capability-eligibility.json`,
+      'config/parity-specs/metafields/metafield-definition-capability-eligibility.json',
+      'config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions in one namespace, captures validation and limit branches, then deletes the created definitions.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2096,6 +2130,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-edit-commit-history-fulfillment',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-commit-history-fulfillment-conformance.ts',
+    purpose:
+      'orderEditCommit downstream edit-history, fulfillment-order remaining quantity, and current totals/tax-line behavior after a quantity decrement plus variant addition.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-commit-history-and-fulfillment-orders.json`,
+      'config/parity-specs/orders/orderEditCommit-history-and-fulfillment-orders.json',
+      'config/parity-requests/orders/orderEditCommit-history-fulfillment-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable test order, commits one order edit, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-lifecycle-noop',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.mts',
@@ -2112,6 +2162,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-update-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
+    purpose:
+      'orderUpdate empty-input, malformed phone, malformed shipping address, and happy-path note update validation parity.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-input-validation.json`,
+      'config/parity-specs/orders/orderUpdate-input-validation.json',
+      'config/parity-requests/orders/orderUpdate-input-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2203,7 +2269,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'draft-orders',
     captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',
-    purpose: 'Draft order create/update/delete/complete and downstream read behavior.',
+    purpose: 'Draft order create/update/delete/complete, duplicate lifecycle reset, and downstream read behavior.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}draft-order-*.json`],
     cleanupBehavior: 'Creates disposable draft orders and deletes/completes/cancels them per branch.',
@@ -2301,6 +2367,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-disallowed-value-shapes.json`],
     cleanupBehavior: 'Deletes temporary products after capturing rejected discount mutations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-basic-disallowed-discount-on-quantity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-basic-disallowed-discount-on-quantity-conformance.ts',
+    purpose: 'Basic code and automatic discount rejection of customerGets.value.discountOnQuantity on create/update.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-basic-disallowed-discount-on-quantity.json`,
+      'config/parity-specs/discounts/discount-basic-disallowed-discount-on-quantity.json',
+      'config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable basic code discount and one basic automatic discount, then deletes both.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2886,6 +2967,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete the destination location after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-delete-inventory-action-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-delete-inventory-action-validation-conformance.ts',
+    purpose: 'fulfillmentServiceDelete KEEP/DELETE destinationLocationId validation and valid KEEP behavior.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-delete-inventory-action-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-delete-inventory-action-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete both created locations after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -1,0 +1,43 @@
+mutation OrderEditCommitHistoryFulfillmentSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!, $restock: Boolean) {
+  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity, restock: $restock) {
+    calculatedOrder {
+      id
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      title
+      quantity
+      sku
+      variant {
+        id
+      }
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

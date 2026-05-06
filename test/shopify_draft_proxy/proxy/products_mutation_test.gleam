@@ -15,16 +15,17 @@ import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
   type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
-  type MetafieldDefinitionValidationRecord, type ProductRecord,
-  type ProductVariantRecord, type SellingPlanGroupRecord, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, ProductCollectionRecord,
-  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, SellingPlanGroupRecord,
+  type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
+  type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
+  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryQuantityRecord, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  SellingPlanGroupRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -89,6 +90,63 @@ fn assert_combined_listing_user_error(
   assert entry.status == store_types.Failed
 }
 
+fn assert_product_variant_media_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
+pub fn product_variant_append_media_rejects_variant_from_other_product_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/child\\\", mediaIds: [\\\"gid://shopify/MediaImage/ready\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+    "[\"variantMedia\",\"0\",\"variantId\"]",
+    "Variant does not exist on the specified product.",
+  )
+}
+
+pub fn product_variant_append_media_rejects_media_from_other_product_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/child\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+    "[\"variantMedia\",\"0\",\"mediaIds\"]",
+    "Media does not exist on the specified product.",
+  )
+}
+
+pub fn product_variant_append_media_rejects_processing_media_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/processing\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "NON_READY_MEDIA",
+    "[\"variantMedia\",\"0\",\"mediaIds\"]",
+    "Non-ready media cannot be attached to variants.",
+  )
+}
+
+pub fn product_variant_detach_media_rejects_unattached_media_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantDetachMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/ready\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "MEDIA_IS_NOT_ATTACHED_TO_VARIANT",
+    "[\"variantMedia\",\"0\",\"variantId\"]",
+    "The specified media is not attached to the specified variant.",
+  )
+}
+
 fn assert_selling_plan_group_create_user_error(
   query: String,
   code: String,
@@ -120,6 +178,149 @@ fn assert_variant_relationship_user_error(
 
   assert status == 200
   assert string.contains(body, "\"parentProductVariants\":null")
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn publication_create_rejects_target_validation_errors_test() {
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\", channelId: \\\"gid://shopify/Channel/999\\\" }) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "INVALID",
+    "[\"input\"]",
+    "Only one of catalog or channel can be provided",
+  )
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: {}) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "BLANK",
+    "[\"input\",\"catalogId\"]",
+    "Catalog can't be blank",
+  )
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\" }) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "NOT_FOUND",
+    "[\"input\",\"catalogId\"]",
+    "Catalog not found",
+  )
+  assert_publication_user_error(
+    "mutation { publicationCreate(input: { channelId: \\\"gid://shopify/Channel/999\\\" }) { publication { id } userErrors { field message code } } }",
+    "publicationCreate",
+    "NOT_FOUND",
+    "[\"input\",\"channelId\"]",
+    "Channel not found",
+  )
+}
+
+pub fn publication_update_rejects_target_validation_errors_test() {
+  let create_query =
+    "mutation { publicationCreate(input: { name: \\\"Seed\\\" }) { publication { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let update_both_query =
+    "mutation { publicationUpdate(id: \\\"gid://shopify/Publication/2\\\", input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\", channelId: \\\"gid://shopify/Channel/999\\\" }) { publication { id } userErrors { field message code } } }"
+  let #(Response(status: both_status, body: both_body, ..), both_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_both_query))
+  let both_serialized = json.to_string(both_body)
+  assert both_status == 200
+  assert string.contains(both_serialized, "\"publication\":null")
+  assert string.contains(both_serialized, "\"code\":\"INVALID\"")
+  assert string.contains(both_serialized, "\"field\":[\"input\"]")
+  assert string.contains(
+    both_serialized,
+    "\"message\":\"Only one of catalog or channel can be provided\"",
+  )
+
+  let update_catalog_query =
+    "mutation { publicationUpdate(id: \\\"gid://shopify/Publication/2\\\", input: { catalogId: \\\"gid://shopify/MarketCatalog/999\\\" }) { publication { id } userErrors { field message code } } }"
+  let #(Response(status: catalog_status, body: catalog_body, ..), next_proxy) =
+    draft_proxy.process_request(
+      both_proxy,
+      graphql_request(update_catalog_query),
+    )
+  let catalog_serialized = json.to_string(catalog_body)
+  assert catalog_status == 200
+  assert string.contains(catalog_serialized, "\"publication\":null")
+  assert string.contains(catalog_serialized, "\"code\":\"NOT_FOUND\"")
+  assert string.contains(
+    catalog_serialized,
+    "\"field\":[\"input\",\"catalogId\"]",
+  )
+
+  let assert [_, both_entry, catalog_entry] = store.get_log(next_proxy.store)
+  assert both_entry.status == store_types.Failed
+  assert catalog_entry.status == store_types.Failed
+}
+
+pub fn publication_delete_rejects_default_online_store_publication_test() {
+  let query =
+    "mutation { publicationDelete(id: \\\"gid://shopify/Publication/1\\\") { deletedId userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(body, "\"deletedId\":null")
+  assert string.contains(body, "\"code\":\"CANNOT_DELETE_DEFAULT_PUBLICATION\"")
+  assert string.contains(body, "\"field\":[\"id\"]")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn publication_create_rejects_invalid_default_state_enum_test() {
+  let body =
+    json.to_string(
+      json.object([
+        #(
+          "query",
+          json.string(
+            "mutation($input: PublicationCreateInput!) { publicationCreate(input: $input) { publication { id } userErrors { field message code } } }",
+          ),
+        ),
+        #(
+          "variables",
+          json.object([
+            #("input", json.object([#("defaultState", json.string("BANANAS"))])),
+          ]),
+        ),
+      ]),
+    )
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Expected \\\"BANANAS\\\" to be one of: EMPTY, ALL_PRODUCTS",
+  )
+  assert store.get_log(next_proxy.store) == []
+}
+
+fn assert_publication_user_error(
+  query: String,
+  root_name: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(body, "\"" <> root_name <> "\":{")
+  assert string.contains(body, "\"publication\":null")
   assert string.contains(body, "\"code\":\"" <> code <> "\"")
   assert string.contains(body, "\"field\":" <> field_json)
   assert string.contains(body, "\"message\":\"" <> message <> "\"")
@@ -2887,14 +3088,14 @@ pub fn product_variants_bulk_update_rejects_invalid_scalar_fields_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
   let query =
-    "mutation { productVariantsBulkUpdate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ id: \\\"gid://shopify/ProductVariant/optioned\\\", price: \\\"-5\\\", inventoryQuantity: 1000000001, inventoryItem: { measurement: { weight: { value: 2000000000, unit: STONES } } } }]) { product { id } productVariants { id price inventoryQuantity } userErrors { field message code } } }"
+    "mutation { productVariantsBulkUpdate(productId: \\\"gid://shopify/Product/optioned\\\", variants: [{ id: \\\"gid://shopify/ProductVariant/optioned\\\", price: \\\"-5\\\", inventoryQuantity: 1000000001, inventoryItem: { measurement: { weight: { value: 2000000000, unit: KILOGRAMS } } } }]) { product { id } productVariants { id price inventoryQuantity } userErrors { field message code } } }"
 
   let #(Response(status: status, body: body, ..), next_proxy) =
     draft_proxy.process_request(proxy, graphql_request(query))
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"productVariantsBulkUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\"},\"productVariants\":null,\"userErrors\":[{\"field\":[\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"},{\"field\":[\"variants\",\"0\"],\"message\":\"Weight must be less than 2000000000\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"0\"],\"message\":\"Weight unit is not included in the list\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"0\",\"inventoryQuantity\"],\"message\":\"Inventory quantity must be less than or equal to 1000000000\",\"code\":\"INVALID_INPUT\"}]}}}"
+    == "{\"data\":{\"productVariantsBulkUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\"},\"productVariants\":null,\"userErrors\":[{\"field\":[\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"},{\"field\":[\"variants\",\"0\"],\"message\":\"Weight must be less than 2000000000\",\"code\":\"INVALID_INPUT\"},{\"field\":[\"variants\",\"0\",\"inventoryQuantity\"],\"message\":\"Inventory quantity must be less than or equal to 1000000000\",\"code\":\"INVALID_INPUT\"}]}}}"
   let assert [variant] =
     store.get_effective_variants_by_product_id(
       next_proxy.store,
@@ -2904,6 +3105,104 @@ pub fn product_variants_bulk_update_rejects_invalid_scalar_fields_test() {
   assert variant.inventory_quantity == Some(0)
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Failed
+}
+
+pub fn inventory_item_update_rejects_invalid_scalar_user_errors_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
+  let query =
+    "mutation { inventoryItemUpdate(id: \\\"gid://shopify/InventoryItem/optioned\\\", input: { cost: \\\"-5.00\\\", measurement: { weight: { value: -1, unit: KILOGRAMS } }, countryCodeOfOrigin: US, provinceCodeOfOrigin: \\\"ON\\\", harmonizedSystemCode: \\\"12\\\", countryHarmonizedSystemCodes: [{ countryCode: US, harmonizedSystemCode: \\\"123456\\\" }, { countryCode: US, harmonizedSystemCode: \\\"123456\\\" }] }) { inventoryItem { id countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { unit value } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"inventoryItem\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"cost\"],\"message\":\"Cost must be greater than or equal to 0\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"measurement\",\"weight\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"provinceCodeOfOrigin\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"harmonizedSystemCode\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"countryHarmonizedSystemCodes\",\"1\",\"countryCode\"]",
+  )
+  assert string.contains(serialized, "\"code\":\"TAKEN\"")
+  let assert [variant] =
+    store.get_effective_variants_by_product_id(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+  let assert Some(item) = variant.inventory_item
+  assert item.country_code_of_origin == None
+  assert item.province_code_of_origin == None
+  assert item.harmonized_system_code == None
+  assert item.measurement == None
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
+pub fn inventory_item_update_rejects_unknown_country_user_error_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
+  let query =
+    "mutation { inventoryItemUpdate(id: \\\"gid://shopify/InventoryItem/optioned\\\", input: { countryCodeOfOrigin: ZZ }) { inventoryItem { id countryCodeOfOrigin } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"inventoryItem\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"countryCodeOfOrigin\"]",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Country code of origin is invalid\"",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID\"")
+  let assert [variant] =
+    store.get_effective_variants_by_product_id(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+  let assert Some(item) = variant.inventory_item
+  assert item.country_code_of_origin == None
+}
+
+pub fn inventory_item_update_rejects_weight_unit_variable_coercion_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: option_update_store())
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: InventoryItemInput!) { inventoryItemUpdate(id: $id, input: $input) { inventoryItem { id } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/InventoryItem/optioned\",\"input\":{\"measurement\":{\"weight\":{\"value\":1,\"unit\":\"STONES\"}}}}}"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request_body(body))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "\"path\":[\"measurement\",\"weight\",\"unit\"]",
+  )
+  assert string.contains(serialized, "Expected \\\"STONES\\\" to be one of:")
+  assert store.get_log(next_proxy.store) == []
 }
 
 pub fn product_variant_create_and_update_reject_invalid_scalars_test() {
@@ -4006,6 +4305,57 @@ fn child_variant() -> ProductVariantRecord {
       ),
     ),
   )
+}
+
+fn product_media_record(
+  id: String,
+  product_id: String,
+  position: Int,
+  status: String,
+) -> ProductMediaRecord {
+  ProductMediaRecord(
+    key: product_id <> ":" <> id,
+    product_id: product_id,
+    position: position,
+    id: Some(id),
+    media_content_type: Some("IMAGE"),
+    alt: None,
+    status: Some(status),
+    product_image_id: None,
+    image_url: None,
+    image_width: None,
+    image_height: None,
+    preview_image_url: None,
+    source_url: None,
+  )
+}
+
+fn variant_media_validation_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([default_product(), child_product()])
+  |> store.upsert_base_product_variants([default_variant(), child_variant()])
+  |> store.replace_base_media_for_product("gid://shopify/Product/optioned", [
+    product_media_record(
+      "gid://shopify/MediaImage/ready",
+      "gid://shopify/Product/optioned",
+      0,
+      "READY",
+    ),
+    product_media_record(
+      "gid://shopify/MediaImage/processing",
+      "gid://shopify/Product/optioned",
+      1,
+      "PROCESSING",
+    ),
+  ])
+  |> store.replace_base_media_for_product("gid://shopify/Product/child", [
+    product_media_record(
+      "gid://shopify/MediaImage/child",
+      "gid://shopify/Product/child",
+      0,
+      "READY",
+    ),
+  ])
 }
 
 fn default_variant() -> ProductVariantRecord {
