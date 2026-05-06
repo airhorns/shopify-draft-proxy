@@ -305,6 +305,55 @@ pub fn web_pixel_duplicate_create_returns_taken_error_test() {
     == "{\"data\":{\"webPixelCreate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"TAKEN\",\"field\":null,\"message\":\"Web pixel is taken.\"}]}}}"
 }
 
+pub fn mobile_platform_application_create_validates_platform_input_without_staging_test() {
+  let query =
+    "mutation { neither: mobilePlatformApplicationCreate(input: {}) { mobilePlatformApplication { __typename } userErrors { code field message } } blankAndroid: mobilePlatformApplicationCreate(input: { android: { applicationId: \"\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } blankApple: mobilePlatformApplicationCreate(input: { apple: { appId: \"   \" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } both: mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.app\" }, apple: { appId: \"1234567890.com.example.app\" } }) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"neither\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"INVALID\",\"field\":[\"mobilePlatformApplication\"],\"message\":\"Specify either android or apple, not both.\"}]},\"blankAndroid\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"android\",\"applicationId\"],\"message\":\"Application can't be blank\"}]},\"blankApple\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"mobilePlatformApplication\",\"apple\",\"appId\"],\"message\":\"App can't be blank\"}]},\"both\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"INVALID\",\"field\":[\"mobilePlatformApplication\"],\"message\":\"Specify either android or apple, not both.\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "mobilePlatformApplication",
+    )
+    |> list.length
+    == 0
+  let logs = store.get_log(proxy.store)
+  assert list.length(logs) == 4
+  assert list.all(logs, fn(log) {
+    log.status == store_types.Failed && log.staged_resource_ids == []
+  })
+}
+
+pub fn mobile_platform_application_create_rejects_duplicate_platform_test() {
+  let android =
+    "mutation { mobilePlatformApplicationCreate(input: { android: { applicationId: \"com.example.app\", appLinksEnabled: true } }) { mobilePlatformApplication { __typename ... on AndroidApplication { applicationId appLinksEnabled } } userErrors { code field message } } }"
+  let #(android_body, proxy) = run_graphql(proxy(), android)
+  assert android_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":{\"__typename\":\"AndroidApplication\",\"applicationId\":\"com.example.app\",\"appLinksEnabled\":true},\"userErrors\":[]}}}"
+
+  let #(android_duplicate_body, proxy) = run_graphql(proxy, android)
+  assert android_duplicate_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"TAKEN\",\"field\":[\"mobilePlatformApplication\",\"android\"],\"message\":\"Android has already been taken\"}]}}}"
+
+  let apple =
+    "mutation { mobilePlatformApplicationCreate(input: { apple: { appId: \"1234567890.com.example.app\" } }) { mobilePlatformApplication { __typename ... on AppleApplication { appId } } userErrors { code field message } } }"
+  let #(apple_body, proxy) = run_graphql(proxy, apple)
+  assert apple_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":{\"__typename\":\"AppleApplication\",\"appId\":\"1234567890.com.example.app\"},\"userErrors\":[]}}}"
+
+  let #(apple_duplicate_body, proxy) = run_graphql(proxy, apple)
+  assert apple_duplicate_body
+    == "{\"data\":{\"mobilePlatformApplicationCreate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"TAKEN\",\"field\":[\"mobilePlatformApplication\",\"apple\"],\"message\":\"Apple has already been taken\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "mobilePlatformApplication",
+    )
+    |> list.length
+    == 2
+}
+
 pub fn script_tag_create_validates_src_without_staging_test() {
   let too_long_src = "https://example.test/" <> string.repeat("a", times: 260)
   let query =

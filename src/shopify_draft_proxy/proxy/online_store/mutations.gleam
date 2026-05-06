@@ -2159,39 +2159,106 @@ fn create_mobile_app(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, MutationOutcome) {
-  let input =
+  let raw_input =
     graphql_helpers.read_arg_object(
       graphql_helpers.field_args(field, variables),
       "input",
     )
     |> option.unwrap(dict.new())
-  let app_type =
-    serializers.option_string(
-      serializers.input_string(input, "applicationType"),
-      "ANDROID",
-    )
-  let typename = case app_type {
-    "APPLE" -> "AppleApplication"
-    _ -> "AndroidApplication"
+  let input = mobile_platform_create_input(raw_input)
+  let android = mobile_platform_branch(input, "android")
+  let apple = mobile_platform_branch(input, "apple")
+  case android, apple {
+    Some(_), Some(_) ->
+      mobile_platform_create_error_payload(outcome, field, fragments, [
+        mobile_platform_requires_one_platform_error(),
+      ])
+    None, None ->
+      mobile_platform_create_error_payload(outcome, field, fragments, [
+        mobile_platform_requires_one_platform_error(),
+      ])
+    Some(app_input), None ->
+      create_mobile_app_for_platform(
+        outcome,
+        field,
+        fragments,
+        variables,
+        app_input,
+        "android",
+        "AndroidApplication",
+        "applicationId",
+      )
+    None, Some(app_input) ->
+      create_mobile_app_for_platform(
+        outcome,
+        field,
+        fragments,
+        variables,
+        app_input,
+        "apple",
+        "AppleApplication",
+        "appId",
+      )
   }
-  let app_input = serializers.mobile_platform_payload(input)
+}
+
+fn create_mobile_app_for_platform(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  app_input: Dict(String, root_field.ResolvedValue),
+  platform: String,
+  typename: String,
+  id_field: String,
+) -> #(String, Json, MutationOutcome) {
+  case serializers.input_non_blank_string(app_input, id_field) {
+    None ->
+      mobile_platform_create_error_payload(outcome, field, fragments, [
+        mobile_platform_blank_id_error(platform, id_field),
+      ])
+    Some(platform_id) ->
+      case mobile_platform_has_platform(outcome.store, platform) {
+        True ->
+          mobile_platform_create_error_payload(outcome, field, fragments, [
+            mobile_platform_taken_error(platform),
+          ])
+        False ->
+          stage_mobile_app(
+            outcome,
+            field,
+            fragments,
+            variables,
+            app_input,
+            platform_id,
+            typename,
+            id_field,
+          )
+      }
+  }
+}
+
+fn stage_mobile_app(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  app_input: Dict(String, root_field.ResolvedValue),
+  platform_id: String,
+  typename: String,
+  id_field: String,
+) -> #(String, Json, MutationOutcome) {
   let #(record, identity) =
     serializers.make_integration(outcome.identity, "mobilePlatformApplication", [
       #("__typename", SrcString(typename)),
-      #(
-        "applicationId",
-        serializers.option_source(
-          serializers.input_string(app_input, "applicationId"),
-          "com.example.local",
-        ),
-      ),
-      #(
-        "appId",
-        serializers.option_source(
-          serializers.input_string(app_input, "appId"),
-          "com.example.local",
-        ),
-      ),
+      #("applicationId", case id_field {
+        "applicationId" -> SrcString(platform_id)
+        _ -> SrcNull
+      }),
+      #("appId", case id_field {
+        "appId" -> SrcString(platform_id)
+        _ -> SrcNull
+      }),
       #(
         "appLinksEnabled",
         serializers.bool_source(
@@ -2218,6 +2285,102 @@ fn create_mobile_app(
     store,
     identity,
     [record.id],
+  )
+}
+
+fn mobile_platform_create_input(
+  raw_input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case mobile_platform_branch(raw_input, "mobilePlatformApplication") {
+    Some(input) -> input
+    None -> raw_input
+  }
+}
+
+fn mobile_platform_branch(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, name) {
+    Ok(root_field.ObjectVal(fields)) -> Some(fields)
+    _ -> None
+  }
+}
+
+fn mobile_platform_has_platform(store: Store, platform: String) -> Bool {
+  store.list_effective_online_store_integrations(
+    store,
+    "mobilePlatformApplication",
+  )
+  |> list.any(fn(record) {
+    mobile_platform_record_platform(record) == Some(platform)
+  })
+}
+
+fn mobile_platform_record_platform(
+  record: OnlineStoreIntegrationRecord,
+) -> Option(String) {
+  let typename =
+    record.data
+    |> serializers.captured_to_source
+    |> serializers.source_optional_string_field("__typename")
+  case typename {
+    Some("AndroidApplication") -> Some("android")
+    Some("AppleApplication") -> Some("apple")
+    _ -> None
+  }
+}
+
+fn mobile_platform_create_error_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(graphql_helpers.SourceValue),
+) -> #(String, Json, MutationOutcome) {
+  integration_validation_error_payload(
+    outcome,
+    field,
+    fragments,
+    "mobilePlatformApplicationCreate",
+    "mobilePlatformApplication",
+    errors,
+  )
+}
+
+fn mobile_platform_requires_one_platform_error() -> graphql_helpers.SourceValue {
+  serializers.user_error_with_code(
+    ["mobilePlatformApplication"],
+    "Specify either android or apple, not both.",
+    "INVALID",
+  )
+}
+
+fn mobile_platform_blank_id_error(
+  platform: String,
+  field: String,
+) -> graphql_helpers.SourceValue {
+  let message = case platform {
+    "android" -> "Application can't be blank"
+    _ -> "App can't be blank"
+  }
+  serializers.user_error_with_code(
+    ["mobilePlatformApplication", platform, field],
+    message,
+    "BLANK",
+  )
+}
+
+fn mobile_platform_taken_error(
+  platform: String,
+) -> graphql_helpers.SourceValue {
+  let message = case platform {
+    "android" -> "Android has already been taken"
+    _ -> "Apple has already been taken"
+  }
+  serializers.user_error_with_code(
+    ["mobilePlatformApplication", platform],
+    message,
+    "TAKEN",
   )
 }
 
