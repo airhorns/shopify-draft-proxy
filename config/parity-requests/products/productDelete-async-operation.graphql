@@ -1,0 +1,18 @@
+mutation ProductDeleteAsyncOperation($input: ProductDeleteInput!, $synchronous: Boolean!) {
+  productDelete(input: $input, synchronous: $synchronous) {
+    deletedProductId
+    productDeleteOperation {
+      id
+      status
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
