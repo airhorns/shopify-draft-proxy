@@ -1,0 +1,34 @@
+mutation DraftOrderCompleteStagesResultingOrderComplete($id: ID!, $paymentPending: Boolean) {
+  draftOrderComplete(id: $id, sourceName: "hermes-cron-orders", paymentPending: $paymentPending) {
+    draftOrder {
+      id
+      status
+      completedAt
+      order {
+        id
+        name
+        sourceName
+        displayFinancialStatus
+        displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems {
+          nodes {
+            id
+            title
+            quantity
+            sku
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

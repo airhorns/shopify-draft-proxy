@@ -8040,6 +8040,51 @@ pub fn orders_draft_order_complete_read_after_write_test() {
     orders.process(complete_outcome.store, read_query, dict.new())
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"COMPLETED\",\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}}}}"
+
+  let order_read_query =
+    "
+    query {
+      completedOrder: order(id: \"gid://shopify/Order/3\") {
+        id
+        name
+        sourceName
+        displayFinancialStatus
+        displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems {
+          nodes {
+            id
+            title
+            quantity
+            sku
+          }
+        }
+      }
+      completedOrders: orders(first: 10, query: \"name:#1\") {
+        nodes {
+          id
+          name
+          sourceName
+          displayFinancialStatus
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  "
+  let assert Ok(order_read_result) =
+    orders.process(complete_outcome.store, order_read_query, dict.new())
+  assert json.to_string(order_read_result)
+    == "{\"data\":{\"completedOrder\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/4\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\"}]}},\"completedOrders\":{\"nodes\":[{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"gid://shopify/Order/3\",\"endCursor\":\"gid://shopify/Order/3\"}}}}"
 }
 
 pub fn orders_draft_order_create_from_order_read_after_write_test() {
