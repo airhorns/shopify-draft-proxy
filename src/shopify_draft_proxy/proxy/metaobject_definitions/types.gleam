@@ -966,16 +966,21 @@ pub fn build_metaobject_from_create_input(
   input: Dict(String, root_field.ResolvedValue),
   definition: MetaobjectDefinitionRecord,
 ) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
-  let #(fields, errors) =
-    build_metaobject_fields_from_input(
-      store,
-      input,
-      definition,
-      [],
-      True,
-      True,
-      True,
-    )
+  let capability_errors =
+    build_metaobject_capability_user_errors(input, definition)
+  let #(fields, errors) = case capability_errors {
+    [_, ..] -> #([], capability_errors)
+    [] ->
+      build_metaobject_fields_from_input(
+        store,
+        input,
+        definition,
+        [],
+        True,
+        True,
+        True,
+      )
+  }
   case errors {
     [_, ..] -> #(None, identity, errors)
     [] -> {
@@ -1043,16 +1048,21 @@ pub fn apply_metaobject_update_input(
           ),
         ])
         _ -> {
-          let #(fields_from_input, errors) =
-            build_metaobject_fields_from_input(
-              store,
-              input,
-              definition,
-              existing.fields,
-              False,
-              True,
-              False,
-            )
+          let capability_errors =
+            build_metaobject_capability_user_errors(input, definition)
+          let #(fields_from_input, errors) = case capability_errors {
+            [_, ..] -> #(existing.fields, capability_errors)
+            [] ->
+              build_metaobject_fields_from_input(
+                store,
+                input,
+                definition,
+                existing.fields,
+                False,
+                True,
+                False,
+              )
+          }
           case errors {
             [_, ..] -> #(None, identity, errors)
             [] -> {
@@ -1594,6 +1604,52 @@ pub fn build_metaobject_capabilities(
   MetaobjectCapabilitiesRecord(
     publishable: publishable,
     online_store: online_store,
+  )
+}
+
+@internal
+pub fn build_metaobject_capability_user_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> List(UserError) {
+  case read_object(input, "capabilities") {
+    None -> []
+    Some(capabilities) -> {
+      []
+      |> append_if(
+        dict.has_key(capabilities, "publishable")
+          && !definition_capability_enabled(definition.capabilities.publishable),
+        metaobject_capability_not_enabled_user_error("publishable"),
+      )
+      |> append_if(
+        dict.has_key(capabilities, "onlineStore")
+          && !definition_capability_enabled(
+          definition.capabilities.online_store,
+        ),
+        metaobject_capability_not_enabled_user_error("onlineStore"),
+      )
+    }
+  }
+}
+
+fn definition_capability_enabled(
+  capability: Option(MetaobjectDefinitionCapabilityRecord),
+) -> Bool {
+  case capability {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: True)) -> True
+    _ -> False
+  }
+}
+
+fn metaobject_capability_not_enabled_user_error(
+  capability_key: String,
+) -> UserError {
+  UserError(
+    Some(["capabilities", capability_key]),
+    "Capability is not enabled on this definition",
+    "CAPABILITY_NOT_ENABLED",
+    None,
+    None,
   )
 }
 
