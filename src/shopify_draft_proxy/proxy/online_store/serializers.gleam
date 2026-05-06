@@ -1335,6 +1335,13 @@ pub fn same_current_app_web_pixel(
 }
 
 @internal
+pub fn same_current_app_storefront_access_token(
+  record: OnlineStoreIntegrationRecord,
+) -> Bool {
+  current_app_key(captured_to_source(record.data)) == current_app_key(SrcNull)
+}
+
+@internal
 pub fn storefront_token_limit_reached(store: Store) -> Bool {
   store.list_effective_online_store_integrations(store, "storefrontAccessToken")
   |> list.length

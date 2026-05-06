@@ -540,7 +540,239 @@ pub fn validate_mutation_field_against_schema(
       |> list.append(variable_errors)
       |> list.append(literal_errors)
       |> list.append(literal_input_errors)
+      |> list.append(gid_type_errors(
+        mutation,
+        arguments,
+        variables,
+        var_defs,
+        operation_name,
+        operation_path,
+        source_body,
+      ))
     }
+  }
+}
+
+fn gid_type_errors(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  operation_name: String,
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case operation_name {
+    "storefrontAccessTokenDelete" ->
+      validate_input_gid_type(
+        mutation,
+        arguments,
+        variables,
+        var_defs,
+        operation_name,
+        operation_path,
+        source_body,
+        "input",
+        "id",
+        "StorefrontAccessToken",
+      )
+    _ -> []
+  }
+}
+
+fn validate_input_gid_type(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  operation_name: String,
+  operation_path: String,
+  source_body: String,
+  argument_name: String,
+  field_name: String,
+  expected_gid_type: String,
+) -> List(Json) {
+  case find_argument(arguments, argument_name) {
+    Some(Argument(value: ObjectValue(fields: fields, ..), ..)) ->
+      validate_literal_input_gid_type(
+        fields,
+        variables,
+        var_defs,
+        operation_name,
+        operation_path,
+        source_body,
+        argument_name,
+        field_name,
+        expected_gid_type,
+      )
+    Some(Argument(value: VariableValue(variable: var), ..)) -> {
+      let variable_type = case find_schema_arg(mutation.args, argument_name) {
+        Some(schema_arg) -> mutation_schema.render_signature(schema_arg.type_)
+        None -> "ID!"
+      }
+      validate_variable_input_gid_type(
+        var.name.value,
+        variable_type,
+        variables,
+        var_defs,
+        source_body,
+        field_name,
+        expected_gid_type,
+      )
+    }
+    _ -> []
+  }
+}
+
+fn validate_literal_input_gid_type(
+  fields: List(ast.ObjectField),
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  operation_name: String,
+  operation_path: String,
+  source_body: String,
+  argument_name: String,
+  field_name: String,
+  expected_gid_type: String,
+) -> List(Json) {
+  case find_object_field(fields, field_name) {
+    Some(ast.ObjectField(value: StringValue(value: value, loc: loc, ..), ..)) ->
+      case gid_has_type(value, expected_gid_type) {
+        True -> []
+        False -> [
+          build_literal_coercion_error(
+            "Invalid global id '" <> value <> "'",
+            [
+              StringSegment(operation_path),
+              StringSegment(operation_name),
+              StringSegment(argument_name),
+              StringSegment(field_name),
+            ],
+            loc,
+            source_body,
+          ),
+        ]
+      }
+    Some(ast.ObjectField(value: VariableValue(variable: var), ..)) ->
+      validate_variable_gid_value(
+        var.name.value,
+        variable_type_signature(var.name.value, var_defs, "ID!"),
+        variables,
+        var_defs,
+        source_body,
+        [StringSegment(field_name)],
+        expected_gid_type,
+      )
+    _ -> []
+  }
+}
+
+fn validate_variable_input_gid_type(
+  variable_name: String,
+  variable_type: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  source_body: String,
+  field_name: String,
+  expected_gid_type: String,
+) -> List(Json) {
+  case dict.get(variables, variable_name) {
+    Ok(root_field.ObjectVal(fields)) ->
+      case dict.get(fields, field_name) {
+        Ok(root_field.StringVal(value)) ->
+          invalid_variable_gid_error(
+            variable_name,
+            variable_type,
+            root_field.ObjectVal(fields),
+            value,
+            var_defs,
+            source_body,
+            [StringSegment(field_name)],
+            expected_gid_type,
+          )
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_variable_gid_value(
+  variable_name: String,
+  variable_type: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  var_defs: Dict(String, VariableDef),
+  source_body: String,
+  path: List(PathSegment),
+  expected_gid_type: String,
+) -> List(Json) {
+  case dict.get(variables, variable_name) {
+    Ok(root_field.StringVal(value)) ->
+      invalid_variable_gid_error(
+        variable_name,
+        variable_type,
+        root_field.StringVal(value),
+        value,
+        var_defs,
+        source_body,
+        path,
+        expected_gid_type,
+      )
+    _ -> []
+  }
+}
+
+fn invalid_variable_gid_error(
+  variable_name: String,
+  variable_type: String,
+  variable_value: root_field.ResolvedValue,
+  value: String,
+  var_defs: Dict(String, VariableDef),
+  source_body: String,
+  path: List(PathSegment),
+  expected_gid_type: String,
+) -> List(Json) {
+  case gid_has_type(value, expected_gid_type) {
+    True -> []
+    False -> {
+      let loc = case dict.get(var_defs, variable_name) {
+        Ok(def) -> def.loc
+        Error(_) -> None
+      }
+      [
+        build_invalid_variable_problems_error(
+          variable_name,
+          variable_type,
+          variable_value,
+          [
+            ValueProblem(
+              path: path,
+              explanation: "Invalid global id '" <> value <> "'",
+            ),
+          ],
+          loc,
+          source_body,
+        ),
+      ]
+    }
+  }
+}
+
+fn variable_type_signature(
+  variable_name: String,
+  var_defs: Dict(String, VariableDef),
+  fallback: String,
+) -> String {
+  case dict.get(var_defs, variable_name) {
+    Ok(def) -> def.type_signature
+    Error(_) -> fallback
+  }
+}
+
+fn gid_has_type(value: String, expected_gid_type: String) -> Bool {
+  case string.split(value, on: "/") {
+    ["gid:", "", "shopify", gid_type, tail] ->
+      gid_type == expected_gid_type && tail != ""
+    _ -> False
   }
 }
 
@@ -1717,7 +1949,11 @@ fn path_segments_to_json(path: List(PathSegment)) -> Json {
 /// to the resolver — Shopify only rejects when the *declared* type
 /// is NON_NULL, regardless of the bound argument's nullability.
 type VariableDef {
-  VariableDef(loc: Option(Location), declared_non_null: Bool)
+  VariableDef(
+    loc: Option(Location),
+    declared_non_null: Bool,
+    type_signature: String,
+  )
 }
 
 fn extract_variable_definitions(
@@ -1744,6 +1980,7 @@ fn extract_variable_definitions(
               VariableDef(
                 loc: loc,
                 declared_non_null: type_ref_is_non_null(type_ref),
+                type_signature: type_ref_signature(type_ref),
               ),
             )
         }
@@ -1756,6 +1993,14 @@ fn type_ref_is_non_null(type_ref: ast.TypeRef) -> Bool {
   case type_ref {
     ast.NonNullType(..) -> True
     _ -> False
+  }
+}
+
+fn type_ref_signature(type_ref: ast.TypeRef) -> String {
+  case type_ref {
+    ast.NamedType(name: name, ..) -> name.value
+    ast.ListType(inner: inner, ..) -> "[" <> type_ref_signature(inner) <> "]"
+    ast.NonNullType(inner: inner, ..) -> type_ref_signature(inner) <> "!"
   }
 }
 

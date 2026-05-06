@@ -2104,29 +2104,40 @@ fn delete_storefront_token(
   let #(deleted, errors, store) = case id {
     Some(id) ->
       case
-        store.get_effective_online_store_integration_by_id(outcome.store, id)
-      {
-        Some(_) -> #(
-          SrcString(id),
-          [],
-          store.delete_staged_online_store_integration(outcome.store, id),
+        serializers.lookup_integration_by_id(
+          outcome.store,
+          "storefrontAccessToken",
+          Some(id),
         )
-        None -> #(
+      {
+        serializers.IntegrationFound(record) ->
+          case serializers.same_current_app_storefront_access_token(record) {
+            True -> #(
+              SrcString(record.id),
+              [],
+              store.delete_staged_online_store_integration(
+                outcome.store,
+                record.id,
+              ),
+            )
+            False -> #(
+              SrcNull,
+              [storefront_token_not_found_error()],
+              outcome.store,
+            )
+          }
+        serializers.IntegrationMissing -> #(
           SrcNull,
-          [
-            serializers.user_error(
-              ["id"],
-              "Storefront access token does not exist",
-            ),
-          ],
+          [storefront_token_not_found_error()],
+          outcome.store,
+        )
+        serializers.IntegrationInvalidId -> #(
+          SrcNull,
+          [serializers.integration_invalid_id_error("storefrontAccessToken")],
           outcome.store,
         )
       }
-    None -> #(
-      SrcNull,
-      [serializers.user_error(["id"], "Storefront access token does not exist")],
-      outcome.store,
-    )
+    None -> #(SrcNull, [storefront_token_not_found_error()], outcome.store)
   }
   let payload =
     serializers.project_payload_source(
@@ -2150,6 +2161,14 @@ fn delete_storefront_token(
         _ -> []
       },
     ),
+  )
+}
+
+fn storefront_token_not_found_error() -> graphql_helpers.SourceValue {
+  serializers.user_error_with_code(
+    ["input", "id"],
+    "Storefront access token does not exist",
+    "NOT_FOUND",
   )
 }
 
