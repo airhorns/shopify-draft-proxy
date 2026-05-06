@@ -1,0 +1,15 @@
+mutation CollectionMembershipJobAddProductsV2($id: ID!, $productIds: [ID!]!) {
+  collectionAddProductsV2(id: $id, productIds: $productIds) {
+    job {
+      id
+      done
+      query {
+        __typename
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

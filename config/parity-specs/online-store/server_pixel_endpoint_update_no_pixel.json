@@ -1,0 +1,27 @@
+{
+  "scenarioId": "server-pixel-endpoint-update-no-pixel",
+  "operationNames": ["eventBridgeServerPixelUpdate", "pubSubServerPixelUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "side-effect-boundary", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/server_pixel_endpoint_update_no_pixel.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/server_pixel_endpoint_update_no_pixel.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "server-pixel-endpoint-update-no-pixel",
+        "capturePath": "$.expected.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for EventBridge and Pub/Sub ServerPixel endpoint updates when the app has no current ServerPixel. The proxy returns NOT_FOUND-style ServerPixelUserError payloads and does not fabricate an endpoint record."
+}

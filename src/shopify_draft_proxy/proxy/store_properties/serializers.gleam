@@ -1094,10 +1094,13 @@ fn shop_cart_transform_eligible_operations_from_json(
 fn payment_settings_from_json(
   value: commit.JsonValue,
 ) -> PaymentSettingsRecord {
-  PaymentSettingsRecord(supported_digital_wallets: json_string_list(
-    value,
-    "supportedDigitalWallets",
-  ))
+  PaymentSettingsRecord(
+    supported_digital_wallets: json_string_list(
+      value,
+      "supportedDigitalWallets",
+    ),
+    payment_gateways: [],
+  )
 }
 
 fn shop_policy_from_json(

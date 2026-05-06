@@ -10,7 +10,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Location, type ObjectField, type Selection, Argument, Field, ObjectField,
-  ObjectValue,
+  ObjectValue, SelectionSet,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/root_field
@@ -18,12 +18,12 @@ import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
-  get_document_fragments, get_field_response_key, src_object,
+  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcObject,
+  SrcString, get_document_fragments, get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/metaobject_definitions/serializers.{
-  metaobject_definition_source, metaobject_source, project_selection,
-  project_selection_with_metaobject,
+  metaobject_definition_source, project_selection, project_source_field,
+  serialize_metaobject_mutation_selection,
 }
 import shopify_draft_proxy/proxy/metaobject_definitions/types as metaobject_definition_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -2224,15 +2224,36 @@ fn metaobject_payload(
   metaobject: Option(MetaobjectRecord),
   user_errors: List(metaobject_definition_types.UserError),
 ) -> Json {
-  let source =
-    src_object([
-      #("metaobject", case metaobject {
-        Some(record) -> metaobject_source(store, record)
-        None -> SrcNull
-      }),
+  let source_fields =
+    dict.from_list([
       #("userErrors", SrcList(list.map(user_errors, user_error_source))),
     ])
-  project_selection_with_metaobject(store, source, field, fragments)
+  let source = SrcObject(source_fields)
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      json.object(
+        list.map(selections, fn(selection) {
+          let key = get_field_response_key(selection)
+          case selection {
+            Field(name: name, ..) if name.value == "metaobject" ->
+              case metaobject {
+                Some(record) -> #(
+                  key,
+                  serialize_metaobject_mutation_selection(
+                    store,
+                    record,
+                    selection,
+                    fragments,
+                  ),
+                )
+                None -> #(key, json.null())
+              }
+            _ -> project_source_field(source_fields, selection, fragments)
+          }
+        }),
+      )
+    _ -> project_selection(source, field, fragments)
+  }
 }
 
 fn definition_delete_result(

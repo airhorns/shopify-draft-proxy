@@ -1,0 +1,171 @@
+{
+  "fixtureKind": "local-runtime-discount-activation-failure-field-base",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T06:10:00.000Z",
+  "summary": "Executable local-runtime fixture for app-discount activation failure after the backing Function is unavailable. Setup creates staged app code and automatic discounts through normal GraphQL mutations and cassette-backed Function hydration; activation failure is earned through a second Function availability read returning no nodes.",
+  "create": {
+    "variables": {
+      "codeInput": {
+        "title": "Activation failure code app",
+        "code": "ACTIVATEFAILBASE",
+        "startsAt": "2024-01-01T00:00:00.000Z",
+        "functionHandle": "discount-local"
+      },
+      "automaticInput": {
+        "title": "Activation failure automatic app",
+        "startsAt": "2024-01-01T00:00:00.000Z",
+        "functionHandle": "discount-local"
+      }
+    },
+    "response": {
+      "data": {
+        "discountCodeAppCreate": {
+          "codeAppDiscount": {
+            "discountId": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+            "title": "Activation failure code app",
+            "status": "ACTIVE",
+            "appDiscountType": {
+              "functionId": "discount-local"
+            }
+          },
+          "userErrors": []
+        },
+        "discountAutomaticAppCreate": {
+          "automaticAppDiscount": {
+            "discountId": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
+            "title": "Activation failure automatic app",
+            "status": "ACTIVE",
+            "appDiscountType": {
+              "functionId": "discount-local"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "codeActivationFailure": {
+    "response": {
+      "data": {
+        "discountCodeActivate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "Discount could not be activated.",
+              "code": "INTERNAL_ERROR"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "automaticActivationFailure": {
+    "response": {
+      "data": {
+        "discountAutomaticActivate": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["base"],
+              "message": "Discount could not be activated.",
+              "code": "INTERNAL_ERROR"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "unknown": {
+    "response": {
+      "data": {
+        "codeActivate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Discount does not exist",
+              "code": "INVALID"
+            }
+          ]
+        },
+        "codeDeactivate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Discount does not exist",
+              "code": "INVALID"
+            }
+          ]
+        },
+        "automaticActivate": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Discount does not exist",
+              "code": "INVALID"
+            }
+          ]
+        },
+        "automaticDeactivate": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Discount does not exist",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShopifyFunctionByHandle",
+      "variables": {
+        "handle": "discount-local"
+      },
+      "query": "query ShopifyFunctionByHandle($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/discount-local",
+                  "title": "Local volume discount",
+                  "handle": "discount-local",
+                  "apiType": "DISCOUNT",
+                  "description": "Captured local Function metadata",
+                  "appKey": "app-key-787",
+                  "app": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShopifyFunctionAvailabilityForDiscountActivation",
+      "variables": {
+        "handle": "discount-local"
+      },
+      "query": "query ShopifyFunctionAvailabilityForDiscountActivation($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    }
+  ]
+}

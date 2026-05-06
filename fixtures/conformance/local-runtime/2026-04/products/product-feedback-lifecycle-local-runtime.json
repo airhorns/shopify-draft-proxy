@@ -61,7 +61,7 @@
           "feedback": [],
           "userErrors": [
             {
-              "field": ["feedbackInput", "0", "productId"],
+              "field": ["feedback", "0", "productId"],
               "message": "Product does not exist",
               "code": null
             }

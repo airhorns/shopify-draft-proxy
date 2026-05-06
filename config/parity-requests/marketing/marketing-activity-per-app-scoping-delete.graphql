@@ -1,0 +1,10 @@
+mutation MarketingActivityPerAppDelete {
+  deleteExternal: marketingActivityDeleteExternal(remoteId: "campaign-1") {
+    deletedMarketingActivityId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

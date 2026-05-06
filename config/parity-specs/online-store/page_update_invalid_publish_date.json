@@ -1,0 +1,45 @@
+{
+  "scenarioId": "online-store/page-update-invalid-publish-date",
+  "operationNames": ["pageCreate", "pageUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-invalid-publish-date.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-page-create.graphql",
+    "variablesCapturePath": "$.interactions[3].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify's pageUpdate validation when an unpublished scheduled page is flipped to isPublished true while retaining a future publishDate. The setup pageCreate proves that isPublished false plus a future publishDate is accepted.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "pageCreate accepts scheduled future publishDate while unpublished",
+        "capturePath": "$.interactions[3].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": ["$.page.title", "$.page.isPublished", "$.page.publishedAt", "$.userErrors"]
+      },
+      {
+        "name": "pageUpdate rejects publishing with a future publishDate",
+        "capturePath": "$.interactions[4].response.data.pageUpdate",
+        "proxyPath": "$.data.pageUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-page-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+            "page": {
+              "isPublished": true,
+              "publishDate": {
+                "fromCapturePath": "$.interactions[4].request.variables.page.publishDate"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      }
+    ]
+  }
+}

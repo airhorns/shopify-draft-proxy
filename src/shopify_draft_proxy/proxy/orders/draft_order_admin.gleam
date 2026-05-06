@@ -6,11 +6,11 @@
 //// effects are modeled together.
 
 import gleam/dict.{type Dict}
-
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-
+import gleam/order
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 
@@ -63,6 +63,10 @@ import shopify_draft_proxy/state/types.{
   CapturedString, CustomerOrderSummaryRecord, DraftOrderRecord, OrderRecord,
 }
 
+const draft_order_tag_limit = 250
+
+const draft_order_tag_character_limit = 255
+
 @internal
 pub fn handle_draft_order_complete(
   store: Store,
@@ -106,15 +110,92 @@ pub fn handle_draft_order_complete(
           case store.get_draft_order_by_id(hydrated_store, id) {
             Some(draft_order) -> {
               case read_string_arg(args, "paymentGatewayId") {
-                Some(_) -> {
-                  let payload =
-                    serialize_draft_order_mutation_payload(
-                      field,
-                      None,
-                      [inferred_user_error([], "Invalid payment gateway")],
-                      fragments,
+                Some(payment_gateway_id) -> {
+                  case
+                    store.payment_gateway_by_id(
+                      hydrated_store,
+                      payment_gateway_id,
                     )
-                  #(key, payload, store, identity, [], [], [])
+                  {
+                    Some(payment_gateway) ->
+                      case payment_gateway.active {
+                        True -> {
+                          let #(completed_draft_order, next_identity) =
+                            complete_draft_order(
+                              store,
+                              identity,
+                              draft_order,
+                              read_string_arg(args, "sourceName"),
+                              read_bool(args, "paymentPending", False),
+                              Some(payment_gateway),
+                            )
+                          let next_store =
+                            stage_completed_draft_order_graph(
+                              hydrated_store,
+                              completed_draft_order,
+                            )
+                          let payload =
+                            serialize_draft_order_mutation_payload(
+                              field,
+                              Some(completed_draft_order),
+                              [],
+                              fragments,
+                            )
+                          let draft =
+                            single_root_log_draft(
+                              "draftOrderComplete",
+                              [completed_draft_order.id],
+                              store_types.Staged,
+                              "orders",
+                              "stage-locally",
+                              Some(
+                                "Locally staged draftOrderComplete in shopify-draft-proxy.",
+                              ),
+                            )
+                          #(
+                            key,
+                            payload,
+                            next_store,
+                            next_identity,
+                            [completed_draft_order.id],
+                            [],
+                            [draft],
+                          )
+                        }
+                        False -> {
+                          let payload =
+                            serialize_draft_order_mutation_payload(
+                              field,
+                              None,
+                              [
+                                user_error(
+                                  ["paymentGatewayId"],
+                                  "payment_gateway_disabled",
+                                  Some(user_error_codes.invalid),
+                                ),
+                              ],
+                              fragments,
+                            )
+                          #(key, payload, hydrated_store, identity, [], [], [])
+                        }
+                      }
+                    None -> {
+                      let payload =
+                        serialize_draft_order_mutation_payload(
+                          field,
+                          None,
+                          [
+                            user_error(
+                              ["paymentGatewayId"],
+                              "payment_gateway_not_found",
+                              Some(user_error_codes.invalid),
+                            ),
+                          ],
+                          fragments,
+                        )
+                      #(key, payload, hydrated_store, identity, [], [], [])
+                    }
+                  }
                 }
                 None -> {
                   let #(completed_draft_order, next_identity) =
@@ -124,6 +205,7 @@ pub fn handle_draft_order_complete(
                       draft_order,
                       read_string_arg(args, "sourceName"),
                       read_bool(args, "paymentPending", False),
+                      None,
                     )
                   let next_store =
                     stage_completed_draft_order_graph(
@@ -732,7 +814,7 @@ pub fn serialize_draft_order_invoice_send_payload(
           case name.value {
             "draftOrder" -> #(key, case draft_order {
               Some(record) ->
-                serialize_draft_order_node(child, record, fragments)
+                serialize_draft_order_node(None, child, record, fragments)
               None -> json.null()
             })
             "userErrors" -> #(
@@ -995,36 +1077,41 @@ pub fn handle_draft_order_bulk_helper(
   let key = get_field_response_key(field)
   let args = field_arguments(field, variables)
   let tags = read_string_list(args, "tags")
-  let user_errors = case
-    root_name != "draftOrderBulkDelete" && list.is_empty(tags)
-  {
-    True -> [inferred_user_error(["tags"], "Tags can't be blank")]
-    False -> []
+  let #(normalized_tags, tag_user_errors, request_blocked) =
+    draft_order_bulk_tag_input(root_name, tags)
+  let #(targets, id_user_errors) = case request_blocked {
+    True -> #([], [])
+    False -> select_draft_order_bulk_targets(store, args)
   }
-  let targets = case user_errors {
-    [] -> select_draft_order_bulk_targets(store, args)
-    _ -> []
+  let #(next_store, changed_ids, target_user_errors) = case request_blocked {
+    True -> #(store, [], [])
+    False ->
+      apply_draft_order_bulk_helper(store, root_name, targets, normalized_tags)
   }
-  let #(next_store, changed_ids) = case user_errors {
-    [] -> apply_draft_order_bulk_helper(store, root_name, targets, tags)
-    _ -> #(store, [])
-  }
-  let #(job_id, next_identity) = case user_errors {
-    [] -> {
+  let user_errors =
+    list.append(
+      tag_user_errors,
+      list.append(id_user_errors, target_user_errors),
+    )
+  let should_create_job =
+    list.is_empty(user_errors) || !list.is_empty(changed_ids)
+  let #(job_id, next_identity) = case should_create_job {
+    True -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "Job")
       #(Some(id), next_identity)
     }
-    _ -> #(None, identity)
+    False -> #(None, identity)
   }
   let payload = serialize_draft_order_bulk_payload(field, job_id, user_errors)
   let draft =
     single_root_log_draft(
       root_name,
       changed_ids,
-      case user_errors {
-        [] -> store_types.Staged
-        _ -> store_types.Failed
+      case list.is_empty(changed_ids), list.is_empty(user_errors) {
+        False, _ -> store_types.Staged
+        True, True -> store_types.Staged
+        True, False -> store_types.Failed
       },
       "orders",
       "stage-locally",
@@ -1039,30 +1126,42 @@ pub fn apply_draft_order_bulk_helper(
   root_name: String,
   targets: List(DraftOrderRecord),
   tags: List(String),
-) -> #(Store, List(String)) {
+) -> #(Store, List(String), List(#(List(String), String, Option(String)))) {
   targets
-  |> list.fold(#(store, []), fn(acc, draft_order) {
-    let #(current_store, ids) = acc
+  |> list.fold(#(store, [], []), fn(acc, draft_order) {
+    let #(current_store, ids, user_errors) = acc
     case root_name {
       "draftOrderBulkDelete" -> #(
         store.delete_staged_draft_order(current_store, draft_order.id),
         [draft_order.id, ..ids],
+        user_errors,
       )
       "draftOrderBulkAddTags" -> {
         let updated = update_draft_order_tags(draft_order, tags, "add")
-        #(store.stage_draft_order(current_store, updated), [
-          draft_order.id,
-          ..ids
-        ])
+        case
+          list.length(draft_order_tags(updated.data)) > draft_order_tag_limit
+        {
+          True -> #(
+            current_store,
+            ids,
+            append_too_many_draft_order_tags_error(user_errors),
+          )
+          False -> #(
+            store.stage_draft_order(current_store, updated),
+            [draft_order.id, ..ids],
+            user_errors,
+          )
+        }
       }
       "draftOrderBulkRemoveTags" -> {
         let updated = update_draft_order_tags(draft_order, tags, "remove")
-        #(store.stage_draft_order(current_store, updated), [
-          draft_order.id,
-          ..ids
-        ])
+        #(
+          store.stage_draft_order(current_store, updated),
+          [draft_order.id, ..ids],
+          user_errors,
+        )
       }
-      _ -> #(current_store, ids)
+      _ -> #(current_store, ids, user_errors)
     }
   })
 }
@@ -1071,29 +1170,52 @@ pub fn apply_draft_order_bulk_helper(
 pub fn select_draft_order_bulk_targets(
   store: Store,
   args: Dict(String, root_field.ResolvedValue),
-) -> List(DraftOrderRecord) {
+) -> #(List(DraftOrderRecord), List(#(List(String), String, Option(String)))) {
   let ids = read_string_list(args, "ids")
   case ids {
     [_, ..] ->
       ids
-      |> list.filter_map(fn(id) {
-        store.get_draft_order_by_id(store, id) |> option.to_result(Nil)
+      |> list.fold(#([], [], 0), fn(acc, id) {
+        let #(targets, user_errors, index) = acc
+        case store.get_draft_order_by_id(store, id) {
+          Some(record) -> #([record, ..targets], user_errors, index + 1)
+          None -> #(
+            targets,
+            [
+              user_error(
+                ["input", "ids", int.to_string(index)],
+                "Draft order does not exist",
+                Some(user_error_codes.not_found),
+              ),
+              ..user_errors
+            ],
+            index + 1,
+          )
+        }
       })
+      |> fn(result) {
+        let #(targets, user_errors, _) = result
+        #(list.reverse(targets), list.reverse(user_errors))
+      }
     [] ->
       case read_string(args, "search") {
-        Some(search) ->
+        Some(search) -> #(
           store.list_effective_draft_orders(store)
-          |> list.filter(fn(record) {
-            draft_order_matches_bulk_search(record, search)
-          })
+            |> list.filter(fn(record) {
+              draft_order_matches_bulk_search(record, search)
+            }),
+          [],
+        )
         None ->
           case read_string(args, "savedSearchId") {
-            Some(_) ->
+            Some(_) -> #(
               store.list_effective_draft_orders(store)
-              |> list.filter(fn(record) {
-                captured_string_field(record.data, "status") == Some("OPEN")
-              })
-            None -> []
+                |> list.filter(fn(record) {
+                  captured_string_field(record.data, "status") == Some("OPEN")
+                }),
+              [],
+            )
+            None -> #([], [])
           }
       }
   }
@@ -1125,13 +1247,8 @@ pub fn update_draft_order_tags(
 ) -> DraftOrderRecord {
   let existing = draft_order_tags(draft_order.data)
   let next_tags = case mode {
-    "add" ->
-      unique_strings(list.append(existing, tags))
-      |> list.sort(by: string.compare)
-    "remove" ->
-      existing
-      |> list.filter(fn(tag) { !list.contains(tags, tag) })
-      |> list.sort(by: string.compare)
+    "add" -> normalize_draft_order_tags(list.append(existing, tags))
+    "remove" -> remove_draft_order_tags_by_identity(existing, tags)
     _ -> existing
   }
   DraftOrderRecord(
@@ -1140,6 +1257,177 @@ pub fn update_draft_order_tags(
       #("tags", CapturedArray(list.map(next_tags, CapturedString))),
     ]),
   )
+}
+
+@internal
+pub fn draft_order_bulk_tag_input(
+  root_name: String,
+  tags: List(String),
+) -> #(List(String), List(#(List(String), String, Option(String))), Bool) {
+  case root_name == "draftOrderBulkDelete" {
+    True -> #([], [], False)
+    False -> {
+      let non_empty_tags = non_empty_draft_order_tag_values(tags)
+      let normalized_tags = valid_draft_order_tag_values(tags)
+      let long_tag_errors = draft_order_long_tag_errors(tags)
+      let too_many_tags =
+        list.length(non_empty_tags) > draft_order_tag_limit
+        || list.length(normalized_tags) > draft_order_tag_limit
+      let blank_errors = case list.is_empty(non_empty_tags) {
+        True -> [inferred_user_error(["tags"], "Tags can't be blank")]
+        False -> []
+      }
+      let tag_count_errors = case too_many_tags {
+        True -> [draft_order_too_many_tags_error()]
+        False -> []
+      }
+      let user_errors =
+        list.append(
+          blank_errors,
+          list.append(tag_count_errors, long_tag_errors),
+        )
+      let request_blocked =
+        !list.is_empty(blank_errors) || !list.is_empty(tag_count_errors)
+      #(normalized_tags, user_errors, request_blocked)
+    }
+  }
+}
+
+@internal
+pub fn draft_order_long_tag_errors(
+  tags: List(String),
+) -> List(#(List(String), String, Option(String))) {
+  tags
+  |> list.fold(#([], 0), fn(acc, tag) {
+    let #(user_errors, index) = acc
+    case trimmed_non_empty_draft_order_tag(tag) {
+      Ok(trimmed) ->
+        case string.length(trimmed) > draft_order_tag_character_limit {
+          True -> #(
+            [
+              user_error(
+                ["input", "tags", int.to_string(index)],
+                "tag_too_long",
+                Some(user_error_codes.invalid),
+              ),
+              ..user_errors
+            ],
+            index + 1,
+          )
+          False -> #(user_errors, index + 1)
+        }
+      _ -> #(user_errors, index + 1)
+    }
+  })
+  |> fn(result) {
+    let #(user_errors, _) = result
+    list.reverse(user_errors)
+  }
+}
+
+@internal
+pub fn valid_draft_order_tag_values(tags: List(String)) -> List(String) {
+  tags
+  |> list.filter_map(fn(tag) {
+    case trimmed_non_empty_draft_order_tag(tag) {
+      Ok(trimmed) ->
+        case string.length(trimmed) <= draft_order_tag_character_limit {
+          True -> Ok(trimmed)
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+  |> normalize_draft_order_tags
+}
+
+@internal
+pub fn non_empty_draft_order_tag_values(tags: List(String)) -> List(String) {
+  tags
+  |> list.filter_map(trimmed_non_empty_draft_order_tag)
+}
+
+@internal
+pub fn normalize_draft_order_tags(tags: List(String)) -> List(String) {
+  let #(reversed, _) =
+    tags
+    |> list.filter_map(trimmed_non_empty_draft_order_tag)
+    |> list.fold(#([], dict.new()), fn(acc, tag) {
+      let #(items, seen) = acc
+      let key = draft_order_tag_identity_key(tag)
+      case dict.has_key(seen, key) {
+        True -> #(items, seen)
+        False -> #([tag, ..items], dict.insert(seen, key, True))
+      }
+    })
+
+  reversed
+  |> list.reverse
+  |> list.sort(compare_draft_order_tags)
+}
+
+@internal
+pub fn remove_draft_order_tags_by_identity(
+  current_tags: List(String),
+  tags_to_remove: List(String),
+) -> List(String) {
+  let removal_keys = list.map(tags_to_remove, draft_order_tag_identity_key)
+  current_tags
+  |> normalize_draft_order_tags
+  |> list.filter(fn(tag) {
+    !list.contains(removal_keys, draft_order_tag_identity_key(tag))
+  })
+  |> list.sort(compare_draft_order_tags)
+}
+
+@internal
+pub fn trimmed_non_empty_draft_order_tag(value: String) -> Result(String, Nil) {
+  let trimmed = string.trim(value)
+  case string.length(trimmed) > 0 {
+    True -> Ok(trimmed)
+    False -> Error(Nil)
+  }
+}
+
+@internal
+pub fn draft_order_tag_identity_key(tag: String) -> String {
+  tag
+  |> string.trim
+  |> string.lowercase
+}
+
+@internal
+pub fn compare_draft_order_tags(a: String, b: String) -> order.Order {
+  let a_key = draft_order_tag_identity_key(a)
+  let b_key = draft_order_tag_identity_key(b)
+  case string.compare(a_key, b_key) {
+    order.Eq -> string.compare(a, b)
+    other -> other
+  }
+}
+
+@internal
+pub fn draft_order_too_many_tags_error() -> #(
+  List(String),
+  String,
+  Option(String),
+) {
+  user_error(["input", "tags"], "too_many_tags", Some(user_error_codes.invalid))
+}
+
+@internal
+pub fn append_too_many_draft_order_tags_error(
+  user_errors: List(#(List(String), String, Option(String))),
+) -> List(#(List(String), String, Option(String))) {
+  case
+    list.any(user_errors, fn(user_error) {
+      let #(_, message, _) = user_error
+      message == "too_many_tags"
+    })
+  {
+    True -> user_errors
+    False -> [draft_order_too_many_tags_error(), ..user_errors]
+  }
 }
 
 @internal

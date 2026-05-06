@@ -1,0 +1,66 @@
+{
+  "scenarioId": "publication-create-validation",
+  "operationNames": ["publicationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "graphql-validation-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/products/publication-create-validation.json"],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
+    "variablesCapturePath": "$.scenarios.bothTargets.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local-runtime publicationCreate validation proof for mutual exclusion, missing target, unknown catalog/channel, and defaultState enum coercion. Live 2026-04 probing in this workspace showed Shopify's public schema has drifted from the ticket text for channelId and missing-target behavior, so this scenario pins the ticket acceptance contract while the runtime remains local-only with an empty upstream cassette.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "both-catalog-and-channel-invalid",
+        "capturePath": "$.scenarios.bothTargets.response.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate"
+      },
+      {
+        "name": "missing-target-blank",
+        "capturePath": "$.scenarios.missingTarget.response.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
+          "variablesCapturePath": "$.scenarios.missingTarget.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-catalog-not-found",
+        "capturePath": "$.scenarios.unknownCatalog.response.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
+          "variablesCapturePath": "$.scenarios.unknownCatalog.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-channel-not-found",
+        "capturePath": "$.scenarios.unknownChannel.response.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
+          "variablesCapturePath": "$.scenarios.unknownChannel.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-default-state-enum",
+        "capturePath": "$.scenarios.invalidDefaultState.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
+          "variablesCapturePath": "$.scenarios.invalidDefaultState.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

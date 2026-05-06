@@ -43,8 +43,8 @@ import shopify_draft_proxy/proxy/products/inventory_validation.{
   read_inventory_move_quantity_inputs, read_variant_inventory_item,
   serialize_inventory_item_level_field, serialize_inventory_item_levels_field,
   stage_variant_inventory_levels, validate_inventory_adjust_inputs,
-  validate_inventory_move_inputs, validate_inventory_set_quantity_inputs,
-  variant_with_inventory_levels,
+  validate_inventory_item_update_input, validate_inventory_move_inputs,
+  validate_inventory_set_quantity_inputs, variant_with_inventory_levels,
 }
 import shopify_draft_proxy/proxy/products/media_core.{
   variant_media_connection_source,
@@ -63,9 +63,10 @@ import shopify_draft_proxy/proxy/products/selling_plans_core.{
   selling_plan_group_connection_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, mutation_error_with_null_data_result, mutation_result,
-  read_arg_object_list, read_bool_field, read_non_empty_string_field,
-  read_string_argument, read_string_field, user_errors_source,
+  count_source, mutation_error_with_null_data_result, mutation_rejected_result,
+  mutation_result, read_arg_object_list, read_bool_field,
+  read_non_empty_string_field, read_string_argument, read_string_field,
+  user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   selected_option_source, variant_staged_ids,
@@ -988,65 +989,85 @@ pub fn handle_inventory_item_update(
     Some(variant) ->
       case variant.inventory_item {
         Some(existing_item) -> {
-          let #(next_item, _) =
-            read_variant_inventory_item(
-              identity,
-              Some(input),
-              Some(existing_item),
-            )
-          case next_item {
-            Some(next_item) -> {
-              let next_variant =
-                ProductVariantRecord(..variant, inventory_item: Some(next_item))
-              let next_variants =
-                store.get_effective_variants_by_product_id(
-                  store,
-                  variant.product_id,
-                )
-                |> list.map(fn(candidate) {
-                  case candidate.id == variant.id {
-                    True -> next_variant
-                    False -> candidate
-                  }
-                })
-              let next_store =
-                store.replace_staged_variants_for_product(
-                  store,
-                  variant.product_id,
-                  next_variants,
-                )
-              let #(_, synced_store, synced_identity) =
-                sync_product_inventory_summary(
-                  next_store,
-                  identity,
-                  variant.product_id,
-                  RecomputeProductTotalInventory,
-                )
-              let updated_variant =
-                store.get_effective_variant_by_id(synced_store, variant.id)
-                |> option.unwrap(next_variant)
-              mutation_result(
-                key,
+          let user_errors =
+            validate_inventory_item_update_input(input, existing_item)
+          case user_errors {
+            [_, ..] -> {
+              let payload =
                 inventory_item_update_payload(
-                  synced_store,
-                  Some(updated_variant),
-                  [],
+                  store,
+                  None,
+                  user_errors,
                   field,
                   fragments,
-                ),
-                synced_store,
-                synced_identity,
-                variant_staged_ids(updated_variant),
-              )
+                )
+              mutation_rejected_result(key, payload, store, identity)
             }
-            None ->
-              inventory_item_update_missing_result(
-                key,
-                store,
-                identity,
-                field,
-                fragments,
-              )
+            [] -> {
+              let #(next_item, _) =
+                read_variant_inventory_item(
+                  identity,
+                  Some(input),
+                  Some(existing_item),
+                )
+              case next_item {
+                Some(next_item) -> {
+                  let next_variant =
+                    ProductVariantRecord(
+                      ..variant,
+                      inventory_item: Some(next_item),
+                    )
+                  let next_variants =
+                    store.get_effective_variants_by_product_id(
+                      store,
+                      variant.product_id,
+                    )
+                    |> list.map(fn(candidate) {
+                      case candidate.id == variant.id {
+                        True -> next_variant
+                        False -> candidate
+                      }
+                    })
+                  let next_store =
+                    store.replace_staged_variants_for_product(
+                      store,
+                      variant.product_id,
+                      next_variants,
+                    )
+                  let #(_, synced_store, synced_identity) =
+                    sync_product_inventory_summary(
+                      next_store,
+                      identity,
+                      variant.product_id,
+                      RecomputeProductTotalInventory,
+                    )
+                  let updated_variant =
+                    store.get_effective_variant_by_id(synced_store, variant.id)
+                    |> option.unwrap(next_variant)
+                  mutation_result(
+                    key,
+                    inventory_item_update_payload(
+                      synced_store,
+                      Some(updated_variant),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    synced_store,
+                    synced_identity,
+                    variant_staged_ids(updated_variant),
+                  )
+                }
+                None ->
+                  inventory_item_update_missing_result(
+                    key,
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                  )
+              }
+            }
           }
         }
         None ->

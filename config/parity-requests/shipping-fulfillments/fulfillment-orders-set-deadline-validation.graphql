@@ -1,0 +1,13 @@
+mutation FulfillmentOrdersSetDeadlineValidation($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+  fulfillmentOrdersSetFulfillmentDeadline(
+    fulfillmentOrderIds: $fulfillmentOrderIds
+    fulfillmentDeadline: $fulfillmentDeadline
+  ) {
+    success
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

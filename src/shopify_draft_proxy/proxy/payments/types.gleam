@@ -39,7 +39,7 @@ pub const payment_terms_creation_unsuccessful_code: String = "PAYMENT_TERMS_CREA
 pub const payment_terms_update_unsuccessful_code: String = "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
 
 @internal
-pub const payment_terms_delete_unsuccessful_code: String = "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+pub const payment_terms_delete_unsuccessful_code: String = "payment_terms_deletion_unsuccessful"
 
 @internal
 pub const multiple_payment_schedules_message: String = "Cannot create payment terms with multiple schedules."

@@ -5,6 +5,7 @@
 
 import gleam/dict.{type Dict}
 import gleam/int
+import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection}
@@ -1311,45 +1312,110 @@ pub fn handle_fulfillment_orders_set_deadline(
   let args = resolved_args(field, variables)
   let deadline = read_string(args, "fulfillmentDeadline")
   let ids = read_string_array(args, "fulfillmentOrderIds")
-  let next_store =
-    ids
-    |> list.fold(draft_store, fn(current_store, id) {
-      case store.get_effective_fulfillment_order_by_id(current_store, id) {
-        Some(order) -> {
-          let updated =
-            update_fulfillment_order_fields(order, [
-              #(
-                "fulfillBy",
-                option_to_captured_string(option.map(
-                  deadline,
-                  normalize_shopify_timestamp_to_seconds,
-                )),
-              ),
-            ])
-          let #(_, staged_store) =
-            store.stage_upsert_fulfillment_order(current_store, updated)
-          staged_store
-        }
-        None -> current_store
-      }
-    })
-  #(
-    shipping_types.MutationFieldResult(
-      key: key,
-      payload: fulfillment_order_payload_json(field, fragments, [
-        #(
-          "__typename",
-          SrcString("FulfillmentOrdersSetFulfillmentDeadlinePayload"),
+  case fulfillment_deadline_validation_error(draft_store, ids) {
+    Some(user_error) -> #(
+      shipping_types.MutationFieldResult(
+        key: key,
+        payload: fulfillment_order_deadline_payload(field, fragments, False, [
+          user_error,
+        ]),
+        errors: [],
+        staged_resource_ids: [],
+      ),
+      draft_store,
+      identity,
+    )
+    None -> {
+      let next_store =
+        ids
+        |> list.fold(draft_store, fn(current_store, id) {
+          case store.get_effective_fulfillment_order_by_id(current_store, id) {
+            Some(order) -> {
+              let updated =
+                update_fulfillment_order_fields(order, [
+                  #(
+                    "fulfillBy",
+                    option_to_captured_string(option.map(
+                      deadline,
+                      normalize_shopify_timestamp_to_seconds,
+                    )),
+                  ),
+                ])
+              let #(_, staged_store) =
+                store.stage_upsert_fulfillment_order(current_store, updated)
+              staged_store
+            }
+            None -> current_store
+          }
+        })
+      #(
+        shipping_types.MutationFieldResult(
+          key: key,
+          payload: fulfillment_order_deadline_payload(
+            field,
+            fragments,
+            True,
+            [],
+          ),
+          errors: [],
+          staged_resource_ids: ids,
         ),
-        #("success", SrcBool(True)),
-        #("userErrors", SrcList([])),
-      ]),
-      errors: [],
-      staged_resource_ids: ids,
-    ),
-    next_store,
-    identity,
-  )
+        next_store,
+        identity,
+      )
+    }
+  }
+}
+
+fn fulfillment_order_deadline_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  success: Bool,
+  user_errors: List(SourceValue),
+) -> Json {
+  fulfillment_order_payload_json(field, fragments, [
+    #("__typename", SrcString("FulfillmentOrdersSetFulfillmentDeadlinePayload")),
+    #("success", SrcBool(success)),
+    #("userErrors", SrcList(user_errors)),
+  ])
+}
+
+fn fulfillment_deadline_validation_error(
+  draft_store: Store,
+  ids: List(String),
+) -> Option(SourceValue) {
+  case ids {
+    [] -> None
+    [id, ..rest] ->
+      case store.get_effective_fulfillment_order_by_id(draft_store, id) {
+        None ->
+          Some(fulfillment_deadline_user_error(
+            "The fulfillment orders could not be found.",
+            SrcString("FULFILLMENT_ORDERS_NOT_FOUND"),
+          ))
+        Some(order) ->
+          case order.status {
+            "CLOSED" | "CANCELLED" | "CANCELED" ->
+              Some(fulfillment_deadline_user_error(
+                "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
+                SrcNull,
+              ))
+            _ -> fulfillment_deadline_validation_error(draft_store, rest)
+          }
+      }
+  }
+}
+
+fn fulfillment_deadline_user_error(
+  message: String,
+  code: SourceValue,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("UserError")),
+    #("field", SrcList([SrcString("base")])),
+    #("message", SrcString(message)),
+    #("code", code),
+  ])
 }
 
 @internal
