@@ -1,0 +1,26 @@
+{
+  "scenarioId": "product-create-media-dual-user-errors",
+  "operationNames": ["productCreateMedia"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "deprecated-user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreateMedia-dual-userErrors.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreateMedia-dual-userErrors.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-payload",
+        "capturePath": "$.mutation.response.data.productCreateMedia",
+        "proxyPath": "$.data.productCreateMedia"
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL evidence that productCreateMedia exposes deprecated `userErrors` and canonical `mediaUserErrors` together, with identical error arrays for the same invalid media input."
+}
