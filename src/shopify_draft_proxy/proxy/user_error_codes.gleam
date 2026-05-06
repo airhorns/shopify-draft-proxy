@@ -14,6 +14,8 @@ pub const fulfillment_order_not_splittable = "FULFILLMENT_ORDER_NOT_SPLITTABLE"
 
 pub const greater_than_zero = "GREATER_THAN_ZERO"
 
+pub const invalid_access = "INVALID_ACCESS"
+
 pub const not_found = "NOT_FOUND"
 
 pub const not_permitted = "NOT_PERMITTED"

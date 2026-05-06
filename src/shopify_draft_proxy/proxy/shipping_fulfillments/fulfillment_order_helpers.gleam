@@ -30,6 +30,7 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   fulfillment_order_source, reverse_delivery_source,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
+import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -689,18 +690,28 @@ pub fn fulfillment_hold_value(
   reason_notes: Option(String),
   external_id: Option(String),
   notify_merchant: Bool,
+  requesting_api_client_id: Option(String),
 ) -> CapturedJsonValue {
-  CapturedObject([
-    #("id", CapturedString(id)),
-    #("handle", option_to_captured_string(handle)),
-    #("reason", option_to_captured_string(reason)),
-    #("reasonNotes", option_to_captured_string(reason_notes)),
-    #("externalId", option_to_captured_string(external_id)),
-    #("__draftProxyNotifyMerchant", CapturedBool(notify_merchant)),
-    #("displayReason", CapturedString("Other")),
-    #("heldByApp", CapturedNull),
-    #("heldByRequestingApp", CapturedBool(True)),
-  ])
+  let owner_fields = case requesting_api_client_id {
+    Some(api_client_id) -> [
+      #("__proxyApiClientId", CapturedString(api_client_id)),
+    ]
+    None -> []
+  }
+  CapturedObject(list.append(
+    [
+      #("id", CapturedString(id)),
+      #("handle", option_to_captured_string(handle)),
+      #("reason", option_to_captured_string(reason)),
+      #("reasonNotes", option_to_captured_string(reason_notes)),
+      #("externalId", option_to_captured_string(external_id)),
+      #("__draftProxyNotifyMerchant", CapturedBool(notify_merchant)),
+      #("displayReason", CapturedString("Other")),
+      #("heldByApp", CapturedNull),
+      #("heldByRequestingApp", CapturedBool(True)),
+    ],
+    owner_fields,
+  ))
 }
 
 const max_fulfillment_holds_per_api_client = 10
@@ -729,6 +740,7 @@ pub fn fulfillment_order_holds(
 pub fn fulfillment_order_hold_validation_errors(
   order: FulfillmentOrderRecord,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> List(#(List(String), String, String)) {
   let line_item_inputs = read_object_array(input, "fulfillmentOrderLineItems")
   let input_errors =
@@ -763,6 +775,7 @@ pub fn fulfillment_order_hold_validation_errors(
                 fulfillment_order_has_duplicate_hold_handle(
                   existing_holds,
                   handle,
+                  requesting_api_client_id,
                 )
               {
                 True -> [
@@ -776,6 +789,7 @@ pub fn fulfillment_order_hold_validation_errors(
                   case
                     fulfillment_order_active_requesting_app_holds(
                       existing_holds,
+                      requesting_api_client_id,
                     )
                     >= max_fulfillment_holds_per_api_client
                   {
@@ -873,10 +887,11 @@ pub fn contains_duplicate_string(values: List(String)) -> Bool {
 pub fn fulfillment_order_has_duplicate_hold_handle(
   holds: List(CapturedJsonValue),
   handle: String,
+  requesting_api_client_id: Option(String),
 ) -> Bool {
   holds
   |> list.any(fn(hold) {
-    fulfillment_hold_held_by_requesting_app(hold)
+    fulfillment_hold_owned_by_requesting_app(hold, requesting_api_client_id)
     && { captured_string_field(hold, "handle") |> option.unwrap("") } == handle
   })
 }
@@ -884,9 +899,12 @@ pub fn fulfillment_order_has_duplicate_hold_handle(
 @internal
 pub fn fulfillment_order_active_requesting_app_holds(
   holds: List(CapturedJsonValue),
+  requesting_api_client_id: Option(String),
 ) -> Int {
   holds
-  |> list.filter(fulfillment_hold_held_by_requesting_app)
+  |> list.filter(fn(hold) {
+    fulfillment_hold_owned_by_requesting_app(hold, requesting_api_client_id)
+  })
   |> list.length
 }
 
@@ -894,12 +912,107 @@ pub fn fulfillment_order_active_requesting_app_holds(
 pub fn fulfillment_order_hold_supported_actions(
   holds: List(CapturedJsonValue),
 ) -> List(String) {
+  fulfillment_order_hold_supported_actions_for_requester(holds, None)
+}
+
+@internal
+pub fn fulfillment_order_hold_supported_actions_for_requester(
+  holds: List(CapturedJsonValue),
+  requesting_api_client_id: Option(String),
+) -> List(String) {
   case
-    fulfillment_order_active_requesting_app_holds(holds)
+    fulfillment_order_active_requesting_app_holds(
+      holds,
+      requesting_api_client_id,
+    )
     >= max_fulfillment_holds_per_api_client
   {
     True -> ["RELEASE_HOLD", "MOVE"]
     False -> ["RELEASE_HOLD", "HOLD", "MOVE"]
+  }
+}
+
+@internal
+pub fn fulfillment_hold_owned_by_requesting_app(
+  hold: CapturedJsonValue,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case
+    captured_string_field(hold, "__proxyApiClientId"),
+    requesting_api_client_id
+  {
+    Some(owner_api_client_id), Some(api_client_id) ->
+      owner_api_client_id == api_client_id
+    Some(_), None ->
+      captured_bool_field(hold, "heldByRequestingApp") |> option.unwrap(False)
+    None, _ -> fulfillment_hold_held_by_requesting_app(hold)
+  }
+}
+
+@internal
+pub fn fulfillment_order_release_hold_validation_errors(
+  holds: List(CapturedJsonValue),
+  hold_ids: Option(List(String)),
+  requesting_api_client_id: Option(String),
+) -> List(#(List(String), String, String)) {
+  case hold_ids {
+    Some(ids) ->
+      ids
+      |> list.filter_map(fn(id) {
+        case
+          holds
+          |> list.find(fn(hold) {
+            captured_string_field(hold, "id") == Some(id)
+          })
+        {
+          Ok(hold) ->
+            case
+              fulfillment_hold_owned_by_requesting_app(
+                hold,
+                requesting_api_client_id,
+              )
+            {
+              True -> Error(Nil)
+              False ->
+                Ok(#(
+                  ["holdIds"],
+                  "The fulfillment hold is not held by the requesting app.",
+                  user_error_codes.invalid_access,
+                ))
+            }
+          Error(_) ->
+            Ok(#(
+              ["holdIds"],
+              "The fulfillment hold is not held by the requesting app.",
+              user_error_codes.invalid_access,
+            ))
+        }
+      })
+    None -> []
+  }
+}
+
+@internal
+pub fn fulfillment_order_release_remaining_holds(
+  holds: List(CapturedJsonValue),
+  hold_ids: Option(List(String)),
+  requesting_api_client_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case hold_ids {
+    Some(ids) ->
+      holds
+      |> list.filter(fn(hold) {
+        let hold_id = captured_string_field(hold, "id") |> option.unwrap("")
+        !list.contains(ids, hold_id)
+      })
+    None ->
+      holds
+      |> list.filter(fn(hold) {
+        !fulfillment_hold_owned_by_requesting_app(
+          hold,
+          requesting_api_client_id,
+        )
+      })
   }
 }
 
