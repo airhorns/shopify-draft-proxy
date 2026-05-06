@@ -763,6 +763,105 @@ pub fn customer_create_readback_and_log_test() {
   )
 }
 
+pub fn customer_create_splits_comma_tags_and_dedupes_case_insensitively_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"tags-normalized@example.com\", tags: [\"a, b , c\", \"VIP\", \"vip\"] }) { customer { id tags } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"tags\":[\"a\",\"b\",\"c\",\"VIP\"]")
+  assert string.contains(create_json, "\"userErrors\":[]")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id tags } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"tags\":[\"a\",\"b\",\"c\",\"VIP\"]",
+  )
+}
+
+pub fn customer_create_rejects_tag_count_after_comma_split_test() {
+  let proxy = draft_proxy.new()
+  let tag_csv = numbered_tags_csv(251)
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"too-many-tags@example.com\", tags: [\""
+        <> tag_csv
+        <> "\"] }) { customer { id tags } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"tags\"],\"message\":\"Tags cannot be more than 250\",\"code\":\"TOO_MANY_TAGS\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+}
+
+pub fn customer_note_length_codes_apply_to_create_update_and_set_test() {
+  let long_note = string.repeat("N", times: 5001)
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"too-long-note-create@example.com\", note: \""
+        <> long_note
+        <> "\" }) { customer { id note } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  assert string.contains(
+    json.to_string(create_body),
+    "\"userErrors\":[{\"field\":[\"note\"],\"message\":\"Note is too long (maximum is 5000 characters)\",\"code\":\"TOO_LONG\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+
+  let #(Response(status: base_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"note-base@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert base_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", note: \""
+        <> long_note
+        <> "\" }) { customer { id note } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  assert string.contains(
+    json.to_string(update_body),
+    "\"userErrors\":[{\"field\":[\"note\"],\"message\":\"Note is too long (maximum is 5000 characters)\",\"code\":\"TOO_LONG\"}]",
+  )
+  assert_log_occurrences(proxy, "customerCreate", 1)
+  assert_log_omits_root(proxy, "customerUpdate")
+
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/1\" }, input: { note: \""
+        <> long_note
+        <> "\" }) { customer { id note } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  assert string.contains(
+    json.to_string(set_body),
+    "\"userErrors\":[{\"field\":[\"input\",\"note\"],\"message\":\"Note is too long (maximum is 5000 characters)\",\"code\":\"TOO_LONG\"}]",
+  )
+  assert_log_occurrences(proxy, "customerCreate", 1)
+  assert_log_omits_root(proxy, "customerSet")
+}
+
 pub fn customer_update_rejects_clearing_last_email_identity_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
@@ -2180,5 +2279,18 @@ fn do_repeat(value: String, remaining: Int, acc: String) -> String {
   case remaining <= 0 {
     True -> acc
     False -> do_repeat(value, remaining - 1, acc <> value)
+  }
+}
+
+fn numbered_tags_csv(count: Int) -> String {
+  int_range(from: 0, to: count - 1)
+  |> list.map(fn(index) { "tag-" <> int.to_string(index) })
+  |> string.join(",")
+}
+
+fn int_range(from start: Int, to stop: Int) -> List(Int) {
+  case start > stop {
+    True -> []
+    False -> [start, ..int_range(from: start + 1, to: stop)]
   }
 }

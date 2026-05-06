@@ -23,8 +23,8 @@ import shopify_draft_proxy/proxy/customers/inputs.{
   normalize_tags, option_to_result, read_customer_metafields,
   read_normalized_optional_string, read_normalized_string_with_blank,
   read_obj_addresses, read_obj_array_strings, read_obj_bool,
-  read_obj_list_objects, read_obj_string, result_to_option, update_nullable_note,
-  update_trimmed_nullable_string, validate_address_input,
+  read_obj_list_objects, read_obj_string, result_to_option, split_tags,
+  update_nullable_note, update_trimmed_nullable_string, validate_address_input,
 }
 import shopify_draft_proxy/proxy/customers/serializers.{
   address_customer_missing_result, address_id_mismatch_result,
@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_field_response_key,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -466,8 +467,15 @@ pub fn validate_customer_input_fields(
     list.flatten([
       validate_max_length(input, "firstName", "First name", 255),
       validate_max_length(input, "lastName", "Last name", 255),
-      validate_max_length(input, "note", "Note", 5000),
+      validate_max_length_with_code(
+        input,
+        "note",
+        "Note",
+        5000,
+        Some(user_error_codes.too_long),
+      ),
       validate_tag_lengths(input),
+      validate_tag_count(input),
     ])
   list.append(scalar_errors, length_errors)
 }
@@ -540,17 +548,40 @@ pub fn validate_max_length(
   label: String,
   max: Int,
 ) -> List(UserError) {
+  validate_max_length_at(input, field, label, max, [field], None)
+}
+
+@internal
+pub fn validate_max_length_with_code(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  label: String,
+  max: Int,
+  code: Option(String),
+) -> List(UserError) {
+  validate_max_length_at(input, field, label, max, [field], code)
+}
+
+@internal
+pub fn validate_max_length_at(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  label: String,
+  max: Int,
+  error_field: List(String),
+  code: Option(String),
+) -> List(UserError) {
   case read_obj_string(input, field) {
     Some(value) ->
       case string.length(value) > max {
         True -> [
           UserError(
-            [field],
+            error_field,
             label
               <> " is too long (maximum is "
               <> int.to_string(max)
               <> " characters)",
-            None,
+            code,
           ),
         ]
         False -> []
@@ -563,11 +594,46 @@ pub fn validate_max_length(
 pub fn validate_tag_lengths(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
+  validate_tag_lengths_at(input, ["tags"])
+}
+
+@internal
+pub fn validate_tag_lengths_at(
+  input: Dict(String, root_field.ResolvedValue),
+  field: List(String),
+) -> List(UserError) {
   read_obj_array_strings(input, "tags")
+  |> list.flat_map(split_tags)
   |> list.filter(fn(tag) { string.length(tag) > 255 })
   |> list.map(fn(_) {
-    UserError(["tags"], "Tags is too long (maximum is 255 characters)", None)
+    UserError(field, "Tags is too long (maximum is 255 characters)", None)
   })
+}
+
+@internal
+pub fn validate_tag_count(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  validate_tag_count_at(input, ["tags"])
+}
+
+@internal
+pub fn validate_tag_count_at(
+  input: Dict(String, root_field.ResolvedValue),
+  field: List(String),
+) -> List(UserError) {
+  let count =
+    normalize_tags(read_obj_array_strings(input, "tags")) |> list.length
+  case count > 250 {
+    True -> [
+      UserError(
+        field,
+        "Tags cannot be more than 250",
+        Some(user_error_codes.too_many_tags),
+      ),
+    ]
+    False -> []
+  }
 }
 
 @internal
@@ -959,10 +1025,29 @@ pub fn customer_set_preflight_errors(
 ) -> List(UserError) {
   list.flatten([
     validate_customer_address_inputs(input, ["input"]),
+    customer_set_tag_note_validation_errors(input),
     customer_set_tax_exempt_null_errors(input),
     customer_set_identifier_alignment_errors(input, identifier),
     customer_set_create_identity_errors(input, existing),
     customer_set_duplicate_identity_errors(store, input, existing),
+  ])
+}
+
+@internal
+pub fn customer_set_tag_note_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  list.flatten([
+    validate_max_length_at(
+      input,
+      "note",
+      "Note",
+      5000,
+      ["input", "note"],
+      Some(user_error_codes.too_long),
+    ),
+    validate_tag_lengths_at(input, ["input", "tags"]),
+    validate_tag_count_at(input, ["input", "tags"]),
   ])
 }
 

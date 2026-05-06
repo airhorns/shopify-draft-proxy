@@ -1,0 +1,8 @@
+query CustomerTagNoteLimitsRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    note
+    tags
+  }
+}

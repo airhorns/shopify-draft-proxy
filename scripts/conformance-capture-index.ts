@@ -4866,6 +4866,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-tag-note-limits',
+    scriptPath: 'scripts/capture-customer-tag-note-limits-conformance.ts',
+    purpose: 'Customer tag splitting/deduplication and tags/note length cap validation codes.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-tag-note-limits-parity.json`,
+      'config/parity-specs/customers/customerTagNoteLimits-parity.json',
+      'config/parity-requests/customers/customer-tag-note-limits-create.graphql',
+      'config/parity-requests/customers/customer-tag-note-limits-update.graphql',
+      'config/parity-requests/customers/customer-tag-note-limits-set.graphql',
+      'config/parity-requests/customers/customer-tag-note-limits-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers for successful tag normalization cases; validation-only branches return no customer, and created records are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-input-inline-consent',
     scriptPath: 'scripts/capture-customer-input-consent-conformance.ts',
     purpose: 'CustomerInput inline marketing consent create semantics and update rejection behavior.',
