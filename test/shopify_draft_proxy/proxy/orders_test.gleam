@@ -1496,6 +1496,167 @@ pub fn orders_fulfillment_validation_guardrails_test() {
     == "{\"errors\":[{\"message\":\"Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineNullId\",\"fulfillmentTrackingInfoUpdate\",\"fulfillmentId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"fulfillmentId\"}}]}"
 }
 
+pub fn orders_fulfillment_state_preconditions_test() {
+  let order_id = "gid://shopify/Order/fulfillment-state-preconditions"
+  let fulfillment_id =
+    "gid://shopify/Fulfillment/fulfillment-state-preconditions"
+
+  let cancelled_store =
+    order_store_with_fulfillment(
+      order_id,
+      fulfillment_id,
+      "CANCELLED",
+      "CANCELED",
+    )
+
+  let cancel_mutation =
+    "
+    mutation FulfillmentCancelStatePrecondition($id: ID!) {
+      fulfillmentCancel(id: $id) {
+        fulfillment {
+          id
+          status
+          displayStatus
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let cancel_variables =
+    dict.from_list([#("id", root_field.StringVal(fulfillment_id))])
+  let cancel_on_cancelled =
+    orders.process_mutation(
+      cancelled_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      cancel_mutation,
+      cancel_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancel_on_cancelled.data)
+    == "{\"data\":{\"fulfillmentCancel\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"fulfillment_cannot_be_cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert cancel_on_cancelled.staged_resource_ids == []
+  assert cancel_on_cancelled.log_drafts == []
+
+  let tracking_mutation =
+    "
+    mutation FulfillmentTrackingStatePrecondition(
+      $fulfillmentId: ID!
+      $trackingInfoInput: FulfillmentTrackingInput!
+    ) {
+      fulfillmentTrackingInfoUpdate(
+        fulfillmentId: $fulfillmentId
+        trackingInfoInput: $trackingInfoInput
+      ) {
+        fulfillment {
+          id
+          status
+          trackingInfo {
+            number
+            url
+            company
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let tracking_variables =
+    dict.from_list([
+      #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+      #(
+        "trackingInfoInput",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("number", root_field.StringVal("PRECONDITION-TRACK")),
+            #(
+              "url",
+              root_field.StringVal(
+                "https://example.com/track/PRECONDITION-TRACK",
+              ),
+            ),
+            #("company", root_field.StringVal("Hermes")),
+          ]),
+        ),
+      ),
+    ])
+  let tracking_on_cancelled =
+    orders.process_mutation(
+      cancelled_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      tracking_mutation,
+      tracking_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(tracking_on_cancelled.data)
+    == "{\"data\":{\"fulfillmentTrackingInfoUpdate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillmentId\"],\"message\":\"fulfillment_is_cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert tracking_on_cancelled.staged_resource_ids == []
+  assert tracking_on_cancelled.log_drafts == []
+
+  let delivered_store =
+    order_store_with_fulfillment(
+      order_id,
+      fulfillment_id,
+      "SUCCESS",
+      "DELIVERED",
+    )
+  let cancel_on_delivered =
+    orders.process_mutation(
+      delivered_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      cancel_mutation,
+      cancel_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancel_on_delivered.data)
+    == "{\"data\":{\"fulfillmentCancel\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"fulfillment_already_delivered\",\"code\":\"INVALID\"}]}}}"
+  assert cancel_on_delivered.staged_resource_ids == []
+  assert cancel_on_delivered.log_drafts == []
+}
+
+fn order_store_with_fulfillment(
+  order_id: String,
+  fulfillment_id: String,
+  status: String,
+  display_status: String,
+) -> store.Store {
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#FULFILLMENT-PRECONDITION")),
+        #("displayFulfillmentStatus", types.CapturedString(display_status)),
+        #(
+          "fulfillments",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(fulfillment_id)),
+              #("status", types.CapturedString(status)),
+              #("displayStatus", types.CapturedString(display_status)),
+              #("createdAt", types.CapturedString("2026-04-25T00:06:31Z")),
+              #("updatedAt", types.CapturedString("2026-04-25T00:06:31Z")),
+              #("trackingInfo", types.CapturedArray([])),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
 pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
   let order_id = "gid://shopify/Order/6834528944361"
   let fulfillment_id = "gid://shopify/Fulfillment/6189151518953"
