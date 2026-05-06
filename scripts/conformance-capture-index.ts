@@ -2439,7 +2439,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}segment-query-grammar-not-contains.json`,
       `${CAPTURE_ROOT}segment-create-update-query-grammar.json`,
       'config/parity-specs/segments/segment-create-update-query-grammar.json',
-      'config/parity-requests/segments/segment-create-update-query-grammar-*.graphql',
+      'config/parity-requests/segments/segment-create-update-query-grammar-create.graphql',
+      'config/parity-requests/segments/segment-create-update-query-grammar-update.graphql',
     ],
     cleanupBehavior:
       'Creates disposable segments, deletes them during cleanup, and leaves only Shopify async query state.',
