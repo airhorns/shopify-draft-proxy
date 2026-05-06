@@ -125,10 +125,16 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
 - Do not hand-author or synthetically generate checked-in conformance fixture
-  data. Fixture data must be a recorded real Shopify interaction produced by a
-  committed capture script that can be re-run through the aggregate conformance
-  capture runner. If a scenario cannot be recorded yet, keep the gap in
-  Linear/workpad notes instead of adding guessed fixture JSON.
+- Do not hand-author or synthetically generate checked-in conformance fixture
+  data, parity fixtures, or expected payloads as Shopify fidelity evidence. If
+  a parity spec claims captured Shopify behavior, its fixture must be a recorded
+  real Shopify interaction produced by a committed capture script or an
+  existing recorded Shopify interaction, and the capture path must be registered
+  in the aggregate conformance capture index when a new script is added. If a
+  scenario cannot be recorded yet, keep the gap in Linear/workpad notes instead
+  of adding guessed fixture JSON. Local-runtime fixtures may prove proxy-only
+  mechanics, but they are not a substitute for real Shopify evidence when the
+  claim is about Shopify's validation, lifecycle, or read-after-write behavior.
 - Conformance parity scenarios are discovered by convention from
   `config/parity-specs/*.json` and executed by the Gleam parity runner
   (`test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
