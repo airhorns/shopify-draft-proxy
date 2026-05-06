@@ -193,12 +193,15 @@ const createSuffix = `har${randomLetters(10)}`;
 const updateSuffix = `har${randomLetters(10)}`;
 const multiLocaleSuffix = 'intl';
 const frenchCanadianSuffix = 'fr';
+const partialUpdateSuffix = `har${randomLetters(10)}`;
 let createdWebPresenceId: string | null = null;
 let multiLocaleWebPresenceId: string | null = null;
 let frenchCanadianWebPresenceId: string | null = null;
+let partialUpdateWebPresenceId: string | null = null;
 let cleanupResponse: unknown = null;
 let multiLocaleCleanupResponse: unknown = null;
 let frenchCanadianCleanupResponse: unknown = null;
+let partialUpdateCleanupResponse: unknown = null;
 const localeRestoreActions: LocaleRestoreAction[] = [];
 let localeCleanupResponses: Record<string, unknown> = {};
 
@@ -328,6 +331,33 @@ try {
     );
   }
   frenchCanadianCleanupResponse = await runGraphql(deleteMutation, { id: frenchCanadianWebPresenceId });
+
+  const partialUpdateCreateVariables = {
+    input: {
+      defaultLocale: 'fr',
+      alternateLocales: [],
+      subfolderSuffix: partialUpdateSuffix,
+    },
+  };
+  const partialUpdateCreateResponse = await runGraphql(createMutation, partialUpdateCreateVariables);
+  partialUpdateWebPresenceId = partialUpdateCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!partialUpdateWebPresenceId) {
+    throw new Error(
+      `partial-update webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        partialUpdateCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const partialUpdateVariables = {
+    id: partialUpdateWebPresenceId,
+    input: {
+      alternateLocales: ['de'],
+    },
+  };
+  const partialUpdateResponse = await runGraphql(updateMutation, partialUpdateVariables);
+  partialUpdateCleanupResponse = await runGraphql(deleteMutation, { id: partialUpdateWebPresenceId });
   localeCleanupResponses = await restoreEnabledLocales();
 
   const fixture = {
@@ -339,6 +369,7 @@ try {
       updated: updateSuffix,
       multiLocale: multiLocaleSuffix,
       frenchCanadian: frenchCanadianSuffix,
+      partialUpdate: partialUpdateSuffix,
     },
     scope:
       'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity and HAR-611 fr-CA default locale parity',
@@ -460,6 +491,24 @@ try {
           payload: frenchCanadianCreateResponse,
         },
       },
+      {
+        name: 'webPresencePartialUpdateCreate',
+        query: createMutation,
+        variables: partialUpdateCreateVariables,
+        response: {
+          status: 200,
+          payload: partialUpdateCreateResponse,
+        },
+      },
+      {
+        name: 'webPresencePartialUpdateAlternateLocalesOnly',
+        query: updateMutation,
+        variables: partialUpdateVariables,
+        response: {
+          status: 200,
+          payload: partialUpdateResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -484,6 +533,14 @@ try {
         response: {
           status: 200,
           payload: frenchCanadianCleanupResponse,
+        },
+      },
+      partialUpdateWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: partialUpdateWebPresenceId },
+        response: {
+          status: 200,
+          payload: partialUpdateCleanupResponse,
         },
       },
       enabledLocaleCleanup: localeCleanupResponses,
@@ -528,6 +585,19 @@ try {
           },
         },
       },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: partialUpdateCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
     ],
   };
 
@@ -548,6 +618,10 @@ try {
   if (frenchCanadianWebPresenceId && !frenchCanadianCleanupResponse) {
     frenchCanadianCleanupResponse = await runGraphql(deleteMutation, { id: frenchCanadianWebPresenceId });
     console.error(JSON.stringify({ frenchCanadianCleanupAfterFailure: frenchCanadianCleanupResponse }, null, 2));
+  }
+  if (partialUpdateWebPresenceId && !partialUpdateCleanupResponse) {
+    partialUpdateCleanupResponse = await runGraphql(deleteMutation, { id: partialUpdateWebPresenceId });
+    console.error(JSON.stringify({ partialUpdateCleanupAfterFailure: partialUpdateCleanupResponse }, null, 2));
   }
   if (localeRestoreActions.length > 0 && Object.keys(localeCleanupResponses).length === 0) {
     localeCleanupResponses = await restoreEnabledLocales();

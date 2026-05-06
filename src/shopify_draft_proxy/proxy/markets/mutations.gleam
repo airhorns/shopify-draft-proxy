@@ -44,9 +44,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type MarketLocalizableContentRecord,
   type MarketLocalizationRecord, type PriceListRecord,
-  type ProductMetafieldRecord, type ShopDomainRecord, CapturedArray,
-  CapturedBool, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
-  MarketLocalizationRecord, MarketRecord, PriceListRecord, WebPresenceRecord,
+  type ProductMetafieldRecord, type ShopDomainRecord, type WebPresenceRecord,
+  CapturedArray, CapturedBool, CapturedNull, CapturedObject, CapturedString,
+  CatalogRecord, MarketLocalizationRecord, MarketRecord, PriceListRecord,
+  ShopDomainRecord, WebPresenceRecord,
 }
 
 @internal
@@ -2347,11 +2348,11 @@ fn handle_web_presence_update(
   case id {
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
-        Some(_) -> {
-          let errors = web_presence_update_errors(store, input)
+        Some(existing) -> {
+          let errors = web_presence_update_errors(existing, input)
           case errors {
             [] -> {
-              let data = web_presence_data(store, id_value, input)
+              let data = web_presence_update_data(store, existing, input)
               let record =
                 WebPresenceRecord(id: id_value, cursor: None, data: data)
               let #(_, next_store) =
@@ -2653,10 +2654,27 @@ fn web_presence_create_errors(
 }
 
 fn web_presence_update_errors(
-  store: Store,
+  existing: WebPresenceRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  web_presence_input_errors(store, input, False)
+  let default_locale_errors = case dict.has_key(input, "defaultLocale") {
+    True -> web_presence_default_locale_errors(input)
+    False -> []
+  }
+  let route_and_suffix_errors = case default_locale_errors {
+    [] ->
+      list.append(
+        web_presence_update_route_errors(existing, input),
+        web_presence_subfolder_suffix_errors(input),
+      )
+    _ -> []
+  }
+  [
+    default_locale_errors,
+    web_presence_alternate_locale_errors(input),
+    route_and_suffix_errors,
+  ]
+  |> list.flatten
 }
 
 fn web_presence_input_errors(
@@ -2724,6 +2742,24 @@ fn web_presence_route_errors(
         ]
         False -> []
       }
+    _, _ -> []
+  }
+}
+
+fn web_presence_update_route_errors(
+  existing: WebPresenceRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let suffix =
+    graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  case suffix, web_presence_record_has_domain(existing) {
+    Some(_), True -> [
+      user_error(
+        ["input"],
+        "Cannot have both subfolder suffix and domain",
+        "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
+      ),
+    ]
     _, _ -> []
   }
 }
@@ -2918,6 +2954,147 @@ fn web_presence_data(
       ]),
     ),
   ])
+}
+
+fn web_presence_update_data(
+  store: Store,
+  existing: WebPresenceRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  let default_locale = case dict.has_key(input, "defaultLocale") {
+    True ->
+      graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+      |> option.unwrap(existing_web_presence_default_locale(existing))
+    False -> existing_web_presence_default_locale(existing)
+  }
+  let alternate_locales = case dict.has_key(input, "alternateLocales") {
+    True ->
+      read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
+    False -> existing_web_presence_alternate_locales(existing)
+  }
+  let suffix = case dict.has_key(input, "subfolderSuffix") {
+    True -> graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+    False -> existing_web_presence_subfolder_suffix(existing)
+  }
+  let domain = existing_web_presence_domain(existing)
+  web_presence_payload(
+    store,
+    existing.id,
+    default_locale,
+    alternate_locales,
+    suffix,
+    domain,
+  )
+}
+
+fn web_presence_payload(
+  store: Store,
+  id: String,
+  default_locale: String,
+  alternate_locales: List(String),
+  suffix: Option(String),
+  domain: Option(ShopDomainRecord),
+) -> CapturedJsonValue {
+  let has_alternate_locales = !list.is_empty(alternate_locales)
+  let locales = [default_locale, ..alternate_locales]
+  CapturedObject([
+    #("__typename", CapturedString("MarketWebPresence")),
+    #("id", CapturedString(id)),
+    #("subfolderSuffix", optional_captured_string(suffix)),
+    #("domain", optional_web_presence_domain(domain)),
+    #(
+      "rootUrls",
+      CapturedArray(
+        list.map(locales, fn(locale) {
+          CapturedObject([
+            #("locale", CapturedString(locale)),
+            #(
+              "url",
+              CapturedString(web_presence_root_url(
+                store,
+                locale,
+                default_locale,
+                suffix,
+                domain,
+                has_alternate_locales,
+              )),
+            ),
+          ])
+        }),
+      ),
+    ),
+    #("defaultLocale", locale_payload(default_locale, True)),
+    #(
+      "alternateLocales",
+      CapturedArray(
+        list.map(alternate_locales, fn(locale) { locale_payload(locale, False) }),
+      ),
+    ),
+    #(
+      "markets",
+      CapturedObject([
+        #("nodes", CapturedArray([])),
+        #("edges", CapturedArray([])),
+      ]),
+    ),
+  ])
+}
+
+fn existing_web_presence_default_locale(record: WebPresenceRecord) -> String {
+  case captured_field(record.data, "defaultLocale") {
+    Some(locale) ->
+      captured_string_field(locale, "locale") |> option.unwrap("en")
+    None -> "en"
+  }
+}
+
+fn existing_web_presence_alternate_locales(
+  record: WebPresenceRecord,
+) -> List(String) {
+  case captured_field(record.data, "alternateLocales") {
+    Some(CapturedArray(locales)) ->
+      locales
+      |> list.filter_map(fn(locale) {
+        captured_string_field(locale, "locale") |> option_to_result
+      })
+    _ -> []
+  }
+}
+
+fn existing_web_presence_subfolder_suffix(
+  record: WebPresenceRecord,
+) -> Option(String) {
+  captured_string_field(record.data, "subfolderSuffix")
+}
+
+fn existing_web_presence_domain(
+  record: WebPresenceRecord,
+) -> Option(ShopDomainRecord) {
+  case captured_field(record.data, "domain") {
+    Some(domain) -> {
+      use id <- option.then(captured_string_field(domain, "id"))
+      use host <- option.then(captured_string_field(domain, "host"))
+      let url = captured_string_field(domain, "url") |> option.unwrap("")
+      let ssl_enabled = case captured_field(domain, "sslEnabled") {
+        Some(CapturedBool(value)) -> value
+        _ -> False
+      }
+      Some(ShopDomainRecord(
+        id: id,
+        host: host,
+        url: url,
+        ssl_enabled: ssl_enabled,
+      ))
+    }
+    _ -> None
+  }
+}
+
+fn web_presence_record_has_domain(record: WebPresenceRecord) -> Bool {
+  case captured_field(record.data, "domain") {
+    Some(CapturedObject(_)) -> True
+    _ -> False
+  }
 }
 
 fn web_presence_root_url(
