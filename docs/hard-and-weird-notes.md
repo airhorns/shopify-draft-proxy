@@ -3258,15 +3258,17 @@ HAR-654 captured `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heel
 Captured facts:
 
 - omitting inline `input.address` returns a top-level GraphQL error with `extensions.code: "missingRequiredInputObjectAttribute"` and no mutation payload
+- omitting `input.address` or nested `input.address.countryCode` through variables returns top-level `INVALID_VARIABLE`; omitting inline nested `address.countryCode` returns `missingRequiredInputObjectAttribute`
 - blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
 - omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
 - explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
 - a probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError; the location was deactivated and deleted immediately after capture
+- current 2026-04 schema does not expose `LocationAddInput.capabilities`, `capabilitiesToAdd`, `capabilitiesToRemove`, or `Location.capabilities`; inline unknown input fields return `argumentNotAccepted`, variable unknown input fields return `INVALID_VARIABLE`, and selecting `Location.capabilities` returns `undefinedField`
 
 Practical rule:
 
-- keep required-address and blank-name behavior aligned with the captured parser/userError shapes
-- keep the proxy's obvious non-ISO country-code rejection as a local guardrail requested by HAR-654, but treat exact Shopify country acceptance/rejection as store/topology-sensitive until a stricter live branch is captured
+- keep required-address, required-country-code, blank-name, capabilities-schema, and country enum behavior aligned with the captured parser/userError/schema shapes
+- treat exact Shopify country acceptance/rejection as schema-version sensitive; 2026-04 includes `ZZ` in the public `CountryCode` enum
 
 ## 77. B2B customer-as-contact validation codes are version/evidence-sensitive
 

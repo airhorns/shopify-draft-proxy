@@ -18,7 +18,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
   get_document_fragments, get_field_response_key, project_graphql_field_value,
   project_graphql_value, read_arg_bool, read_arg_object, read_arg_string,
-  read_arg_string_list, src_object,
+  src_object,
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -59,29 +59,6 @@ const shop_policy_type_order = [
   "SUBSCRIPTION_POLICY",
   "TERMS_OF_SALE",
   "TERMS_OF_SERVICE",
-]
-
-const iso_3166_alpha2_country_codes = [
-  "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU",
-  "AW", "AX", "AZ", "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL",
-  "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW", "BY", "BZ", "CA", "CC",
-  "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV",
-  "CW", "CX", "CY", "CZ", "DE", "DJ", "DK", "DM", "DO", "DZ", "EC", "EE", "EG",
-  "EH", "ER", "ES", "ET", "FI", "FJ", "FK", "FM", "FO", "FR", "GA", "GB", "GD",
-  "GE", "GF", "GG", "GH", "GI", "GL", "GM", "GN", "GP", "GQ", "GR", "GS", "GT",
-  "GU", "GW", "GY", "HK", "HM", "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IM",
-  "IN", "IO", "IQ", "IR", "IS", "IT", "JE", "JM", "JO", "JP", "KE", "KG", "KH",
-  "KI", "KM", "KN", "KP", "KR", "KW", "KY", "KZ", "LA", "LB", "LC", "LI", "LK",
-  "LR", "LS", "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MF", "MG", "MH",
-  "MK", "ML", "MM", "MN", "MO", "MP", "MQ", "MR", "MS", "MT", "MU", "MV", "MW",
-  "MX", "MY", "MZ", "NA", "NC", "NE", "NF", "NG", "NI", "NL", "NO", "NP", "NR",
-  "NU", "NZ", "OM", "PA", "PE", "PF", "PG", "PH", "PK", "PL", "PM", "PN", "PR",
-  "PS", "PT", "PW", "PY", "QA", "RE", "RO", "RS", "RU", "RW", "SA", "SB", "SC",
-  "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM", "SN", "SO", "SR", "SS",
-  "ST", "SV", "SX", "SY", "SZ", "TC", "TD", "TF", "TG", "TH", "TJ", "TK", "TL",
-  "TM", "TN", "TO", "TR", "TT", "TV", "TW", "TZ", "UA", "UG", "UM", "US", "UY",
-  "UZ", "VA", "VC", "VE", "VG", "VI", "VN", "VU", "WF", "WS", "YE", "YT", "ZA",
-  "ZM", "ZW",
 ]
 
 const shop_baseline_hydrate_operation: String = "StorePropertiesShopBaselineHydrate"
@@ -446,7 +423,7 @@ fn stage_location_add(
         _, Ok(_) -> {
           let #(id, next_identity) =
             synthetic_identity.make_synthetic_gid(identity, "Location")
-          let base_fields = [
+          let fields = [
             #("__typename", StorePropertyString("Location")),
             #("id", StorePropertyString(id)),
             #("name", StorePropertyString(value)),
@@ -466,11 +443,6 @@ fn stage_location_add(
               StorePropertyObject(location_add_address_data(address_values)),
             ),
           ]
-          let fields = case location_add_capabilities(input_values) {
-            Some(capabilities) ->
-              list.append(base_fields, [#("capabilities", capabilities)])
-            None -> base_fields
-          }
           let record =
             StorePropertyRecord(
               id: id,
@@ -615,31 +587,12 @@ fn validate_location_add_country_code(
   case read_arg_string(address, "countryCode") {
     Some(raw) -> {
       let code = string.uppercase(string.trim(raw))
-      case list.contains(iso_3166_alpha2_country_codes, code) {
-        True -> Ok(code)
-        False -> Error(Nil)
+      case code == "" {
+        True -> Error(Nil)
+        False -> Ok(code)
       }
     }
     None -> Error(Nil)
-  }
-}
-
-fn location_add_capabilities(
-  input: Dict(String, root_field.ResolvedValue),
-) -> Option(StorePropertyValue) {
-  let add = read_arg_string_list(input, "capabilitiesToAdd")
-  let remove = read_arg_string_list(input, "capabilitiesToRemove")
-  case add, remove {
-    None, None -> None
-    _, _ -> {
-      let additions = add |> option.unwrap([])
-      let removals = remove |> option.unwrap([])
-      Some(StorePropertyList(
-        additions
-        |> list.filter(fn(capability) { !list.contains(removals, capability) })
-        |> list.map(StorePropertyString),
-      ))
-    }
   }
 }
 
