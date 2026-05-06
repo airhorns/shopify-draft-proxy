@@ -1,0 +1,63 @@
+{
+  "scenarioId": "inventory-item-update-validation",
+  "operationNames": ["inventoryItemUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-item-update-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventoryItemUpdate-validation.graphql",
+    "variablesCapturePath": "$.captures.negativeCost.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live inventoryItemUpdate validation evidence for cost, weight, country, and HS code guardrails. The fixture includes a cassette-backed inventory item hydration from the disposable setup product; each request then replays one captured invalid update against that inventory item. Runtime tests cover province validation and duplicate country HS rows because the 2025-01 conformance store accepted those branches rather than returning the ticket-described userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "negative-cost-user-errors",
+        "capturePath": "$.captures.negativeCost.response.data.inventoryItemUpdate",
+        "proxyPath": "$.data.inventoryItemUpdate"
+      },
+      {
+        "name": "negative-weight-value-user-errors",
+        "capturePath": "$.captures.negativeWeightValue.response.data.inventoryItemUpdate",
+        "proxyPath": "$.data.inventoryItemUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryItemUpdate-validation.graphql",
+          "variablesCapturePath": "$.captures.negativeWeightValue.variables"
+        }
+      },
+      {
+        "name": "invalid-weight-unit-variable-error",
+        "capturePath": "$.captures.invalidWeightUnit.response.errors",
+        "proxyPath": "$.errors",
+        "excludedPaths": ["$[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryItemUpdate-validation.graphql",
+          "variablesCapturePath": "$.captures.invalidWeightUnit.variables"
+        }
+      },
+      {
+        "name": "invalid-country-user-errors",
+        "capturePath": "$.captures.invalidCountry.response.data.inventoryItemUpdate",
+        "proxyPath": "$.data.inventoryItemUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryItemUpdate-validation.graphql",
+          "variablesCapturePath": "$.captures.invalidCountry.variables"
+        }
+      },
+      {
+        "name": "invalid-hs-code-user-errors",
+        "capturePath": "$.captures.invalidHsCode.response.data.inventoryItemUpdate",
+        "proxyPath": "$.data.inventoryItemUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryItemUpdate-validation.graphql",
+          "variablesCapturePath": "$.captures.invalidHsCode.variables"
+        }
+      }
+    ]
+  }
+}
