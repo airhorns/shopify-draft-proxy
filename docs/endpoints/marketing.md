@@ -49,8 +49,9 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 - createExternal happy path with remote ID, UTM, selected activity fields, and nested marketing event attribution
 - updateExternal by `remoteId` for title, status, and remote URL changes
 - local integration coverage also exercises Shopify's documented `marketingActivityUpdateExternal(utm:)` selector path; the proxy resolves that selector against the staged/effective activity `utmParameters` and keeps the update local
+- when updateExternal receives multiple selectors, every supplied selector must resolve to the same effective activity before local validation or staging runs; conflicting selector matches return `MARKETING_ACTIVITY_DOES_NOT_EXIST` with `marketingActivity: null`
 - upsertExternal create and update behavior keyed by `remoteId`
-- deleteExternal by activity ID and remote ID, including missing-activity userErrors
+- deleteExternal by activity ID and remote ID, including missing-activity userErrors; if both selectors are supplied, they must resolve to the same effective activity before the local delete is staged
 - deleteAllExternal asynchronous `Job` payload with `done: false`
 - userErrors for missing non-hierarchical attribution and immutable UTM changes
 

@@ -79,6 +79,26 @@ fn run(source: store.Store, query: String) -> String {
 }
 
 fn activity(id: String, title: String, remote_id: String, created_at: String) {
+  activity_with_utm(
+    id,
+    title,
+    remote_id,
+    created_at,
+    "spring",
+    "email",
+    "newsletter",
+  )
+}
+
+fn activity_with_utm(
+  id: String,
+  title: String,
+  remote_id: String,
+  created_at: String,
+  campaign: String,
+  source: String,
+  medium: String,
+) {
   let event_id = "gid://shopify/MarketingEvent/" <> string.drop_start(id, 34)
   let event =
     dict.from_list([
@@ -111,9 +131,9 @@ fn activity(id: String, title: String, remote_id: String, created_at: String) {
         "utmParameters",
         MarketingObject(
           dict.from_list([
-            #("campaign", MarketingString("spring")),
-            #("source", MarketingString("email")),
-            #("medium", MarketingString("newsletter")),
+            #("campaign", MarketingString(campaign)),
+            #("source", MarketingString(source)),
+            #("medium", MarketingString(medium)),
           ]),
         ),
       ),
@@ -826,6 +846,59 @@ pub fn update_external_requires_a_selector_test() {
   )
 }
 
+pub fn update_external_rejects_conflicting_selector_matches_test() {
+  let activity_a =
+    activity_with_utm(
+      "gid://shopify/MarketingActivity/501",
+      "Activity A",
+      "remote-a",
+      "2026-05-05T00:00:00Z",
+      "camp-a",
+      "src-a",
+      "med-a",
+    )
+  let activity_b =
+    activity_with_utm(
+      "gid://shopify/MarketingActivity/502",
+      "Activity B",
+      "remote-b",
+      "2026-05-05T00:01:00Z",
+      "camp-b",
+      "src-b",
+      "med-b",
+    )
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      activity_a,
+      activity_b,
+    ])
+
+  let result =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-a\", utm: { campaign: \"camp-b\", source: \"src-b\", medium: \"med-b\" }, input: { title: \"Changed A\" }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(result.data)
+  assert string.contains(response, "\"marketingActivity\":null")
+  assert string.contains(
+    response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+
+  let read_after =
+    run(
+      result.store,
+      "{ first: marketingActivity(id: \"gid://shopify/MarketingActivity/501\") { id title } second: marketingActivity(id: \"gid://shopify/MarketingActivity/502\") { id title } }",
+    )
+  assert string.contains(read_after, "\"title\":\"Activity A\"")
+  assert string.contains(read_after, "\"title\":\"Activity B\"")
+  assert !string.contains(read_after, "Changed A")
+}
+
 pub fn delete_external_requires_selector_and_preserves_missing_record_error_test() {
   let no_args =
     marketing.process_mutation(
@@ -864,6 +937,58 @@ pub fn delete_external_requires_selector_and_preserves_missing_record_error_test
     missing_response,
     "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
   )
+}
+
+pub fn delete_external_rejects_conflicting_selector_matches_test() {
+  let activity_a =
+    activity_with_utm(
+      "gid://shopify/MarketingActivity/601",
+      "Delete Activity A",
+      "delete-remote-a",
+      "2026-05-05T00:00:00Z",
+      "delete-camp-a",
+      "delete-src-a",
+      "delete-med-a",
+    )
+  let activity_b =
+    activity_with_utm(
+      "gid://shopify/MarketingActivity/602",
+      "Delete Activity B",
+      "delete-remote-b",
+      "2026-05-05T00:01:00Z",
+      "delete-camp-b",
+      "delete-src-b",
+      "delete-med-b",
+    )
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      activity_a,
+      activity_b,
+    ])
+
+  let result =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityDeleteExternal(marketingActivityId: \"gid://shopify/MarketingActivity/601\", remoteId: \"delete-remote-b\") { deletedMarketingActivityId userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(result.data)
+  assert string.contains(response, "\"deletedMarketingActivityId\":null")
+  assert string.contains(
+    response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+
+  let read_after =
+    run(
+      result.store,
+      "{ first: marketingActivity(id: \"gid://shopify/MarketingActivity/601\") { id title } second: marketingActivity(id: \"gid://shopify/MarketingActivity/602\") { id title } }",
+    )
+  assert string.contains(read_after, "\"title\":\"Delete Activity A\"")
+  assert string.contains(read_after, "\"title\":\"Delete Activity B\"")
 }
 
 pub fn delete_external_rejects_native_and_parent_activities_test() {

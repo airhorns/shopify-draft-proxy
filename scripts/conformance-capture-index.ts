@@ -1653,6 +1653,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-update-external-multi-selector',
+    scriptPath: 'scripts/capture-marketing-activity-update-external-multi-selector-conformance.mts',
+    purpose:
+      'External marketing activity update selector conjunction semantics for conflicting remoteId and UTM matches.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-update-external-multi-selector.json`,
+      'config/parity-specs/marketing/marketing-activity-update-external-multi-selector.json',
+      'config/parity-requests/marketing/marketing-activity-update-external-multi-selector*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable external marketing activities, captures a rejected conflicting-selector update, reads back the first activity unchanged, and deletes both remote IDs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-delete-external-guards',
     scriptPath: 'scripts/capture-marketing-activity-delete-external-guards-conformance.mts',
     purpose:
