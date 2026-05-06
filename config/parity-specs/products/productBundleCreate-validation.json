@@ -1,0 +1,285 @@
+{
+  "scenarioId": "productBundleCreate-validation",
+  "operationNames": ["productCreate", "productBundleCreate", "productOperation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "operation-readback"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productBundleCreate-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-with-options-parity.graphql",
+    "variablesCapturePath": "$.captures.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "productBundleCreate validation parity for missing component products, invalid option mappings, quantity maximum, quantityOption minimum values, quantity=0 success shape, blank quantityOption-name success, and ProductBundleOperation readback. The live 2025-01 schema rejects consolidatedOptions before resolver validation, so that local guardrail is runtime-test-backed rather than included in this fixture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-user-errors",
+        "capturePath": "$.captures.productCreate.result.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "missing-component-product",
+        "capturePath": "$.captures.missingComponentProduct.result.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
+          "variablesCapturePath": "$.captures.missingComponentProduct.variables"
+        }
+      },
+      {
+        "name": "option-selections-over-limit",
+        "capturePath": "$.captures.optionSelectionsOverLimit.result.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[0].message",
+            "matcher": "regex:^Mapping of components targeting products need to map all of the options of the product.",
+            "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.captures.optionSelectionsOverLimit.variables.input.title" },
+              "components": [
+                {
+                  "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+                  "quantity": 1,
+                  "optionSelections": [
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[0].id" },
+                      "name": "Color",
+                      "values": ["Red"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[1].id" },
+                      "name": "Size",
+                      "values": ["Small"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[2].id" },
+                      "name": "Material",
+                      "values": ["Cotton"]
+                    },
+                    {
+                      "componentOptionId": "gid://shopify/ProductOption/0",
+                      "name": "Finish",
+                      "values": ["Matte"]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "quantity-over-maximum",
+        "capturePath": "$.captures.quantityOverMaximum.result.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[0].message",
+            "matcher": "regex:^Quantity cannot be greater than 2000.",
+            "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.captures.quantityOverMaximum.variables.input.title" },
+              "components": [
+                {
+                  "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+                  "quantity": 2001,
+                  "optionSelections": [
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[0].id" },
+                      "name": "Color",
+                      "values": ["Red"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[1].id" },
+                      "name": "Size",
+                      "values": ["Small"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[2].id" },
+                      "name": "Material",
+                      "values": ["Cotton"]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "one-value-quantity-option",
+        "capturePath": "$.captures.oneValueQuantityOption.result.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[0].message",
+            "matcher": "regex:^Quantity options must have at least two values.",
+            "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.captures.oneValueQuantityOption.variables.input.title" },
+              "components": [
+                {
+                  "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+                  "quantityOption": {
+                    "name": "Pack",
+                    "values": [{ "name": "Single", "quantity": 1 }]
+                  },
+                  "optionSelections": [
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[0].id" },
+                      "name": "Color",
+                      "values": ["Red"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[1].id" },
+                      "name": "Size",
+                      "values": ["Small"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[2].id" },
+                      "name": "Material",
+                      "values": ["Cotton"]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "quantity-zero-success",
+        "capturePath": "$.captures.quantityZeroSuccess.result.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.productBundleOperation.id",
+            "matcher": "shopify-gid:ProductBundleOperation",
+            "reason": "The proxy creates a stable synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.captures.quantityZeroSuccess.variables.input.title" },
+              "components": [
+                {
+                  "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+                  "quantity": 0,
+                  "optionSelections": [
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[0].id" },
+                      "name": "Color",
+                      "values": ["Red"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[1].id" },
+                      "name": "Size",
+                      "values": ["Small"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[2].id" },
+                      "name": "Material",
+                      "values": ["Cotton"]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "operation-read",
+        "capturePath": "$.captures.operationRead.result.data.productOperation",
+        "proxyPath": "$.data.productOperation",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:ProductBundleOperation",
+            "reason": "The proxy reads back its locally staged synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleOperation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "quantity-zero-success",
+              "path": "$.data.productBundleCreate.productBundleOperation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "blank-quantity-option-name-success",
+        "capturePath": "$.captures.blankQuantityOptionNameSuccess.result.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.productBundleOperation.id",
+            "matcher": "shopify-gid:ProductBundleOperation",
+            "reason": "The proxy creates a stable synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.captures.blankQuantityOptionNameSuccess.variables.input.title" },
+              "components": [
+                {
+                  "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+                  "quantityOption": {
+                    "name": "",
+                    "values": [
+                      { "name": "One", "quantity": 0 },
+                      { "name": "Two", "quantity": 2 }
+                    ]
+                  },
+                  "optionSelections": [
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[0].id" },
+                      "name": "Color",
+                      "values": ["Red"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[1].id" },
+                      "name": "Size",
+                      "values": ["Small"]
+                    },
+                    {
+                      "componentOptionId": { "fromPrimaryProxyPath": "$.data.productCreate.product.options[2].id" },
+                      "name": "Material",
+                      "values": ["Cotton"]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
