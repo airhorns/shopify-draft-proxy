@@ -68,6 +68,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -145,7 +146,7 @@ pub fn handle_draft_order_create(
                 single_root_log_draft(
                   "draftOrderCreate",
                   [draft_order.id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -168,7 +169,7 @@ pub fn handle_draft_order_create(
                 single_root_log_draft(
                   "draftOrderCreate",
                   [],
-                  store.Failed,
+                  store_types.Failed,
                   "orders",
                   "stage-locally",
                   Some("Locally rejected draftOrderCreate validation branch."),
@@ -245,7 +246,7 @@ pub fn handle_draft_order_create_from_order(
                 single_root_log_draft(
                   "draftOrderCreateFromOrder",
                   [draft_order.id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -285,7 +286,7 @@ pub fn handle_draft_order_create_from_order(
                     single_root_log_draft(
                       "draftOrderCreateFromOrder",
                       [draft_order.id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(

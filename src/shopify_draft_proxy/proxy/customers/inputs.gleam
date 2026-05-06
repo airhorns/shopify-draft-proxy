@@ -13,6 +13,7 @@ import shopify_draft_proxy/proxy/customers/customer_types.{
   type AddressZoneResolution, type UserError, AddressZoneResolution, UserError,
 }
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -1144,7 +1145,7 @@ pub fn record_mutation_log(
     synthetic_identity.make_synthetic_timestamp(identity_after_log_id)
   let primary = list.first(roots) |> result_to_option()
   let entry =
-    store.MutationLogEntry(
+    store_types.MutationLogEntry(
       id: log_id,
       received_at: received_at,
       operation_name: None,
@@ -1152,13 +1153,13 @@ pub fn record_mutation_log(
       query: document,
       variables: dict.new(),
       staged_resource_ids: staged_ids,
-      status: store.Staged,
-      interpreted: store.InterpretedMetadata(
-        operation_type: store.Mutation,
+      status: store_types.Staged,
+      interpreted: store_types.InterpretedMetadata(
+        operation_type: store_types.Mutation,
         operation_name: None,
         root_fields: roots,
         primary_root_field: primary,
-        capability: store.Capability(
+        capability: store_types.Capability(
           operation_name: primary,
           domain: "customers",
           execution: "stage-locally",

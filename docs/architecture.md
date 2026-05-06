@@ -146,11 +146,17 @@ selling plans, media, shared helpers, and shared types.
 - `run_commit_sync(store, origin, headers, send)` is parameterised on
   the transport so tests inject a fake `send`
 
-### `state/store.gleam` + `state/types.gleam`
+### `state/store.gleam`, `state/store/*`, and `state/types.gleam`
 
-- normalized in-memory object graph: products, variants, options,
-  metafields, customers, orders, discounts, markets, b2b companies,
-  marketing activities, locales/translations, bulk operations, etc.
+- normalized in-memory object graph split by store concern:
+  `state/store.gleam` is the public entrypoint, `state/store/types.gleam`
+  owns the store container/log types, and `state/store/*.gleam` bucket
+  modules own entity-specific store operations for products, orders,
+  customers, markets/localization, fulfillments/shipping, metaobjects,
+  and other Admin API areas
+- normalized entities include products, variants, options, metafields,
+  customers, orders, discounts, markets, b2b companies, marketing
+  activities, locales/translations, bulk operations, etc.
 - two-layer overlay: `base_state` (snapshot or hydrated from upstream)
   - `staged_state` (local mutation effects). Effective reads merge the
     two; commit drains staged.
