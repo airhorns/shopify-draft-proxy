@@ -629,7 +629,7 @@ pub fn fulfillment_order_record_from_json(
     request_status: json_get_string(value, "requestStatus")
       |> option.unwrap("UNSUBMITTED"),
     assigned_location_id: assigned_location_id_from_json(value),
-    assignment_status: None,
+    assignment_status: json_get_string(value, "assignmentStatus"),
     manually_held: !list.is_empty(captured_array_field(
       captured_json_from_commit(value),
       "fulfillmentHolds",

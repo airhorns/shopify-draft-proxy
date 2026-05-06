@@ -672,7 +672,7 @@ pub fn maybe_hydrate_fulfillment_order(
               let query =
                 "query ShippingFulfillmentOrderHydrate($id: ID!) {
   fulfillmentOrder(id: $id) {
-    id status requestStatus fulfillAt fulfillBy updatedAt
+    id status requestStatus assignmentStatus fulfillAt fulfillBy updatedAt
     supportedActions { action }
     assignedLocation { name location { id name } }
     fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
