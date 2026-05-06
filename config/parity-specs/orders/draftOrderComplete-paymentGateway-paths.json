@@ -1,0 +1,65 @@
+{
+  "scenarioId": "draft-order-complete-payment-gateway-paths",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "no-gateway-create",
+        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.noGatewayCreate",
+        "proxyPath": "$"
+      },
+      {
+        "name": "no-gateway-pending-baseline",
+        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.noGatewayPending",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentGatewayId": null,
+            "paymentPending": true
+          }
+        }
+      },
+      {
+        "name": "unknown-gateway-create",
+        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.unknownGatewayCreate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
+        }
+      },
+      {
+        "name": "unknown-gateway-validation",
+        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.unknownGateway",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "unknown-gateway-create",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed",
+            "paymentPending": false
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for draftOrderComplete paymentGatewayId guardrails that can be earned through the generic runner without pre-seeding state: the existing paymentPending:true no-gateway baseline remains PENDING with no gateway transaction, and an unknown paymentGatewayId returns INVALID on [paymentGatewayId] with payment_gateway_not_found. Active and disabled synthetic gateway fixture branches are covered by the referenced Gleam runtime test because the generic parity runner intentionally has no setup hook for opt-in shop payment gateway fixtures."
+}

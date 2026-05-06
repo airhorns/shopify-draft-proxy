@@ -1,0 +1,122 @@
+{
+  "fixtureKind": "local-runtime-publication-create-validation",
+  "apiVersion": "2026-04",
+  "scenarios": {
+    "bothTargets": {
+      "variables": {
+        "input": {
+          "catalogId": "gid://shopify/MarketCatalog/999",
+          "channelId": "gid://shopify/Channel/999"
+        }
+      },
+      "response": {
+        "data": {
+          "publicationCreate": {
+            "publication": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Only one of catalog or channel can be provided",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "missingTarget": {
+      "variables": {
+        "input": {}
+      },
+      "response": {
+        "data": {
+          "publicationCreate": {
+            "publication": null,
+            "userErrors": [
+              {
+                "field": ["input", "catalogId"],
+                "message": "Catalog can't be blank",
+                "code": "BLANK"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "unknownCatalog": {
+      "variables": {
+        "input": {
+          "catalogId": "gid://shopify/MarketCatalog/999"
+        }
+      },
+      "response": {
+        "data": {
+          "publicationCreate": {
+            "publication": null,
+            "userErrors": [
+              {
+                "field": ["input", "catalogId"],
+                "message": "Catalog not found",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "unknownChannel": {
+      "variables": {
+        "input": {
+          "channelId": "gid://shopify/Channel/999"
+        }
+      },
+      "response": {
+        "data": {
+          "publicationCreate": {
+            "publication": null,
+            "userErrors": [
+              {
+                "field": ["input", "channelId"],
+                "message": "Channel not found",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "invalidDefaultState": {
+      "variables": {
+        "input": {
+          "defaultState": "BANANAS"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 38
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "defaultState": "BANANAS"
+              },
+              "problems": [
+                {
+                  "path": ["defaultState"],
+                  "explanation": "Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}
