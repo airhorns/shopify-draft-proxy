@@ -497,6 +497,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'tags-add-multi-resource',
+    scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
+    purpose:
+      'tagsAdd/tagsRemove polymorphic Product, Order, Customer, Article, DraftOrder, and unsupported-GID behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_customers',
+      'write_customers',
+      'read_content',
+      'write_content',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}tags-add-multi-resource.json`,
+      'config/parity-specs/products/tagsAdd-multi-resource.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable product, customer, order, draft order, blog, and article records, tags them, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-publications',
     scriptPath: 'scripts/capture-product-publication-conformance.mts',
     purpose: 'Publication aggregate reads plus productPublish/productUnpublish probes.',
