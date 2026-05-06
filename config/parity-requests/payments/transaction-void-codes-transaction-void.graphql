@@ -1,0 +1,19 @@
+mutation TransactionVoidCodesTransactionVoid($id: ID!) {
+  transactionVoid(parentTransactionId: $id) {
+    transaction {
+      id
+      kind
+      status
+      parentTransaction {
+        id
+        kind
+        status
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

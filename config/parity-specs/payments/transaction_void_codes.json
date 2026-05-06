@@ -1,0 +1,94 @@
+{
+  "scenarioId": "transaction_void_codes",
+  "operationNames": ["orderCreate", "orderCapture", "transactionVoid"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payment-transaction-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/transaction-void-codes.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/transaction-void-codes-order-create.graphql",
+    "variablesCapturePath": "$.operations.createCaptureOrder.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "auth-not-successful-error-code",
+        "capturePath": "$.operations.voidCapture.response.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/transaction-void-codes-transaction-void.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "transaction-not-found-error-code",
+        "capturePath": "$.operations.voidMissing.response.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/transaction-void-codes-transaction-void.graphql",
+          "variablesCapturePath": "$.operations.voidMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-authorization-order",
+        "capturePath": "$.operations.createAuthorizationOrder.response.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/transaction-void-codes-order-create.graphql",
+          "variablesCapturePath": "$.operations.createAuthorizationOrder.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "capture-authorization",
+        "capturePath": "$.operations.captureAuthorization.response.data.orderCapture.userErrors",
+        "proxyPath": "$.data.orderCapture.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/transaction-void-codes-order-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "create-authorization-order",
+                "path": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromProxyResponse": "create-authorization-order",
+                "path": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "25.00",
+              "currency": "CAD"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "auth-not-voidable-error-code",
+        "capturePath": "$.operations.voidCapturedAuthorization.response.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/transaction-void-codes-transaction-void.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-authorization-order",
+              "path": "$.data.orderCreate.order.transactions[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live public Admin API capture for transactionVoid validation codes. Shopify 2025-01 and 2026-04 return field [\"parentTransactionId\"] for these public GraphQL userErrors; this spec records that public shape alongside TRANSACTION_NOT_FOUND, AUTH_NOT_SUCCESSFUL, and AUTH_NOT_VOIDABLE."
+}

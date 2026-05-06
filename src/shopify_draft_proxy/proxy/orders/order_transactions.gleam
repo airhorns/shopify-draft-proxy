@@ -35,7 +35,8 @@ import shopify_draft_proxy/proxy/orders/common.{
   order_presentment_currency_code, order_transactions, read_bool, read_number,
   read_object, read_string, read_string_arg, replace_captured_object_fields,
   selection_children, serialize_captured_selection, serialize_job,
-  serialize_order_mutation_user_error, serialize_user_error, valid_email_address,
+  serialize_order_mutation_user_error, serialize_user_error, user_error,
+  valid_email_address,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
 import shopify_draft_proxy/proxy/orders/order_types.{
@@ -48,6 +49,7 @@ import shopify_draft_proxy/proxy/orders/serializers.{
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/user_error_codes
 
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -1188,14 +1190,19 @@ pub fn handle_transaction_void_mutation(
 ) {
   let key = get_field_response_key(field)
   let args = field_arguments(field, variables)
-  let #(transaction_id, field_name) = transaction_void_reference(args)
+  let #(transaction_id, _) = transaction_void_reference(args)
   case transaction_id {
     None -> {
       let payload =
         serialize_transaction_void_payload(
           field,
           None,
-          [inferred_user_error([field_name], "Transaction does not exist")],
+          [
+            transaction_void_user_error(
+              "Transaction does not exist",
+              "TRANSACTION_NOT_FOUND",
+            ),
+          ],
           fragments,
         )
       #(key, payload, store, identity, [], [
@@ -1209,7 +1216,12 @@ pub fn handle_transaction_void_mutation(
             serialize_transaction_void_payload(
               field,
               None,
-              [inferred_user_error([field_name], "Transaction does not exist")],
+              [
+                transaction_void_user_error(
+                  "Transaction does not exist",
+                  "TRANSACTION_NOT_FOUND",
+                ),
+              ],
               fragments,
             )
           #(key, payload, store, identity, [], [
@@ -1250,33 +1262,21 @@ pub fn void_order_transaction(
   List(LogDraft),
 ) {
   let user_errors = case is_successful_authorization(authorization) {
-    False -> [inferred_user_error(["id"], "Transaction is not voidable")]
+    False -> [
+      transaction_void_user_error(
+        "Parent transaction must be a successful authorization",
+        "AUTH_NOT_SUCCESSFUL",
+      ),
+    ]
     True ->
-      case
-        transaction_has_voiding_child(
-          order,
-          captured_string_field(authorization, "id") |> option.unwrap(""),
-        )
-      {
+      case authorization_is_unvoidable(order, authorization) {
         True -> [
-          inferred_user_error(["id"], "Transaction has already been voided"),
+          transaction_void_user_error(
+            "Parent transaction require a parent_id referring to a voidable transaction",
+            "AUTH_NOT_VOIDABLE",
+          ),
         ]
-        False ->
-          case
-            captured_amount_for_authorization(
-              order,
-              captured_string_field(authorization, "id") |> option.unwrap(""),
-            )
-            >. 0.0
-          {
-            True -> [
-              inferred_user_error(
-                ["id"],
-                "Transaction has already been captured",
-              ),
-            ]
-            False -> []
-          }
+        False -> []
       }
   }
   case user_errors {
@@ -1314,6 +1314,44 @@ pub fn void_order_transaction(
         payment_log_draft("transactionVoid", [order.id], store_types.Staged),
       ])
     }
+  }
+}
+
+@internal
+pub fn transaction_void_user_error(
+  message: String,
+  code: String,
+) -> #(List(String), String, Option(String)) {
+  user_error(["parentTransactionId"], message, Some(code))
+}
+
+@internal
+pub fn authorization_is_unvoidable(
+  order: OrderRecord,
+  authorization: CapturedJsonValue,
+) -> Bool {
+  let authorization_id =
+    captured_string_field(authorization, "id") |> option.unwrap("")
+  transaction_has_voiding_child(order, authorization_id)
+  || captured_amount_for_authorization(order, authorization_id) >. 0.0
+  || authorization_is_expired(authorization)
+}
+
+@internal
+pub fn authorization_is_expired(authorization: CapturedJsonValue) -> Bool {
+  let expires_at =
+    captured_string_field(authorization, "authorizationExpiresAt")
+    |> option.or(captured_string_field(authorization, "expiresAt"))
+  case expires_at {
+    None -> False
+    Some(expires_at) ->
+      case
+        iso_timestamp.parse_iso(expires_at),
+        iso_timestamp.parse_iso(iso_timestamp.now_iso())
+      {
+        Ok(expires_ms), Ok(now_ms) -> expires_ms <= now_ms
+        _, _ -> False
+      }
   }
 }
 

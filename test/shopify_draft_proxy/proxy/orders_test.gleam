@@ -5566,6 +5566,256 @@ fn order_create_test_money(amount: String) -> root_field.ResolvedValue {
   )
 }
 
+fn order_payment_mutation_path() -> String {
+  "/admin/api/2026-04/graphql.json"
+}
+
+fn order_payment_create_document() -> String {
+  "
+    mutation CreatePaymentOrder($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          id
+          transactions {
+            id
+            kind
+            status
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn order_payment_capture_document() -> String {
+  "
+    mutation CapturePaymentOrder($input: OrderCaptureInput!) {
+      orderCapture(input: $input) {
+        transaction {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn transaction_void_error_document() -> String {
+  "
+    mutation VoidPaymentTransaction($id: ID!) {
+      transactionVoid(parentTransactionId: $id) {
+        transaction {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn order_payment_transaction(
+  kind: String,
+  status: String,
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("kind", root_field.StringVal(kind)),
+      #("status", root_field.StringVal(status)),
+      #("gateway", root_field.StringVal("manual")),
+      #("amountSet", order_create_test_money("25.00")),
+    ]),
+  )
+}
+
+fn order_payment_order(transaction: root_field.ResolvedValue) {
+  order_create_test_order([
+    #("currency", root_field.StringVal("CAD")),
+    #("transactions", root_field.ListVal([transaction])),
+    #(
+      "lineItems",
+      root_field.ListVal([
+        order_create_test_line_item([
+          #("title", root_field.StringVal("Payment test item")),
+          #("priceSet", order_create_test_money("25.00")),
+        ]),
+      ]),
+    ),
+  ])
+}
+
+fn create_payment_order(transaction: root_field.ResolvedValue) {
+  orders.process_mutation(
+    store.new(),
+    synthetic_identity.new(),
+    order_payment_mutation_path(),
+    order_payment_create_document(),
+    dict.from_list([#("order", order_payment_order(transaction))]),
+    empty_upstream_context(),
+  )
+}
+
+fn transaction_void(source: store.Store, id: String) {
+  orders.process_mutation(
+    source,
+    synthetic_identity.new(),
+    order_payment_mutation_path(),
+    transaction_void_error_document(),
+    dict.from_list([#("id", root_field.StringVal(id))]),
+    empty_upstream_context(),
+  )
+}
+
+fn capture_payment_order(
+  source: store.Store,
+  order_id: String,
+  auth_id: String,
+) {
+  orders.process_mutation(
+    source,
+    synthetic_identity.new(),
+    order_payment_mutation_path(),
+    order_payment_capture_document(),
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("id", root_field.StringVal(order_id)),
+            #("parentTransactionId", root_field.StringVal(auth_id)),
+            #("amount", root_field.FloatVal(25.0)),
+            #("currency", root_field.StringVal("CAD")),
+            #("finalCapture", root_field.BoolVal(True)),
+          ]),
+        ),
+      ),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
+pub fn transaction_void_missing_transaction_uses_shopify_code_and_field_test() {
+  let outcome =
+    transaction_void(store.new(), "gid://shopify/OrderTransaction/missing")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Transaction does not exist\",\"code\":\"TRANSACTION_NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_orders(outcome.store) == []
+}
+
+pub fn transaction_void_rejects_capture_with_auth_not_successful_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("CAPTURE", "SUCCESS"))
+  let outcome =
+    transaction_void(create_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction must be a successful authorization\",\"code\":\"AUTH_NOT_SUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_failed_auth_with_auth_not_successful_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("AUTHORIZATION", "FAILURE"))
+  let outcome =
+    transaction_void(create_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction must be a successful authorization\",\"code\":\"AUTH_NOT_SUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_captured_auth_with_auth_not_voidable_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("AUTHORIZATION", "SUCCESS"))
+  let capture_outcome =
+    capture_payment_order(
+      create_outcome.store,
+      "gid://shopify/Order/1",
+      "gid://shopify/OrderTransaction/3",
+    )
+  let outcome =
+    transaction_void(capture_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction require a parent_id referring to a voidable transaction\",\"code\":\"AUTH_NOT_VOIDABLE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_already_voided_auth_with_auth_not_voidable_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("AUTHORIZATION", "SUCCESS"))
+  let void_outcome =
+    transaction_void(create_outcome.store, "gid://shopify/OrderTransaction/3")
+  let outcome =
+    transaction_void(void_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction require a parent_id referring to a voidable transaction\",\"code\":\"AUTH_NOT_VOIDABLE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_expired_auth_with_auth_not_voidable_code_test() {
+  let transaction_id = "gid://shopify/OrderTransaction/expired-auth"
+  let order =
+    types.OrderRecord(
+      id: "gid://shopify/Order/expired-auth",
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString("gid://shopify/Order/expired-auth")),
+        #(
+          "transactions",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(transaction_id)),
+              #("kind", types.CapturedString("AUTHORIZATION")),
+              #("status", types.CapturedString("SUCCESS")),
+              #("gateway", types.CapturedString("manual")),
+              #(
+                "authorizationExpiresAt",
+                types.CapturedString("2000-01-01T00:00:00.000Z"),
+              ),
+              #(
+                "amountSet",
+                types.CapturedObject([
+                  #(
+                    "shopMoney",
+                    types.CapturedObject([
+                      #("amount", types.CapturedString("25.0")),
+                      #("currencyCode", types.CapturedString("CAD")),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    )
+  let outcome =
+    transaction_void(
+      store.new() |> store.upsert_base_orders([order]),
+      transaction_id,
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction require a parent_id referring to a voidable transaction\",\"code\":\"AUTH_NOT_VOIDABLE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
   let mutation =
     "
