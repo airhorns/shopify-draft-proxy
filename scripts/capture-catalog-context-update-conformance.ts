@@ -115,8 +115,7 @@ function userErrors(result: ConformanceGraphqlResult, root: string): Array<Recor
   const errors = rootPayload(result, root)['userErrors'];
   if (!Array.isArray(errors)) return [];
   return errors.filter(
-    (error): error is Record<string, unknown> =>
-      typeof error === 'object' && error !== null && !Array.isArray(error),
+    (error): error is Record<string, unknown> => typeof error === 'object' && error !== null && !Array.isArray(error),
   );
 }
 
@@ -158,11 +157,7 @@ function nestedId(result: ConformanceGraphqlResult, root: string, field: string)
   return id;
 }
 
-async function captureCase(
-  name: string,
-  query: string,
-  variables: Record<string, unknown>,
-): Promise<CapturedCase> {
+async function captureCase(name: string, query: string, variables: Record<string, unknown>): Promise<CapturedCase> {
   const response = await runGraphqlRequest(query, variables);
   assertGraphqlOk(name, response);
   const capture = { name, query, variables, response };

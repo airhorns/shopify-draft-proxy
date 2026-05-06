@@ -66,9 +66,7 @@
           "title": "Catalog Context No Args Catalog 20260506181449",
           "status": "ACTIVE",
           "context": {
-            "marketIds": [
-              "gid://shopify/Market/97983136050"
-            ]
+            "marketIds": ["gid://shopify/Market/97983136050"]
           }
         }
       },
@@ -123,9 +121,7 @@
               "catalog": null,
               "userErrors": [
                 {
-                  "field": [
-                    "contextsToAdd"
-                  ],
+                  "field": ["contextsToAdd"],
                   "message": "Must have `contexts_to_add` or `contexts_to_remove` argument.",
                   "code": "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE"
                 }
@@ -228,10 +224,7 @@
           "title": "Catalog Context Removes Catalog 20260506181449",
           "status": "ACTIVE",
           "context": {
-            "marketIds": [
-              "gid://shopify/Market/97983168818",
-              "gid://shopify/Market/97983201586"
-            ]
+            "marketIds": ["gid://shopify/Market/97983168818", "gid://shopify/Market/97983201586"]
           }
         }
       },
@@ -280,9 +273,7 @@
       "variables": {
         "catalogId": "gid://shopify/MarketCatalog/145748984114",
         "contextsToRemove": {
-          "marketIds": [
-            "gid://shopify/Market/97983168818"
-          ]
+          "marketIds": ["gid://shopify/Market/97983168818"]
         }
       },
       "response": {
@@ -436,9 +427,7 @@
           "title": "Catalog Context Taken Holder Catalog 20260506181449",
           "status": "ACTIVE",
           "context": {
-            "marketIds": [
-              "gid://shopify/Market/97983234354"
-            ]
+            "marketIds": ["gid://shopify/Market/97983234354"]
           }
         }
       },
@@ -485,9 +474,7 @@
           "title": "Catalog Context Taken Target Catalog 20260506181449",
           "status": "ACTIVE",
           "context": {
-            "marketIds": [
-              "gid://shopify/Market/97983267122"
-            ]
+            "marketIds": ["gid://shopify/Market/97983267122"]
           }
         }
       },
@@ -532,9 +519,7 @@
       "variables": {
         "catalogId": "gid://shopify/MarketCatalog/145749049650",
         "contextsToAdd": {
-          "marketIds": [
-            "gid://shopify/Market/97983234354"
-          ]
+          "marketIds": ["gid://shopify/Market/97983234354"]
         }
       },
       "response": {
@@ -618,9 +603,7 @@
       "variables": {
         "catalogId": "gid://shopify/MarketCatalog/999999999999",
         "contextsToAdd": {
-          "marketIds": [
-            "gid://shopify/Market/999999999999"
-          ]
+          "marketIds": ["gid://shopify/Market/999999999999"]
         }
       },
       "response": {
@@ -631,9 +614,7 @@
               "catalog": null,
               "userErrors": [
                 {
-                  "field": [
-                    "catalogId"
-                  ],
+                  "field": ["catalogId"],
                   "message": "Catalog does not exist",
                   "code": "CATALOG_NOT_FOUND"
                 }

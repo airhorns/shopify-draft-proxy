@@ -4,11 +4,7 @@ mutation CatalogContextUpdateNoArgs(
   $contextsToAdd: CatalogContextInput
   $contextsToRemove: CatalogContextInput
 ) {
-  catalogContextUpdate(
-    catalogId: $catalogId
-    contextsToAdd: $contextsToAdd
-    contextsToRemove: $contextsToRemove
-  ) {
+  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd, contextsToRemove: $contextsToRemove) {
     catalog {
       title
       status
