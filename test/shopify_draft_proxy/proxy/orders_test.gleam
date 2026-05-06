@@ -2,6 +2,7 @@ import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
@@ -7815,6 +7816,415 @@ pub fn orders_order_mark_as_paid_multi_currency_uses_presentment_currency_test()
     == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/mark-as-paid-multi-currency\",\"presentmentCurrencyCode\":\"CAD\",\"displayFinancialStatus\":\"PAID\",\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"amountSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == [order_id]
   assert list.length(outcome.log_drafts) == 1
+}
+
+pub fn orders_order_capture_currency_validation_uses_presentment_currency_test() {
+  let order_id = "gid://shopify/Order/capture-multi-currency"
+  let authorization_id =
+    "gid://shopify/OrderTransaction/capture-multi-currency-auth"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_capture_test_order(
+        order_id,
+        authorization_id,
+        "AUTHORIZATION",
+        "SUCCESS",
+        "CAD",
+        "USD",
+      ),
+    ])
+
+  let missing_currency =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(order_id, authorization_id, "10.00", None, None),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_currency.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"currency\"],\"message\":\"Currency must be provided for multi-currency orders.\",\"code\":\"CURRENCY_REQUIRED\"}]}}}"
+  assert missing_currency.staged_resource_ids == []
+  assert list.length(missing_currency.log_drafts) == 1
+
+  let mismatch =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "10.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(mismatch.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"currency\"],\"message\":\"Currency must match the order presentment currency.\",\"code\":\"CURRENCY_MISMATCH\"}]}}}"
+  assert mismatch.staged_resource_ids == []
+  assert list.length(mismatch.log_drafts) == 1
+}
+
+pub fn orders_order_capture_parent_and_amount_errors_have_codes_test() {
+  let order_id = "gid://shopify/Order/capture-error-codes"
+  let authorization_id = "gid://shopify/OrderTransaction/capture-error-auth"
+  let settled_id = "gid://shopify/OrderTransaction/capture-error-settled"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_capture_test_order(
+        order_id,
+        authorization_id,
+        "AUTHORIZATION",
+        "SUCCESS",
+        "CAD",
+        "CAD",
+      )
+      |> order_capture_append_transaction(
+        settled_id,
+        "CAPTURE",
+        "SUCCESS",
+        "5.0",
+        "CAD",
+        "CAD",
+      ),
+    ])
+
+  let missing_parent =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        "gid://shopify/OrderTransaction/missing",
+        "10.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_parent.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"parent_transaction_id\"],\"message\":\"Transaction does not exist\",\"code\":\"TRANSACTION_NOT_FOUND\"}]}}}"
+
+  let invalid_parent_state =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(order_id, settled_id, "1.00", Some("CAD"), None),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_parent_state.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"parent_transaction_id\"],\"message\":\"Transaction is not capturable\",\"code\":\"INVALID_TRANSACTION_STATE\"}]}}}"
+
+  let invalid_amount =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "0.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_amount.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"amount\"],\"message\":\"Amount must be greater than zero\",\"code\":\"INVALID_AMOUNT\"}]}}}"
+
+  let over_capture =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "30.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(over_capture.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"amount\"],\"message\":\"Amount exceeds capturable amount\",\"code\":\"OVER_CAPTURE\"}]}}}"
+}
+
+pub fn orders_order_capture_final_capture_closes_authorization_test() {
+  let order_id = "gid://shopify/Order/capture-final"
+  let authorization_id = "gid://shopify/OrderTransaction/capture-final-auth"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_capture_test_order(
+        order_id,
+        authorization_id,
+        "AUTHORIZATION",
+        "SUCCESS",
+        "CAD",
+        "CAD",
+      ),
+    ])
+  let first_capture =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "10.00",
+        Some("CAD"),
+        Some(True),
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_capture.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[]}}}"
+  assert first_capture.staged_resource_ids == [order_id]
+  assert list.length(first_capture.log_drafts) == 1
+
+  let second_capture =
+    orders.process_mutation(
+      first_capture.store,
+      first_capture.identity,
+      "/admin/api/2026-04/graphql.json",
+      order_capture_validation_mutation(),
+      order_capture_variables(
+        order_id,
+        authorization_id,
+        "1.00",
+        Some("CAD"),
+        None,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_capture.data)
+    == "{\"data\":{\"orderCapture\":{\"userErrors\":[{\"field\":[\"parent_transaction_id\"],\"message\":\"Transaction is not capturable\",\"code\":\"INVALID_TRANSACTION_STATE\"}]}}}"
+  assert second_capture.staged_resource_ids == []
+}
+
+fn order_capture_validation_mutation() {
+  "
+  mutation Capture($input: OrderCaptureInput!) {
+    orderCapture(input: $input) {
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+  "
+}
+
+fn order_capture_variables(
+  order_id: String,
+  authorization_id: String,
+  amount: String,
+  currency: Option(String),
+  final_capture: Option(Bool),
+) -> Dict(String, root_field.ResolvedValue) {
+  let currency_fields = case currency {
+    Some(value) -> [#("currency", root_field.StringVal(value))]
+    None -> []
+  }
+  let final_capture_fields = case final_capture {
+    Some(value) -> [#("finalCapture", root_field.BoolVal(value))]
+    None -> []
+  }
+  dict.from_list([
+    #(
+      "input",
+      root_field.ObjectVal(
+        dict.from_list(list.append(
+          [
+            #("id", root_field.StringVal(order_id)),
+            #("parentTransactionId", root_field.StringVal(authorization_id)),
+            #("amount", root_field.StringVal(amount)),
+          ],
+          list.append(currency_fields, final_capture_fields),
+        )),
+      ),
+    ),
+  ])
+}
+
+fn order_capture_test_order(
+  order_id: String,
+  authorization_id: String,
+  authorization_kind: String,
+  authorization_status: String,
+  shop_currency: String,
+  presentment_currency: String,
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(order_id)),
+      #("presentmentCurrencyCode", types.CapturedString(presentment_currency)),
+      #("displayFinancialStatus", types.CapturedString("AUTHORIZED")),
+      #(
+        "paymentGatewayNames",
+        types.CapturedArray([types.CapturedString("manual")]),
+      ),
+      #(
+        "currentTotalPriceSet",
+        order_capture_money_set(
+          "25.0",
+          shop_currency,
+          "25.0",
+          presentment_currency,
+        ),
+      ),
+      #(
+        "totalPriceSet",
+        order_capture_money_set(
+          "25.0",
+          shop_currency,
+          "25.0",
+          presentment_currency,
+        ),
+      ),
+      #(
+        "totalOutstandingSet",
+        order_capture_money_set(
+          "25.0",
+          shop_currency,
+          "25.0",
+          presentment_currency,
+        ),
+      ),
+      #(
+        "transactions",
+        types.CapturedArray([
+          order_capture_transaction(
+            authorization_id,
+            authorization_kind,
+            authorization_status,
+            "25.0",
+            shop_currency,
+            presentment_currency,
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn order_capture_append_transaction(
+  order: types.OrderRecord,
+  transaction_id: String,
+  kind: String,
+  status: String,
+  amount: String,
+  shop_currency: String,
+  presentment_currency: String,
+) -> types.OrderRecord {
+  let transactions = case order.data {
+    types.CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(field) {
+        case field {
+          #("transactions", types.CapturedArray(values)) -> Ok(values)
+          _ -> Error(Nil)
+        }
+      })
+      |> result.unwrap([])
+    _ -> []
+  }
+  let updated_data = case order.data {
+    types.CapturedObject(fields) ->
+      types.CapturedObject(
+        list.map(fields, fn(field) {
+          case field {
+            #("transactions", types.CapturedArray(_)) -> #(
+              "transactions",
+              types.CapturedArray(
+                list.append(transactions, [
+                  order_capture_transaction(
+                    transaction_id,
+                    kind,
+                    status,
+                    amount,
+                    shop_currency,
+                    presentment_currency,
+                  ),
+                ]),
+              ),
+            )
+            other -> other
+          }
+        }),
+      )
+    other -> other
+  }
+  types.OrderRecord(..order, data: updated_data)
+}
+
+fn order_capture_transaction(
+  transaction_id: String,
+  kind: String,
+  status: String,
+  amount: String,
+  shop_currency: String,
+  presentment_currency: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #("id", types.CapturedString(transaction_id)),
+    #("kind", types.CapturedString(kind)),
+    #("status", types.CapturedString(status)),
+    #("gateway", types.CapturedString("manual")),
+    #(
+      "amountSet",
+      order_capture_money_set(
+        amount,
+        shop_currency,
+        amount,
+        presentment_currency,
+      ),
+    ),
+    #("parentTransactionId", types.CapturedNull),
+    #("parentTransaction", types.CapturedNull),
+  ])
+}
+
+fn order_capture_money_set(
+  amount: String,
+  shop_currency: String,
+  presentment_amount: String,
+  presentment_currency: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #(
+      "shopMoney",
+      types.CapturedObject([
+        #("amount", types.CapturedString(amount)),
+        #("currencyCode", types.CapturedString(shop_currency)),
+      ]),
+    ),
+    #(
+      "presentmentMoney",
+      types.CapturedObject([
+        #("amount", types.CapturedString(presentment_amount)),
+        #("currencyCode", types.CapturedString(presentment_currency)),
+      ]),
+    ),
+  ])
 }
 
 fn mark_as_paid_order_record(

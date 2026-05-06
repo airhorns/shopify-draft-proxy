@@ -35,7 +35,8 @@ import shopify_draft_proxy/proxy/orders/common.{
   order_presentment_currency_code, order_transactions, read_bool, read_number,
   read_object, read_string, read_string_arg, replace_captured_object_fields,
   selection_children, serialize_captured_selection, serialize_job,
-  serialize_order_mutation_user_error, serialize_user_error, valid_email_address,
+  serialize_order_mutation_user_error, serialize_user_error, user_error,
+  valid_email_address,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
 import shopify_draft_proxy/proxy/orders/order_types.{
@@ -896,6 +897,40 @@ pub fn apply_order_mark_as_paid_update(
 }
 
 @internal
+pub fn order_capture_currency_user_error(
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(#(List(String), String, Option(String))) {
+  let shop_currency = order_currency_code(order)
+  let presentment_currency = order_presentment_currency_code(order)
+  let supplied_currency = read_string(input, "currency")
+  case supplied_currency {
+    None if presentment_currency != shop_currency ->
+      Some(order_capture_user_error(
+        ["currency"],
+        "Currency must be provided for multi-currency orders.",
+        "CURRENCY_REQUIRED",
+      ))
+    Some(currency) if currency != presentment_currency ->
+      Some(order_capture_user_error(
+        ["currency"],
+        "Currency must match the order presentment currency.",
+        "CURRENCY_MISMATCH",
+      ))
+    _ -> None
+  }
+}
+
+@internal
+pub fn order_capture_user_error(
+  field_path: List(String),
+  message: String,
+  code: String,
+) -> #(List(String), String, Option(String)) {
+  user_error(field_path, message, Some(code))
+}
+
+@internal
 pub fn handle_order_capture_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -962,19 +997,14 @@ pub fn handle_order_capture_mutation(
               ])
             }
             Some(order) ->
-              case parent_transaction_id {
-                None -> {
+              case order_capture_currency_user_error(order, input) {
+                Some(currency_error) -> {
                   let payload =
                     serialize_order_capture_payload(
                       field,
                       None,
                       Some(order),
-                      [
-                        inferred_user_error(
-                          ["input", "parentTransactionId"],
-                          "Transaction does not exist",
-                        ),
-                      ],
+                      [currency_error],
                       fragments,
                     )
                   #(key, payload, store, identity, [], [
@@ -985,8 +1015,8 @@ pub fn handle_order_capture_mutation(
                     ),
                   ])
                 }
-                Some(transaction_id) ->
-                  case find_transaction(order, transaction_id) {
+                None ->
+                  case parent_transaction_id {
                     None -> {
                       let payload =
                         serialize_order_capture_payload(
@@ -994,9 +1024,10 @@ pub fn handle_order_capture_mutation(
                           None,
                           Some(order),
                           [
-                            inferred_user_error(
-                              ["input", "parentTransactionId"],
+                            order_capture_user_error(
+                              ["parent_transaction_id"],
                               "Transaction does not exist",
+                              "TRANSACTION_NOT_FOUND",
                             ),
                           ],
                           fragments,
@@ -1009,17 +1040,43 @@ pub fn handle_order_capture_mutation(
                         ),
                       ])
                     }
-                    Some(authorization) ->
-                      capture_order_payment(
-                        key,
-                        store,
-                        identity,
-                        field,
-                        fragments,
-                        order,
-                        authorization,
-                        input,
-                      )
+                    Some(transaction_id) ->
+                      case find_transaction(order, transaction_id) {
+                        None -> {
+                          let payload =
+                            serialize_order_capture_payload(
+                              field,
+                              None,
+                              Some(order),
+                              [
+                                order_capture_user_error(
+                                  ["parent_transaction_id"],
+                                  "Transaction does not exist",
+                                  "TRANSACTION_NOT_FOUND",
+                                ),
+                              ],
+                              fragments,
+                            )
+                          #(key, payload, store, identity, [], [
+                            payment_log_draft(
+                              "orderCapture",
+                              [order.id],
+                              store_types.Failed,
+                            ),
+                          ])
+                        }
+                        Some(authorization) ->
+                          capture_order_payment(
+                            key,
+                            store,
+                            identity,
+                            field,
+                            fragments,
+                            order,
+                            authorization,
+                            input,
+                          )
+                      }
                   }
               }
           }
@@ -1056,9 +1113,10 @@ pub fn capture_order_payment(
           None,
           Some(order),
           [
-            inferred_user_error(
-              ["input", "parentTransactionId"],
+            order_capture_user_error(
+              ["parent_transaction_id"],
               "Transaction is not capturable",
+              "INVALID_TRANSACTION_STATE",
             ),
           ],
           fragments,
@@ -1076,9 +1134,10 @@ pub fn capture_order_payment(
               None,
               Some(order),
               [
-                inferred_user_error(
-                  ["input", "amount"],
+                order_capture_user_error(
+                  ["amount"],
                   "Amount must be greater than zero",
+                  "INVALID_AMOUNT",
                 ),
               ],
               fragments,
@@ -1096,9 +1155,10 @@ pub fn capture_order_payment(
                   None,
                   Some(order),
                   [
-                    inferred_user_error(
-                      ["input", "amount"],
+                    order_capture_user_error(
+                      ["amount"],
                       "Amount exceeds capturable amount",
+                      "OVER_CAPTURE",
                     ),
                   ],
                   fragments,
