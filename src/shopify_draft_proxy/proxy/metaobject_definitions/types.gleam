@@ -61,6 +61,8 @@ const default_max_fields_per_definition = 40
 
 const forms_max_fields_per_definition = 100
 
+const min_field_key_length = 2
+
 const max_field_key_length = 64
 
 @internal
@@ -460,29 +462,70 @@ pub fn field_definition_key_user_errors(
   key: String,
   seen_keys: List(String),
 ) -> List(UserError) {
+  field_definition_key_user_errors_with_suffix(index, key, seen_keys, [])
+}
+
+@internal
+pub fn field_definition_key_user_errors_with_suffix(
+  index: Int,
+  key: String,
+  seen_keys: List(String),
+  field_suffix: List(String),
+) -> List(UserError) {
   []
+  |> append_if(key == "", blank_field_key_user_error(index, key, field_suffix))
+  |> append_if(
+    string.length(key) < min_field_key_length,
+    too_short_field_key_user_error(index, key, field_suffix),
+  )
   |> append_if(
     string.length(key) > max_field_key_length,
-    too_long_field_key_user_error(index, key),
+    too_long_field_key_user_error(index, key, field_suffix),
   )
   |> append_if(
     !is_valid_field_key(key),
-    invalid_field_key_user_error(index, key),
+    invalid_field_key_user_error(index, key, field_suffix),
   )
   |> append_if(
     is_reserved_field_key(key),
-    reserved_field_key_user_error(index, key),
+    reserved_field_key_user_error(index, key, field_suffix),
   )
   |> append_if(
     list.contains(seen_keys, key),
-    duplicate_field_key_user_error(index, key),
+    duplicate_field_key_user_error(index, key, field_suffix),
+  )
+}
+
+fn field_definition_error_path(
+  index: Int,
+  suffix: List(String),
+) -> List(String) {
+  list.append(["definition", "fieldDefinitions", int.to_string(index)], suffix)
+}
+
+@internal
+pub fn blank_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
+  UserError(
+    Some(field_definition_error_path(index, field_suffix)),
+    "Key can't be blank",
+    "BLANK",
+    Some(key),
+    None,
   )
 }
 
 @internal
-pub fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn invalid_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
     "Key contains one or more invalid characters.",
     "INVALID",
     Some(key),
@@ -491,9 +534,28 @@ pub fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
 }
 
 @internal
-pub fn too_long_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn too_short_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
+    "Key is too short (minimum is 2 characters)",
+    "TOO_SHORT",
+    Some(key),
+    None,
+  )
+}
+
+@internal
+pub fn too_long_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
+  UserError(
+    Some(field_definition_error_path(index, field_suffix)),
     "Key is too long (maximum is 64 characters)",
     "TOO_LONG",
     Some(key),
@@ -502,9 +564,13 @@ pub fn too_long_field_key_user_error(index: Int, key: String) -> UserError {
 }
 
 @internal
-pub fn reserved_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn reserved_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
     "The name \"" <> key <> "\" is reserved for system use",
     "RESERVED_NAME",
     Some(key),
@@ -513,9 +579,13 @@ pub fn reserved_field_key_user_error(index: Int, key: String) -> UserError {
 }
 
 @internal
-pub fn duplicate_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn duplicate_field_key_user_error(
+  index: Int,
+  key: String,
+  field_suffix: List(String),
+) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    Some(field_definition_error_path(index, field_suffix)),
     "Field \"" <> key <> "\" duplicates other inputs",
     "DUPLICATE_FIELD_INPUT",
     Some(key),
@@ -1182,28 +1252,59 @@ pub fn apply_field_definition_operations(
           Some(operation) -> {
             let key = field_operation_key(operation)
             case key {
-              None -> #(
-                fields,
-                list.append(errors, [
-                  UserError(
-                    Some([
-                      "definition",
-                      "fieldDefinitions",
-                      int.to_string(index),
-                      "key",
-                    ]),
-                    "Key can't be blank",
-                    "BLANK",
-                    None,
-                    Some(index),
-                  ),
-                ]),
-                ordered_keys,
-                seen_keys,
-              )
+              None -> {
+                let blank_key_errors = case operation {
+                  FieldDelete(_) -> [
+                    UserError(
+                      Some([
+                        "definition",
+                        "fieldDefinitions",
+                        int.to_string(index),
+                        "delete",
+                        "key",
+                      ]),
+                      "Field definition \"\" does not exist",
+                      "UNDEFINED_OBJECT_FIELD",
+                      Some(""),
+                      None,
+                    ),
+                  ]
+                  _ -> [
+                    UserError(
+                      Some([
+                        "definition",
+                        "fieldDefinitions",
+                        int.to_string(index),
+                        "key",
+                      ]),
+                      "Key can't be blank",
+                      "BLANK",
+                      None,
+                      Some(index),
+                    ),
+                  ]
+                }
+                #(
+                  fields,
+                  list.append(errors, blank_key_errors),
+                  ordered_keys,
+                  seen_keys,
+                )
+              }
               Some(k) -> {
+                let field_suffix = case operation {
+                  FieldCreate(_) -> ["create"]
+                  FieldUpdate(_) -> ["update"]
+                  FieldDelete(_) -> ["delete", "key"]
+                  FieldUpsert(_) -> []
+                }
                 let key_errors =
-                  field_definition_key_user_errors(index, k, seen_keys)
+                  field_definition_key_user_errors_with_suffix(
+                    index,
+                    k,
+                    seen_keys,
+                    field_suffix,
+                  )
                 case key_errors {
                   [_, ..] -> #(
                     fields,
