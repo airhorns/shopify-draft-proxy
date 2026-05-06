@@ -1742,6 +1742,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'quantity-rules-add-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-quantity-rules-add-validation-conformance.mts',
+    purpose:
+      'quantityRulesAdd numeric bounds, minimum/maximum range, increment divisibility, and duplicate variant validation branches.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-rules-add-validation.json`,
+      'config/parity-specs/markets/quantity-rules-add-validation.json',
+      'config/parity-requests/markets/quantity-rules-add-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Uses existing conformance price-list and product-variant records; all captured quantityRulesAdd calls reject before staging quantity rules, so no cleanup mutation is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-localization-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',
