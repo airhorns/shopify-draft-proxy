@@ -1582,7 +1582,41 @@ pub fn validate_contact_input(
       b2b_types.notes_max_length,
       True,
     ))
+    |> list.append(validate_contact_name_field(input, "firstName", prefix))
+    |> list.append(validate_contact_name_field(input, "lastName", prefix))
   #(input, errors)
+}
+
+@internal
+pub fn validate_contact_name_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  prefix: List(String),
+) -> List(b2b_types.UserError) {
+  case read_string(input, field) {
+    Some(value) -> {
+      let detail = case contains_html_tags(value) {
+        True -> Some(b2b_types.contains_html_tags_detail)
+        False -> None
+      }
+      let invalid =
+        option.is_some(detail)
+        || contains_emoji(value)
+        || contains_url_substring(value)
+      case invalid {
+        True -> [
+          b2b_types.UserError(
+            field: Some(prefix),
+            message: "Invalid input.",
+            code: user_error_code.invalid_input,
+            detail: detail,
+          ),
+        ]
+        False -> []
+      }
+    }
+    None -> []
+  }
 }
 
 @internal

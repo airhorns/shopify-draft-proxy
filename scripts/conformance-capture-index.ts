@@ -331,6 +331,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-contact-email-name-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-email-name-validation-conformance.mts',
+    purpose:
+      'B2B contact email format validation plus public Admin contact-name validation payloads for create, update, and nested companyCreate inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-email-name-validation.json`,
+      'config/parity-specs/b2b/b2b-contact-email-name-validation.json',
+      'config/parity-requests/b2b/b2b-contact-email-name-validation-company-create.graphql',
+      'config/parity-requests/b2b/b2b-contact-email-name-validation-contact-create.graphql',
+      'config/parity-requests/b2b/b2b-contact-email-name-validation-contact-update.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable company with a B2B contact, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin 2026-04 exposes BusinessCustomerUserError field/message/code but not detail; emoji and URL name inputs have live behavior that differs from older internal expectations, so they remain runtime-test-backed local guardrails.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-billing-same-as-shipping-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-billing-same-as-shipping-conformance.mts',

@@ -1,0 +1,94 @@
+{
+  "scenarioId": "b2b-contact-email-name-validation",
+  "operationNames": ["companyCreate", "companyContactCreate", "companyContactUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-email-name-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-contact-email-name-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for public Admin B2B contact validation branches: malformed email on companyContactCreate, HTML firstName rejection on companyContactCreate, malformed email on companyContactUpdate, and nested companyCreate input.companyContact.email rejection before company creation. Live public Admin 2026-04 exposes BusinessCustomerUserError field/message/code but not a detail field. Live probing also showed emoji names are currently accepted and URL/update-name spam maps to broader customer-association failures, so those branches remain local runtime guardrails rather than captured parity targets in this scenario.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-company-contact",
+        "capturePath": "$.setupCompany.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.mainContact.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different stable customer IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-create-invalid-email",
+        "capturePath": "$.invalidEmailCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-email-name-validation-contact-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.invalidEmailCreate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "contact-create-html-name",
+        "capturePath": "$.htmlNameCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-email-name-validation-contact-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.htmlNameCreate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "contact-update-invalid-email",
+        "capturePath": "$.invalidEmailUpdate.response.data.companyContactUpdate",
+        "proxyPath": "$.data.companyContactUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-email-name-validation-contact-update.graphql",
+          "variables": {
+            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "input": { "fromCapturePath": "$.invalidEmailUpdate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-create-nested-contact-invalid-email",
+        "capturePath": "$.nestedInvalidEmailCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-email-name-validation-company-create.graphql",
+          "variablesCapturePath": "$.nestedInvalidEmailCompanyCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
