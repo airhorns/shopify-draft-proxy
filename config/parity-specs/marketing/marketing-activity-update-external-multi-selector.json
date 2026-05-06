@@ -1,0 +1,45 @@
+{
+  "scenarioId": "marketing-activity-update-external-multi-selector",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "local-staging", "downstream-read-parity"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingActivityUpdateExternal"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-update-external-multi-selector.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-update-external-multi-selector.graphql",
+    "variablesCapturePath": "$.operations.primary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "conflict-update-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.conflictUpdate.userErrors",
+        "proxyPath": "$.data.conflictUpdate.userErrors"
+      },
+      {
+        "name": "conflict-update-null-activity",
+        "capturePath": "$.operations.primary.response.payload.data.conflictUpdate.marketingActivity",
+        "proxyPath": "$.data.conflictUpdate.marketingActivity"
+      },
+      {
+        "name": "read-activity-a-title-unchanged",
+        "capturePath": "$.operations.readActivityA.response.payload.data.marketingActivity.title",
+        "proxyPath": "$.data.marketingActivity.title",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-update-external-multi-selector-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.createA.marketingActivity.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify's conjunction semantics for marketingActivityUpdateExternal selectors. The scenario creates two disposable external activities, calls updateExternal with Activity A's remoteId and Activity B's UTM triplet, verifies MARKETING_ACTIVITY_DOES_NOT_EXIST with marketingActivity null, then reads Activity A to prove the title is unchanged."
+}
