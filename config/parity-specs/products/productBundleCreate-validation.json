@@ -37,7 +37,8 @@
         "expectedDifferences": [
           {
             "path": "$.userErrors[0].message",
-            "matcher": "regex:^Mapping of components targeting products need to map all of the options of the product."
+            "matcher": "regex:^Mapping of components targeting products need to map all of the options of the product.",
+            "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
           }
         ],
         "proxyRequest": {
@@ -84,7 +85,8 @@
         "expectedDifferences": [
           {
             "path": "$.userErrors[0].message",
-            "matcher": "regex:^Quantity cannot be greater than 2000."
+            "matcher": "regex:^Quantity cannot be greater than 2000.",
+            "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
           }
         ],
         "proxyRequest": {
@@ -126,7 +128,8 @@
         "expectedDifferences": [
           {
             "path": "$.userErrors[0].message",
-            "matcher": "regex:^Quantity options must have at least two values."
+            "matcher": "regex:^Quantity options must have at least two values.",
+            "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
           }
         ],
         "proxyRequest": {
@@ -171,7 +174,8 @@
         "expectedDifferences": [
           {
             "path": "$.productBundleOperation.id",
-            "matcher": "shopify-gid:ProductBundleOperation"
+            "matcher": "shopify-gid:ProductBundleOperation",
+            "reason": "The proxy creates a stable synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
           }
         ],
         "proxyRequest": {
@@ -213,7 +217,8 @@
         "expectedDifferences": [
           {
             "path": "$.id",
-            "matcher": "shopify-gid:ProductBundleOperation"
+            "matcher": "shopify-gid:ProductBundleOperation",
+            "reason": "The proxy reads back its locally staged synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
           }
         ],
         "proxyRequest": {
@@ -233,7 +238,8 @@
         "expectedDifferences": [
           {
             "path": "$.productBundleOperation.id",
-            "matcher": "shopify-gid:ProductBundleOperation"
+            "matcher": "shopify-gid:ProductBundleOperation",
+            "reason": "The proxy creates a stable synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
           }
         ],
         "proxyRequest": {
