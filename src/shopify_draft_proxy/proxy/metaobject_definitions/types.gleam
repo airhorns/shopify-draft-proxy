@@ -27,6 +27,7 @@ import shopify_draft_proxy/state/store.{
   list_effective_metaobject_definitions, list_effective_metaobjects_by_type,
   upsert_staged_metaobject_definition,
 }
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -2659,7 +2660,7 @@ pub fn log_draft(root: String, ids: List(String)) -> LogDraft {
   single_root_log_draft(
     root,
     ids,
-    store.Staged,
+    store_types.Staged,
     domain_name,
     execution_name,
     None,

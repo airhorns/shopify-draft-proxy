@@ -12,6 +12,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -26,7 +27,7 @@ const authoritative_one: String = "gid://shopify/SavedSearch/12345"
 const authoritative_two: String = "gid://shopify/SavedSearch/67890"
 
 fn empty_capability() -> store.Capability {
-  store.Capability(
+  store_types.Capability(
     operation_name: Some("savedSearchCreate"),
     domain: "saved-searches",
     execution: "stage-locally",
@@ -38,7 +39,7 @@ fn entry_factory(
   query: String,
   staged: List(String),
 ) -> store.MutationLogEntry {
-  store.MutationLogEntry(
+  store_types.MutationLogEntry(
     id: id,
     received_at: "2026-04-29T12:00:00.000Z",
     operation_name: Some("savedSearchCreate"),
@@ -46,9 +47,9 @@ fn entry_factory(
     query: query,
     variables: dict.new(),
     staged_resource_ids: staged,
-    status: store.Staged,
-    interpreted: store.InterpretedMetadata(
-      operation_type: store.Mutation,
+    status: store_types.Staged,
+    interpreted: store_types.InterpretedMetadata(
+      operation_type: store_types.Mutation,
       operation_name: Some("savedSearchCreate"),
       root_fields: ["savedSearchCreate"],
       primary_root_field: Some("savedSearchCreate"),
@@ -383,13 +384,13 @@ pub fn run_commit_empty_log_returns_ok_test() {
 
 pub fn run_commit_skips_already_committed_entries_test() {
   let entry =
-    store.MutationLogEntry(
+    store_types.MutationLogEntry(
       ..entry_factory(
         "log-1",
         "mutation { savedSearchCreate { savedSearch { id } } }",
         [],
       ),
-      status: store.Committed,
+      status: store_types.Committed,
     )
   let s = store_with_entries([entry])
   let send = ok_send_factory(200, "{}")
@@ -420,7 +421,7 @@ pub fn run_commit_marks_entry_committed_on_success_test() {
   let log = store.get_log(after)
   case log {
     [updated] -> {
-      assert updated.status == store.Committed
+      assert updated.status == store_types.Committed
     }
     _ -> panic as "expected single log entry after commit"
   }
@@ -481,7 +482,7 @@ fn record_request_bodies(
   let pending =
     list.filter(entries, fn(e) {
       case e.status {
-        store.Staged -> True
+        store_types.Staged -> True
         _ -> False
       }
     })
@@ -521,7 +522,7 @@ pub fn run_commit_halts_on_4xx_test() {
       "mutation { savedSearchCreate { savedSearch { id } } }",
       [],
     )
-  let entry2 = store.MutationLogEntry(..entry1, id: "log-2")
+  let entry2 = store_types.MutationLogEntry(..entry1, id: "log-2")
   let s = store_with_entries([entry1, entry2])
   let send = ok_send_factory(422, "{\"errors\":[{\"message\":\"bad\"}]}")
   let #(after, meta) =
@@ -533,8 +534,8 @@ pub fn run_commit_halts_on_4xx_test() {
   let log = store.get_log(after)
   case log {
     [first, second] -> {
-      assert first.status == store.Failed
-      assert second.status == store.Staged
+      assert first.status == store_types.Failed
+      assert second.status == store_types.Staged
     }
     _ -> panic as "expected two log entries"
   }
@@ -556,7 +557,7 @@ pub fn run_commit_halts_on_graphql_errors_in_200_test() {
   let log = store.get_log(after)
   case log {
     [updated] -> {
-      assert updated.status == store.Failed
+      assert updated.status == store_types.Failed
     }
     _ -> panic as "expected single log entry"
   }
@@ -587,7 +588,7 @@ pub fn run_commit_halts_on_transport_error_test() {
   let log = store.get_log(after)
   case log {
     [updated] -> {
-      assert updated.status == store.Failed
+      assert updated.status == store_types.Failed
       let notes = case updated.notes {
         Some(n) -> n
         None -> ""
@@ -618,7 +619,7 @@ pub fn serialize_meta_response_serialises_attempt_test() {
       operation_name: Some("savedSearchCreate"),
       path: "/admin/api/2025-01/graphql.json",
       success: True,
-      status: store.Committed,
+      status: store_types.Committed,
       upstream_status: Some(200),
       upstream_body: Some(commit.parse_json_value("{\"hello\":\"world\"}")),
       upstream_error: None,
