@@ -2305,6 +2305,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-basic-disallowed-discount-on-quantity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-basic-disallowed-discount-on-quantity-conformance.ts',
+    purpose: 'Basic code and automatic discount rejection of customerGets.value.discountOnQuantity on create/update.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-basic-disallowed-discount-on-quantity.json`,
+      'config/parity-specs/discounts/discount-basic-disallowed-discount-on-quantity.json',
+      'config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable basic code discount and one basic automatic discount, then deletes both.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-class-inference',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-class-inference-conformance.ts',
