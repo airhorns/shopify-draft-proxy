@@ -1,0 +1,27 @@
+mutation DiscountDeleteUnknownIdSetup(
+  $codeInput: DiscountCodeBasicInput!
+  $automaticInput: DiscountAutomaticBasicInput!
+) {
+  codeSetup: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticSetup: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

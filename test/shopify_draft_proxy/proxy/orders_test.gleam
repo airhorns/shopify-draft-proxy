@@ -1,13 +1,17 @@
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
-import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry,
+}
 import shopify_draft_proxy/state/types
 
 pub fn orders_abandoned_checkout_empty_read_test() {
@@ -1122,6 +1126,401 @@ pub fn orders_order_edit_set_quantity_payload_test() {
     == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedLineItem\":{\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":0,\"currentQuantity\":0,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
+}
+
+pub fn orders_order_edit_commit_updates_history_fulfillment_orders_and_totals_test() {
+  let order_id = "gid://shopify/Order/order-edit-commit-state"
+  let existing_line_item_id = "gid://shopify/LineItem/order-edit-existing"
+  let product_id = "gid://shopify/Product/order-edit-added"
+  let variant_id = "gid://shopify/ProductVariant/order-edit-added"
+  let seeded =
+    store.new()
+    |> store.upsert_base_products([
+      types.ProductRecord(
+        id: product_id,
+        legacy_resource_id: None,
+        title: "Added variant",
+        handle: "",
+        status: "ACTIVE",
+        vendor: None,
+        product_type: None,
+        tags: [],
+        price_range_min: None,
+        price_range_max: None,
+        total_variants: None,
+        has_only_default_variant: None,
+        has_out_of_stock_variants: None,
+        total_inventory: None,
+        tracks_inventory: None,
+        created_at: None,
+        updated_at: None,
+        published_at: None,
+        description_html: "",
+        online_store_preview_url: None,
+        template_suffix: None,
+        seo: types.ProductSeoRecord(title: None, description: None),
+        category: None,
+        publication_ids: [],
+        contextual_pricing: None,
+        cursor: None,
+        combined_listing_role: None,
+        combined_listing_parent_id: None,
+        combined_listing_child_ids: [],
+      ),
+    ])
+    |> store.upsert_base_product_variants([
+      types.ProductVariantRecord(
+        id: variant_id,
+        product_id: product_id,
+        title: "Default Title",
+        sku: Some("ADD-1"),
+        barcode: None,
+        price: Some("5.00"),
+        compare_at_price: None,
+        taxable: None,
+        inventory_policy: None,
+        inventory_quantity: None,
+        selected_options: [],
+        media_ids: [],
+        inventory_item: None,
+        contextual_pricing: None,
+        cursor: None,
+      ),
+    ])
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#8001")),
+          #("currentSubtotalLineItemsQuantity", types.CapturedInt(3)),
+          #(
+            "currentSubtotalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("30.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "currentTotalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("33.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "currentTaxLines",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("title", types.CapturedString("GST")),
+                #("rate", types.CapturedFloat(0.1)),
+                #(
+                  "priceSet",
+                  types.CapturedObject([
+                    #(
+                      "shopMoney",
+                      types.CapturedObject([
+                        #("amount", types.CapturedString("3.0")),
+                        #("currencyCode", types.CapturedString("CAD")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("id", types.CapturedString(existing_line_item_id)),
+                    #("title", types.CapturedString("Existing widget")),
+                    #("quantity", types.CapturedInt(3)),
+                    #("currentQuantity", types.CapturedInt(3)),
+                    #("sku", types.CapturedString("EX-3")),
+                    #("variant", types.CapturedNull),
+                    #(
+                      "originalUnitPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("10.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "fulfillmentOrders",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #(
+                      "id",
+                      types.CapturedString(
+                        "gid://shopify/FulfillmentOrder/order-edit",
+                      ),
+                    ),
+                    #("status", types.CapturedString("OPEN")),
+                    #(
+                      "lineItems",
+                      types.CapturedObject([
+                        #(
+                          "nodes",
+                          types.CapturedArray([
+                            types.CapturedObject([
+                              #(
+                                "id",
+                                types.CapturedString(
+                                  "gid://shopify/FulfillmentOrderLineItem/existing",
+                                ),
+                              ),
+                              #("totalQuantity", types.CapturedInt(3)),
+                              #("remainingQuantity", types.CapturedInt(3)),
+                              #(
+                                "lineItem",
+                                types.CapturedObject([
+                                  #(
+                                    "id",
+                                    types.CapturedString(existing_line_item_id),
+                                  ),
+                                  #(
+                                    "title",
+                                    types.CapturedString("Existing widget"),
+                                  ),
+                                  #("quantity", types.CapturedInt(3)),
+                                  #("fulfillableQuantity", types.CapturedInt(3)),
+                                ]),
+                              ),
+                            ]),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "orderEditSessions",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString("gid://shopify/CalculatedOrder/1")),
+                #("originalOrderId", types.CapturedString(order_id)),
+                #(
+                  "lineItems",
+                  types.CapturedObject([
+                    #(
+                      "nodes",
+                      types.CapturedArray([
+                        types.CapturedObject([
+                          #(
+                            "id",
+                            types.CapturedString(
+                              "gid://shopify/CalculatedLineItem/2",
+                            ),
+                          ),
+                          #("title", types.CapturedString("Existing widget")),
+                          #("quantity", types.CapturedInt(3)),
+                          #("currentQuantity", types.CapturedInt(3)),
+                          #("sku", types.CapturedString("EX-3")),
+                          #("variant", types.CapturedNull),
+                          #(
+                            "originalUnitPriceSet",
+                            types.CapturedObject([
+                              #(
+                                "shopMoney",
+                                types.CapturedObject([
+                                  #("amount", types.CapturedString("10.0")),
+                                  #("currencyCode", types.CapturedString("CAD")),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ]),
+                      ]),
+                    ),
+                  ]),
+                ),
+                #(
+                  "addedLineItems",
+                  types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+                ),
+                #("shippingLines", types.CapturedArray([])),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+
+  let add_variant =
+    "
+    mutation AddVariant($id: ID!, $variantId: ID!, $quantity: Int!) {
+      orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+        calculatedLineItem { id }
+        userErrors { field message }
+      }
+    }
+  "
+  let add_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("variantId", root_field.StringVal(variant_id)),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+      empty_upstream_context(),
+    )
+  let set_quantity =
+    "
+    mutation SetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+      orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+        calculatedLineItem { currentQuantity }
+        userErrors { field message }
+      }
+    }
+  "
+  let set_outcome =
+    orders.process_mutation(
+      add_outcome.store,
+      add_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/2"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+      empty_upstream_context(),
+    )
+  let commit =
+    "
+    mutation Commit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {
+      orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+        order { id }
+        userErrors { field message }
+      }
+    }
+  "
+  let commit_outcome =
+    orders.process_mutation(
+      set_outcome.store,
+      set_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      commit,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("notifyCustomer", root_field.BoolVal(False)),
+        #("staffNote", root_field.StringVal("locally committed edit")),
+      ]),
+      empty_upstream_context(),
+    )
+  let read =
+    "
+    query ReadEditedOrder($id: ID!) {
+      order(id: $id) {
+        currentSubtotalLineItemsQuantity
+        currentSubtotalPriceSet { shopMoney { amount currencyCode } }
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        currentTaxLines { title rate priceSet { shopMoney { amount currencyCode } } }
+        editHistory(first: 10) {
+          nodes {
+            id
+            committedAt
+            staffMemberId
+            notifyCustomer
+            staffNote
+            changes(first: 10) {
+              nodes {
+                __typename
+                lineItem { id title quantity currentQuantity }
+                originalQuantity
+                newQuantity
+              }
+            }
+          }
+        }
+        fulfillmentOrders(first: 10) {
+          nodes {
+            lineItems(first: 10) {
+              nodes {
+                totalQuantity
+                remainingQuantity
+                lineItem { id title quantity fulfillableQuantity }
+              }
+            }
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(read_result) =
+    orders.process(
+      commit_outcome.store,
+      read,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  let body = json.to_string(read_result)
+  assert string.contains(body, "\"currentSubtotalLineItemsQuantity\":2")
+  assert string.contains(
+    body,
+    "\"currentSubtotalPriceSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}",
+  )
+  assert string.contains(
+    body,
+    "\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"16.5\",\"currencyCode\":\"CAD\"}}",
+  )
+  assert string.contains(
+    body,
+    "\"currentTaxLines\":[{\"title\":\"GST\",\"rate\":0.1,\"priceSet\":{\"shopMoney\":{\"amount\":\"1.5\",\"currencyCode\":\"CAD\"}}}]",
+  )
+  assert string.contains(body, "\"notifyCustomer\":false")
+  assert string.contains(
+    body,
+    "\"staffMemberId\":\"gid://shopify/StaffMember/1\"",
+  )
+  assert string.contains(body, "\"staffNote\":\"locally committed edit\"")
+  assert string.contains(body, "\"__typename\":\"OrderEditChangeAddLineItem\"")
+  assert string.contains(body, "\"__typename\":\"OrderEditChangeSetQuantity\"")
+  assert string.contains(
+    body,
+    "\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/order-edit-existing\",\"title\":\"Existing widget\",\"quantity\":3,\"fulfillableQuantity\":1}",
+  )
+  assert string.contains(
+    body,
+    "\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/CalculatedLineItem/1\",\"title\":\"Added variant\",\"quantity\":1,\"fulfillableQuantity\":1}",
+  )
 }
 
 pub fn orders_draft_order_not_found_read_test() {
@@ -5691,6 +6090,256 @@ fn order_create_test_money(amount: String) -> root_field.ResolvedValue {
   )
 }
 
+fn order_payment_mutation_path() -> String {
+  "/admin/api/2026-04/graphql.json"
+}
+
+fn order_payment_create_document() -> String {
+  "
+    mutation CreatePaymentOrder($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          id
+          transactions {
+            id
+            kind
+            status
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn order_payment_capture_document() -> String {
+  "
+    mutation CapturePaymentOrder($input: OrderCaptureInput!) {
+      orderCapture(input: $input) {
+        transaction {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn transaction_void_error_document() -> String {
+  "
+    mutation VoidPaymentTransaction($id: ID!) {
+      transactionVoid(parentTransactionId: $id) {
+        transaction {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn order_payment_transaction(
+  kind: String,
+  status: String,
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("kind", root_field.StringVal(kind)),
+      #("status", root_field.StringVal(status)),
+      #("gateway", root_field.StringVal("manual")),
+      #("amountSet", order_create_test_money("25.00")),
+    ]),
+  )
+}
+
+fn order_payment_order(transaction: root_field.ResolvedValue) {
+  order_create_test_order([
+    #("currency", root_field.StringVal("CAD")),
+    #("transactions", root_field.ListVal([transaction])),
+    #(
+      "lineItems",
+      root_field.ListVal([
+        order_create_test_line_item([
+          #("title", root_field.StringVal("Payment test item")),
+          #("priceSet", order_create_test_money("25.00")),
+        ]),
+      ]),
+    ),
+  ])
+}
+
+fn create_payment_order(transaction: root_field.ResolvedValue) {
+  orders.process_mutation(
+    store.new(),
+    synthetic_identity.new(),
+    order_payment_mutation_path(),
+    order_payment_create_document(),
+    dict.from_list([#("order", order_payment_order(transaction))]),
+    empty_upstream_context(),
+  )
+}
+
+fn transaction_void(source: store.Store, id: String) {
+  orders.process_mutation(
+    source,
+    synthetic_identity.new(),
+    order_payment_mutation_path(),
+    transaction_void_error_document(),
+    dict.from_list([#("id", root_field.StringVal(id))]),
+    empty_upstream_context(),
+  )
+}
+
+fn capture_payment_order(
+  source: store.Store,
+  order_id: String,
+  auth_id: String,
+) {
+  orders.process_mutation(
+    source,
+    synthetic_identity.new(),
+    order_payment_mutation_path(),
+    order_payment_capture_document(),
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("id", root_field.StringVal(order_id)),
+            #("parentTransactionId", root_field.StringVal(auth_id)),
+            #("amount", root_field.FloatVal(25.0)),
+            #("currency", root_field.StringVal("CAD")),
+            #("finalCapture", root_field.BoolVal(True)),
+          ]),
+        ),
+      ),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
+pub fn transaction_void_missing_transaction_uses_shopify_code_and_field_test() {
+  let outcome =
+    transaction_void(store.new(), "gid://shopify/OrderTransaction/missing")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Transaction does not exist\",\"code\":\"TRANSACTION_NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_orders(outcome.store) == []
+}
+
+pub fn transaction_void_rejects_capture_with_auth_not_successful_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("CAPTURE", "SUCCESS"))
+  let outcome =
+    transaction_void(create_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction must be a successful authorization\",\"code\":\"AUTH_NOT_SUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_failed_auth_with_auth_not_successful_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("AUTHORIZATION", "FAILURE"))
+  let outcome =
+    transaction_void(create_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction must be a successful authorization\",\"code\":\"AUTH_NOT_SUCCESSFUL\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_captured_auth_with_auth_not_voidable_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("AUTHORIZATION", "SUCCESS"))
+  let capture_outcome =
+    capture_payment_order(
+      create_outcome.store,
+      "gid://shopify/Order/1",
+      "gid://shopify/OrderTransaction/3",
+    )
+  let outcome =
+    transaction_void(capture_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction require a parent_id referring to a voidable transaction\",\"code\":\"AUTH_NOT_VOIDABLE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_already_voided_auth_with_auth_not_voidable_code_test() {
+  let create_outcome =
+    create_payment_order(order_payment_transaction("AUTHORIZATION", "SUCCESS"))
+  let void_outcome =
+    transaction_void(create_outcome.store, "gid://shopify/OrderTransaction/3")
+  let outcome =
+    transaction_void(void_outcome.store, "gid://shopify/OrderTransaction/3")
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction require a parent_id referring to a voidable transaction\",\"code\":\"AUTH_NOT_VOIDABLE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn transaction_void_rejects_expired_auth_with_auth_not_voidable_code_test() {
+  let transaction_id = "gid://shopify/OrderTransaction/expired-auth"
+  let order =
+    types.OrderRecord(
+      id: "gid://shopify/Order/expired-auth",
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString("gid://shopify/Order/expired-auth")),
+        #(
+          "transactions",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(transaction_id)),
+              #("kind", types.CapturedString("AUTHORIZATION")),
+              #("status", types.CapturedString("SUCCESS")),
+              #("gateway", types.CapturedString("manual")),
+              #(
+                "authorizationExpiresAt",
+                types.CapturedString("2000-01-01T00:00:00.000Z"),
+              ),
+              #(
+                "amountSet",
+                types.CapturedObject([
+                  #(
+                    "shopMoney",
+                    types.CapturedObject([
+                      #("amount", types.CapturedString("25.0")),
+                      #("currencyCode", types.CapturedString("CAD")),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    )
+  let outcome =
+    transaction_void(
+      store.new() |> store.upsert_base_orders([order]),
+      transaction_id,
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"transactionVoid\":{\"transaction\":null,\"userErrors\":[{\"field\":[\"parentTransactionId\"],\"message\":\"Parent transaction require a parent_id referring to a voidable transaction\",\"code\":\"AUTH_NOT_VOIDABLE\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
   let mutation =
     "
@@ -9005,6 +9654,227 @@ pub fn orders_draft_order_complete_read_after_write_test() {
     == "{\"data\":{\"completedOrder\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/4\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\"}]}},\"completedOrders\":{\"nodes\":[{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"gid://shopify/Order/3\",\"endCursor\":\"gid://shopify/Order/3\"}}}}"
 }
 
+pub fn orders_draft_order_complete_payment_gateway_paths_test() {
+  let active_gateway_id = "gid://shopify/PaymentGateway/active-local"
+  let disabled_gateway_id = "gid://shopify/PaymentGateway/disabled-local"
+  let initial_store =
+    store.new()
+    |> store.set_shop_payment_gateways([
+      types.PaymentGatewayRecord(
+        id: active_gateway_id,
+        name: "bogus-payments",
+        active: True,
+      ),
+      types.PaymentGatewayRecord(
+        id: disabled_gateway_id,
+        name: "disabled-payments",
+        active: False,
+      ),
+    ])
+
+  let active_create =
+    create_gateway_completion_draft(initial_store, synthetic_identity.new())
+  let assert [active_draft_id] = active_create.staged_resource_ids
+  let active_complete =
+    complete_gateway_completion_draft(
+      active_create.store,
+      active_create.identity,
+      active_draft_id,
+      root_field.StringVal(active_gateway_id),
+      False,
+    )
+  let active_json = json.to_string(active_complete.data)
+  assert string.contains(active_json, "\"displayFinancialStatus\":\"PAID\"")
+  assert string.contains(
+    active_json,
+    "\"paymentGatewayNames\":[\"bogus-payments\"]",
+  )
+  assert string.contains(active_json, "\"kind\":\"SALE\"")
+  assert string.contains(active_json, "\"gateway\":\"bogus-payments\"")
+  assert active_complete.staged_resource_ids == [active_draft_id]
+  assert list.length(active_complete.log_drafts) == 1
+
+  let pending_create =
+    create_gateway_completion_draft(
+      active_complete.store,
+      active_complete.identity,
+    )
+  let assert [pending_draft_id] = pending_create.staged_resource_ids
+  let pending_complete =
+    complete_gateway_completion_draft(
+      pending_create.store,
+      pending_create.identity,
+      pending_draft_id,
+      root_field.StringVal(active_gateway_id),
+      True,
+    )
+  let pending_json = json.to_string(pending_complete.data)
+  assert string.contains(
+    pending_json,
+    "\"displayFinancialStatus\":\"AUTHORIZED\"",
+  )
+  assert string.contains(
+    pending_json,
+    "\"paymentGatewayNames\":[\"bogus-payments\"]",
+  )
+  assert string.contains(pending_json, "\"kind\":\"AUTHORIZATION\"")
+  assert string.contains(pending_json, "\"gateway\":\"bogus-payments\"")
+
+  let unknown_create =
+    create_gateway_completion_draft(
+      pending_complete.store,
+      pending_complete.identity,
+    )
+  let assert [unknown_draft_id] = unknown_create.staged_resource_ids
+  let unknown_complete =
+    complete_gateway_completion_draft(
+      unknown_create.store,
+      unknown_create.identity,
+      unknown_draft_id,
+      root_field.StringVal("gid://shopify/PaymentGateway/not-installed"),
+      False,
+    )
+  assert json.to_string(unknown_complete.data)
+    == "{\"data\":{\"draftOrderComplete\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"paymentGatewayId\"],\"message\":\"payment_gateway_not_found\",\"code\":\"INVALID\"}]}}}"
+  assert unknown_complete.staged_resource_ids == []
+  assert unknown_complete.log_drafts == []
+
+  let disabled_create =
+    create_gateway_completion_draft(
+      unknown_complete.store,
+      unknown_complete.identity,
+    )
+  let assert [disabled_draft_id] = disabled_create.staged_resource_ids
+  let disabled_complete =
+    complete_gateway_completion_draft(
+      disabled_create.store,
+      disabled_create.identity,
+      disabled_draft_id,
+      root_field.StringVal(disabled_gateway_id),
+      False,
+    )
+  assert json.to_string(disabled_complete.data)
+    == "{\"data\":{\"draftOrderComplete\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"paymentGatewayId\"],\"message\":\"payment_gateway_disabled\",\"code\":\"INVALID\"}]}}}"
+  assert disabled_complete.staged_resource_ids == []
+  assert disabled_complete.log_drafts == []
+
+  let no_gateway_create =
+    create_gateway_completion_draft(
+      disabled_complete.store,
+      disabled_complete.identity,
+    )
+  let assert [no_gateway_draft_id] = no_gateway_create.staged_resource_ids
+  let no_gateway_complete =
+    complete_gateway_completion_draft(
+      no_gateway_create.store,
+      no_gateway_create.identity,
+      no_gateway_draft_id,
+      root_field.NullVal,
+      True,
+    )
+  let no_gateway_json = json.to_string(no_gateway_complete.data)
+  assert string.contains(
+    no_gateway_json,
+    "\"displayFinancialStatus\":\"PENDING\"",
+  )
+  assert string.contains(no_gateway_json, "\"paymentGatewayNames\":[]")
+  assert string.contains(no_gateway_json, "\"transactions\":[]")
+}
+
+fn create_gateway_completion_draft(current_store, identity) {
+  let mutation =
+    "
+    mutation {
+      draftOrderCreate(input: {
+        email: \"gateway-complete@example.test\"
+        lineItems: [{
+          title: \"Gateway completion service\"
+          quantity: 1
+          originalUnitPrice: \"10.00\"
+          sku: \"GATEWAY-COMPLETE\"
+        }]
+      }) {
+        draftOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    current_store,
+    identity,
+    "/admin/api/2025-01/graphql.json",
+    mutation,
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn complete_gateway_completion_draft(
+  current_store,
+  identity,
+  draft_order_id,
+  payment_gateway_id,
+  payment_pending,
+) {
+  let mutation =
+    "
+    mutation DraftOrderCompleteGateway(
+      $id: ID!
+      $paymentGatewayId: ID
+      $paymentPending: Boolean
+    ) {
+      draftOrderComplete(
+        id: $id
+        paymentGatewayId: $paymentGatewayId
+        paymentPending: $paymentPending
+      ) {
+        draftOrder {
+          id
+          status
+          order {
+            id
+            displayFinancialStatus
+            paymentGatewayNames
+            transactions {
+              kind
+              status
+              gateway
+              amountSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    current_store,
+    identity,
+    "/admin/api/2025-01/graphql.json",
+    mutation,
+    dict.from_list([
+      #("id", root_field.StringVal(draft_order_id)),
+      #("paymentGatewayId", payment_gateway_id),
+      #("paymentPending", root_field.BoolVal(payment_pending)),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
 pub fn orders_draft_order_create_from_order_read_after_write_test() {
   let create_mutation =
     "
@@ -9441,6 +10311,191 @@ pub fn orders_draft_order_residual_helper_roots_test() {
   assert json.to_string(after_delete_read) == "{\"data\":{\"draftOrder\":null}}"
 }
 
+pub fn orders_draft_order_bulk_tags_validation_partial_success_test() {
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderCreate(input: {
+          email: \"bulk-validation@example.test\"
+          tags: [\"Initial\"]
+          lineItems: [{ title: \"Bulk validation item\", quantity: 1, originalUnitPrice: \"2.00\" }]
+        }) {
+          draftOrder { id tags }
+          userErrors { field message code }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  let long_tag = string.repeat("x", times: 256)
+  let bulk_add_mutation =
+    "
+    mutation BulkAdd($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message code }
+      }
+    }
+  "
+  let add_outcome =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      bulk_add_mutation,
+      dict.from_list([
+        #(
+          "ids",
+          root_field.ListVal([
+            root_field.StringVal("gid://shopify/DraftOrder/1"),
+            root_field.StringVal("gid://shopify/DraftOrder/999999"),
+          ]),
+        ),
+        #(
+          "tags",
+          root_field.ListVal([
+            root_field.StringVal(" added "),
+            root_field.StringVal("ADDED"),
+            root_field.StringVal(long_tag),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(add_outcome.data)
+    == "{\"data\":{\"draftOrderBulkAddTags\":{\"job\":{\"id\":\"gid://shopify/Job/3\",\"done\":false},\"userErrors\":[{\"field\":[\"input\",\"tags\",\"2\"],\"message\":\"tag_too_long\",\"code\":\"INVALID\"},{\"field\":[\"input\",\"ids\",\"1\"],\"message\":\"Draft order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let assert Ok(after_add_read) =
+    orders.process(
+      add_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_add_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"tags\":[\"added\",\"Initial\"]}}}"
+}
+
+pub fn orders_draft_order_bulk_tags_count_validation_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/250"
+  let existing_tags = numbered_draft_order_tags(250)
+  let seeded_store =
+    store.new()
+    |> store.stage_draft_order(types.DraftOrderRecord(
+      id: draft_order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(draft_order_id)),
+        #(
+          "tags",
+          types.CapturedArray(list.map(existing_tags, types.CapturedString)),
+        ),
+      ]),
+    ))
+
+  let bulk_add_mutation =
+    "
+    mutation BulkAdd($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message code }
+      }
+    }
+  "
+  let add_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      bulk_add_mutation,
+      dict.from_list([
+        #("ids", root_field.ListVal([root_field.StringVal(draft_order_id)])),
+        #("tags", root_field.ListVal([root_field.StringVal("bulk-extra")])),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(add_outcome.data)
+    == "{\"data\":{\"draftOrderBulkAddTags\":{\"job\":null,\"userErrors\":[{\"field\":[\"input\",\"tags\"],\"message\":\"too_many_tags\",\"code\":\"INVALID\"}]}}}"
+
+  let assert Ok(after_add_read) =
+    orders.process(
+      add_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/250\") { id tags } }",
+      dict.new(),
+    )
+  let read_json = json.to_string(after_add_read)
+  assert string.contains(read_json, "\"tag-250\"")
+  assert !string.contains(read_json, "bulk-extra")
+}
+
+pub fn orders_draft_order_bulk_remove_tags_normalizes_identity_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/normalization"
+  let seeded_store =
+    store.new()
+    |> store.stage_draft_order(types.DraftOrderRecord(
+      id: draft_order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(draft_order_id)),
+        #(
+          "tags",
+          types.CapturedArray([
+            types.CapturedString("Initial"),
+            types.CapturedString("vip"),
+          ]),
+        ),
+      ]),
+    ))
+
+  let bulk_remove_mutation =
+    "
+    mutation BulkRemove($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message code }
+      }
+    }
+  "
+  let remove_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      bulk_remove_mutation,
+      dict.from_list([
+        #("ids", root_field.ListVal([root_field.StringVal(draft_order_id)])),
+        #("tags", root_field.ListVal([root_field.StringVal(" initial ")])),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(remove_outcome.data)
+    == "{\"data\":{\"draftOrderBulkRemoveTags\":{\"job\":{\"id\":\"gid://shopify/Job/1\",\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Ok(after_remove_read) =
+    orders.process(
+      remove_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/normalization\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_remove_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/normalization\",\"tags\":[\"vip\"]}}}"
+}
+
+fn numbered_draft_order_tags(count: Int) -> List(String) {
+  int.range(from: 1, to: count + 1, with: [], run: fn(acc, index) {
+    ["tag-" <> int.to_string(index), ..acc]
+  })
+  |> list.reverse
+}
+
 pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {
   let outcome =
     orders.process_mutation(
@@ -9486,4 +10541,165 @@ pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"emptyLineItems\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"invalidEmail\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]},\"availableShippingRatesEmpty\":{\"calculatedDraftOrder\":{\"availableShippingRates\":[]},\"userErrors\":[]},\"paymentTermsTemplateId\":{\"calculatedDraftOrder\":{\"currencyCode\":\"CAD\"},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_mandate_payment_uses_composite_reference_and_sale_test() {
+  let create_outcome = create_mandate_payment_test_order()
+  let order_id = "gid://shopify/Order/1"
+
+  let outcome =
+    create_mandate_payment_for_order(
+      create_outcome.store,
+      create_outcome.identity,
+      order_id,
+      "abc123",
+      None,
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreateMandatePayment\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":true},\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\",\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"capturable\":false,\"totalCapturable\":\"0.0\",\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"mandate\",\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_mandate_payment_repeat_is_idempotent_test() {
+  let create_outcome = create_mandate_payment_test_order()
+  let order_id = "gid://shopify/Order/1"
+
+  let first =
+    create_mandate_payment_for_order(
+      create_outcome.store,
+      create_outcome.identity,
+      order_id,
+      "abc123",
+      None,
+    )
+  let repeat =
+    create_mandate_payment_for_order(
+      first.store,
+      first.identity,
+      order_id,
+      "abc123",
+      None,
+    )
+
+  assert json.to_string(repeat.data)
+    == "{\"data\":{\"orderCreateMandatePayment\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":true},\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\",\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"capturable\":false,\"totalCapturable\":\"0.0\",\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"mandate\",\"paymentReferenceId\":\"gid://shopify/Order/1/abc123\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_mandate_payment_auto_capture_false_authorizes_test() {
+  let create_outcome = create_mandate_payment_test_order()
+  let order_id = "gid://shopify/Order/1"
+
+  let outcome =
+    create_mandate_payment_for_order(
+      create_outcome.store,
+      create_outcome.identity,
+      order_id,
+      "auth-only",
+      Some(False),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreateMandatePayment\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":true},\"paymentReferenceId\":\"gid://shopify/Order/1/auth-only\",\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"AUTHORIZED\",\"capturable\":true,\"totalCapturable\":\"25.0\",\"transactions\":[{\"kind\":\"AUTHORIZATION\",\"status\":\"SUCCESS\",\"gateway\":\"mandate\",\"paymentReferenceId\":\"gid://shopify/Order/1/auth-only\"}]},\"userErrors\":[]}}}"
+}
+
+fn create_mandate_payment_test_order() -> MutationOutcome {
+  orders.process_mutation(
+    store.new(),
+    synthetic_identity.new(),
+    "/admin/api/2025-01/graphql.json",
+    "
+      mutation Create($order: OrderCreateOrderInput!) {
+        orderCreate(order: $order) {
+          order { id }
+          userErrors { field message }
+        }
+      }
+    ",
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("currency", root_field.StringVal("CAD")),
+            #("transactions", root_field.ListVal([])),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("Mandate item")),
+                    #("quantity", root_field.IntVal(1)),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("25.00")),
+                                #("currencyCode", root_field.StringVal("CAD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ]),
+    empty_upstream_context(),
+  )
+}
+
+fn create_mandate_payment_for_order(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order_id: String,
+  idempotency_key: String,
+  auto_capture: Option(Bool),
+) -> MutationOutcome {
+  let variables =
+    dict.from_list([
+      #("id", root_field.StringVal(order_id)),
+      #("mandateId", root_field.StringVal("gid://shopify/PaymentMandate/test")),
+      #("idempotencyKey", root_field.StringVal(idempotency_key)),
+      #("autoCapture", case auto_capture {
+        Some(value) -> root_field.BoolVal(value)
+        None -> root_field.NullVal
+      }),
+    ])
+  orders.process_mutation(
+    store,
+    identity,
+    "/admin/api/2025-01/graphql.json",
+    "
+      mutation Mandate($id: ID!, $mandateId: ID!, $idempotencyKey: String!, $autoCapture: Boolean) {
+        orderCreateMandatePayment(id: $id, mandateId: $mandateId, idempotencyKey: $idempotencyKey, autoCapture: $autoCapture) {
+          job { id done }
+          paymentReferenceId
+          order {
+            id
+            displayFinancialStatus
+            capturable
+            totalCapturable
+            transactions {
+              kind
+              status
+              gateway
+              paymentReferenceId
+            }
+          }
+          userErrors { field message }
+        }
+      }
+    ",
+    variables,
+    empty_upstream_context(),
+  )
 }

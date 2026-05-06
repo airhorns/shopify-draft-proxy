@@ -1,0 +1,68 @@
+{
+  "scenarioId": "event-bridge-server-pixel-update-arn-format",
+  "operationNames": ["eventBridgeServerPixelUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "user-errors-parity", "side-effect-boundary", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/event_bridge_server_pixel_update_arn_format.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/event_bridge_server_pixel_update_malformed_arn.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "malformed-arn-message",
+        "capturePath": "$.expected.malformedArn.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "malformed-arn-extensions",
+        "capturePath": "$.expected.malformedArn.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      },
+      {
+        "name": "blank-arn-message",
+        "capturePath": "$.expected.blankArn.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/event_bridge_server_pixel_update_blank_arn.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "blank-arn-extensions",
+        "capturePath": "$.expected.blankArn.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/event_bridge_server_pixel_update_blank_arn.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-arn-message",
+        "capturePath": "$.expected.missingArn.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/event_bridge_server_pixel_update_missing_arn.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-arn-extensions",
+        "capturePath": "$.expected.missingArn.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/event_bridge_server_pixel_update_missing_arn.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for EventBridge ServerPixel endpoint malformed, blank, and missing ARN validation. The proxy must reject these before staging and without an upstream mutation; live success-path server-pixel captures remain blocked by the current credential scope."
+}

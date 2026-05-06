@@ -19,10 +19,10 @@ import shopify_draft_proxy/proxy/discounts/serializers.{
   apply_bulk_effects, build_discount_record, fetch_taken_code_error,
   maybe_hydrate_discount, maybe_hydrate_discount_subscription_capability,
   maybe_hydrate_shopify_function, payload_json,
-  redeem_code_bulk_delete_target_ids, validate_bulk_selector,
-  validate_context_customer_selection_conflict, validate_discount_input,
-  validate_discount_top_level_errors, validate_discount_update_input,
-  validate_redeem_code_bulk_delete_after_hydrate,
+  redeem_code_bulk_delete_target_ids, shopify_function_record_from_response,
+  validate_bulk_selector, validate_context_customer_selection_conflict,
+  validate_discount_input, validate_discount_top_level_errors,
+  validate_discount_update_input, validate_redeem_code_bulk_delete_after_hydrate,
   validate_redeem_code_bulk_delete_selector_shape,
 }
 
@@ -524,9 +524,27 @@ pub fn handle_discount_mutation_field(
         "automaticAppDiscount",
       )
     "discountCodeActivate" | "discountAutomaticActivate" ->
-      set_status(store, identity, root, field, fragments, variables, "ACTIVE")
+      set_status(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        variables,
+        "ACTIVE",
+        upstream,
+      )
     "discountCodeDeactivate" | "discountAutomaticDeactivate" ->
-      set_status(store, identity, root, field, fragments, variables, "EXPIRED")
+      set_status(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        variables,
+        "EXPIRED",
+        upstream,
+      )
     "discountCodeDelete" | "discountAutomaticDelete" ->
       delete_discount(store, identity, root, field, variables)
     "discountCodeBulkActivate"
@@ -930,6 +948,7 @@ pub fn set_status(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   status: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   case discount_types.read_string_arg(field, variables, "id") {
@@ -937,7 +956,7 @@ pub fn set_status(
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
           let user_errors = case status {
-            "ACTIVE" -> app_discount_activation_errors(store, record)
+            "ACTIVE" -> app_discount_activation_errors(store, record, upstream)
             _ -> []
           }
           case user_errors {
@@ -1019,14 +1038,21 @@ pub fn set_status(
 pub fn app_discount_activation_errors(
   store: Store,
   record: DiscountRecord,
+  upstream: UpstreamContext,
 ) -> List(SourceValue) {
   case record.discount_type {
     "app" ->
       case discount_app_function_reference(record) {
         Some(reference) ->
-          case discount_types.find_shopify_function(store, reference) {
-            Some(_) -> []
-            None -> activation_failed_user_errors()
+          case
+            app_discount_function_available_for_activation(
+              store,
+              reference,
+              upstream,
+            )
+          {
+            True -> []
+            False -> activation_failed_user_errors()
           }
         None -> activation_failed_user_errors()
       }
@@ -1034,11 +1060,72 @@ pub fn app_discount_activation_errors(
   }
 }
 
+fn app_discount_function_available_for_activation(
+  store: Store,
+  reference: String,
+  upstream: UpstreamContext,
+) -> Bool {
+  case activation_function_presence_from_upstream(reference, upstream) {
+    Some(found) -> found
+    None ->
+      case discount_types.find_shopify_function(store, reference) {
+        Some(_) -> True
+        None -> False
+      }
+  }
+}
+
+fn activation_function_presence_from_upstream(
+  reference: String,
+  upstream: UpstreamContext,
+) -> Option(Bool) {
+  case string.starts_with(reference, "gid://shopify/ShopifyFunction/") {
+    True -> None
+    False -> {
+      let query =
+        "query ShopifyFunctionAvailabilityForDiscountActivation($handle: String!) {
+  shopifyFunctions(first: 1, handle: $handle) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+"
+      let variables = json.object([#("handle", json.string(reference))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "ShopifyFunctionAvailabilityForDiscountActivation",
+          query,
+          variables,
+        )
+      {
+        Ok(value) ->
+          Some(option.is_some(shopify_function_record_from_response(value)))
+        Error(_) -> None
+      }
+    }
+  }
+}
+
 @internal
 pub fn activation_failed_user_errors() -> List(SourceValue) {
   [
     discount_types.user_error(
-      ["id"],
+      ["base"],
       "Discount could not be activated.",
       "INTERNAL_ERROR",
     ),
@@ -1076,42 +1163,66 @@ pub fn discount_app_function_reference(
 pub fn delete_discount(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _root: String,
+  root: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let id =
     discount_types.read_string_arg(field, variables, "id") |> option.unwrap("")
-  let #(next_store, next_identity) = case
+  let #(deleted_id, user_errors, next_store, next_identity, staged_ids) = case
     store.get_effective_discount_by_id(store, id)
   {
     Some(_) -> {
+      // Shopify can return INTERNAL_ERROR if its backend destroy call fails.
+      // Local staged deletion has no equivalent backend failure mode, so once
+      // the effective discount resolves the proxy keeps deterministic success.
       let #(_, next_identity) =
         synthetic_identity.make_synthetic_timestamp(identity)
-      #(store.delete_staged_discount(store, id), next_identity)
+      #(
+        SrcString(id),
+        [],
+        store.delete_staged_discount(store, id),
+        next_identity,
+        [
+          id,
+        ],
+      )
     }
-    None -> #(store.delete_staged_discount(store, id), identity)
+    None -> #(
+      SrcNull,
+      [
+        discount_types.user_error(
+          ["id"],
+          delete_missing_discount_message(root),
+          "INVALID",
+        ),
+      ],
+      store,
+      identity,
+      [],
+    )
   }
   let payload =
-    json.object(
-      list.map(child_fields(field), fn(child) {
-        let child_key = get_field_response_key(child)
-        case child {
-          Field(name: name, ..) ->
-            case name.value {
-              "deletedCodeDiscountId" | "deletedAutomaticDiscountId" -> #(
-                child_key,
-                json.string(id),
-              )
-              "userErrors" -> #(child_key, json.array([], fn(x) { x }))
-              _ -> #(child_key, json.null())
-            }
-          _ -> #(child_key, json.null())
-        }
-      }),
+    project_graphql_value(
+      SrcObject(
+        dict.from_list([
+          #("deletedCodeDiscountId", deleted_id),
+          #("deletedAutomaticDiscountId", deleted_id),
+          #("userErrors", SrcList(user_errors)),
+        ]),
+      ),
+      child_fields(field),
+      dict.new(),
     )
-  MutationResult(key, payload, next_store, next_identity, [id], [])
+  MutationResult(key, payload, next_store, next_identity, staged_ids, [])
+}
+
+fn delete_missing_discount_message(root: String) -> String {
+  case root {
+    "discountAutomaticDelete" -> "Automatic discount does not exist."
+    _ -> "Code discount does not exist."
+  }
 }
 
 @internal

@@ -1,0 +1,349 @@
+{
+  "capturedAt": "2026-05-06T11:35:00.000Z",
+  "source": "local-runtime-parity",
+  "apiVersion": "2026-04",
+  "scenarioId": "inventory-shipment-validation-local-runtime",
+  "workflow": {
+    "createReadyTransfer": {
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/1",
+          "destinationLocationId": "gid://shopify/Location/2",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "quantity": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryTransferCreateAsReadyToShip": {
+              "inventoryTransfer": {
+                "id": "gid://shopify/InventoryTransfer/9201",
+                "status": "READY_TO_SHIP",
+                "totalQuantity": 2,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryTransferLineItem/9202",
+                      "totalQuantity": 2,
+                      "shippableQuantity": 2,
+                      "shippedQuantity": 0,
+                      "processableQuantity": 2,
+                      "pickedForShipmentQuantity": 0
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "unknownTransfer": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreate": {
+              "inventoryShipment": null,
+              "userErrors": [
+                {
+                  "field": ["transferId"],
+                  "message": "The specified inventory transfer could not be found.",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "lineItemNotMember": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreate": {
+              "inventoryShipment": null,
+              "userErrors": [
+                {
+                  "field": ["lineItems", "0", "inventoryTransferLineItemId"],
+                  "message": "The specified inventory transfer line item could not be found.",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "quantityExceedsRemaining": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreate": {
+              "inventoryShipment": null,
+              "userErrors": [
+                {
+                  "field": ["lineItems", "0", "quantity"],
+                  "message": "Quantity exceeds the remaining quantity for the inventory transfer line item.",
+                  "code": "QUANTITY_EXCEEDS_REMAINING"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "trackingInvalid": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreate": {
+              "inventoryShipment": null,
+              "userErrors": [
+                {
+                  "field": ["input", "trackingInput", "carrier"],
+                  "message": "Carrier is not included in the list.",
+                  "code": "INVALID"
+                },
+                {
+                  "field": ["input", "trackingInput", "url"],
+                  "message": "Tracking URL is invalid.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "createDraftShipment": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreate": {
+              "inventoryShipment": {
+                "id": "gid://shopify/InventoryShipment/9301",
+                "status": "DRAFT",
+                "lineItemTotalQuantity": 1,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryShipmentLineItem/9302",
+                      "quantity": 1,
+                      "unreceivedQuantity": 1
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "addItemsExceedsRemaining": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentAddItems": {
+              "inventoryShipment": null,
+              "addedItems": [],
+              "userErrors": [
+                {
+                  "field": ["lineItems", "0", "quantity"],
+                  "message": "Quantity exceeds the remaining quantity for the inventory transfer line item.",
+                  "code": "QUANTITY_EXCEEDS_REMAINING"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "updateQuantityExceedsRemaining": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentUpdateItemQuantities": {
+              "shipment": null,
+              "updatedLineItems": [],
+              "userErrors": [
+                {
+                  "field": ["items", "0", "quantity"],
+                  "message": "Quantity exceeds the remaining quantity for the inventory transfer line item.",
+                  "code": "QUANTITY_EXCEEDS_REMAINING"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "receiveDraftShipment": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentReceive": {
+              "inventoryShipment": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Only in-transit shipments can be received.",
+                  "code": "INVALID_STATE"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "cancelTransfer": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryTransferCancel": {
+              "inventoryTransfer": {
+                "status": "CANCELED"
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "createAgainstCanceledTransfer": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreate": {
+              "inventoryShipment": null,
+              "userErrors": [
+                {
+                  "field": ["transferId"],
+                  "message": "Inventory shipments can only be created for open or ready to ship transfers.",
+                  "code": "INVALID_STATE"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "runtimeEvidence": [
+    "The scenario earns transfer state by replaying inventoryTransferCreateAsReadyToShip before shipment validation requests.",
+    "Unknown transfer, non-member transfer line item, over-remaining quantities, invalid tracking fields, add/update over-remaining quantities, receive from DRAFT, and CANCELED transfer state all return local userErrors without upstream writes.",
+    "A received transfer-state guard remains covered by the focused Gleam runtime fixture because no supported transfer mutation currently earns RECEIVED state in the generic parity runner."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/97011"]
+      },
+      "query": "hand-synthesized from checked-in product capture evidence for Pattern 2 mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryItem/97011",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-1?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-origin",
+                      "location": {
+                        "id": "gid://shopify/Location/1",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 5,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-2?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-destination",
+                      "location": {
+                        "id": "gid://shopify/Location/2",
+                        "name": "Overflow location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/97011",
+                  "title": "Default Title",
+                  "sku": "TRANSFER-READY",
+                  "inventoryQuantity": 5,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9701",
+                    "title": "Ready Transfer Product",
+                    "handle": "ready-transfer-product",
+                    "vendor": "Hermes",
+                    "productType": "Inventory",
+                    "status": "ACTIVE",
+                    "tags": [],
+                    "descriptionHtml": "",
+                    "templateSuffix": null,
+                    "totalInventory": 5,
+                    "tracksInventory": true,
+                    "seo": {
+                      "title": null,
+                      "description": null
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

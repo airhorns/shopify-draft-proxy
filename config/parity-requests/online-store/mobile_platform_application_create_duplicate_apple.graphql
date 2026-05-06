@@ -1,0 +1,15 @@
+mutation MobilePlatformApplicationCreateDuplicateApple {
+  mobilePlatformApplicationCreate(input: { apple: { appId: "1234567890.com.example.app" } }) {
+    mobilePlatformApplication {
+      __typename
+      ... on AppleApplication {
+        appId
+      }
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

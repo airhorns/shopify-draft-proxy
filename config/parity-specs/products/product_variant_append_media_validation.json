@@ -1,0 +1,247 @@
+{
+  "scenarioId": "product-variant-media-validation",
+  "operationNames": [
+    "productCreate",
+    "productCreateMedia",
+    "productUpdateMedia",
+    "productVariantAppendMedia",
+    "productVariantDetachMedia"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-no-write-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-variant-media-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-variant-media-validation-product-create.graphql",
+    "variablesCapturePath": "$.operations.createBaseProduct.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-base-product",
+        "capturePath": "$.operations.createBaseProduct.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "create-other-product",
+        "capturePath": "$.operations.createOtherProduct.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-product-create.graphql",
+          "variablesCapturePath": "$.operations.createOtherProduct.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-base-ready-media",
+        "capturePath": "$.operations.createBaseReadyMedia.response.data.productCreateMedia",
+        "proxyPath": "$.data.productCreateMedia",
+        "selectedPaths": ["$.mediaUserErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-product-create-media.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "media": {
+              "fromCapturePath": "$.operations.createBaseReadyMedia.variables.media"
+            }
+          }
+        }
+      },
+      {
+        "name": "settle-base-ready-media",
+        "capturePath": "$.operations.settleBaseReadyMedia.response.data.productUpdateMedia",
+        "proxyPath": "$.data.productUpdateMedia",
+        "selectedPaths": ["$.mediaUserErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-product-update-media.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "media": []
+          }
+        }
+      },
+      {
+        "name": "create-other-ready-media",
+        "capturePath": "$.operations.createOtherReadyMedia.response.data.productCreateMedia",
+        "proxyPath": "$.data.productCreateMedia",
+        "selectedPaths": ["$.mediaUserErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-product-create-media.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "create-other-product",
+              "path": "$.data.productCreate.product.id"
+            },
+            "media": {
+              "fromCapturePath": "$.operations.createOtherReadyMedia.variables.media"
+            }
+          }
+        }
+      },
+      {
+        "name": "settle-other-ready-media",
+        "capturePath": "$.operations.settleOtherReadyMedia.response.data.productUpdateMedia",
+        "proxyPath": "$.data.productUpdateMedia",
+        "selectedPaths": ["$.mediaUserErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-product-update-media.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "create-other-product",
+              "path": "$.data.productCreate.product.id"
+            },
+            "media": []
+          }
+        }
+      },
+      {
+        "name": "create-base-processing-media",
+        "capturePath": "$.operations.createBaseProcessingMedia.response.data.productCreateMedia",
+        "proxyPath": "$.data.productCreateMedia",
+        "selectedPaths": ["$.mediaUserErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-product-create-media.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "media": {
+              "fromCapturePath": "$.operations.createBaseProcessingMedia.variables.media"
+            }
+          }
+        }
+      },
+      {
+        "name": "append-variant-from-other-product",
+        "capturePath": "$.operations.appendVariantFromOtherProduct.response.data.productVariantAppendMedia",
+        "proxyPath": "$.data.productVariantAppendMedia",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-append.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromProxyResponse": "create-other-product",
+                  "path": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "create-base-ready-media",
+                    "path": "$.data.productCreateMedia.media[0].id"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "append-media-from-other-product",
+        "capturePath": "$.operations.appendMediaFromOtherProduct.response.data.productVariantAppendMedia",
+        "proxyPath": "$.data.productVariantAppendMedia",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-append.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "create-other-ready-media",
+                    "path": "$.data.productCreateMedia.media[0].id"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "append-processing-media",
+        "capturePath": "$.operations.appendProcessingMedia.response.data.productVariantAppendMedia",
+        "proxyPath": "$.data.productVariantAppendMedia",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-append.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "create-base-processing-media",
+                    "path": "$.data.productCreateMedia.media[0].id"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "detach-unattached-media",
+        "capturePath": "$.operations.detachUnattachedMedia.response.data.productVariantDetachMedia",
+        "proxyPath": "$.data.productVariantDetachMedia",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-detach.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "create-base-ready-media",
+                    "path": "$.data.productCreateMedia.media[0].id"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captured validation branches for productVariantAppendMedia and productVariantDetachMedia. The replay earns product, variant, and media state through local productCreate/productCreateMedia/productUpdateMedia requests, then compares the captured indexed userErrors for cross-product variants, cross-product media, non-ready media, and unattached detach targets."
+}

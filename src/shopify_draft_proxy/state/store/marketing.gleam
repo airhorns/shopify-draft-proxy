@@ -171,13 +171,23 @@ pub fn stage_delete_marketing_activity(store: Store, id: String) -> Store {
 pub fn stage_delete_all_external_marketing_activities(
   store: Store,
 ) -> #(List(String), Store) {
+  stage_delete_all_external_marketing_activities_for_app(store, None)
+}
+
+pub fn stage_delete_all_external_marketing_activities_for_app(
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> #(List(String), Store) {
   let #(ids, next_store) =
     list.fold(
       list_effective_marketing_activities(store),
       #([], store),
       fn(acc, record) {
         let #(deleted, current) = acc
-        case marketing_bool_field(record.data, "isExternal") {
+        case
+          marketing_bool_field(record.data, "isExternal")
+          && record_visible_to_api_client(record, requesting_api_client_id)
+        {
           True -> #(
             [record.id, ..deleted],
             stage_delete_marketing_activity(current, record.id),
@@ -187,14 +197,19 @@ pub fn stage_delete_all_external_marketing_activities(
       },
     )
   let staged = next_store.staged_state
-  let next_store =
-    Store(
-      ..next_store,
-      staged_state: StagedState(
+  let next_staged = case requesting_api_client_id {
+    None -> StagedState(..staged, marketing_delete_all_external_in_flight: True)
+    Some(api_client_id) ->
+      StagedState(
         ..staged,
-        marketing_delete_all_external_in_flight: True,
-      ),
-    )
+        marketing_delete_all_external_in_flight_api_client_ids: dict.insert(
+          staged.marketing_delete_all_external_in_flight_api_client_ids,
+          api_client_id,
+          True,
+        ),
+      )
+  }
+  let next_store = Store(..next_store, staged_state: next_staged)
   #(list.reverse(ids), next_store)
 }
 
@@ -213,6 +228,36 @@ pub fn get_effective_marketing_activity_record_by_id(
             Error(_) -> None
           }
       }
+  }
+}
+
+pub fn get_effective_marketing_activity_record_by_id_for_app(
+  store: Store,
+  id: String,
+  requesting_api_client_id: Option(String),
+) -> Option(MarketingRecord) {
+  case get_effective_marketing_activity_record_by_id(store, id) {
+    Some(record) ->
+      case record_visible_to_api_client(record, requesting_api_client_id) {
+        True -> Some(record)
+        False -> None
+      }
+    _ -> None
+  }
+}
+
+pub fn get_effective_marketing_event_record_by_id_for_app(
+  store: Store,
+  id: String,
+  requesting_api_client_id: Option(String),
+) -> Option(MarketingRecord) {
+  case get_effective_marketing_event_record_by_id(store, id) {
+    Some(record) ->
+      case record_visible_to_api_client(record, requesting_api_client_id) {
+        True -> Some(record)
+        False -> None
+      }
+    _ -> None
   }
 }
 
@@ -244,6 +289,18 @@ pub fn get_effective_marketing_activity_by_remote_id(
   |> option.from_result
 }
 
+pub fn get_effective_marketing_activity_by_remote_id_for_app(
+  store: Store,
+  remote_id: String,
+  requesting_api_client_id: Option(String),
+) -> Option(MarketingRecord) {
+  list.find(
+    list_effective_marketing_activities_for_app(store, requesting_api_client_id),
+    fn(record) { read_marketing_remote_id(record.data) == Some(remote_id) },
+  )
+  |> option.from_result
+}
+
 pub fn list_effective_marketing_activities(
   store: Store,
 ) -> List(MarketingRecord) {
@@ -256,6 +313,16 @@ pub fn list_effective_marketing_activities(
   )
 }
 
+pub fn list_effective_marketing_activities_for_app(
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> List(MarketingRecord) {
+  list_effective_marketing_activities(store)
+  |> list.filter(fn(record) {
+    record_visible_to_api_client(record, requesting_api_client_id)
+  })
+}
+
 pub fn list_effective_marketing_events(store: Store) -> List(MarketingRecord) {
   list_effective_marketing_records(
     store.base_state.marketing_events,
@@ -264,6 +331,16 @@ pub fn list_effective_marketing_events(store: Store) -> List(MarketingRecord) {
     store.staged_state.marketing_event_order,
     store.staged_state.deleted_marketing_event_ids,
   )
+}
+
+pub fn list_effective_marketing_events_for_app(
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> List(MarketingRecord) {
+  list_effective_marketing_events(store)
+  |> list.filter(fn(record) {
+    record_visible_to_api_client(record, requesting_api_client_id)
+  })
 }
 
 pub fn has_staged_marketing_records(store: Store) -> Bool {
@@ -276,10 +353,34 @@ pub fn has_staged_marketing_records(store: Store) -> Bool {
     store.staged_state.deleted_marketing_engagement_ids,
   ))
   || store.staged_state.marketing_delete_all_external_in_flight
+  || !list.is_empty(dict.keys(
+    store.staged_state.marketing_delete_all_external_in_flight_api_client_ids,
+  ))
 }
 
 pub fn has_marketing_delete_all_external_in_flight(store: Store) -> Bool {
   store.staged_state.marketing_delete_all_external_in_flight
+  || !list.is_empty(dict.keys(
+    store.staged_state.marketing_delete_all_external_in_flight_api_client_ids,
+  ))
+}
+
+pub fn has_marketing_delete_all_external_in_flight_for_app(
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case store.staged_state.marketing_delete_all_external_in_flight {
+    True -> True
+    False ->
+      case requesting_api_client_id {
+        None -> False
+        Some(api_client_id) ->
+          dict_has(
+            store.staged_state.marketing_delete_all_external_in_flight_api_client_ids,
+            api_client_id,
+          )
+      }
+  }
 }
 
 pub fn stage_marketing_engagement(
@@ -326,9 +427,24 @@ pub fn stage_delete_marketing_engagements_by_channel_handle(
   store: Store,
   channel_handle: String,
 ) -> #(List(String), Store) {
+  stage_delete_marketing_engagements_by_channel_handle_for_app(
+    store,
+    channel_handle,
+    None,
+  )
+}
+
+pub fn stage_delete_marketing_engagements_by_channel_handle_for_app(
+  store: Store,
+  channel_handle: String,
+  requesting_api_client_id: Option(String),
+) -> #(List(String), Store) {
   let #(ids, next_store) =
     list.fold(
-      list_effective_marketing_engagements(store),
+      list_effective_marketing_engagements_for_app(
+        store,
+        requesting_api_client_id,
+      ),
       #([], store),
       fn(acc, record) {
         let #(deleted, current) = acc
@@ -347,9 +463,19 @@ pub fn stage_delete_marketing_engagements_by_channel_handle(
 pub fn stage_delete_all_channel_marketing_engagements(
   store: Store,
 ) -> #(List(String), Store) {
+  stage_delete_all_channel_marketing_engagements_for_app(store, None)
+}
+
+pub fn stage_delete_all_channel_marketing_engagements_for_app(
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> #(List(String), Store) {
   let #(ids, next_store) =
     list.fold(
-      list_effective_marketing_engagements(store),
+      list_effective_marketing_engagements_for_app(
+        store,
+        requesting_api_client_id,
+      ),
       #([], store),
       fn(acc, record) {
         let #(deleted, current) = acc
@@ -404,6 +530,38 @@ pub fn list_effective_marketing_engagements(
   list.append(ordered, unordered)
 }
 
+pub fn list_effective_marketing_engagements_for_app(
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> List(MarketingEngagementRecord) {
+  list_effective_marketing_engagements(store)
+  |> list.filter(fn(record) {
+    engagement_visible_to_api_client(record, requesting_api_client_id)
+  })
+}
+
+pub fn record_visible_to_api_client(
+  record: MarketingRecord,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case requesting_api_client_id, record.api_client_id {
+    None, _ -> True
+    Some(_), None -> True
+    Some(requesting), Some(owner) -> requesting == owner
+  }
+}
+
+fn engagement_visible_to_api_client(
+  record: MarketingEngagementRecord,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  case requesting_api_client_id, record.api_client_id {
+    None, _ -> True
+    Some(_), None -> True
+    Some(requesting), Some(owner) -> requesting == owner
+  }
+}
+
 pub fn has_known_marketing_channel_handle(
   store: Store,
   handle: String,
@@ -425,7 +583,12 @@ pub fn has_known_marketing_channel_handle_for_app(
         _, None -> False
       }
     }
-    Error(_) -> has_hydrated_marketing_channel_handle(store, handle)
+    Error(_) ->
+      has_hydrated_marketing_channel_handle_for_app(
+        store,
+        handle,
+        requesting_api_client_id,
+      )
   }
 }
 
@@ -443,6 +606,17 @@ fn has_hydrated_marketing_channel_handle(store: Store, handle: String) -> Bool {
   list.any(list_effective_marketing_events(store), fn(event) {
     read_marketing_channel_handle(event.data) == Some(handle)
   })
+}
+
+fn has_hydrated_marketing_channel_handle_for_app(
+  store: Store,
+  handle: String,
+  requesting_api_client_id: Option(String),
+) -> Bool {
+  list.any(
+    list_effective_marketing_events_for_app(store, requesting_api_client_id),
+    fn(event) { read_marketing_channel_handle(event.data) == Some(handle) },
+  )
 }
 
 fn list_effective_marketing_records(

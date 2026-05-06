@@ -1,0 +1,33 @@
+{
+  "scenarioId": "mobile-platform-application-create-blank-application-id",
+  "operationNames": ["mobilePlatformApplicationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/mobile_platform_application_create_blank_application_id.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/mobile_platform_application_create_blank_application_id.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-platform-ids",
+        "capturePath": "$.expected.primary.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for Core mobile platform application create presence validation: blank Android applicationId and Apple appId return nested BLANK userErrors and do not stage local records."
+}

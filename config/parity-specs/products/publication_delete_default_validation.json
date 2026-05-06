@@ -1,0 +1,28 @@
+{
+  "scenarioId": "publication-delete-default-validation",
+  "operationNames": ["publicationDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/publication-delete-default-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/publicationDelete-default-validation.graphql",
+    "variablesCapturePath": "$.scenarios.defaultOnlineStore.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local-runtime publicationDelete validation proof for protecting the proxy's default Online Store publication from local deletion.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "default-online-store-delete-rejected",
+        "capturePath": "$.scenarios.defaultOnlineStore.response.data.publicationDelete",
+        "proxyPath": "$.data.publicationDelete"
+      }
+    ]
+  }
+}
