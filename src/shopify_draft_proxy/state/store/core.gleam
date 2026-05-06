@@ -174,6 +174,7 @@ pub fn empty_base_state() -> BaseState {
     marketing_activity_order: [],
     marketing_events: dict.new(),
     marketing_event_order: [],
+    marketing_channel_definitions: dict.new(),
     marketing_engagements: dict.new(),
     marketing_engagement_order: [],
     deleted_marketing_activity_ids: dict.new(),
