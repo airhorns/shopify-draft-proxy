@@ -212,25 +212,31 @@ pub fn handle_mutation_fields(
                 [] -> list.append(staged, result.staged_resource_ids)
                 _ -> staged
               }
-              let draft =
-                single_root_log_draft(
-                  name.value,
-                  result.staged_resource_ids,
-                  case result.staged_resource_ids {
-                    [] -> store_types.Failed
-                    _ -> store_types.Staged
-                  },
-                  "discounts",
-                  "stage-locally",
-                  Some("discount mutation staged locally in Gleam port"),
-                )
+              let next_drafts = case result.top_level_errors {
+                [_, ..] -> drafts
+                [] -> {
+                  let draft =
+                    single_root_log_draft(
+                      name.value,
+                      result.staged_resource_ids,
+                      case result.staged_resource_ids {
+                        [] -> store_types.Failed
+                        _ -> store_types.Staged
+                      },
+                      "discounts",
+                      "stage-locally",
+                      Some("discount mutation staged locally in Gleam port"),
+                    )
+                  list.append(drafts, [draft])
+                }
+              }
               #(
                 next_entries,
                 next_errors,
                 result.store,
                 result.identity,
                 next_staged,
-                list.append(drafts, [draft]),
+                next_drafts,
               )
             }
           }

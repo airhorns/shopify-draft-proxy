@@ -607,7 +607,7 @@ pub fn web_presence_create_accepts_shopify_i18n_locale_codes_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
       seeded_proxy(),
-      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"pt-BR\", \"zh-CN\"], subfolderSuffix: \"fr\" }) { webPresence { subfolderSuffix defaultLocale { locale primary } alternateLocales { locale primary } } userErrors { field message code } } }",
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"pt-BR\", \"es-419\", \"zh-Hant-TW\"], subfolderSuffix: \"fr\" }) { webPresence { subfolderSuffix defaultLocale { locale primary } alternateLocales { locale primary } } userErrors { field message code } } }",
     )
   let serialized = json.to_string(body)
 
@@ -619,15 +619,39 @@ pub fn web_presence_create_accepts_shopify_i18n_locale_codes_test() {
   )
   assert string.contains(
     serialized,
-    "\"alternateLocales\":[{\"locale\":\"pt-BR\",\"primary\":false},{\"locale\":\"zh-CN\",\"primary\":false}]",
+    "\"alternateLocales\":[{\"locale\":\"pt-BR\",\"primary\":false},{\"locale\":\"es-419\",\"primary\":false},{\"locale\":\"zh-Hant-TW\",\"primary\":false}]",
   )
 }
 
-pub fn web_presence_create_reports_invalid_alternate_locale_indexes_test() {
+pub fn web_presence_create_normalizes_locale_code_casing_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
       seeded_proxy(),
-      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"fr\", \"bogus\", \"pt-BR\", \"nope\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+      "mutation { webPresenceCreate(input: { defaultLocale: \"EN-us\", alternateLocales: [\"ZH-hant-tw\", \"pt-br\"], subfolderSuffix: \"us\" }) { webPresence { defaultLocale { locale primary } alternateLocales { locale primary } rootUrls { locale url } } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    serialized,
+    "\"defaultLocale\":{\"locale\":\"en-US\",\"primary\":true}",
+  )
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"zh-Hant-TW\",\"primary\":false},{\"locale\":\"pt-BR\",\"primary\":false}]",
+  )
+  assert string.contains(
+    serialized,
+    "\"rootUrls\":[{\"locale\":\"en-US\",\"url\":\"https://acme.myshopify.com/us/\"},{\"locale\":\"zh-Hant-TW\",\"url\":\"https://acme.myshopify.com/us/zh-Hant-TW/\"},{\"locale\":\"pt-BR\",\"url\":\"https://acme.myshopify.com/us/pt-BR/\"}]",
+  )
+}
+
+pub fn web_presence_create_reports_combined_invalid_alternate_locales_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"fr\", \"zz\", \"pt-BR\", \"yy\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
     )
   let serialized = json.to_string(body)
 
@@ -635,14 +659,10 @@ pub fn web_presence_create_reports_invalid_alternate_locale_indexes_test() {
   assert string.contains(serialized, "\"webPresence\":null")
   assert string.contains(
     serialized,
-    "\"field\":[\"input\",\"alternateLocales\",\"1\"],\"message\":\"Invalid locale codes: bogus\",\"code\":\"INVALID\"",
+    "\"field\":[\"input\",\"alternateLocales\"],\"message\":\"Invalid locale codes: zz, and yy\",\"code\":\"INVALID\"",
   )
-  assert string.contains(
-    serialized,
-    "\"field\":[\"input\",\"alternateLocales\",\"3\"],\"message\":\"Invalid locale codes: nope\",\"code\":\"INVALID\"",
-  )
-  assert !string.contains(serialized, "\"alternateLocales\",\"0\"")
-  assert !string.contains(serialized, "\"alternateLocales\",\"2\"")
+  assert !string.contains(serialized, "\"alternateLocales\",\"1\"")
+  assert !string.contains(serialized, "\"alternateLocales\",\"3\"")
 }
 
 pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {

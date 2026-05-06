@@ -2741,9 +2741,9 @@ fn web_presence_default_locale_errors(
       ),
     ]
     Some(locale) ->
-      case valid_web_presence_locale(locale) {
-        True -> []
-        False -> [
+      case canonical_web_presence_locale(locale) {
+        Some(_) -> []
+        None -> [
           user_error(
             ["input", "defaultLocale"],
             "Invalid locale codes: " <> locale,
@@ -2764,21 +2764,26 @@ fn web_presence_default_locale_errors(
 fn web_presence_alternate_locale_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  read_arg_string_array(input, "alternateLocales")
-  |> option.unwrap([])
-  |> list.index_fold([], fn(errors, locale, index) {
-    case valid_web_presence_locale(locale) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          user_error(
-            ["input", "alternateLocales", int.to_string(index)],
-            "Invalid locale codes: " <> locale,
-            "INVALID",
-          ),
-        ])
-    }
-  })
+  let invalid_locales =
+    read_arg_string_array(input, "alternateLocales")
+    |> option.unwrap([])
+    |> list.filter(fn(locale) {
+      case canonical_web_presence_locale(locale) {
+        Some(_) -> False
+        None -> True
+      }
+    })
+
+  case invalid_locales {
+    [] -> []
+    _ -> [
+      user_error(
+        ["input", "alternateLocales"],
+        "Invalid locale codes: " <> to_sentence(invalid_locales),
+        "INVALID",
+      ),
+    ]
+  }
 }
 
 fn web_presence_subfolder_suffix_errors(
@@ -2812,11 +2817,66 @@ fn web_presence_subfolder_suffix_errors(
   }
 }
 
-fn valid_web_presence_locale(locale: String) -> Bool {
-  list.contains(shopify_i18n_language_codes(), locale)
+fn canonical_web_presence_locale(locale: String) -> Option(String) {
+  let canonical = normalize_bcp47_locale(locale)
+  case list.contains(shopify_i18n_language_codes(), canonical) {
+    True -> Some(canonical)
+    False -> None
+  }
+}
+
+fn canonical_web_presence_locale_result(locale: String) -> Result(String, Nil) {
+  case canonical_web_presence_locale(locale) {
+    Some(canonical) -> Ok(canonical)
+    None -> Error(Nil)
+  }
+}
+
+fn normalize_bcp47_locale(locale: String) -> String {
+  case string.split(locale, on: "-") {
+    [] -> ""
+    [language, ..subtags] -> {
+      let canonical_parts = [
+        string.lowercase(language),
+        ..list.map(subtags, canonical_locale_subtag)
+      ]
+      string.join(canonical_parts, "-")
+    }
+  }
+}
+
+fn canonical_locale_subtag(subtag: String) -> String {
+  case string.length(subtag) {
+    4 -> titlecase_ascii_subtag(subtag)
+    2 -> string.uppercase(subtag)
+    3 -> string.uppercase(subtag)
+    _ -> string.lowercase(subtag)
+  }
+}
+
+fn titlecase_ascii_subtag(subtag: String) -> String {
+  case string.to_graphemes(subtag) {
+    [] -> ""
+    [first, ..rest] ->
+      string.uppercase(first)
+      <> string.join(list.map(rest, string.lowercase), "")
+  }
+}
+
+fn to_sentence(values: List(String)) -> String {
+  case list.reverse(values) {
+    [] -> ""
+    [only] -> only
+    [last, ..prefix_reversed] ->
+      string.join(list.reverse(prefix_reversed), ", ") <> ", and " <> last
+  }
 }
 
 fn shopify_i18n_language_codes() -> List(String) {
+  list.append(shopify_i18n_base_language_codes(), shopify_i18n_bcp47_variants())
+}
+
+fn shopify_i18n_base_language_codes() -> List(String) {
   [
     "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs",
     "br", "bg", "my", "ca", "ckb", "ce", "zh-CN", "zh-TW", "kw", "hr", "cs",
@@ -2829,6 +2889,39 @@ fn shopify_i18n_language_codes() -> List(String) {
     "sg", "sa", "sc", "gd", "sr", "sn", "ii", "sd", "si", "sk", "sl", "so", "es",
     "su", "sw", "sv", "tg", "ta", "tt", "te", "th", "bo", "ti", "to", "tr", "tk",
     "uk", "ur", "ug", "uz", "vi", "cy", "fy", "wo", "xh", "yi", "yo", "zu",
+  ]
+}
+
+fn shopify_i18n_bcp47_variants() -> List(String) {
+  [
+    "ar-AE", "ar-BH", "ar-DZ", "ar-EG", "ar-IQ", "ar-JO", "ar-KW", "ar-LB",
+    "ar-LY", "ar-MA", "ar-OM", "ar-QA", "ar-SA", "ar-SD", "ar-SY", "ar-TN",
+    "ar-YE", "az-Cyrl", "az-Cyrl-AZ", "az-Latn", "az-Latn-AZ", "bn-BD", "bn-IN",
+    "bs-Cyrl", "bs-Cyrl-BA", "bs-Latn", "bs-Latn-BA", "ca-AD", "ca-ES", "ca-FR",
+    "ca-IT", "de-AT", "de-BE", "de-CH", "de-DE", "de-IT", "de-LI", "de-LU",
+    "en-AE", "en-AU", "en-CA", "en-GB", "en-HK", "en-IE", "en-IN", "en-MY",
+    "en-NG", "en-NZ", "en-PH", "en-PK", "en-SG", "en-US", "en-ZA", "es-419",
+    "es-AR", "es-BO", "es-BR", "es-BZ", "es-CL", "es-CO", "es-CR", "es-CU",
+    "es-DO", "es-EC", "es-ES", "es-GQ", "es-GT", "es-HN", "es-MX", "es-NI",
+    "es-PA", "es-PE", "es-PR", "es-PY", "es-SV", "es-US", "es-UY", "es-VE",
+    "fa-AF", "fa-IR", "fr-BE", "fr-BF", "fr-BI", "fr-BJ", "fr-BL", "fr-CD",
+    "fr-CF", "fr-CG", "fr-CH", "fr-CI", "fr-CM", "fr-DJ", "fr-DZ", "fr-FR",
+    "fr-GA", "fr-GF", "fr-GN", "fr-GP", "fr-GQ", "fr-HT", "fr-KM", "fr-LU",
+    "fr-MA", "fr-MC", "fr-MF", "fr-MG", "fr-ML", "fr-MQ", "fr-MR", "fr-MU",
+    "fr-NC", "fr-NE", "fr-PF", "fr-PM", "fr-RE", "fr-RW", "fr-SC", "fr-SN",
+    "fr-SY", "fr-TD", "fr-TG", "fr-TN", "fr-VU", "fr-WF", "fr-YT", "hi-IN",
+    "it-CH", "it-IT", "it-SM", "it-VA", "kk-Cyrl", "kk-Cyrl-KZ", "ko-KP",
+    "ko-KR", "ku-Arab", "ku-Arab-IQ", "ku-Latn", "ku-Latn-TR", "ms-BN", "ms-ID",
+    "ms-MY", "ms-SG", "nl-AW", "nl-BE", "nl-BQ", "nl-CW", "nl-NL", "nl-SR",
+    "nl-SX", "no-NO", "pa-Arab", "pa-Arab-PK", "pa-Guru", "pa-Guru-IN", "pt-AO",
+    "pt-BR", "pt-CH", "pt-CV", "pt-GQ", "pt-GW", "pt-LU", "pt-MO", "pt-MZ",
+    "pt-PT", "pt-ST", "pt-TL", "ro-MD", "ro-RO", "ru-BY", "ru-KG", "ru-KZ",
+    "ru-MD", "ru-RU", "ru-UA", "sr-Cyrl", "sr-Cyrl-BA", "sr-Cyrl-ME",
+    "sr-Cyrl-RS", "sr-Latn", "sr-Latn-BA", "sr-Latn-ME", "sr-Latn-RS", "sv-AX",
+    "sv-FI", "sv-SE", "tg-Cyrl", "tg-Cyrl-TJ", "uz-Arab", "uz-Arab-AF",
+    "uz-Cyrl", "uz-Cyrl-UZ", "uz-Latn", "uz-Latn-UZ", "zh-CN", "zh-Hans",
+    "zh-Hans-CN", "zh-Hans-HK", "zh-Hans-MO", "zh-Hans-SG", "zh-Hant",
+    "zh-Hant-HK", "zh-Hant-MO", "zh-Hant-TW", "zh-TW",
   ]
 }
 
@@ -2866,9 +2959,12 @@ fn web_presence_data(
 ) -> CapturedJsonValue {
   let default_locale =
     graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
+    |> option.then(canonical_web_presence_locale)
     |> option.unwrap("en")
   let alternate_locales =
-    read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
+    read_arg_string_array(input, "alternateLocales")
+    |> option.unwrap([])
+    |> list.filter_map(canonical_web_presence_locale_result)
   let suffix =
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
   let domain =
