@@ -142,9 +142,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/999999999999"
-              ]
+              "productsToAdd": ["gid://shopify/Product/999999999999"]
             }
           }
         }
@@ -162,9 +160,7 @@
           },
           "items": {
             "products": {
-              "productVariantsToAdd": [
-                "gid://shopify/ProductVariant/999999999999"
-              ]
+              "productVariantsToAdd": ["gid://shopify/ProductVariant/999999999999"]
             }
           }
         }
@@ -182,9 +178,7 @@
           },
           "items": {
             "collections": {
-              "add": [
-                "gid://shopify/Collection/999999999999"
-              ]
+              "add": ["gid://shopify/Collection/999999999999"]
             }
           }
         }
@@ -202,9 +196,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/999999999999"
-              ]
+              "productsToAdd": ["gid://shopify/Product/999999999999"]
             }
           }
         },
@@ -219,9 +211,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/10179024027954"
-              ]
+              "productsToAdd": ["gid://shopify/Product/10179024027954"]
             }
           }
         }
@@ -239,9 +229,7 @@
           },
           "items": {
             "collections": {
-              "add": [
-                "gid://shopify/Collection/0"
-              ]
+              "add": ["gid://shopify/Collection/0"]
             }
           }
         }
@@ -259,9 +247,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/10179023995186"
-              ]
+              "productsToAdd": ["gid://shopify/Product/10179023995186"]
             }
           }
         }
@@ -279,9 +265,7 @@
           },
           "items": {
             "products": {
-              "productVariantsToAdd": [
-                "gid://shopify/ProductVariant/51133416735026"
-              ]
+              "productVariantsToAdd": ["gid://shopify/ProductVariant/51133416735026"]
             }
           }
         }
@@ -299,9 +283,7 @@
           },
           "items": {
             "collections": {
-              "add": [
-                "gid://shopify/Collection/512477167922"
-              ]
+              "add": ["gid://shopify/Collection/512477167922"]
             }
           }
         }
@@ -313,13 +295,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "basicCodeDiscount",
-                "customerGets",
-                "items",
-                "products",
-                "productsToAdd"
-              ],
+              "field": ["basicCodeDiscount", "customerGets", "items", "products", "productsToAdd"],
               "message": "Product with id: 999999999999 is invalid",
               "code": "INVALID",
               "extraInfo": null
@@ -330,13 +306,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "basicCodeDiscount",
-                "customerGets",
-                "items",
-                "products",
-                "productVariantsToAdd"
-              ],
+              "field": ["basicCodeDiscount", "customerGets", "items", "products", "productVariantsToAdd"],
               "message": "Product variant with id: 999999999999 is invalid",
               "code": "INVALID",
               "extraInfo": null
@@ -347,13 +317,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "basicCodeDiscount",
-                "customerGets",
-                "items",
-                "collections",
-                "add"
-              ],
+              "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
               "message": "Collection with id: 999999999999 is invalid",
               "code": "INVALID",
               "extraInfo": null
@@ -364,13 +328,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "bxgyCodeDiscount",
-                "customerBuys",
-                "items",
-                "products",
-                "productsToAdd"
-              ],
+              "field": ["bxgyCodeDiscount", "customerBuys", "items", "products", "productsToAdd"],
               "message": "Product with id: 999999999999 is invalid",
               "code": "INVALID",
               "extraInfo": null
@@ -381,13 +339,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "basicCodeDiscount",
-                "customerGets",
-                "items",
-                "collections",
-                "add"
-              ],
+              "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
               "message": "Collection with id: 0 is invalid",
               "code": "INVALID",
               "extraInfo": null
@@ -603,11 +555,7 @@
                 "combinedListingRole": null,
                 "vendor": "HERMES",
                 "productType": "CONFORMANCE",
-                "tags": [
-                  "1778109432052",
-                  "conformance",
-                  "discount-items-refs-validation"
-                ],
+                "tags": ["1778109432052", "conformance", "discount-items-refs-validation"],
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "createdAt": "2026-05-06T23:17:12Z",
@@ -748,11 +696,7 @@
                 "combinedListingRole": null,
                 "vendor": "HERMES",
                 "productType": "CONFORMANCE",
-                "tags": [
-                  "1778109432052",
-                  "conformance",
-                  "discount-items-refs-validation"
-                ],
+                "tags": ["1778109432052", "conformance", "discount-items-refs-validation"],
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "createdAt": "2026-05-06T23:17:12Z",

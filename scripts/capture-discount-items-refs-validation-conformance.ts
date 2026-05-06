@@ -182,10 +182,7 @@ function readProduct(label: string, response: ConformanceGraphqlPayload<ProductC
   return { id, title, variantId, variantTitle };
 }
 
-function readCollection(
-  label: string,
-  response: ConformanceGraphqlPayload<CollectionCreateData>,
-): CollectionRecord {
+function readCollection(label: string, response: ConformanceGraphqlPayload<CollectionCreateData>): CollectionRecord {
   const create = response.data?.collectionCreate;
   assertNoUserErrors(label, create?.userErrors);
 
@@ -198,11 +195,7 @@ function readCollection(
   return { id, title };
 }
 
-function basicInput(
-  stamp: number,
-  suffix: string,
-  items: Record<string, unknown>,
-): Record<string, unknown> {
+function basicInput(stamp: number, suffix: string, items: Record<string, unknown>): Record<string, unknown> {
   return {
     title: `discount refs ${suffix} ${stamp}`,
     code: `REFS${suffix}${stamp}`,
