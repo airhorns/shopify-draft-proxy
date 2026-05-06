@@ -1,0 +1,12 @@
+mutation ProductVariantRelationshipBulkUpdateValidation($input: [ProductVariantRelationshipUpdateInput!]!) {
+  productVariantRelationshipBulkUpdate(input: $input) {
+    parentProductVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

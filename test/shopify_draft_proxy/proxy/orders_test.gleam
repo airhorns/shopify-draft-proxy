@@ -1886,6 +1886,249 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
     == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
 }
 
+pub fn orders_fulfillment_create_precondition_validation_test() {
+  let cancelled_order_id = "gid://shopify/Order/fulfillment-create-cancelled"
+  let cancelled_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-cancelled"
+  let cancelled_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-cancelled"
+  let closed_order_id = "gid://shopify/Order/fulfillment-create-closed"
+  let closed_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-closed"
+  let closed_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-closed"
+  let progress_order_id = "gid://shopify/Order/fulfillment-create-progress"
+  let progress_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-progress"
+  let progress_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-progress"
+  let over_order_id = "gid://shopify/Order/fulfillment-create-over"
+  let over_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/fulfillment-create-over"
+  let over_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/fulfillment-create-over"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      fulfillment_create_precondition_order(
+        cancelled_order_id,
+        cancelled_fulfillment_order_id,
+        cancelled_line_item_id,
+        "CLOSED",
+        0,
+        Some("2026-05-06T00:00:00Z"),
+      ),
+      fulfillment_create_precondition_order(
+        closed_order_id,
+        closed_fulfillment_order_id,
+        closed_line_item_id,
+        "CLOSED",
+        1,
+        None,
+      ),
+      fulfillment_create_precondition_order(
+        progress_order_id,
+        progress_fulfillment_order_id,
+        progress_line_item_id,
+        "IN_PROGRESS",
+        1,
+        None,
+      ),
+      fulfillment_create_precondition_order(
+        over_order_id,
+        over_fulfillment_order_id,
+        over_line_item_id,
+        "OPEN",
+        1,
+        None,
+      ),
+    ])
+  let mutation = fulfillment_create_precondition_mutation()
+
+  let cancelled =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        cancelled_fulfillment_order_id,
+        cancelled_line_item_id,
+        1,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancelled.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Fulfillment order fulfillment-create-cancelled has an unfulfillable status= closed.\"}]}}}"
+  assert cancelled.staged_resource_ids == []
+  assert cancelled.log_drafts == []
+
+  let closed =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        closed_fulfillment_order_id,
+        closed_line_item_id,
+        1,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(closed.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Fulfillment order fulfillment-create-closed has an unfulfillable status= closed.\"}]}}}"
+  assert closed.staged_resource_ids == []
+  assert closed.log_drafts == []
+
+  let in_progress =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        progress_fulfillment_order_id,
+        progress_line_item_id,
+        1,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(in_progress.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\"},\"userErrors\":[]}}}"
+  assert in_progress.staged_resource_ids == [progress_order_id]
+  assert list.length(in_progress.log_drafts) == 1
+
+  let over_fulfill =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      fulfillment_create_precondition_variables(
+        over_fulfillment_order_id,
+        over_line_item_id,
+        2,
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(over_fulfill.data)
+    == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":null,\"userErrors\":[{\"field\":[\"fulfillment\"],\"message\":\"Invalid fulfillment order line item quantity requested.\"}]}}}"
+  assert over_fulfill.staged_resource_ids == []
+  assert over_fulfill.log_drafts == []
+}
+
+fn fulfillment_create_precondition_mutation() -> String {
+  "
+    mutation FulfillmentCreatePreconditions($fulfillment: FulfillmentInput!) {
+      fulfillmentCreate(fulfillment: $fulfillment) {
+        fulfillment {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+}
+
+fn fulfillment_create_precondition_variables(
+  fulfillment_order_id: String,
+  fulfillment_order_line_item_id: String,
+  quantity: Int,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #(
+      "fulfillment",
+      root_field.ObjectVal(
+        dict.from_list([
+          #("notifyCustomer", root_field.BoolVal(False)),
+          #(
+            "lineItemsByFulfillmentOrder",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "fulfillmentOrderId",
+                    root_field.StringVal(fulfillment_order_id),
+                  ),
+                  #(
+                    "fulfillmentOrderLineItems",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "id",
+                            root_field.StringVal(fulfillment_order_line_item_id),
+                          ),
+                          #("quantity", root_field.IntVal(quantity)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ),
+  ])
+}
+
+fn fulfillment_create_precondition_order(
+  order_id: String,
+  fulfillment_order_id: String,
+  fulfillment_order_line_item_id: String,
+  status: String,
+  remaining_quantity: Int,
+  cancelled_at: Option(String),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(order_id)),
+      #("name", types.CapturedString("#FULFILL-PRECONDITION")),
+      #("cancelledAt", case cancelled_at {
+        Some(value) -> types.CapturedString(value)
+        None -> types.CapturedNull
+      }),
+      #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+      #("fulfillments", types.CapturedArray([])),
+      #(
+        "fulfillmentOrders",
+        types.CapturedArray([
+          types.CapturedObject([
+            #("id", types.CapturedString(fulfillment_order_id)),
+            #("status", types.CapturedString(status)),
+            #("requestStatus", types.CapturedString("UNSUBMITTED")),
+            #(
+              "lineItems",
+              types.CapturedArray([
+                types.CapturedObject([
+                  #("id", types.CapturedString(fulfillment_order_line_item_id)),
+                  #(
+                    "lineItemId",
+                    types.CapturedString(
+                      "gid://shopify/LineItem/" <> string.lowercase(status),
+                    ),
+                  ),
+                  #("title", types.CapturedString("Precondition item")),
+                  #("totalQuantity", types.CapturedInt(remaining_quantity)),
+                  #("remainingQuantity", types.CapturedInt(remaining_quantity)),
+                ]),
+              ]),
+            ),
+          ]),
+        ]),
+      ),
+    ]),
+  )
+}
+
 pub fn orders_fulfillment_create_event_and_detail_read_test() {
   let order_id = "gid://shopify/Order/fulfillment-create"
   let fulfillment_order_id = "gid://shopify/FulfillmentOrder/fulfillment-create"

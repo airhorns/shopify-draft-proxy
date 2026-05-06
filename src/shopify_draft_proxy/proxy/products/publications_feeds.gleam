@@ -1,46 +1,30 @@
 //// Products-domain submodule: publications_feeds.
 //// Combines layered files: publications_l02, publications_l03, publications_l04.
 
-import gleam/bit_array
 import gleam/dict.{type Dict}
-import gleam/float
+
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/order
-import gleam/result
+
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Location, type ObjectField, type Selection,
-  type VariableDefinition, Argument, Directive, Field, InlineFragment, NullValue,
-  ObjectField, ObjectValue, OperationDefinition, SelectionSet, StringValue,
-  VariableDefinition, VariableValue,
-}
-import shopify_draft_proxy/graphql/parse_operation
-import shopify_draft_proxy/graphql/parser
-import shopify_draft_proxy/graphql/root_field.{
-  type ResolvedValue, type RootFieldError, BoolVal, FloatVal, IntVal, ListVal,
-  NullVal, ObjectVal, StringVal, get_field_arguments, get_root_fields,
-}
-import shopify_draft_proxy/graphql/source as graphql_source
-import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/graphql/ast.{type Selection}
+
+import shopify_draft_proxy/graphql/root_field.{type ResolvedValue}
+
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
-  SrcObject, SrcString, default_connection_page_info_options,
+  SerializeConnectionConfig, SrcBool, SrcList, SrcNull, SrcString,
   default_connection_window_options, default_selected_field_options,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_field_value, project_graphql_value,
-  serialize_connection, serialize_empty_connection, src_object,
+  get_field_response_key, get_selected_child_fields, paginate_connection_items,
+  project_graphql_value, serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/metafields
-import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, RequiredArgument,
-  build_null_argument_error, find_argument, single_root_log_draft,
-  validate_required_field_arguments,
+
+import shopify_draft_proxy/proxy/products/product_types.{
+  type MutationFieldResult, type NullableFieldUserError, type ProductUserError,
+  NullableFieldUserError, ProductUserError,
 }
-import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products/products_core.{
   duplicate_product_metafields, enumerate_items, json_string_array_literal,
   product_seo_source,
@@ -53,65 +37,30 @@ import shopify_draft_proxy/proxy/products/publications_core.{
   missing_variant_relationship_ids, product_feed_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, empty_connection_source, mutation_result,
-  nullable_field_user_errors_source, read_arg_object_list,
-  read_object_list_field, read_string_argument, read_string_field,
-  read_string_list_field, user_errors_source,
+  count_source, empty_connection_source, mutation_rejected_result,
+  mutation_result, nullable_field_user_errors_source, read_arg_object_list,
+  read_int_field, read_object_field, read_object_list_field,
+  read_string_argument, read_string_field, read_string_list_field,
+  user_errors_source,
 }
-import shopify_draft_proxy/proxy/products/types.{
-  type MutationFieldResult, type NullableFieldUserError, type ProductUserError,
-  MutationFieldResult, NullableFieldUserError, ProductUserError,
-} as product_types
 import shopify_draft_proxy/proxy/products/variants_helpers.{
-  has_only_default_variant, optional_product_category_source,
+  optional_product_category_source,
 }
 import shopify_draft_proxy/proxy/products/variants_options_core.{
   duplicate_product_options, duplicate_product_variants,
   optional_captured_json_source,
 }
-import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, type Response, LiveHybrid, Response,
-}
-import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
-import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/shopify/resource_ids
-import shopify_draft_proxy/state/iso_timestamp
+
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry, make_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type ChannelRecord, type CollectionImageRecord,
-  type CollectionRecord, type CollectionRuleRecord, type CollectionRuleSetRecord,
-  type InventoryItemRecord, type InventoryLevelRecord,
-  type InventoryLocationRecord, type InventoryMeasurementRecord,
-  type InventoryQuantityRecord, type InventoryShipmentLineItemRecord,
-  type InventoryShipmentRecord, type InventoryShipmentTrackingRecord,
-  type InventoryTransferLineItemRecord,
-  type InventoryTransferLocationSnapshotRecord, type InventoryTransferRecord,
-  type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
-  type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
-  type ProductOperationRecord, type ProductOperationUserErrorRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
-  type ProductResourceFeedbackRecord, type ProductSeoRecord,
-  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
-  type ShopResourceFeedbackRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
-  InventoryQuantityRecord, InventoryShipmentLineItemRecord,
-  InventoryShipmentRecord, InventoryShipmentTrackingRecord,
-  InventoryTransferLineItemRecord, InventoryTransferLocationSnapshotRecord,
-  InventoryTransferRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, LocationRecord, ProductCollectionRecord,
-  ProductFeedRecord, ProductMediaRecord, ProductMetafieldRecord,
-  ProductOperationRecord, ProductOperationUserErrorRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
-  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  PublicationRecord, SellingPlanGroupRecord, SellingPlanRecord,
-  ShopResourceFeedbackRecord,
+  type ChannelRecord, type ProductFeedRecord, type ProductOperationRecord,
+  type ProductOptionRecord, type ProductRecord,
+  type ProductResourceFeedbackRecord, type ShopResourceFeedbackRecord,
+  ProductCollectionRecord, ProductFeedRecord, ProductOperationRecord,
+  ProductResourceFeedbackRecord, ShopResourceFeedbackRecord,
 }
 
 // ===== from publications_l02 =====
@@ -348,6 +297,7 @@ pub fn product_full_sync_payload(
 @internal
 pub fn product_bundle_mutation_payload(
   root_name: String,
+  operation: Option(ProductOperationRecord),
   user_errors: List(NullableFieldUserError),
   field: Selection,
   fragments: FragmentMap,
@@ -359,12 +309,26 @@ pub fn product_bundle_mutation_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString(typename)),
-      #("productBundleOperation", SrcNull),
+      #("productBundleOperation", case operation {
+        Some(operation) -> product_bundle_operation_source(operation)
+        None -> SrcNull
+      }),
       #("userErrors", nullable_field_user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
   )
+}
+
+fn product_bundle_operation_source(
+  operation: ProductOperationRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString(operation.type_name)),
+    #("id", SrcString(operation.id)),
+    #("status", SrcString(operation.status)),
+    #("product", SrcNull),
+  ])
 }
 
 @internal
@@ -644,26 +608,320 @@ pub fn handle_product_bundle_mutation(
     Some(id) -> store.get_effective_product_by_id(store, id)
     None -> None
   }
+  let components = read_object_list_field(input, "components")
   let user_errors = case root_name, product_id, existing_product {
     "productBundleUpdate", _, None -> [
       NullableFieldUserError(None, "Product does not exist"),
     ]
     _, _, _ -> {
-      case read_object_list_field(input, "components") {
+      case components {
         [] -> [
           NullableFieldUserError(None, "At least one component is required."),
         ]
-        _ -> []
+        _ -> validate_product_bundle_components(store, input, components)
       }
     }
   }
-  mutation_result(
-    key,
-    product_bundle_mutation_payload(root_name, user_errors, field, fragments),
-    store,
-    identity,
-    [],
-  )
+  case user_errors {
+    [] -> {
+      let #(operation_id, next_identity) =
+        make_synthetic_gid(identity, "ProductBundleOperation")
+      let completed_operation =
+        ProductOperationRecord(
+          id: operation_id,
+          type_name: "ProductBundleOperation",
+          product_id: None,
+          new_product_id: None,
+          status: "ACTIVE",
+          user_errors: [],
+        )
+      let #(staged_operation, next_store) =
+        store.stage_product_operation(store, completed_operation)
+      let initial_operation =
+        ProductOperationRecord(..staged_operation, status: "CREATED")
+      mutation_result(
+        key,
+        product_bundle_mutation_payload(
+          root_name,
+          Some(initial_operation),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        [operation_id],
+      )
+    }
+    _ ->
+      mutation_rejected_result(
+        key,
+        product_bundle_mutation_payload(
+          root_name,
+          None,
+          user_errors,
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+      )
+  }
+}
+
+const product_bundle_quantity_max = 2000
+
+fn validate_product_bundle_components(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let missing_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case read_string_field(component, "productId") {
+        Some(id) ->
+          case store.get_effective_product_by_id(store, id) {
+            Some(_) -> Error(Nil)
+            None -> Ok(resource_id_tail(id))
+          }
+        None -> Error(Nil)
+      }
+    })
+  case missing_product_tails {
+    [] -> {
+      list.append(
+        product_bundle_option_mapping_errors(store, components),
+        list.append(
+          product_bundle_quantity_errors(components),
+          list.append(
+            product_bundle_quantity_option_errors(components),
+            product_bundle_consolidated_option_errors(input, components),
+          ),
+        ),
+      )
+    }
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Failed to locate the following products: "
+          <> numeric_id_array_literal(missing_product_tails),
+      ),
+    ]
+  }
+}
+
+fn product_bundle_option_mapping_errors(
+  store: Store,
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let invalid_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case read_string_field(component, "productId") {
+        Some(id) ->
+          case store.get_effective_product_by_id(store, id) {
+            Some(_) -> {
+              let options = store.get_effective_options_by_product_id(store, id)
+              case product_bundle_component_options_valid(component, options) {
+                True -> Error(Nil)
+                False -> Ok(resource_id_tail(id))
+              }
+            }
+            None -> Error(Nil)
+          }
+        None -> Error(Nil)
+      }
+    })
+  case invalid_product_tails {
+    [] -> []
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids "
+          <> numeric_id_array_literal(invalid_product_tails)
+          <> ".",
+      ),
+    ]
+  }
+}
+
+fn product_bundle_component_options_valid(
+  component: Dict(String, ResolvedValue),
+  options: List(ProductOptionRecord),
+) -> Bool {
+  let selections = read_object_list_field(component, "optionSelections")
+  list.length(selections) == list.length(options)
+  && list.all(options, fn(option) {
+    case product_bundle_selection_for_option(selections, option.id) {
+      Some(selection) -> {
+        let values =
+          read_string_list_field(selection, "values") |> option.unwrap([])
+        let valid_values =
+          list.map(option.option_values, fn(value) { value.name })
+        values != []
+        && list.all(values, fn(value) { list.contains(valid_values, value) })
+        && read_string_field(selection, "name") == Some(option.name)
+      }
+      None -> False
+    }
+  })
+}
+
+fn product_bundle_selection_for_option(
+  selections: List(Dict(String, ResolvedValue)),
+  option_id: String,
+) -> Option(Dict(String, ResolvedValue)) {
+  case
+    selections
+    |> list.filter(fn(selection) {
+      read_string_field(selection, "componentOptionId") == Some(option_id)
+    })
+  {
+    [selection] -> Some(selection)
+    _ -> None
+  }
+}
+
+fn product_bundle_quantity_errors(
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let exceeding_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case
+        read_int_field(component, "quantity"),
+        read_string_field(component, "productId")
+      {
+        Some(quantity), Some(product_id)
+          if quantity > product_bundle_quantity_max
+        -> Ok(resource_id_tail(product_id))
+        _, _ -> Error(Nil)
+      }
+    })
+  case exceeding_product_tails {
+    [] -> []
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Quantity cannot be greater than "
+          <> int.to_string(product_bundle_quantity_max)
+          <> ". The following products have a quantity that exceeds the maximum: "
+          <> numeric_id_array_literal(exceeding_product_tails),
+      ),
+    ]
+  }
+}
+
+fn product_bundle_quantity_option_errors(
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let invalid_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case
+        read_object_field(component, "quantityOption"),
+        read_string_field(component, "productId")
+      {
+        Some(quantity_option), Some(product_id) -> {
+          case read_object_list_field(quantity_option, "values") {
+            [_] -> Ok(resource_id_tail(product_id))
+            [] -> Ok(resource_id_tail(product_id))
+            _ -> Error(Nil)
+          }
+        }
+        _, _ -> Error(Nil)
+      }
+    })
+  case invalid_product_tails {
+    [] -> []
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids "
+          <> numeric_id_array_literal(invalid_product_tails)
+          <> ".",
+      ),
+    ]
+  }
+}
+
+fn product_bundle_consolidated_option_errors(
+  input: Dict(String, ResolvedValue),
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let component_options =
+    components
+    |> list.flat_map(fn(component) {
+      read_object_list_field(component, "optionSelections")
+      |> list.filter_map(fn(selection) {
+        case
+          read_string_field(selection, "componentOptionId"),
+          read_string_list_field(selection, "values")
+        {
+          Some(id), Some(values) -> Ok(#(id, values))
+          _, _ -> Error(Nil)
+        }
+      })
+    })
+  let invalid =
+    read_object_list_field(input, "consolidatedOptions")
+    |> list.any(fn(component) {
+      read_string_field(component, "optionName") == Some("")
+      || {
+        read_object_list_field(component, "optionSelections")
+        |> list.any(fn(selection) {
+          read_object_list_field(selection, "components")
+          |> list.any(fn(selection_component) {
+            case read_string_field(selection_component, "componentOptionId") {
+              Some(component_option_id) ->
+                !component_option_value_exists(
+                  component_options,
+                  component_option_id,
+                  read_string_field(selection_component, "componentOptionValue"),
+                )
+              None -> False
+            }
+          })
+        })
+      }
+    })
+  case invalid {
+    True -> [
+      NullableFieldUserError(
+        None,
+        "Consolidated option selections are invalid.",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn component_option_value_exists(
+  component_options: List(#(String, List(String))),
+  component_option_id: String,
+  component_option_value: Option(String),
+) -> Bool {
+  case component_option_value {
+    Some(value) ->
+      component_options
+      |> list.any(fn(option) {
+        let #(option_id, values) = option
+        option_id == component_option_id && list.contains(values, value)
+      })
+    None -> False
+  }
+}
+
+fn numeric_id_array_literal(values: List(String)) -> String {
+  "[" <> string.join(values, ",") <> "]"
+}
+
+fn resource_id_tail(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) -> tail
+    Error(_) -> id
+  }
 }
 
 @internal
@@ -692,17 +950,342 @@ pub fn handle_product_variant_relationship_bulk_update(
       ),
     ]
   }
-  mutation_result(
-    key,
+  let user_errors = case user_errors {
+    [] -> variant_relationship_semantics_errors(store, inputs)
+    errors -> errors
+  }
+  let payload =
     product_variant_relationship_bulk_update_payload(
       user_errors,
       field,
       fragments,
-    ),
-    store,
-    identity,
-    [],
+    )
+  case user_errors {
+    [] -> mutation_result(key, payload, store, identity, [])
+    _ -> mutation_rejected_result(key, payload, store, identity)
+  }
+}
+
+const product_variant_relationship_component_quantity_max: Int = 9999
+
+fn variant_relationship_semantics_errors(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  list.append(
+    duplicate_parent_variant_errors(store, inputs),
+    inputs
+      |> enumerate_items
+      |> list.flat_map(fn(pair) {
+        let #(input, input_index) = pair
+        variant_relationship_input_errors(store, input, input_index)
+      }),
   )
+}
+
+fn duplicate_parent_variant_errors(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  let parent_ids =
+    inputs
+    |> enumerate_items
+    |> list.filter_map(fn(pair) {
+      let #(input, input_index) = pair
+      case parent_variant_id_for_relationship_input(store, input) {
+        Some(id) -> Ok(#(id, input_index))
+        None -> Error(Nil)
+      }
+    })
+  duplicate_parent_variant_errors_loop(parent_ids, [], [])
+}
+
+fn duplicate_parent_variant_errors_loop(
+  parent_ids: List(#(String, Int)),
+  seen: List(String),
+  errors: List(ProductUserError),
+) -> List(ProductUserError) {
+  case parent_ids {
+    [] -> list.reverse(errors)
+    [#(id, input_index), ..rest] -> {
+      case list.contains(seen, id) {
+        True ->
+          duplicate_parent_variant_errors_loop(rest, seen, [
+            duplicated_products_error(["input", int.to_string(input_index)]),
+            ..errors
+          ])
+        False ->
+          duplicate_parent_variant_errors_loop(rest, [id, ..seen], errors)
+      }
+    }
+  }
+}
+
+fn variant_relationship_input_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  let parent_id = parent_variant_id_for_relationship_input(store, input)
+  list.append(
+    both_parent_ids_errors(input, input_index),
+    list.append(
+      create_relationship_errors(input, input_index, parent_id),
+      list.append(
+        update_relationship_errors(input, input_index),
+        remove_relationship_errors(input, input_index),
+      ),
+    ),
+  )
+}
+
+fn both_parent_ids_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  case
+    read_string_field(input, "parentProductId"),
+    read_string_field(input, "parentProductVariantId")
+  {
+    Some(_), Some(_) -> [
+      ProductUserError(
+        ["input", int.to_string(input_index)],
+        "Only one of parentProductId or parentProductVariantId can be specified.",
+        Some("INVALID_INPUT"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn create_relationship_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+  parent_id: Option(String),
+) -> List(ProductUserError) {
+  let relationships =
+    read_object_list_field(input, "productVariantRelationshipsToCreate")
+  let quantity_errors =
+    relationship_quantity_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToCreate",
+    )
+  let duplicate_errors =
+    duplicate_child_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToCreate",
+    )
+  let self_errors = case parent_id {
+    Some(parent_id) ->
+      relationships
+      |> enumerate_items
+      |> list.filter_map(fn(pair) {
+        let #(relationship, _relationship_index) = pair
+        case read_string_field(relationship, "id") {
+          Some(id) if id == parent_id ->
+            Ok(ProductUserError(
+              ["input"],
+              "A parent product variant cannot contain itself as a component.",
+              Some("CIRCULAR_REFERENCE"),
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    None -> []
+  }
+  list.append(quantity_errors, list.append(duplicate_errors, self_errors))
+}
+
+fn update_relationship_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  let relationships =
+    read_object_list_field(input, "productVariantRelationshipsToUpdate")
+  list.append(
+    relationship_quantity_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToUpdate",
+    ),
+    not_a_child_relationship_errors(
+      relationships,
+      input_index,
+      "productVariantRelationshipsToUpdate",
+    ),
+  )
+}
+
+fn remove_relationship_errors(
+  input: Dict(String, ResolvedValue),
+  input_index: Int,
+) -> List(ProductUserError) {
+  read_string_list_field(input, "productVariantRelationshipsToRemove")
+  |> option.unwrap([])
+  |> enumerate_items
+  |> list.map(fn(pair) {
+    let #(_, relationship_index) = pair
+    not_a_child_error([
+      "input",
+      int.to_string(input_index),
+      "productVariantRelationshipsToRemove",
+      int.to_string(relationship_index),
+    ])
+  })
+}
+
+fn relationship_quantity_errors(
+  relationships: List(Dict(String, ResolvedValue)),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  relationships
+  |> enumerate_items
+  |> list.filter_map(fn(pair) {
+    let #(relationship, relationship_index) = pair
+    case read_int_field(relationship, "quantity") {
+      Some(quantity) if quantity < 1 ->
+        Ok(ProductUserError(
+          [
+            "input",
+            int.to_string(input_index),
+            field_name,
+            int.to_string(relationship_index),
+            "quantity",
+          ],
+          "Quantity must be greater than or equal to 1",
+          Some("INVALID"),
+        ))
+      Some(quantity)
+        if quantity > product_variant_relationship_component_quantity_max
+      ->
+        Ok(ProductUserError(
+          [
+            "input",
+            int.to_string(input_index),
+            field_name,
+            int.to_string(relationship_index),
+            "quantity",
+          ],
+          "Quantity must be less than or equal to "
+            <> int.to_string(
+            product_variant_relationship_component_quantity_max,
+          ),
+          Some("INVALID"),
+        ))
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn duplicate_child_errors(
+  relationships: List(Dict(String, ResolvedValue)),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  let child_ids =
+    relationships
+    |> enumerate_items
+    |> list.filter_map(fn(pair) {
+      let #(relationship, relationship_index) = pair
+      case read_string_field(relationship, "id") {
+        Some(id) -> Ok(#(id, relationship_index))
+        None -> Error(Nil)
+      }
+    })
+  duplicate_child_errors_loop(child_ids, [], [], input_index, field_name)
+}
+
+fn duplicate_child_errors_loop(
+  child_ids: List(#(String, Int)),
+  seen: List(String),
+  errors: List(ProductUserError),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  case child_ids {
+    [] -> list.reverse(errors)
+    [#(id, relationship_index), ..rest] -> {
+      case list.contains(seen, id) {
+        True ->
+          duplicate_child_errors_loop(
+            rest,
+            seen,
+            [
+              duplicated_products_error([
+                "input",
+                int.to_string(input_index),
+                field_name,
+                int.to_string(relationship_index),
+                "id",
+              ]),
+              ..errors
+            ],
+            input_index,
+            field_name,
+          )
+        False ->
+          duplicate_child_errors_loop(
+            rest,
+            [id, ..seen],
+            errors,
+            input_index,
+            field_name,
+          )
+      }
+    }
+  }
+}
+
+fn not_a_child_relationship_errors(
+  relationships: List(Dict(String, ResolvedValue)),
+  input_index: Int,
+  field_name: String,
+) -> List(ProductUserError) {
+  relationships
+  |> enumerate_items
+  |> list.map(fn(pair) {
+    let #(_, relationship_index) = pair
+    not_a_child_error([
+      "input",
+      int.to_string(input_index),
+      field_name,
+      int.to_string(relationship_index),
+      "id",
+    ])
+  })
+}
+
+fn parent_variant_id_for_relationship_input(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case read_string_field(input, "parentProductVariantId") {
+    Some(id) -> Some(id)
+    None ->
+      case read_string_field(input, "parentProductId") {
+        Some(product_id) ->
+          store.get_effective_variants_by_product_id(store, product_id)
+          |> list.first
+          |> option.from_result
+          |> option.map(fn(variant) { variant.id })
+        None -> None
+      }
+  }
+}
+
+fn duplicated_products_error(field: List(String)) -> ProductUserError {
+  ProductUserError(
+    field,
+    "cannot_have_duplicated_products",
+    Some("CANNOT_HAVE_DUPLICATED_PRODUCTS"),
+  )
+}
+
+fn not_a_child_error(field: List(String)) -> ProductUserError {
+  ProductUserError(field, "not_a_child", Some("NOT_A_CHILD"))
 }
 
 @internal

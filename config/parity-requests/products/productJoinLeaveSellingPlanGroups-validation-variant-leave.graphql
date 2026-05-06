@@ -1,0 +1,9 @@
+mutation ProductJoinLeaveSellingPlanGroupsValidationVariantLeave($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  productVariantLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1248,7 +1248,7 @@ fn stage_location_activate(
                     False,
                   )
                 True ->
-                  case has_duplicate_active_location_name(store, record) {
+                  case location_activation_limit_reached(record) {
                     True ->
                       location_lifecycle_result(
                         store,
@@ -1260,72 +1260,124 @@ fn stage_location_activate(
                         [
                           location_error_source(
                             "locationId",
-                            "A location with this name already exists.",
-                            "HAS_NON_UNIQUE_NAME",
+                            "Your shop has reached its location limit.",
+                            "LOCATION_LIMIT",
                           ),
                         ],
                         [],
                         False,
                       )
-                    False -> {
-                      let #(now, next_identity) =
-                        synthetic_identity.make_synthetic_timestamp(identity)
-                      let next_record =
-                        StorePropertyRecord(
-                          ..record,
-                          data: record.data
-                            |> dict.insert("isActive", StorePropertyBool(True))
-                            |> dict.insert(
-                              "activatable",
-                              StorePropertyBool(True),
-                            )
-                            |> dict.insert(
-                              "deactivatable",
-                              StorePropertyBool(True),
-                            )
-                            |> dict.insert("deactivatedAt", StorePropertyNull)
-                            |> dict.insert(
-                              "deletable",
-                              StorePropertyBool(False),
-                            )
-                            |> dict.insert(
-                              "fulfillsOnlineOrders",
-                              StorePropertyBool(location_bool_field(
-                                record,
-                                "fulfillsOnlineOrders",
-                                True,
-                              )),
-                            )
-                            |> dict.insert(
-                              "shipsInventory",
-                              StorePropertyBool(location_bool_field(
-                                record,
-                                "shipsInventory",
+                    False ->
+                      case location_has_incomplete_mass_relocation(record) {
+                        True ->
+                          location_lifecycle_result(
+                            store,
+                            identity,
+                            field,
+                            fragments,
+                            "locationActivateUserErrors",
+                            Some(record),
+                            [
+                              location_error_source(
+                                "locationId",
+                                "Location has an ongoing relocation.",
+                                "HAS_ONGOING_RELOCATION",
+                              ),
+                            ],
+                            [],
+                            False,
+                          )
+                        False ->
+                          case
+                            has_duplicate_active_location_name(store, record)
+                          {
+                            True ->
+                              location_lifecycle_result(
+                                store,
+                                identity,
+                                field,
+                                fragments,
+                                "locationActivateUserErrors",
+                                Some(record),
+                                [
+                                  location_error_source(
+                                    "locationId",
+                                    "A location with this name already exists.",
+                                    "HAS_NON_UNIQUE_NAME",
+                                  ),
+                                ],
+                                [],
                                 False,
-                              )),
-                            )
-                            |> dict.insert(
-                              "updatedAt",
-                              StorePropertyString(now),
-                            ),
-                        )
-                      let #(_, next_store) =
-                        store.upsert_staged_store_property_location(
-                          store,
-                          next_record,
-                        )
-                      location_lifecycle_result(
-                        next_store,
-                        next_identity,
-                        field,
-                        fragments,
-                        "locationActivateUserErrors",
-                        Some(next_record),
-                        [],
-                        [location_id],
-                        True,
-                      )
-                    }
+                              )
+                            False -> {
+                              let #(now, next_identity) =
+                                synthetic_identity.make_synthetic_timestamp(
+                                  identity,
+                                )
+                              let next_record =
+                                StorePropertyRecord(
+                                  ..record,
+                                  data: record.data
+                                    |> dict.insert(
+                                      "isActive",
+                                      StorePropertyBool(True),
+                                    )
+                                    |> dict.insert(
+                                      "activatable",
+                                      StorePropertyBool(True),
+                                    )
+                                    |> dict.insert(
+                                      "deactivatable",
+                                      StorePropertyBool(True),
+                                    )
+                                    |> dict.insert(
+                                      "deactivatedAt",
+                                      StorePropertyNull,
+                                    )
+                                    |> dict.insert(
+                                      "deletable",
+                                      StorePropertyBool(False),
+                                    )
+                                    |> dict.insert(
+                                      "fulfillsOnlineOrders",
+                                      StorePropertyBool(location_bool_field(
+                                        record,
+                                        "fulfillsOnlineOrders",
+                                        True,
+                                      )),
+                                    )
+                                    |> dict.insert(
+                                      "shipsInventory",
+                                      StorePropertyBool(location_bool_field(
+                                        record,
+                                        "shipsInventory",
+                                        False,
+                                      )),
+                                    )
+                                    |> dict.insert(
+                                      "updatedAt",
+                                      StorePropertyString(now),
+                                    ),
+                                )
+                              let #(_, next_store) =
+                                store.upsert_staged_store_property_location(
+                                  store,
+                                  next_record,
+                                )
+                              location_lifecycle_result(
+                                next_store,
+                                next_identity,
+                                field,
+                                fragments,
+                                "locationActivateUserErrors",
+                                Some(next_record),
+                                [],
+                                [location_id],
+                                True,
+                              )
+                            }
+                          }
+                      }
                   }
               }
           }
@@ -2070,6 +2122,55 @@ fn first_location_bool_field(
       case store_property_bool_field(record, key) {
         Some(value) -> Some(value)
         None -> first_location_bool_field(record, rest)
+      }
+  }
+}
+
+fn location_activation_limit_reached(record: StorePropertyRecord) -> Bool {
+  case
+    first_location_bool_field(record, [
+      "reachedLocationLimit",
+      "locationLimitReached",
+    ])
+  {
+    Some(value) -> value
+    None ->
+      nested_store_property_bool_field(record.data, [
+        "shop",
+        "resourceLimits",
+        "locationLimitReached",
+      ])
+      |> option.unwrap(False)
+  }
+}
+
+fn location_has_incomplete_mass_relocation(
+  record: StorePropertyRecord,
+) -> Bool {
+  first_location_bool_field(record, [
+    "hasIncompleteMassRelocation",
+    "has_incomplete_mass_relocation",
+    "hasOngoingRelocation",
+  ])
+  |> option.unwrap(False)
+}
+
+fn nested_store_property_bool_field(
+  data: Dict(String, StorePropertyValue),
+  path: List(String),
+) -> Option(Bool) {
+  case path {
+    [] -> None
+    [key] ->
+      case dict.get(data, key) {
+        Ok(StorePropertyBool(value)) -> Some(value)
+        _ -> None
+      }
+    [key, ..rest] ->
+      case dict.get(data, key) {
+        Ok(StorePropertyObject(child)) ->
+          nested_store_property_bool_field(child, rest)
+        _ -> None
       }
   }
 }

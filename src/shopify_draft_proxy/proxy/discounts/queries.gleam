@@ -1,7 +1,7 @@
 //// Discounts query handling, live-hybrid passthrough decisions, and local projection.
 
 import gleam/dict.{type Dict}
-import gleam/float
+
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -12,35 +12,25 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/commit
+
 import shopify_draft_proxy/proxy/discounts/types as discount_types
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SelectedFieldOptions, SrcBool, SrcFloat,
-  SrcInt, SrcList, SrcNull, SrcObject, SrcString, field_locations_json,
-  get_document_fragments, get_field_response_key, get_selected_child_fields,
-  project_graphql_value,
+  type FragmentMap, type SourceValue, SelectedFieldOptions, SrcNull, SrcObject,
+  SrcString, get_document_fragments, get_field_response_key,
+  get_selected_child_fields, project_graphql_value,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
-  single_root_log_draft, validate_required_field_arguments,
-}
+
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+
 import shopify_draft_proxy/search_query_parser
-import shopify_draft_proxy/state/iso_timestamp
+
 import shopify_draft_proxy/state/store.{type Store}
-import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
-}
+import shopify_draft_proxy/state/synthetic_identity.{is_proxy_synthetic_gid}
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountBulkOperationRecord, type DiscountRecord,
-  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord, CapturedArray,
-  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
-  CapturedString, DiscountBulkOperationRecord, DiscountRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
+  type DiscountBulkOperationRecord, type DiscountRecord,
 }
 
 @internal

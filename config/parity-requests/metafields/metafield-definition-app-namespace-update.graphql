@@ -1,0 +1,29 @@
+mutation MetafieldDefinitionAppNamespaceUpdate($definition: MetafieldDefinitionUpdateInput!) {
+  metafieldDefinitionUpdate(definition: $definition) {
+    updatedDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      description
+      validations {
+        name
+        value
+      }
+      validationStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+}

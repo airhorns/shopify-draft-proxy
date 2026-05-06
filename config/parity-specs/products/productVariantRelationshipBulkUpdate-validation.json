@@ -1,0 +1,51 @@
+{
+  "scenarioId": "product-variant-relationship-bulk-update-validation",
+  "operationNames": ["productCreate", "productVariantRelationshipBulkUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variant-relationship-bulk-update-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productVariantRelationshipBulkUpdate-validation-product-create.graphql",
+    "variablesCapturePath": "$.setup.parentProductCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for the captured parent-as-child validation branch. The live capture also records quantity and duplicate-input probes; the local acceptance guardrails intentionally reject several of those branches more strictly than this captured Shopify shop/API response did, so they are covered by focused runtime tests instead of asserted as live parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-parent-product-create-user-errors",
+        "capturePath": "$.setup.parentProductCreate.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "parent-as-child-user-errors",
+        "capturePath": "$.cases.parentAsChild.response.data.productVariantRelationshipBulkUpdate",
+        "proxyPath": "$.data.productVariantRelationshipBulkUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantRelationshipBulkUpdate-validation.graphql",
+          "variables": {
+            "input": [
+              {
+                "parentProductVariantId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "productVariantRelationshipsToCreate": [
+                  {
+                    "id": {
+                      "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                    },
+                    "quantity": 1
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

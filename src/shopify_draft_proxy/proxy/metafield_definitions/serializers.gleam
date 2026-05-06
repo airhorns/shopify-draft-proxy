@@ -34,6 +34,21 @@ pub fn serialize_root_fields(
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  serialize_root_fields_with_requesting_api_client_id(
+    store,
+    fields,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_root_fields_with_requesting_api_client_id(
+  store: Store,
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Json {
   let entries =
     list.map(fields, fn(field) {
       let key = get_field_response_key(field)
@@ -41,15 +56,28 @@ pub fn serialize_root_fields(
         Field(name: name, ..) ->
           case name.value {
             "metafieldDefinition" ->
-              serialize_metafield_definition_root(store, field, variables)
+              serialize_metafield_definition_root_with_requesting_api_client_id(
+                store,
+                field,
+                variables,
+                requesting_api_client_id,
+              )
             "metafieldDefinitions" ->
               serialize_metafield_definitions_connection(
                 store,
                 field,
                 variables,
+                requesting_api_client_id,
               )
             "product" ->
-              serialize_owner_root(store, field, variables, "PRODUCT", "id")
+              serialize_owner_root(
+                store,
+                field,
+                variables,
+                "PRODUCT",
+                "id",
+                requesting_api_client_id,
+              )
             "productVariant" ->
               serialize_owner_root(
                 store,
@@ -57,11 +85,26 @@ pub fn serialize_root_fields(
                 variables,
                 "PRODUCTVARIANT",
                 "id",
+                requesting_api_client_id,
               )
             "collection" ->
-              serialize_owner_root(store, field, variables, "COLLECTION", "id")
+              serialize_owner_root(
+                store,
+                field,
+                variables,
+                "COLLECTION",
+                "id",
+                requesting_api_client_id,
+              )
             "customer" ->
-              serialize_owner_root(store, field, variables, "CUSTOMER", "id")
+              serialize_owner_root(
+                store,
+                field,
+                variables,
+                "CUSTOMER",
+                "id",
+                requesting_api_client_id,
+              )
             _ -> json.null()
           }
         _ -> json.null()
@@ -77,13 +120,33 @@ pub fn serialize_metafield_definition_root(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  serialize_metafield_definition_root_with_requesting_api_client_id(
+    store_in,
+    field,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_metafield_definition_root_with_requesting_api_client_id(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Json {
   let args = definition_types.read_args(field, variables)
   let id = definition_types.read_optional_string(args, "id")
   let definition = case id {
     Some(definition_id) ->
       store.get_effective_metafield_definition_by_id(store_in, definition_id)
     None ->
-      case definition_types.read_definition_identifier(args) {
+      case
+        definition_types.read_definition_identifier_with_requesting_api_client_id(
+          args,
+          requesting_api_client_id,
+        )
+      {
         Some(#(owner_type, namespace, key)) ->
           store.find_effective_metafield_definition(
             store_in,
@@ -106,11 +169,12 @@ pub fn serialize_metafield_definitions_connection(
   store_in: Store,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let args = definition_types.read_args(field, variables)
   let definitions =
     store.list_effective_metafield_definitions(store_in)
-    |> apply_definition_filters(args)
+    |> apply_definition_filters(args, requesting_api_client_id)
     |> sort_definitions(
       definition_types.read_optional_string(args, "sortKey"),
       definition_types.read_optional_bool(args, "reverse")
@@ -164,9 +228,17 @@ pub fn serialize_definition_records_connection(
 pub fn apply_definition_filters(
   definitions: List(MetafieldDefinitionRecord),
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> List(MetafieldDefinitionRecord) {
   let owner_type = definition_types.read_optional_string(args, "ownerType")
-  let namespace = definition_types.read_optional_string(args, "namespace")
+  let namespace =
+    definition_types.read_optional_string(args, "namespace")
+    |> option.map(fn(namespace) {
+      definition_types.resolve_app_namespace(
+        namespace,
+        requesting_api_client_id,
+      )
+    })
   let key = definition_types.read_optional_string(args, "key")
   let pinned_status =
     definition_types.read_optional_string(args, "pinnedStatus")
@@ -624,6 +696,7 @@ pub fn serialize_owner_root(
   variables: Dict(String, root_field.ResolvedValue),
   owner_type: String,
   id_arg_name: String,
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let args = definition_types.read_args(field, variables)
   case definition_types.read_optional_string(args, id_arg_name) {
@@ -635,6 +708,7 @@ pub fn serialize_owner_root(
         variables,
         owner_id,
         owner_type,
+        requesting_api_client_id,
       )
   }
 }
@@ -646,6 +720,7 @@ pub fn serialize_owner_selection(
   variables: Dict(String, root_field.ResolvedValue),
   owner_id: String,
   owner_type: String,
+  requesting_api_client_id: Option(String),
 ) -> Json {
   json.object(
     list.map(
@@ -678,12 +753,14 @@ pub fn serialize_owner_selection(
                   owner_type,
                   selection,
                   variables,
+                  requesting_api_client_id,
                 )
               "variants" ->
                 serialize_product_variants_from_metafields(
                   store_in,
                   selection,
                   variables,
+                  requesting_api_client_id,
                 )
               _ -> json.null()
             }
@@ -701,12 +778,13 @@ pub fn serialize_owner_metafield_definitions_connection(
   owner_type: String,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let args = definition_types.read_args(field, variables)
   let definitions =
     store.list_effective_metafield_definitions(store_in)
     |> list.filter(fn(definition) { definition.owner_type == owner_type })
-    |> apply_definition_filters(args)
+    |> apply_definition_filters(args, requesting_api_client_id)
     |> sort_definitions(
       definition_types.read_optional_string(args, "sortKey"),
       definition_types.read_optional_bool(args, "reverse")
@@ -779,6 +857,7 @@ pub fn serialize_product_variants_from_metafields(
   store_in: Store,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let variant_ids =
     definition_types.all_effective_metafields(store_in)
@@ -809,6 +888,7 @@ pub fn serialize_product_variants_from_metafields(
           variables,
           id,
           "PRODUCTVARIANT",
+          requesting_api_client_id,
         )
       },
       selected_field_options: default_selected_field_options(),

@@ -29,10 +29,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type AccessScopeRecord, type AppInstallationRecord,
-  type AppOneTimePurchaseRecord, type AppRecord,
-  type AppSubscriptionLineItemPlan, type AppSubscriptionLineItemRecord,
-  type AppSubscriptionPricing, type AppSubscriptionRecord, type AppUsageRecord,
+  type AppInstallationRecord, type AppRecord, type AppSubscriptionLineItemRecord,
+  type AppSubscriptionRecord, type AppUsageRecord,
   type DelegatedAccessTokenRecord, type Money, AccessScopeRecord,
   AppInstallationRecord, AppOneTimePurchaseRecord, AppRecord,
   AppRecurringPricing, AppSubscriptionLineItemPlan,

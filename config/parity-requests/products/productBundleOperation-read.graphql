@@ -1,0 +1,12 @@
+query ProductBundleOperationRead($id: ID!) {
+  productOperation(id: $id) {
+    __typename
+    status
+    product {
+      id
+    }
+    ... on ProductBundleOperation {
+      id
+    }
+  }
+}

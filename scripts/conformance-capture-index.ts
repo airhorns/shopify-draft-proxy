@@ -419,6 +419,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-bundle-create-validation',
+    scriptPath: 'scripts/capture-product-bundle-create-validation-conformance.ts',
+    purpose:
+      'productBundleCreate component product lookup, option mapping, quantity maximum, quantityOption, consolidatedOptions, and ProductBundleOperation readback behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productBundleCreate-validation.json`,
+      'config/parity-specs/products/productBundleCreate-validation.json',
+      'config/parity-requests/products/productBundleCreate-validation.graphql',
+      'config/parity-requests/products/productBundleOperation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable component product with product options; bundle validation branches create no products and the setup product is deleted in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-handle-dedup',
     scriptPath: 'scripts/capture-product-handle-dedup-conformance.mts',
     purpose:
@@ -805,6 +822,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafield-definition-app-namespace-resolution',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-app-namespace-resolution-conformance.mts',
+    purpose:
+      'metafieldDefinition app namespace resolution for create, update, identifier reads, canonical delete, and cross-app access denial.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-app-namespace-resolution.json`,
+      'config/parity-specs/metafields/metafield-definition-app-namespace-resolution.json',
+      'config/parity-requests/metafields/metafield-definition-app-namespace-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned metafield definition in the active app namespace, deletes it during the scenario, and deletes it by id during cleanup if capture fails before canonical delete.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
@@ -969,6 +1003,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-variant-relationship-bulk-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-variant-relationship-bulk-update-validation-conformance.ts',
+    purpose:
+      'productVariantRelationshipBulkUpdate parent/child semantics validation for parent-as-child, quantity bounds, duplicate inputs, exactly-one-parent-id, and update-not-child branches.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variant-relationship-bulk-update-validation.json`,
+      'config/parity-specs/products/productVariantRelationshipBulkUpdate-validation.json',
+      'config/parity-requests/products/productVariantRelationshipBulkUpdate-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable parent/child products, marks the parent variant as requiring components, captures validation probes, then deletes the products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1981,6 +2032,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'fulfillment-create-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-create-preconditions-conformance.ts',
+    purpose:
+      'fulfillmentCreate cancelled/closed fulfillment order, over-quantity, in-progress, and happy-path public Admin API behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-create-preconditions.json`,
+      'config/parity-specs/orders/fulfillmentCreate-preconditions.json',
+      'config/parity-requests/orders/fulfillmentCreate-preconditions.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders, cancels/deletes where possible, and deletes fulfilled orders after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public fulfillmentCreate userErrors expose field/message only; Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
   },
   {
     domain: 'orders',
