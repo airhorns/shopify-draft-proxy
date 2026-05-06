@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -68,6 +69,13 @@ fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
     draft_proxy.process_request(proxy, graphql_request(query))
   assert status == 200
   #(json.to_string(body), proxy)
+}
+
+fn integer_range(from start: Int, to stop: Int) -> List(Int) {
+  int.range(from: start, to: stop, with: [], run: fn(acc, index) {
+    [index, ..acc]
+  })
+  |> list.reverse
 }
 
 pub fn comment_moderation_uses_core_status_enum_values_test() {
@@ -1046,4 +1054,216 @@ pub fn theme_files_copy_and_delete_validate_local_file_lifecycle_test() {
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"theme\":{\"files\":{\"nodes\":[{\"filename\":\"assets/app.js\"}]}}}}"
+}
+
+pub fn theme_files_change_rejects_input_limits_and_duplicates_test() {
+  let proxy = proxy()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Theme\", role: UNPUBLISHED) { theme { id } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let too_many_upserts =
+    integer_range(from: 0, to: 51)
+    |> list.map(fn(index) {
+      "{ filename: \"assets/upsert-"
+      <> int.to_string(index)
+      <> ".js\", body: { type: TEXT, value: \"x\" } }"
+    })
+    |> string.join(", ")
+  let #(Response(status: upsert_status, body: upsert_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { themeFilesUpsert(themeId: \""
+        <> theme_id
+        <> "\", files: ["
+        <> too_many_upserts
+        <> "]) { upsertedThemeFiles { filename } userErrors { field message code } } }",
+      ),
+    )
+  assert upsert_status == 200
+  assert json.to_string(upsert_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"You can update at most 50 files in a single request.\",\"code\":\"INVALID\"}]}}}"
+
+  let duplicate_upsert =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/dup.js\", body: { type: TEXT, value: \"x\" } }, { filename: \"assets/dup.js\", body: { type: TEXT, value: \"y\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_upsert_status, body: duplicate_upsert_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(duplicate_upsert))
+  assert duplicate_upsert_status == 200
+  assert json.to_string(duplicate_upsert_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Duplicate file input\",\"code\":\"INVALID\"}]}}}"
+
+  let seed =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/source.js\", body: { type: TEXT, value: \"source\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(seed))
+
+  let too_many_copies =
+    integer_range(from: 0, to: 51)
+    |> list.map(fn(index) {
+      "{ srcFilename: \"assets/source.js\", dstFilename: \"assets/copy-"
+      <> int.to_string(index)
+      <> ".js\" }"
+    })
+    |> string.join(", ")
+  let #(Response(status: copy_limit_status, body: copy_limit_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { themeFilesCopy(themeId: \""
+        <> theme_id
+        <> "\", files: ["
+        <> too_many_copies
+        <> "]) { copiedThemeFiles { filename } userErrors { field message code } } }",
+      ),
+    )
+  assert copy_limit_status == 200
+  assert json.to_string(copy_limit_body)
+    == "{\"data\":{\"themeFilesCopy\":{\"copiedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"You can update at most 50 files in a single request.\",\"code\":\"INVALID\"}]}}}"
+
+  let duplicate_copy =
+    "mutation { themeFilesCopy(themeId: \""
+    <> theme_id
+    <> "\", files: [{ srcFilename: \"assets/source.js\", dstFilename: \"assets/same.js\" }, { srcFilename: \"assets/source.js\", dstFilename: \"assets/same.js\" }]) { copiedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_copy_status, body: duplicate_copy_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(duplicate_copy))
+  assert duplicate_copy_status == 200
+  assert json.to_string(duplicate_copy_body)
+    == "{\"data\":{\"themeFilesCopy\":{\"copiedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Duplicate file input\",\"code\":\"INVALID\"}]}}}"
+
+  let too_many_deletes =
+    integer_range(from: 0, to: 101)
+    |> list.map(fn(index) {
+      "\"assets/delete-" <> int.to_string(index) <> ".js\""
+    })
+    |> string.join(", ")
+  let #(
+    Response(status: delete_limit_status, body: delete_limit_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { themeFilesDelete(themeId: \""
+        <> theme_id
+        <> "\", files: ["
+        <> too_many_deletes
+        <> "]) { deletedThemeFiles { filename } userErrors { field message code } } }",
+      ),
+    )
+  assert delete_limit_status == 200
+  assert json.to_string(delete_limit_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"You can delete at most 100 files in a single request.\",\"code\":\"INVALID\"}]}}}"
+
+  let duplicate_delete =
+    "mutation { themeFilesDelete(themeId: \""
+    <> theme_id
+    <> "\", files: [\"assets/source.js\", \"assets/source.js\"]) { deletedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: duplicate_delete_status, body: duplicate_delete_body, ..),
+    _,
+  ) = draft_proxy.process_request(proxy, graphql_request(duplicate_delete))
+  assert duplicate_delete_status == 200
+  assert json.to_string(duplicate_delete_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Duplicate file input\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn theme_files_upsert_parses_body_oneof_and_checksum_precondition_test() {
+  let proxy = proxy()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Theme\", role: UNPUBLISHED) { theme { id } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+
+  let invalid_body =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/body.js\", body: { type: TEXT, value: \"x\", base64: \"eA==\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(Response(status: invalid_status, body: invalid_body_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid_body))
+  assert invalid_status == 200
+  assert json.to_string(invalid_body_json)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"body\"],\"message\":\"Body input is invalid\",\"code\":\"INVALID\"}]}}}"
+
+  let base64_body =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/base64.js\", body: { type: BASE64, base64: \"eA==\" } }]) { upsertedThemeFiles { filename checksumMd5 size body { type value ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: base64_status, body: base64_body_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(base64_body))
+  assert base64_status == 200
+  assert json.to_string(base64_body_json)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[{\"filename\":\"assets/base64.js\",\"checksumMd5\":\"9dd4e461268c8034f5c8564e155c67a6\",\"size\":1,\"body\":{\"type\":\"BASE64\",\"value\":\"eA==\"}}],\"userErrors\":[]}}}"
+
+  let url_body =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/remote.js\", body: { type: URL, url: \"https://example.com/remote.js\" } }]) { upsertedThemeFiles { filename body { type value url } } userErrors { field message code } } }"
+  let #(Response(status: url_status, body: url_body_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(url_body))
+  assert url_status == 200
+  assert json.to_string(url_body_json)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[{\"filename\":\"assets/remote.js\",\"body\":{\"type\":\"URL\",\"value\":null,\"url\":\"https://example.com/remote.js\"}}],\"userErrors\":[]}}}"
+
+  let first_text =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/conflict.js\", body: { type: TEXT, value: \"fresh\" } }]) { upsertedThemeFiles { filename checksumMd5 } userErrors { field message code } } }"
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(first_text))
+
+  let stale_checksum =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"assets/conflict.js\", body: { type: TEXT, value: \"stale write\" }, checksumMd5: \"stale-md5\" }]) { upsertedThemeFiles { filename checksumMd5 } userErrors { field message code } } }"
+  let #(Response(status: stale_status, body: stale_body_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(stale_checksum))
+  assert stale_status == 200
+  assert json.to_string(stale_body_json)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"checksumMd5\"],\"message\":\"File has been modified\",\"code\":\"CONFLICT\"}]}}}"
+
+  let read =
+    "query { theme(id: \""
+    <> theme_id
+    <> "\") { files(first: 10) { nodes { filename body { ... on OnlineStoreThemeFileBodyText { content } } } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    |> string.contains(
+      "{\"filename\":\"assets/conflict.js\",\"body\":{\"content\":\"fresh\"}}",
+    )
+}
+
+pub fn theme_files_delete_uses_theme_required_file_list_test() {
+  let proxy = proxy()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"Theme\", role: UNPUBLISHED) { theme { id } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+  let upsert =
+    "mutation { themeFilesUpsert(themeId: \""
+    <> theme_id
+    <> "\", files: [{ filename: \"templates/index.json\", body: { type: TEXT, value: \"{}\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(upsert))
+  let delete =
+    "mutation { themeFilesDelete(themeId: \""
+    <> theme_id
+    <> "\", files: [\"templates/index.json\"]) { deletedThemeFiles { filename } userErrors { field message code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(delete))
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"File is required and can't be deleted\",\"code\":\"INVALID\"}]}}}"
 }

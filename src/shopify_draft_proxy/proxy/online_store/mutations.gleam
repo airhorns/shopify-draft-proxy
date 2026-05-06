@@ -1406,16 +1406,32 @@ fn theme_files_upsert_result(
   args: Dict(String, root_field.ResolvedValue),
 ) -> ThemeFilesChangeResult {
   let inputs = serializers.input_list(args, "files")
-  let errors = serializers.theme_file_input_filename_errors(inputs, "filename")
+  let current_files = serializers.theme_record_files(theme)
+  let limit_errors =
+    serializers.theme_file_input_limit_errors(
+      inputs,
+      50,
+      "You can update at most 50 files in a single request.",
+    )
+  let errors = case limit_errors {
+    [] ->
+      serializers.duplicate_theme_file_input_errors(inputs, "filename")
+      |> list.append(serializers.theme_file_input_filename_errors(
+        inputs,
+        "filename",
+      ))
+      |> list.append(serializers.theme_file_body_input_errors(inputs))
+      |> list.append(serializers.theme_file_checksum_conflict_errors(
+        inputs,
+        current_files,
+      ))
+    _ -> limit_errors
+  }
   case errors {
     [] -> {
       let files = serializers.make_theme_files(inputs)
       let updated_files =
-        list.fold(
-          files,
-          serializers.theme_record_files(theme),
-          serializers.replace_theme_file,
-        )
+        list.fold(files, current_files, serializers.replace_theme_file)
       let #(_, store) =
         store.upsert_staged_online_store_integration(
           store_in,
@@ -1434,12 +1450,25 @@ fn theme_files_copy_result(
 ) -> ThemeFilesChangeResult {
   let current_files = serializers.theme_record_files(theme)
   let inputs = serializers.input_list(args, "files")
-  let errors =
-    serializers.theme_file_input_filename_errors(inputs, "dstFilename")
-    |> list.append(serializers.theme_file_copy_source_errors(
+  let limit_errors =
+    serializers.theme_file_input_limit_errors(
       inputs,
-      current_files,
-    ))
+      50,
+      "You can update at most 50 files in a single request.",
+    )
+  let errors = case limit_errors {
+    [] ->
+      serializers.duplicate_theme_file_input_errors(inputs, "dstFilename")
+      |> list.append(serializers.theme_file_input_filename_errors(
+        inputs,
+        "dstFilename",
+      ))
+      |> list.append(serializers.theme_file_copy_source_errors(
+        inputs,
+        current_files,
+      ))
+    _ -> limit_errors
+  }
   case errors {
     [] -> {
       let files = serializers.make_copied_theme_files(inputs, current_files)
@@ -1463,7 +1492,22 @@ fn theme_files_delete_result(
 ) -> ThemeFilesChangeResult {
   let filenames =
     serializers.input_string_values(serializers.input_list(args, "files"))
-  let errors = serializers.required_theme_file_delete_errors(filenames)
+  let inputs = serializers.input_list(args, "files")
+  let limit_errors =
+    serializers.theme_file_input_limit_errors(
+      inputs,
+      100,
+      "You can delete at most 100 files in a single request.",
+    )
+  let errors = case limit_errors {
+    [] ->
+      serializers.duplicate_theme_file_string_input_errors(filenames)
+      |> list.append(serializers.required_theme_file_delete_errors(
+        filenames,
+        serializers.theme_required_file_filenames(theme),
+      ))
+    _ -> limit_errors
+  }
   case errors {
     [] -> {
       let current_files = serializers.theme_record_files(theme)
