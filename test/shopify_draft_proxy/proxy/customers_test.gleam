@@ -763,6 +763,141 @@ pub fn customer_create_readback_and_log_test() {
   )
 }
 
+pub fn customer_create_sanitizes_email_before_storage_and_lookup_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"foo bar@example.com\" }) { customer { id email defaultEmailAddress { emailAddress } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"customerCreate\":{\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"foobar@example.com\",\"defaultEmailAddress\":{\"emailAddress\":\"foobar@example.com\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customerByIdentifier(identifier: { emailAddress: \"Foo Bar@example.com \" }) { id email defaultEmailAddress { emailAddress } } }",
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"customerByIdentifier\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"foobar@example.com\",\"defaultEmailAddress\":{\"emailAddress\":\"foobar@example.com\"}}}}"
+}
+
+pub fn customer_update_sanitizes_email_before_storage_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"update-email@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", email: \"new email@example.com \" }) { customer { id email defaultEmailAddress { emailAddress } } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"customerUpdate\":{\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"newemail@example.com\",\"defaultEmailAddress\":{\"emailAddress\":\"newemail@example.com\"}},\"userErrors\":[]}}}"
+}
+
+pub fn customer_email_validation_rejects_invalid_and_too_long_values_test() {
+  assert_customer_create_invalid_email("foo@")
+  assert_customer_create_invalid_email("@bar.com")
+  assert_customer_create_invalid_email("foo@bar")
+  assert_customer_create_invalid_email("foo@@bar.com")
+
+  let too_long_email = string.repeat("a", times: 244) <> "@example.com"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { customerCreate(input: { email: \""
+        <> too_long_email
+        <> "\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"customerCreate\":{\"customer\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"},{\"field\":[\"email\"],\"message\":\"Email is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+fn assert_customer_create_invalid_email(email: String) {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { customerCreate(input: { email: \""
+        <> email
+        <> "\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"customerCreate\":{\"customer\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn customer_email_uniqueness_strips_whitespace_and_case_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"foo bar@example.com\" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"FooBar@example.com \" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"customerCreate\":{\"customer\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
+pub fn customer_set_email_validation_uses_input_field_path_test() {
+  let #(Response(status: invalid_status, body: invalid_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { customerSet(input: { email: \"foo@\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert invalid_status == 200
+  assert json.to_string(invalid_body)
+    == "{\"data\":{\"customerSet\":{\"customer\":null,\"userErrors\":[{\"field\":[\"input\",\"email\"],\"message\":\"Email is invalid\",\"code\":\"INVALID\"}]}}}"
+
+  let too_long_email = string.repeat("a", times: 244) <> "@example.com"
+  let #(Response(status: long_status, body: long_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { customerSet(input: { email: \""
+        <> too_long_email
+        <> "\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert long_status == 200
+  assert json.to_string(long_body)
+    == "{\"data\":{\"customerSet\":{\"customer\":null,\"userErrors\":[{\"field\":[\"input\",\"email\"],\"message\":\"Email is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"},{\"field\":[\"input\",\"email\"],\"message\":\"Email is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn customer_set_sanitizes_and_dedupes_email_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(input: { email: \"set email@example.com\" }) { customer { id email defaultEmailAddress { emailAddress } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"customerSet\":{\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"setemail@example.com\",\"defaultEmailAddress\":{\"emailAddress\":\"setemail@example.com\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSet(input: { email: \"SetEmail@example.com \" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"customerSet\":{\"customer\":null,\"userErrors\":[{\"field\":[\"input\",\"email\"],\"message\":\"Email has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
 pub fn customer_update_rejects_clearing_last_email_identity_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =

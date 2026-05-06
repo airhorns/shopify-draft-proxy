@@ -49,6 +49,143 @@ pub fn read_obj_string(
 }
 
 @internal
+pub fn read_customer_email(
+  obj: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  read_obj_string(obj, name)
+  |> option.then(fn(value) {
+    case sanitize_customer_email(value) {
+      "" -> None
+      sanitized -> Some(sanitized)
+    }
+  })
+}
+
+@internal
+pub fn sanitize_customer_email(email: String) -> String {
+  email
+  |> string.to_graphemes
+  |> list.filter(fn(grapheme) {
+    !is_customer_email_removed_whitespace(grapheme)
+  })
+  |> string.concat
+}
+
+@internal
+pub fn normalize_customer_email_for_comparison(email: String) -> String {
+  email
+  |> sanitize_customer_email
+  |> string.lowercase
+}
+
+@internal
+pub fn update_nullable_customer_email(
+  existing: Option(String),
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(input, name) {
+    Ok(root_field.StringVal(value)) -> {
+      let sanitized = sanitize_customer_email(value)
+      case sanitized {
+        "" -> None
+        _ -> Some(sanitized)
+      }
+    }
+    Ok(root_field.NullVal) -> None
+    _ -> existing
+  }
+}
+
+@internal
+pub fn customer_email_pattern_is_valid(email: String) -> Bool {
+  string.length(email) <= 255
+  && case string.split(email, "@") {
+    [local, domain] ->
+      // Approximation of Shopify's upstream
+      // `EmailAddressValidator::EmailAddress#pattern_is_valid?`, after
+      // `CustomerFoundations::EmailAddress::Valid` strips whitespace.
+      local != ""
+      && local_matches_customer_email_pattern(local)
+      && domain_matches_customer_email_pattern(domain)
+    _ -> False
+  }
+}
+
+fn is_customer_email_removed_whitespace(grapheme: String) -> Bool {
+  grapheme == " "
+  || grapheme == "\n"
+  || grapheme == "\r"
+  || grapheme == "\t"
+  || grapheme == "\u{000B}"
+  || grapheme == "\u{000C}"
+}
+
+fn local_matches_customer_email_pattern(local: String) -> Bool {
+  local
+  |> string.to_utf_codepoints
+  |> list.all(is_customer_email_local_codepoint)
+}
+
+fn domain_matches_customer_email_pattern(domain: String) -> Bool {
+  let parts = string.split(domain, ".")
+  list.length(parts) >= 2
+  && list.all(parts, is_valid_customer_email_domain_label)
+}
+
+fn is_valid_customer_email_domain_label(label: String) -> Bool {
+  case string.length(label) <= 63 {
+    False -> False
+    True ->
+      case string.to_utf_codepoints(label) {
+        [] -> False
+        [first] -> is_ascii_alphanumeric_codepoint(first)
+        [first, ..rest] ->
+          case list.last(rest) {
+            Ok(last) ->
+              is_ascii_alphanumeric_codepoint(first)
+              && is_ascii_alphanumeric_codepoint(last)
+              && list.all(rest, is_customer_email_domain_codepoint)
+            Error(_) -> False
+          }
+      }
+  }
+}
+
+fn is_customer_email_local_codepoint(codepoint) -> Bool {
+  let code = string.utf_codepoint_to_int(codepoint)
+  is_ascii_alphanumeric(code)
+  || list.contains(
+    [
+      33, 35, 36, 37, 38, 39, 42, 43, 45, 46, 47, 61, 63, 94, 95, 96, 123, 124,
+      125, 126,
+    ],
+    code,
+  )
+}
+
+fn is_customer_email_domain_codepoint(codepoint) -> Bool {
+  let code = string.utf_codepoint_to_int(codepoint)
+  is_ascii_alphanumeric(code) || code == 45
+}
+
+fn is_ascii_alphanumeric_codepoint(codepoint) -> Bool {
+  codepoint
+  |> string.utf_codepoint_to_int
+  |> is_ascii_alphanumeric
+}
+
+fn is_ascii_alphanumeric(codepoint: Int) -> Bool {
+  codepoint >= 48
+  && codepoint <= 57
+  || codepoint >= 65
+  && codepoint <= 90
+  || codepoint >= 97
+  && codepoint <= 122
+}
+
+@internal
 pub fn read_obj_raw_string(
   obj: Dict(String, root_field.ResolvedValue),
   name: String,

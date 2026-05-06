@@ -1,0 +1,181 @@
+{
+  "scenarioId": "customer-email-normalization",
+  "operationNames": ["customerCreate", "customerUpdate", "customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-email-normalization.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases.createSanitized.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 customer email behavior for whitespace stripping before storage, RFC-style invalid email rejection, 255-character maximum validation, and whitespace/case-normalized duplicate detection across customerCreate, customerUpdate, customerSet, and downstream customerByIdentifier/customers reads. The capture script creates disposable customers, records the matrix, and deletes all created records during cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerCreate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerCreate locally and returns a synthetic Customer GID."
+      },
+      {
+        "path": "$.customerUpdate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerUpdate locally and returns the synthetic Customer GID from the replayed create."
+      },
+      {
+        "path": "$.customerSet.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerSet locally and returns a synthetic Customer GID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-sanitized",
+        "capturePath": "$.cases.createSanitized.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-normalized",
+        "capturePath": "$.cases.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerByIdentifier.email",
+          "$.customerByIdentifier.defaultEmailAddress"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "create-duplicate-normalized",
+        "capturePath": "$.cases.duplicateCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.duplicateCreate.variables"
+        }
+      },
+      {
+        "name": "create-invalid-foo-at",
+        "capturePath": "$.cases.invalidFooAt.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.invalidFooAt.variables"
+        }
+      },
+      {
+        "name": "create-invalid-at-domain",
+        "capturePath": "$.cases.invalidAtDomain.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.invalidAtDomain.variables"
+        }
+      },
+      {
+        "name": "create-invalid-no-dot-domain",
+        "capturePath": "$.cases.invalidNoDotDomain.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.invalidNoDotDomain.variables"
+        }
+      },
+      {
+        "name": "create-invalid-double-at",
+        "capturePath": "$.cases.invalidDoubleAt.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.invalidDoubleAt.variables"
+        }
+      },
+      {
+        "name": "create-too-long",
+        "capturePath": "$.cases.tooLongCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.tooLongCreate.variables"
+        }
+      },
+      {
+        "name": "update-sanitized",
+        "capturePath": "$.cases.updateSanitized.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "email": {
+                "fromCapturePath": "$.cases.updateSanitized.variables.input.email"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-set-sanitized",
+        "capturePath": "$.cases.customerSetSanitized.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-set.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.customerSetSanitized.variables"
+        }
+      },
+      {
+        "name": "customer-set-duplicate-normalized",
+        "capturePath": "$.cases.customerSetDuplicate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-set.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.customerSetDuplicate.variables"
+        }
+      },
+      {
+        "name": "customer-set-invalid",
+        "capturePath": "$.cases.customerSetInvalid.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-set.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.customerSetInvalid.variables"
+        }
+      },
+      {
+        "name": "customer-set-too-long",
+        "capturePath": "$.cases.customerSetTooLong.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-email-normalization-set.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.customerSetTooLong.variables"
+        }
+      }
+    ]
+  }
+}
