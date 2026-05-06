@@ -53,6 +53,85 @@ pub fn update_log_entry(
 }
 
 // ---------------------------------------------------------------------------
+// Effective slice
+// ---------------------------------------------------------------------------
+
+/// A view of a single bucket's two-layer state — base and staged records,
+/// plus optional deletion sets and insertion-order arrays. Bucket modules
+/// build a slice from `Store` and pass it to `effective_get` /
+/// `effective_list` instead of reimplementing the merge per record type.
+///
+/// Buckets without deletion semantics pass empty `Dict`s for the deleted
+/// fields. Buckets without an order array pass empty lists; in that case
+/// `effective_list` will still surface records via the id-sorted extras path.
+pub type EffectiveSlice(record) {
+  EffectiveSlice(
+    base_records: Dict(String, record),
+    staged_records: Dict(String, record),
+    base_deleted: Dict(String, Bool),
+    staged_deleted: Dict(String, Bool),
+    base_order: List(String),
+    staged_order: List(String),
+  )
+}
+
+/// Resolve a record by id from a two-layer slice. Returns `None` when the
+/// id is in either deletion set, otherwise prefers the staged record over
+/// the base record. Mirrors the canonical effective-getter pattern.
+pub fn effective_get(
+  slice: EffectiveSlice(record),
+  id: String,
+) -> Option(record) {
+  case dict_has(slice.staged_deleted, id) || dict_has(slice.base_deleted, id) {
+    True -> None
+    False ->
+      case dict.get(slice.staged_records, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(slice.base_records, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+/// Walk the merged base + staged order and return effective records in that
+/// order. Use this for buckets that always maintain an order array and do
+/// not need to surface untracked records.
+pub fn effective_list_ordered(slice: EffectiveSlice(record)) -> List(record) {
+  append_unique_ids(slice.base_order, slice.staged_order)
+  |> list.filter_map(fn(id) { option_to_result(effective_get(slice, id)) })
+}
+
+/// Walk the merged base + staged order, then append any base/staged records
+/// that were not part of the order, sorted by id. Use this for buckets
+/// where order arrays may be incomplete and untracked records must still
+/// appear in deterministic position.
+pub fn effective_list(
+  slice: EffectiveSlice(record),
+  id_of: fn(record) -> String,
+) -> List(record) {
+  let ids = append_unique_ids(slice.base_order, slice.staged_order)
+  let ordered =
+    ids
+    |> list.filter_map(fn(id) { option_to_result(effective_get(slice, id)) })
+  let seen = list_to_set(ids)
+  let extras =
+    dict.to_list(slice.base_records)
+    |> list.append(dict.to_list(slice.staged_records))
+    |> list.filter_map(fn(pair) {
+      let #(id, _) = pair
+      case dict_has(seen, id) {
+        True -> Error(Nil)
+        False -> option_to_result(effective_get(slice, id))
+      }
+    })
+    |> list.sort(fn(a, b) { string.compare(id_of(a), id_of(b)) })
+  list.append(ordered, extras)
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

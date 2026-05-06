@@ -1,0 +1,15 @@
+mutation MarketUpdateLinkageMarketCreate($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

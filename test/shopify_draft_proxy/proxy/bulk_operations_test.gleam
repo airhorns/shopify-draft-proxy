@@ -207,6 +207,118 @@ pub fn process_wraps_in_data_envelope_test() {
   assert json.to_string(data) == "{\"data\":{\"bulkOperation\":null}}"
 }
 
+pub fn bulk_operations_connection_arg_validation_errors_test() {
+  let assert Ok(missing_window) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperations { nodes { id } } }",
+      empty_vars(),
+    )
+  let missing_json = json.to_string(missing_window)
+  assert string.contains(
+    missing_json,
+    "\"message\":\"you must provide one of first or last\"",
+  )
+  assert string.contains(missing_json, "\"code\":\"BAD_REQUEST\"")
+  assert string.contains(missing_json, "\"path\":[\"bulkOperations\"]")
+  assert string.contains(missing_json, "\"data\":null")
+  assert !string.contains(missing_json, "\"data\":{\"bulkOperations\"")
+
+  let assert Ok(both_window_args) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperations(first: 1, last: 1) { nodes { id } } }",
+      empty_vars(),
+    )
+  let both_json = json.to_string(both_window_args)
+  assert string.contains(
+    both_json,
+    "\"message\":\"providing both first and last is not supported\"",
+  )
+  assert string.contains(both_json, "\"code\":\"BAD_REQUEST\"")
+  assert string.contains(both_json, "\"data\":null")
+}
+
+pub fn bulk_operations_search_arg_validation_matches_shopify_test() {
+  let assert Ok(invalid_created_at) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperations(first: 1, query: \"created_at:not-a-date\") { nodes { id } } }",
+      empty_vars(),
+    )
+  let created_at_json = json.to_string(invalid_created_at)
+  assert string.contains(
+    created_at_json,
+    "\"message\":\"Invalid timestamp for query filter `created_at`.\"",
+  )
+  assert string.contains(created_at_json, "\"code\":\"BAD_REQUEST\"")
+  assert string.contains(created_at_json, "\"data\":null")
+
+  let assert Ok(invalid_status) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperations(first: 1, query: \"status:EXPIRED\") { nodes { id } } }",
+      empty_vars(),
+    )
+  let status_json = json.to_string(invalid_status)
+  assert string.contains(
+    status_json,
+    "\"data\":{\"bulkOperations\":{\"nodes\":[]}}",
+  )
+  assert string.contains(status_json, "\"query\":\"status:EXPIRED\"")
+  assert string.contains(
+    status_json,
+    "\"message\":\"Input `EXPIRED` is not an accepted value.\"",
+  )
+  assert string.contains(status_json, "\"code\":\"invalid_value\"")
+
+  let assert Ok(invalid_operation_type) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperations(first: 1, query: \"operation_type:EXPORT\") { nodes { id } } }",
+      empty_vars(),
+    )
+  let operation_type_json = json.to_string(invalid_operation_type)
+  assert string.contains(
+    operation_type_json,
+    "\"message\":\"Input `EXPORT` is not an accepted value.\"",
+  )
+  assert string.contains(operation_type_json, "\"field\":\"operation_type\"")
+}
+
+pub fn bulk_operation_id_validation_errors_test() {
+  let assert Ok(malformed_id) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperation(id: \"not-a-gid\") { id } }",
+      empty_vars(),
+    )
+  let malformed_json = json.to_string(malformed_id)
+  assert string.contains(
+    malformed_json,
+    "\"message\":\"Invalid global id 'not-a-gid'\"",
+  )
+  assert string.contains(
+    malformed_json,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert !string.contains(malformed_json, "\"bulkOperation\":null")
+
+  let assert Ok(non_bulk_gid) =
+    bulk_operations.process(
+      store.new(),
+      "{ bulkOperation(id: \"gid://shopify/Product/1\") { id } }",
+      empty_vars(),
+    )
+  let non_bulk_json = json.to_string(non_bulk_gid)
+  assert string.contains(
+    non_bulk_json,
+    "\"message\":\"Invalid id: gid://shopify/Product/1\"",
+  )
+  assert string.contains(non_bulk_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(non_bulk_json, "\"data\":{\"bulkOperation\":null}")
+}
+
 pub fn run_query_returns_created_operation_and_stages_terminal_log_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =

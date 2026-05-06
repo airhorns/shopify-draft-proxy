@@ -10,11 +10,11 @@
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/ast.{type Selection, Field, Location}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/bulk_operations/serializers.{
@@ -31,6 +31,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/search_query_parser
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{type BulkOperationRecord}
 
@@ -65,12 +66,7 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, root_field.RootFieldError) {
-  use data <- result.try(handle_bulk_operations_query(
-    store,
-    document,
-    variables,
-  ))
-  Ok(graphql_helpers.wrap_data(data))
+  process_with_operation_name(store, document, variables, None)
 }
 
 /// Uniform query entrypoint matching the dispatcher's signature.
@@ -78,16 +74,479 @@ pub fn process(
 pub fn handle_query_request(
   proxy: DraftProxy,
   _request: Request,
-  _parsed: parse_operation.ParsedOperation,
+  parsed: parse_operation.ParsedOperation,
   _primary_root_field: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
   respond_to_query(
     proxy,
-    process(proxy.store, document, variables),
+    process_with_operation_name(proxy.store, document, variables, parsed.name),
     "Failed to handle bulk operations query",
   )
+}
+
+fn process_with_operation_name(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_name: Option(String),
+) -> Result(Json, root_field.RootFieldError) {
+  use fields <- result.try(root_field.get_root_fields(document))
+  case
+    first_top_level_validation_error(
+      fields,
+      document,
+      variables,
+      operation_name,
+    )
+  {
+    Some(envelope) -> Ok(envelope)
+    None -> {
+      let fragments = get_document_fragments(document)
+      let data = serialize_root_fields(store, fields, fragments, variables)
+      Ok(envelope_with_search_warnings(data, fields, variables))
+    }
+  }
+}
+
+fn first_top_level_validation_error(
+  fields: List(Selection),
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_name: Option(String),
+) -> Option(Json) {
+  case fields {
+    [] -> None
+    [field, ..rest] ->
+      case
+        top_level_validation_error(field, document, variables, operation_name)
+      {
+        Some(envelope) -> Some(envelope)
+        None ->
+          first_top_level_validation_error(
+            rest,
+            document,
+            variables,
+            operation_name,
+          )
+      }
+  }
+}
+
+fn top_level_validation_error(
+  field: Selection,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_name: Option(String),
+) -> Option(Json) {
+  case field {
+    Field(name: name, ..) ->
+      case name.value {
+        "bulkOperations" ->
+          bulk_operations_connection_error(field, document, variables)
+        "bulkOperation" ->
+          bulk_operation_id_error(field, document, variables, operation_name)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn bulk_operations_connection_error(
+  field: Selection,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(Json) {
+  let args = graphql_helpers.field_args(field, variables)
+  let first = graphql_helpers.read_arg_int(args, "first")
+  let last = graphql_helpers.read_arg_int(args, "last")
+  case first, last {
+    None, None ->
+      Some(bad_request_error_envelope(
+        field,
+        document,
+        "you must provide one of first or last",
+        ["bulkOperations"],
+        True,
+      ))
+    Some(_), Some(_) ->
+      Some(bad_request_error_envelope(
+        field,
+        document,
+        "providing both first and last is not supported",
+        ["bulkOperations"],
+        True,
+      ))
+    _, _ ->
+      case graphql_helpers.read_arg_string_nonempty(args, "query") {
+        Some(raw_query) ->
+          case created_at_validation_error(raw_query) {
+            True ->
+              Some(bad_request_error_envelope(
+                field,
+                document,
+                "Invalid timestamp for query filter `created_at`.",
+                ["bulkOperations"],
+                True,
+              ))
+            False -> None
+          }
+        None -> None
+      }
+  }
+}
+
+fn created_at_validation_error(raw_query: String) -> Bool {
+  case
+    search_query_parser.parse_search_query(
+      raw_query,
+      search_query_parser.default_parse_options(),
+    )
+  {
+    Some(node) -> search_query_node_has_invalid_created_at(node)
+    None -> False
+  }
+}
+
+fn search_query_node_has_invalid_created_at(
+  node: search_query_parser.SearchQueryNode,
+) -> Bool {
+  case node {
+    search_query_parser.TermNode(term: term) ->
+      case term.field {
+        Some(field) ->
+          case string.lowercase(field) {
+            "created_at" -> !valid_search_time_value(term.value)
+            _ -> False
+          }
+        _ -> False
+      }
+    search_query_parser.AndNode(children: children) ->
+      list.any(children, search_query_node_has_invalid_created_at)
+    search_query_parser.OrNode(children: children) ->
+      list.any(children, search_query_node_has_invalid_created_at)
+    search_query_parser.NotNode(child: child) ->
+      search_query_node_has_invalid_created_at(child)
+  }
+}
+
+fn valid_search_time_value(value: String) -> Bool {
+  let normalized = search_query_parser.normalize_search_query_value(value)
+  case normalized {
+    "now" -> True
+    _ ->
+      case iso_timestamp.parse_iso(normalized) {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+  }
+}
+
+fn bulk_operation_id_error(
+  field: Selection,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_name: Option(String),
+) -> Option(Json) {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string(args, "id") {
+    Some(id) ->
+      case valid_bulk_operation_gid(id) {
+        True -> None
+        False ->
+          case string.starts_with(id, "gid://shopify/") {
+            True ->
+              Some(
+                json.object([
+                  #(
+                    "errors",
+                    json.preprocessed_array([
+                      resource_not_found_id_error(field, document, id),
+                    ]),
+                  ),
+                  #(
+                    "data",
+                    json.object([#(get_field_response_key(field), json.null())]),
+                  ),
+                ]),
+              )
+            False ->
+              Some(
+                json.object([
+                  #(
+                    "errors",
+                    json.preprocessed_array([
+                      invalid_global_id_literal_error(
+                        field,
+                        document,
+                        id,
+                        operation_name,
+                      ),
+                    ]),
+                  ),
+                ]),
+              )
+          }
+      }
+    None -> None
+  }
+}
+
+fn valid_bulk_operation_gid(id: String) -> Bool {
+  let prefix = "gid://shopify/BulkOperation/"
+  string.starts_with(id, prefix) && string.length(id) > string.length(prefix)
+}
+
+fn envelope_with_search_warnings(
+  data: Json,
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let warnings =
+    list.flat_map(fields, fn(field) {
+      case field {
+        Field(name: name, ..) if name.value == "bulkOperations" ->
+          bulk_operations_search_warning_extensions(field, variables)
+        _ -> []
+      }
+    })
+  case warnings {
+    [] -> graphql_helpers.wrap_data(data)
+    _ ->
+      json.object([
+        #("data", data),
+        #(
+          "extensions",
+          json.object([#("search", json.preprocessed_array(warnings))]),
+        ),
+      ])
+  }
+}
+
+fn bulk_operations_search_warning_extensions(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  let args = graphql_helpers.field_args(field, variables)
+  case graphql_helpers.read_arg_string_nonempty(args, "query") {
+    Some(raw_query) ->
+      case
+        search_query_parser.parse_search_query(
+          raw_query,
+          search_query_parser.default_parse_options(),
+        )
+      {
+        Some(node) -> {
+          let warnings = invalid_filter_value_warnings(node)
+          case warnings {
+            [] -> []
+            _ -> [
+              json.object([
+                #("path", json.array(["bulkOperations"], json.string)),
+                #("query", json.string(raw_query)),
+                #("parsed", parsed_search_warning_json(warnings)),
+                #(
+                  "warnings",
+                  json.preprocessed_array(list.map(warnings, warning_json)),
+                ),
+              ]),
+            ]
+          }
+        }
+        None -> []
+      }
+    None -> []
+  }
+}
+
+type SearchWarning {
+  SearchWarning(field: String, value: String)
+}
+
+fn invalid_filter_value_warnings(
+  node: search_query_parser.SearchQueryNode,
+) -> List(SearchWarning) {
+  case node {
+    search_query_parser.TermNode(term: term) ->
+      invalid_filter_term_warning(term)
+    search_query_parser.AndNode(children: children) ->
+      list.flat_map(children, invalid_filter_value_warnings)
+    search_query_parser.OrNode(children: children) ->
+      list.flat_map(children, invalid_filter_value_warnings)
+    search_query_parser.NotNode(child: child) ->
+      invalid_filter_value_warnings(child)
+  }
+}
+
+fn invalid_filter_term_warning(
+  term: search_query_parser.SearchQueryTerm,
+) -> List(SearchWarning) {
+  let raw_value =
+    term.value
+    |> search_query_parser.strip_search_query_value_quotes
+    |> string.trim
+  case term.field {
+    Some(field) -> {
+      let normalized_field = string.lowercase(field)
+      let normalized_value = string.lowercase(raw_value)
+      case normalized_field {
+        "status" ->
+          case
+            list.contains(
+              [
+                "canceled",
+                "canceling",
+                "completed",
+                "created",
+                "failed",
+                "running",
+              ],
+              normalized_value,
+            )
+          {
+            True -> []
+            False -> [SearchWarning(field: "status", value: raw_value)]
+          }
+        "operation_type" ->
+          case list.contains(["query", "mutation"], normalized_value) {
+            True -> []
+            False -> [SearchWarning(field: "operation_type", value: raw_value)]
+          }
+        _ -> []
+      }
+    }
+    None -> []
+  }
+}
+
+fn parsed_search_warning_json(warnings: List(SearchWarning)) -> Json {
+  case warnings {
+    [SearchWarning(field: field, value: value), ..] ->
+      json.object([
+        #("field", json.string(field)),
+        #("match_all", json.string(value)),
+      ])
+    [] -> json.object([])
+  }
+}
+
+fn warning_json(warning: SearchWarning) -> Json {
+  let SearchWarning(field: field, value: value) = warning
+  json.object([
+    #("field", json.string(field)),
+    #(
+      "message",
+      json.string("Input `" <> value <> "` is not an accepted value."),
+    ),
+    #("code", json.string("invalid_value")),
+  ])
+}
+
+fn bad_request_error_envelope(
+  field: Selection,
+  document: String,
+  message: String,
+  path: List(String),
+  include_null_data: Bool,
+) -> Json {
+  let entries = [
+    #(
+      "errors",
+      json.preprocessed_array([
+        json.object([
+          #("message", json.string(message)),
+          #("locations", field_locations_json(field, document)),
+          #("extensions", json.object([#("code", json.string("BAD_REQUEST"))])),
+          #("path", json.array(path, json.string)),
+        ]),
+      ]),
+    ),
+  ]
+  let entries = case include_null_data {
+    True -> list.append(entries, [#("data", json.null())])
+    False -> entries
+  }
+  json.object(entries)
+}
+
+fn resource_not_found_id_error(
+  field: Selection,
+  document: String,
+  id: String,
+) -> Json {
+  json.object([
+    #("message", json.string("Invalid id: " <> id)),
+    #("locations", field_locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
+    #("path", json.array(["bulkOperation"], json.string)),
+  ])
+}
+
+fn invalid_global_id_literal_error(
+  field: Selection,
+  document: String,
+  id: String,
+  operation_name: Option(String),
+) -> Json {
+  json.object([
+    #("message", json.string("Invalid global id '" <> id <> "'")),
+    #("locations", field_locations_json(field, document)),
+    #(
+      "path",
+      json.array(
+        [
+          operation_path(operation_name),
+          "bulkOperation",
+          "id",
+        ],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("argumentLiteralsIncompatible")),
+        #("typeName", json.string("CoercionError")),
+      ]),
+    ),
+  ])
+}
+
+fn operation_path(operation_name: Option(String)) -> String {
+  case operation_name {
+    Some(name) -> "query " <> name
+    None -> "query"
+  }
+}
+
+fn field_locations_json(field: Selection, document: String) -> Json {
+  json.array(field_locations(field, document), fn(pair) {
+    let #(line, column) = pair
+    json.object([#("line", json.int(line)), #("column", json.int(column))])
+  })
+}
+
+fn field_locations(field: Selection, document: String) -> List(#(Int, Int)) {
+  case field {
+    Field(loc: Some(Location(start: start, ..)), ..) -> [
+      offset_to_line_column(document, start),
+    ]
+    _ -> []
+  }
+}
+
+fn offset_to_line_column(document: String, offset: Int) -> #(Int, Int) {
+  document
+  |> string.to_graphemes()
+  |> list.take(offset)
+  |> list.fold(#(1, 1), fn(acc, char) {
+    let #(line, column) = acc
+    case char {
+      "\n" -> #(line + 1, 1)
+      _ -> #(line, column + 1)
+    }
+  })
 }
 
 fn serialize_root_fields(

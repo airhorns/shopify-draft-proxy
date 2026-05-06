@@ -1,0 +1,8 @@
+#graphql
+query BulkOperationsInvalidStatusExpiredValidation {
+  bulkOperations(first: 1, query: "status:EXPIRED") {
+    nodes {
+      id
+    }
+  }
+}
