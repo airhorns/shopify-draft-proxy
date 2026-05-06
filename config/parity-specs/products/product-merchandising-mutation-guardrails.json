@@ -40,7 +40,7 @@
         "expectedDifferences": [
           {
             "path": "$.userErrors[0].code",
-            "matcher": "NOT_FOUND",
+            "matcher": "exact-string:NOT_FOUND",
             "reason": "The local proxy follows the source-backed ProductFeed lookup error code for productFullSync; the older public 2025-01 capture returned a null code for the same absent feed branch."
           }
         ]
