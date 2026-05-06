@@ -296,6 +296,191 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
   assert list.length(outcome.log_drafts) == 1
 }
 
+pub fn orders_abandonment_delivery_status_edge_cases_test() {
+  let abandonment_id = "gid://shopify/Abandonment/101"
+  let marketing_activity_id = "gid://shopify/MarketingActivity/201"
+  let unknown_activity_id = "gid://shopify/MarketingActivity/999"
+  let seeded_store =
+    seeded_abandonment_delivery_store(
+      abandonment_id,
+      marketing_activity_id,
+      "DELIVERED",
+      Some("2026-04-27T00:00:00Z"),
+    )
+
+  let unknown_outcome =
+    run_abandonment_delivery_status_mutation(
+      seeded_store,
+      abandonment_id,
+      unknown_activity_id,
+      "SENDING",
+      Some("2026-04-27T00:00:00Z"),
+    )
+  assert json.to_string(unknown_outcome.data)
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"},\"userErrors\":[{\"field\":[\"deliveryStatuses\",\"0\",\"marketingActivityId\"],\"message\":\"invalid\",\"code\":\"NOT_FOUND\"}]}}}"
+  assert unknown_outcome.staged_resource_ids == []
+
+  let backwards_outcome =
+    run_abandonment_delivery_status_mutation(
+      seeded_store,
+      abandonment_id,
+      marketing_activity_id,
+      "SENDING",
+      Some("2026-04-27T00:00:00Z"),
+    )
+  assert json.to_string(backwards_outcome.data)
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"},\"userErrors\":[{\"field\":[\"deliveryStatuses\",\"0\",\"deliveryStatus\"],\"message\":\"invalid_transition\",\"code\":\"INVALID\"}]}}}"
+  assert backwards_outcome.staged_resource_ids == []
+
+  let same_status_outcome =
+    run_abandonment_delivery_status_mutation(
+      seeded_store,
+      abandonment_id,
+      marketing_activity_id,
+      "DELIVERED",
+      Some("2026-04-27T00:00:00Z"),
+    )
+  assert json.to_string(same_status_outcome.data)
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"},\"userErrors\":[]}}}"
+  assert same_status_outcome.staged_resource_ids == []
+  assert json.to_string(read_abandonment(seeded_store, abandonment_id))
+    == "{\"data\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"}}}"
+  assert json.to_string(read_abandonment(
+      same_status_outcome.store,
+      abandonment_id,
+    ))
+    == "{\"data\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"}}}"
+}
+
+pub fn orders_abandonment_delivery_status_future_delivered_at_test() {
+  let abandonment_id = "gid://shopify/Abandonment/101"
+  let marketing_activity_id = "gid://shopify/MarketingActivity/201"
+  let seeded_store =
+    seeded_abandonment_delivery_store(
+      abandonment_id,
+      marketing_activity_id,
+      "SENDING",
+      None,
+    )
+
+  let future_outcome =
+    run_abandonment_delivery_status_mutation(
+      seeded_store,
+      abandonment_id,
+      marketing_activity_id,
+      "DELIVERED",
+      Some("2099-01-01T00:00:00Z"),
+    )
+  assert json.to_string(future_outcome.data)
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"SENDING\",\"emailSentAt\":null},\"userErrors\":[{\"field\":[\"deliveryStatuses\",\"0\",\"deliveredAt\"],\"message\":\"invalid\",\"code\":\"INVALID\"}]}}}"
+  assert future_outcome.staged_resource_ids == []
+  assert json.to_string(read_abandonment(future_outcome.store, abandonment_id))
+    == "{\"data\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"SENDING\",\"emailSentAt\":null}}}"
+}
+
+pub fn orders_abandonment_delivery_status_forward_transition_test() {
+  let abandonment_id = "gid://shopify/Abandonment/101"
+  let marketing_activity_id = "gid://shopify/MarketingActivity/201"
+  let seeded_store =
+    seeded_abandonment_delivery_store(
+      abandonment_id,
+      marketing_activity_id,
+      "SENDING",
+      None,
+    )
+
+  let forward_outcome =
+    run_abandonment_delivery_status_mutation(
+      seeded_store,
+      abandonment_id,
+      marketing_activity_id,
+      "DELIVERED",
+      Some("2026-04-27T00:00:00Z"),
+    )
+  assert json.to_string(forward_outcome.data)
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"},\"userErrors\":[]}}}"
+  assert forward_outcome.staged_resource_ids == [abandonment_id]
+  assert json.to_string(read_abandonment(forward_outcome.store, abandonment_id))
+    == "{\"data\":{\"abandonment\":{\"id\":\"gid://shopify/Abandonment/101\",\"emailState\":\"DELIVERED\",\"emailSentAt\":\"2026-04-27T00:00:00Z\"}}}"
+}
+
+fn seeded_abandonment_delivery_store(
+  abandonment_id: String,
+  marketing_activity_id: String,
+  delivery_status: String,
+  delivered_at: Option(String),
+) {
+  let delivery_activity =
+    types.AbandonmentDeliveryActivityRecord(
+      marketing_activity_id: marketing_activity_id,
+      delivery_status: delivery_status,
+      delivered_at: delivered_at,
+      delivery_status_change_reason: None,
+    )
+  store.new()
+  |> store.upsert_base_abandonments([
+    types.AbandonmentRecord(
+      id: abandonment_id,
+      abandoned_checkout_id: None,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(abandonment_id)),
+        #("emailState", types.CapturedString(delivery_status)),
+        #("emailSentAt", option_to_captured_string(delivered_at)),
+      ]),
+      delivery_activities: dict.from_list([
+        #(marketing_activity_id, delivery_activity),
+      ]),
+    ),
+  ])
+}
+
+fn run_abandonment_delivery_status_mutation(
+  seeded_store,
+  abandonment_id: String,
+  marketing_activity_id: String,
+  delivery_status: String,
+  delivered_at: Option(String),
+) {
+  let delivered_at_arg = case delivered_at {
+    Some(value) -> ", deliveredAt: \"" <> value <> "\""
+    None -> ""
+  }
+  let query =
+    "mutation { abandonmentUpdateActivitiesDeliveryStatuses(abandonmentId: \""
+    <> abandonment_id
+    <> "\", marketingActivityId: \""
+    <> marketing_activity_id
+    <> "\", deliveryStatus: "
+    <> delivery_status
+    <> delivered_at_arg
+    <> ") { abandonment { id emailState emailSentAt } userErrors { field message code } } }"
+  orders.process_mutation(
+    seeded_store,
+    synthetic_identity.new(),
+    "/admin/api/2025-01/graphql.json",
+    query,
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn option_to_captured_string(value: Option(String)) {
+  case value {
+    Some(value) -> types.CapturedString(value)
+    None -> types.CapturedNull
+  }
+}
+
+fn read_abandonment(seed_store, abandonment_id: String) {
+  let query =
+    "query { abandonment(id: \""
+    <> abandonment_id
+    <> "\") { id emailState emailSentAt } }"
+  let assert Ok(result) = orders.process(seed_store, query, dict.new())
+  result
+}
+
 pub fn orders_access_denied_guardrails_test() {
   let query =
     "
@@ -3043,6 +3228,131 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
     orders.process(release_outcome.store, held_read_query, held_read_variables)
   assert json.to_string(released_read)
     == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"fulfillmentHolds\":[]},{\"status\":\"CLOSED\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[]}}}"
+}
+
+pub fn orders_fulfillment_order_hold_persists_external_id_and_notify_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-hold-inputs"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-inputs"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      "gid://shopify/FulfillmentOrderLineItem/hold-inputs",
+      "gid://shopify/LineItem/fulfillment-order-hold-inputs",
+    )
+  let hold_mutation =
+    "
+    mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+      fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+        fulfillmentHold {
+          handle
+          externalId
+          __draftProxyNotifyMerchant
+        }
+        fulfillmentOrder {
+          status
+          fulfillmentHolds {
+            handle
+            externalId
+            __draftProxyNotifyMerchant
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let first_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("h1")),
+              #("externalId", root_field.StringVal("abc-123")),
+              #("notifyMerchant", root_field.BoolVal(True)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true}]},\"userErrors\":[]}}}"
+
+  let second_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("h2")),
+              #("externalId", root_field.NullVal),
+              #("notifyMerchant", root_field.BoolVal(False)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false}]},\"userErrors\":[]}}}"
+
+  let read_query =
+    "
+    query HeldReads($id: ID!, $first: Int!) {
+      order(id: $id) {
+        fulfillmentOrders(first: $first) {
+          nodes {
+            status
+            fulfillmentHolds {
+              handle
+              externalId
+              __draftProxyNotifyMerchant
+            }
+          }
+        }
+      }
+      manualHoldsFulfillmentOrders(first: $first) {
+        nodes {
+          status
+          fulfillmentHolds {
+            handle
+            externalId
+            __draftProxyNotifyMerchant
+          }
+        }
+      }
+    }
+  "
+  let assert Ok(held_read) =
+    orders.process(
+      second_outcome.store,
+      read_query,
+      dict.from_list([
+        #("id", root_field.StringVal(order_id)),
+        #("first", root_field.IntVal(5)),
+      ]),
+    )
+  assert json.to_string(held_read)
+    == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false}]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"h1\",\"externalId\":\"abc-123\",\"__draftProxyNotifyMerchant\":true},{\"handle\":\"h2\",\"externalId\":null,\"__draftProxyNotifyMerchant\":false}]}]}}}"
 }
 
 pub fn orders_fulfillment_order_hold_validation_branches_test() {

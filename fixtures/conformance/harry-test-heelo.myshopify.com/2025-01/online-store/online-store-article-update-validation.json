@@ -1,0 +1,266 @@
+{
+  "scenarioId": "online-store/article-update-validation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T11:41:03.562Z",
+  "interactions": [
+    {
+      "name": "blogCreate-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Article Update Validation Blog 20260506114102"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120984600882",
+              "title": "Article Update Validation Blog 20260506114102",
+              "handle": "article-update-validation-blog-20260506114102"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article {\n        id\n        title\n        handle\n        image { altText url }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "Article Update Validation 20260506114102",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/120984600882",
+            "author": {
+              "name": "Article Update Validation Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683153752370",
+              "title": "Article Update Validation 20260506114102",
+              "handle": "article-update-validation-20260506114102",
+              "image": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleUpdate-ambiguous-author",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n    articleUpdate(id: $id, article: $article) {\n      article {\n        id\n        title\n        handle\n        image { altText url }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683153752370",
+          "article": {
+            "author": {
+              "name": "Alice",
+              "userId": "gid://shopify/StaffMember/1"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Can't update an article author if both author name and user ID are supplied.",
+                "code": "AMBIGUOUS_AUTHOR"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleUpdate-author-must-exist",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n    articleUpdate(id: $id, article: $article) {\n      article {\n        id\n        title\n        handle\n        image { altText url }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683153752370",
+          "article": {
+            "author": {
+              "userId": "gid://shopify/StaffMember/999999999"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "User must exist if a user ID is supplied.",
+                "code": "AUTHOR_MUST_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleUpdate-image-required",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n    articleUpdate(id: $id, article: $article) {\n      article {\n        id\n        title\n        handle\n        image { altText url }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683153752370",
+          "article": {
+            "image": {
+              "altText": "Alt only"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article", "image"],
+                "message": "Cannot update image alt text without an existing image or providing a new image URL",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683153752370"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683153752370",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleUpdateValidationBlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120984600882"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120984600882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

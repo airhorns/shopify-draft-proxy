@@ -311,7 +311,8 @@ The local proxy can safely mirror the unknown-id `productCreate` / `productUpdat
 The `productBundleCreate-validation` fixture captured bundle validation behavior on Admin GraphQL 2025-01 at `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productBundleCreate-validation.json`.
 
 - Missing component products return `field: null` with `Failed to locate the following products: [<numeric id>]`; the userError is not indexed to `["input", "components", i, "productId"]` on the captured public API.
-- A valid component mapping with `quantity: 0` is accepted and returns a `ProductBundleOperation` in `CREATED` status with `product: null`; `productOperation(id:)` immediately reads it back as `ACTIVE` with `product: null`.
+- Immediate validation failures return root `userErrors` with `productBundleOperation: null`; the local proxy treats these as failed unstaged mutations instead of creating a pollable operation.
+- A valid component mapping with `quantity: 0` is accepted and returns a `ProductBundleOperation` in `CREATED` status with `product: null`. The local proxy completes the staged operation immediately so `productOperation(id:)` and `node(id:)` read it back as `COMPLETE` with the staged bundle product. Older 2025-01 public captures returned `ACTIVE` with `product: null`, so the parity spec keeps that capture as validation evidence while explicitly allowing the local async-operation lifecycle delta.
 - The captured maximum component quantity is 2000. `quantity: 2001` returns `Quantity cannot be greater than 2000...`.
 - `quantityOption` entries must have at least two values, but the public 2025-01 resolver accepted a blank quantity option name and a quantity option value with `quantity: 0` once two values were present.
 - Submitting more option selections than the component product's real options returned the same mapping error as other invalid or missing component option mappings.
@@ -2242,6 +2243,7 @@ Live evidence refreshed on this host:
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
 - HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
+- Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 
@@ -3289,3 +3291,35 @@ Practical rule:
   staged log must retain the original document, variables, and route path so
   `__meta/commit` sends the same `ProductSetInput` declaration Shopify saw at
   staging time
+
+## 79. Draft inventory transfers validate identity/activation but allow zero and over-available quantities
+
+HAR-861 probed `inventoryTransferCreate` validation on Admin GraphQL 2025-01
+and 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Observed behavior:
+
+- equal origin and destination locations returned field
+  `["input", "destinationLocationId"]`, message
+  `The origin location cannot be the same as the destination location.`, and
+  code `TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION`
+- an unknown origin location returned field `["input", "originLocationId"]`,
+  message `The location selected can't be found.`, and code
+  `LOCATION_NOT_FOUND`
+- an unknown inventory item returned field
+  `["input", "lineItems", "0", "inventoryItemId"]`, message
+  `The inventory item could not be found.`, and code `ITEM_NOT_FOUND`
+- duplicate inventory-item rows returned `DUPLICATE_ITEM` on both duplicate row
+  field paths, not `DUPLICATE_INVENTORY_ITEM_ID`
+- a negative quantity returned field `["input", "lineItems", "0", "quantity"]`,
+  message `The quantity can't be negative.`, and code `INVALID_QUANTITY`
+- `quantity: 0` and draft quantities above current origin `available` were
+  accepted and produced draft transfers; the disposable transfers were cleaned
+  up immediately after probing
+
+Practical rule:
+
+- draft transfer validation should reject missing/inactive locations,
+  same-location inputs, unknown or origin-unstocked items, duplicate item rows,
+  and negative quantities, but should not invent zero-quantity or
+  over-available draft-create rejections without newer live evidence

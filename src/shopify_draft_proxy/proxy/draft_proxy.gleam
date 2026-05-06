@@ -23,8 +23,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Location, type Selection, Field, FragmentDefinition, FragmentSpread,
-  InlineFragment, SelectionSet,
+  type Argument, type Location, type Selection, Argument, Field,
+  FragmentDefinition, FragmentSpread, InlineFragment, SelectionSet,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation.{
@@ -55,6 +55,7 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/mutation_schema_lookup
 import shopify_draft_proxy/proxy/online_store
+import shopify_draft_proxy/proxy/online_store/server_pixel_validation
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/passthrough
@@ -805,7 +806,19 @@ fn schema_validation_errors(
               operation_path,
               query,
             ))
+            |> list.append(server_pixel_endpoint_argument_errors(
+              field,
+              variables,
+              operation_path,
+              query,
+            ))
             |> list.append(payment_reminder_send_selection_errors(
+              field,
+              operation_path,
+              query,
+              fragments,
+            ))
+            |> list.append(staged_uploads_create_user_error_selection_errors(
               field,
               operation_path,
               query,
@@ -849,10 +862,169 @@ fn payment_reminder_send_selection_errors(
   }
 }
 
+fn server_pixel_endpoint_argument_errors(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, arguments: arguments, loc: field_loc, ..) -> {
+      let args = case root_field.get_field_arguments(field, variables) {
+        Ok(args) -> args
+        Error(_) -> dict.new()
+      }
+      case name.value {
+        "eventBridgeServerPixelUpdate" ->
+          case dict.get(args, "arn") {
+            Ok(root_field.StringVal(arn)) ->
+              case server_pixel_validation.valid_eventbridge_arn(arn) {
+                True -> []
+                False -> [
+                  build_eventbridge_server_pixel_arn_error(
+                    arn,
+                    operation_path,
+                    field_loc,
+                    source_body,
+                  ),
+                ]
+              }
+            _ -> []
+          }
+        "pubSubServerPixelUpdate" ->
+          list.flat_map(["pubSubProject", "pubSubTopic"], fn(argument_name) {
+            case dict.get(args, argument_name) {
+              Ok(root_field.StringVal(value)) ->
+                case server_pixel_validation.non_blank(value) {
+                  True -> []
+                  False -> [
+                    build_pubsub_server_pixel_blank_error(
+                      argument_name,
+                      field_loc,
+                      argument_location(arguments, argument_name),
+                      source_body,
+                    ),
+                  ]
+                }
+              _ -> []
+            }
+          })
+        _ -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn argument_location(
+  arguments: List(Argument),
+  argument_name: String,
+) -> Option(Location) {
+  case mutation_helpers.find_argument(arguments, argument_name) {
+    Some(argument) -> {
+      let Argument(loc: loc, ..) = argument
+      loc
+    }
+    None -> None
+  }
+}
+
+fn build_eventbridge_server_pixel_arn_error(
+  arn: String,
+  operation_path: String,
+  field_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [#("message", json.string("Invalid ARN '" <> arn <> "'"))]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, "eventBridgeServerPixelUpdate", "arn"],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("CoercionError")),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn build_pubsub_server_pixel_blank_error(
+  argument_name: String,
+  field_loc: Option(Location),
+  argument_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #("message", json.string(argument_name <> " can't be blank")),
+  ]
+  let with_locations =
+    [field_loc, argument_loc]
+    |> list.filter_map(fn(loc) {
+      case location_object(loc, source_body) {
+        Some(location) -> Ok(location)
+        None -> Error(Nil)
+      }
+    })
+  let pairs = case with_locations {
+    [] -> base
+    _ ->
+      list.append(base, [
+        #("locations", json.preprocessed_array(with_locations)),
+      ])
+  }
+  json.object(
+    list.append(pairs, [
+      #(
+        "extensions",
+        json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+      ),
+      #("path", json.array(["pubSubServerPixelUpdate"], json.string)),
+    ]),
+  )
+}
+
 fn payment_reminder_payload_field_allowed(field_name: String) -> Bool {
   field_name == "success"
   || field_name == "userErrors"
   || field_name == "__typename"
+}
+
+fn staged_uploads_create_user_error_selection_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+  fragments: FragmentMap,
+) -> List(Json) {
+  case field {
+    Field(name: name, ..) if name.value == "stagedUploadsCreate" ->
+      collect_named_child_field_selections(field, fragments, "userErrors")
+      |> list.filter_map(fn(selected) {
+        let #(field_name, loc) = selected
+        case field_name {
+          "code" ->
+            Ok(build_undefined_staged_upload_user_error_field_error(
+              field_name,
+              loc,
+              operation_path,
+              source_body,
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
 }
 
 fn collect_payload_field_selections(
@@ -864,6 +1036,56 @@ fn collect_payload_field_selections(
       collect_selection_field_names(selections, fragments)
     _ -> []
   }
+}
+
+fn collect_named_child_field_selections(
+  field: Selection,
+  fragments: FragmentMap,
+  child_name: String,
+) -> List(#(String, Option(Location))) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      collect_named_child_fields_from_selections(
+        selections,
+        fragments,
+        child_name,
+      )
+    _ -> []
+  }
+}
+
+fn collect_named_child_fields_from_selections(
+  selections: List(Selection),
+  fragments: FragmentMap,
+  child_name: String,
+) -> List(#(String, Option(Location))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(
+        name: name,
+        selection_set: Some(SelectionSet(selections: inner, ..)),
+        ..,
+      )
+        if name.value == child_name
+      -> collect_selection_field_names(inner, fragments)
+      Field(..) -> []
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        collect_named_child_fields_from_selections(inner, fragments, child_name)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            collect_named_child_fields_from_selections(
+              inner,
+              fragments,
+              child_name,
+            )
+          _ -> []
+        }
+    }
+  })
 }
 
 fn collect_selection_field_names(
@@ -928,7 +1150,56 @@ fn build_undefined_payment_reminder_payload_field_error(
   )
 }
 
+fn build_undefined_staged_upload_user_error_field_error(
+  field_name: String,
+  field_loc: Option(Location),
+  operation_path: String,
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '" <> field_name <> "' doesn't exist on type 'UserError'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, "stagedUploadsCreate", "userErrors", field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("undefinedField")),
+          #("typeName", json.string("UserError")),
+          #("fieldName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
 fn locations_payload(
+  field_loc: Option(Location),
+  source_body: String,
+) -> Option(Json) {
+  case location_object(field_loc, source_body) {
+    Some(location) -> Some(json.preprocessed_array([location]))
+    None -> None
+  }
+}
+
+fn location_object(
   field_loc: Option(Location),
   source_body: String,
 ) -> Option(Json) {
@@ -938,11 +1209,9 @@ fn locations_payload(
       let source = graphql_source.new(source_body)
       let computed = graphql_location.get_location(source, position: loc.start)
       Some(
-        json.preprocessed_array([
-          json.object([
-            #("line", json.int(computed.line)),
-            #("column", json.int(computed.column)),
-          ]),
+        json.object([
+          #("line", json.int(computed.line)),
+          #("column", json.int(computed.column)),
         ]),
       )
     }

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "blog-delete-cascades-articles-and-comments",
+  "operationNames": ["article", "articles", "blog", "blogDelete", "comments"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "downstream-read-parity", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/blog-delete-cascades-articles-and-comments.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/blog-delete-cascades-articles-and-comments.graphql",
+    "variablesCapturePath": "$.blogDelete.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogDelete silently deletes the blog",
+        "capturePath": "$.blogDelete.response.data.blogDelete",
+        "proxyPath": "$.data.blogDelete"
+      },
+      {
+        "name": "blog, child articles, and child comments are absent after blogDelete",
+        "capturePath": "$.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/blog-delete-cascades-articles-and-comments-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.readAfterDelete.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture creates a disposable blog with two articles and one REST-created comment per article, records the pre-delete blog/article/comment graph as the parity cassette, deletes the blog through Admin GraphQL, then proves blog(id:), article(id:), filtered articles(first:), and filtered comments(first:) no longer expose cascaded children. The direct comment(id:) branch remains runtime-test-backed because the public Admin API returned a known internal-error response for missing comments after delete instead of a stable null payload. Proxy replay hydrates the existing upstream blog graph through the cassette before staging the supported blogDelete locally."
+}

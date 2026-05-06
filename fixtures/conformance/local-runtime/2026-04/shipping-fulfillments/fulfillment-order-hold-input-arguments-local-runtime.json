@@ -1,0 +1,233 @@
+{
+  "metadata": {
+    "storeDomain": "local-runtime",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderHold"]
+  },
+  "cases": {
+    "firstHold": {
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930",
+        "fulfillmentHold": {
+          "reason": "OTHER",
+          "handle": "h1",
+          "externalId": "abc-123",
+          "notifyMerchant": true
+        }
+      },
+      "response": {
+        "data": {
+          "fulfillmentOrderHold": {
+            "fulfillmentHold": {
+              "handle": "h1",
+              "externalId": "abc-123",
+              "__draftProxyNotifyMerchant": true
+            },
+            "fulfillmentOrder": {
+              "status": "ON_HOLD",
+              "fulfillmentHolds": [
+                {
+                  "handle": "h1",
+                  "externalId": "abc-123",
+                  "__draftProxyNotifyMerchant": true
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "secondHold": {
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930",
+        "fulfillmentHold": {
+          "reason": "OTHER",
+          "handle": "h2",
+          "externalId": null,
+          "notifyMerchant": false
+        }
+      },
+      "response": {
+        "data": {
+          "fulfillmentOrderHold": {
+            "fulfillmentHold": {
+              "handle": "h2",
+              "externalId": null,
+              "__draftProxyNotifyMerchant": false
+            },
+            "fulfillmentOrder": {
+              "status": "ON_HOLD",
+              "fulfillmentHolds": [
+                {
+                  "handle": "h1",
+                  "externalId": "abc-123",
+                  "__draftProxyNotifyMerchant": true
+                },
+                {
+                  "handle": "h2",
+                  "externalId": null,
+                  "__draftProxyNotifyMerchant": false
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "afterSecondRead": {
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930",
+        "first": 5
+      },
+      "response": {
+        "data": {
+          "fulfillmentOrder": {
+            "status": "ON_HOLD",
+            "fulfillmentHolds": [
+              {
+                "handle": "h1",
+                "externalId": "abc-123",
+                "__draftProxyNotifyMerchant": true
+              },
+              {
+                "handle": "h2",
+                "externalId": null,
+                "__draftProxyNotifyMerchant": false
+              }
+            ]
+          },
+          "manualHoldsFulfillmentOrders": {
+            "nodes": [
+              {
+                "status": "ON_HOLD",
+                "fulfillmentHolds": [
+                  {
+                    "handle": "h1",
+                    "externalId": "abc-123",
+                    "__draftProxyNotifyMerchant": true
+                  },
+                  {
+                    "handle": "h2",
+                    "externalId": null,
+                    "__draftProxyNotifyMerchant": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "afterSecondHoldLog": {
+      "log": {
+        "entries": [
+          {
+            "operationName": "fulfillmentOrderHold",
+            "status": "staged",
+            "variables": {
+              "fulfillmentHold": {
+                "externalId": "abc-123",
+                "notifyMerchant": true
+              }
+            }
+          },
+          {
+            "operationName": "fulfillmentOrderHold",
+            "status": "staged",
+            "variables": {
+              "fulfillmentHold": {
+                "externalId": null,
+                "notifyMerchant": false
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652928282930",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-05T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-05T02:30:13Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                    "totalQuantity": 5,
+                    "remainingQuantity": 5,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301844713778",
+                      "title": "fulfillment-order hold input arguments",
+                      "quantity": 5,
+                      "fulfillableQuantity": 5
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8728604311858",
+                "name": "#1082",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

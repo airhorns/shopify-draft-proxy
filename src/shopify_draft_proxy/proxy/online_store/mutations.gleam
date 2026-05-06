@@ -19,6 +19,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome,
 }
 import shopify_draft_proxy/proxy/online_store/serializers
+import shopify_draft_proxy/proxy/online_store/server_pixel_validation
 import shopify_draft_proxy/proxy/online_store/types as online_store_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
@@ -164,6 +165,7 @@ fn handle_mutation_field(
             outcome,
             field,
             variables,
+            upstream,
             root,
             "blog",
             "deletedBlogId",
@@ -173,6 +175,7 @@ fn handle_mutation_field(
             outcome,
             field,
             variables,
+            upstream,
             root,
             "page",
             "deletedPageId",
@@ -182,6 +185,7 @@ fn handle_mutation_field(
             outcome,
             field,
             variables,
+            upstream,
             root,
             "article",
             "deletedArticleId",
@@ -704,7 +708,6 @@ fn update_content(
   kind: String,
   payload_key: String,
 ) -> #(String, Json, MutationOutcome) {
-  let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let id = serializers.input_string(args, "id")
   let input =
@@ -726,80 +729,35 @@ fn update_content(
               )
             Ok(input) -> {
               case
-                future_publish_date_error(payload_key, input, Some(existing))
+                article_update_validation_errors(
+                  outcome.store,
+                  kind,
+                  input,
+                  existing,
+                )
               {
-                Some(error) ->
-                  serializers.content_validation_error_payload(
+                [_, ..] as errors ->
+                  serializers.content_validation_errors_payload(
                     outcome,
                     field,
                     fragments,
                     root,
                     payload_key,
-                    error,
+                    errors,
                   )
-                None -> {
-                  case
-                    serializers.resolve_content_handle(
-                      outcome.store,
-                      kind,
-                      input,
-                      existing.parent_id,
-                      Some(existing),
-                    )
-                  {
-                    Error(error) ->
-                      serializers.content_validation_error_payload(
-                        outcome,
-                        field,
-                        fragments,
-                        root,
-                        payload_key,
-                        error,
-                      )
-                    Ok(handle) -> {
-                      let #(record, identity) =
-                        serializers.make_content(
-                          outcome.identity,
-                          kind,
-                          input,
-                          existing.parent_id,
-                          Some(existing),
-                          handle,
-                        )
-                      let #(_, store) =
-                        store.upsert_staged_online_store_content(
-                          outcome.store,
-                          record,
-                        )
-                      let payload =
-                        serializers.mutation_payload(
-                          field,
-                          fragments,
-                          payload_key,
-                          serializers.project_content_payload(
-                            store,
-                            record,
-                            field,
-                            fragments,
-                            variables,
-                            payload_key,
-                          ),
-                          [],
-                        )
-                      #(
-                        key,
-                        payload,
-                        serializers.mutation_outcome(
-                          outcome,
-                          store,
-                          identity,
-                          root,
-                          [id],
-                        ),
-                      )
-                    }
-                  }
-                }
+                [] ->
+                  update_content_after_validation(
+                    outcome,
+                    field,
+                    fragments,
+                    variables,
+                    root,
+                    kind,
+                    payload_key,
+                    id,
+                    input,
+                    existing,
+                  )
               }
             }
           }
@@ -821,6 +779,247 @@ fn update_content(
         payload_key,
         "Content does not exist",
       )
+  }
+}
+
+fn update_content_after_validation(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  root: String,
+  kind: String,
+  payload_key: String,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: OnlineStoreContentRecord,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  case future_publish_date_error(payload_key, input, Some(existing)) {
+    Some(error) ->
+      serializers.content_validation_error_payload(
+        outcome,
+        field,
+        fragments,
+        root,
+        payload_key,
+        error,
+      )
+    None -> {
+      case
+        serializers.resolve_content_handle(
+          outcome.store,
+          kind,
+          input,
+          existing.parent_id,
+          Some(existing),
+        )
+      {
+        Error(error) ->
+          serializers.content_validation_error_payload(
+            outcome,
+            field,
+            fragments,
+            root,
+            payload_key,
+            error,
+          )
+        Ok(handle) -> {
+          let #(record, identity) =
+            serializers.make_content(
+              outcome.identity,
+              kind,
+              input,
+              existing.parent_id,
+              Some(existing),
+              handle,
+            )
+          let #(_, store) =
+            store.upsert_staged_online_store_content(outcome.store, record)
+          let payload =
+            serializers.mutation_payload(
+              field,
+              fragments,
+              payload_key,
+              serializers.project_content_payload(
+                store,
+                record,
+                field,
+                fragments,
+                variables,
+                payload_key,
+              ),
+              [],
+            )
+          #(
+            key,
+            payload,
+            serializers.mutation_outcome(outcome, store, identity, root, [id]),
+          )
+        }
+      }
+    }
+  }
+}
+
+fn article_update_validation_errors(
+  store: Store,
+  kind: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: OnlineStoreContentRecord,
+) -> List(graphql_helpers.SourceValue) {
+  case kind {
+    "article" ->
+      list.append(
+        article_update_author_errors(store, input),
+        list.append(
+          article_update_blog_errors(input),
+          article_update_image_errors(input, existing),
+        ),
+      )
+    _ -> []
+  }
+}
+
+fn article_update_author_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(graphql_helpers.SourceValue) {
+  let author = graphql_helpers.read_arg_object(input, "author")
+  let author_v2 = graphql_helpers.read_arg_object(input, "authorV2")
+  case author, author_v2 {
+    Some(_), Some(_) -> [
+      serializers.user_error_with_code(
+        ["article", "author"],
+        "You must specify either an author name or an author user, not both.",
+        "AMBIGUOUS_AUTHOR",
+      ),
+      serializers.user_error_with_code(
+        ["article", "authorV2"],
+        "You must specify either an author name or an author user, not both.",
+        "AMBIGUOUS_AUTHOR",
+      ),
+    ]
+    Some(author), None -> {
+      case serializers.input_non_blank_string(author, "userId") {
+        Some(user_id) ->
+          case
+            option.is_some(serializers.input_non_blank_string(author, "name"))
+          {
+            True -> [
+              serializers.user_error_with_code(
+                ["article"],
+                "Can't update an article author if both author name and user ID are supplied.",
+                "AMBIGUOUS_AUTHOR",
+              ),
+            ]
+            False -> article_update_author_user_id_errors(store, user_id)
+          }
+        None -> []
+      }
+    }
+    None, Some(author_v2) ->
+      case serializers.input_non_blank_string(author_v2, "userId") {
+        Some(user_id) -> article_update_author_v2_user_id_errors(store, user_id)
+        None -> []
+      }
+    None, None -> []
+  }
+}
+
+fn article_update_author_user_id_errors(
+  store: Store,
+  user_id: String,
+) -> List(graphql_helpers.SourceValue) {
+  case staff_member_exists(store, user_id) {
+    True -> []
+    False -> [
+      serializers.user_error_with_code(
+        ["article"],
+        "User must exist if a user ID is supplied.",
+        "AUTHOR_MUST_EXIST",
+      ),
+    ]
+  }
+}
+
+fn article_update_author_v2_user_id_errors(
+  store: Store,
+  user_id: String,
+) -> List(graphql_helpers.SourceValue) {
+  case staff_member_exists(store, user_id) {
+    True -> []
+    False -> [
+      serializers.user_error_with_code(
+        ["article", "authorV2", "userId"],
+        "Author must exist",
+        "NOT_FOUND",
+      ),
+    ]
+  }
+}
+
+fn staff_member_exists(store: Store, staff_id: String) -> Bool {
+  case store.get_effective_admin_platform_generic_node_by_id(store, staff_id) {
+    Some(record) -> record.typename == "StaffMember"
+    None -> False
+  }
+}
+
+fn article_update_blog_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(graphql_helpers.SourceValue) {
+  let has_blog_id = option.is_some(serializers.input_string(input, "blogId"))
+  let has_inline_blog =
+    option.is_some(graphql_helpers.read_arg_object(input, "blog"))
+  case has_blog_id, has_inline_blog {
+    True, True -> [
+      serializers.user_error_with_code(
+        ["article", "blogId"],
+        "You must specify either a blogId or a blog, not both.",
+        "AMBIGUOUS_BLOG",
+      ),
+      serializers.user_error_with_code(
+        ["article", "blog"],
+        "You must specify either a blogId or a blog, not both.",
+        "AMBIGUOUS_BLOG",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn article_update_image_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: OnlineStoreContentRecord,
+) -> List(graphql_helpers.SourceValue) {
+  case graphql_helpers.read_arg_object(input, "image") {
+    Some(image) -> {
+      let has_alt = option.is_some(serializers.input_string(image, "altText"))
+      let has_url =
+        option.is_some(serializers.input_non_blank_string(image, "url"))
+      let existing_has_image = case
+        serializers.source_field(
+          serializers.captured_to_source(existing.data),
+          "image",
+          SrcNull,
+        )
+      {
+        SrcNull -> False
+        _ -> True
+      }
+      case has_alt, has_url, existing_has_image {
+        True, False, False -> [
+          serializers.user_error_with_code(
+            ["article", "image"],
+            "Cannot update image alt text without an existing image or providing a new image URL",
+            "INVALID",
+          ),
+        ]
+        _, _, _ -> []
+      }
+    }
+    None -> []
   }
 }
 
@@ -862,31 +1061,37 @@ fn delete_content(
   outcome: MutationOutcome,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
   root: String,
-  _kind: String,
+  kind: String,
   deleted_key: String,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id =
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
-  let #(deleted, errors, store) = case id {
-    Some(id) ->
-      case store.get_effective_online_store_content_by_id(outcome.store, id) {
-        Some(_) -> #(
-          SrcString(id),
-          [],
-          store.delete_staged_online_store_content(outcome.store, id),
-        )
+  let #(deleted, errors, store, staged_ids) = case id {
+    Some(id) -> {
+      let hydrated_store =
+        hydrate_content_for_delete(outcome.store, kind, id, upstream)
+      case store.get_effective_online_store_content_by_id(hydrated_store, id) {
+        Some(_) -> {
+          let #(store, staged_ids) =
+            cascade_delete_content(hydrated_store, kind, id)
+          #(SrcString(id), [], store, staged_ids)
+        }
         None -> #(
           SrcNull,
           [serializers.user_error(["id"], "Content does not exist")],
-          outcome.store,
+          hydrated_store,
+          [],
         )
       }
+    }
     None -> #(
       SrcNull,
       [serializers.user_error(["id"], "Content does not exist")],
       outcome.store,
+      [],
     )
   }
   let payload =
@@ -907,11 +1112,204 @@ fn delete_content(
       outcome.identity,
       root,
       case errors {
-        [] -> serializers.option_list(id)
+        [] -> staged_ids
         _ -> []
       },
     ),
   )
+}
+
+fn hydrate_content_for_delete(
+  store_in: Store,
+  kind: String,
+  id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_online_store_content_by_id(store_in, id) {
+    Some(_) -> store_in
+    None ->
+      case kind {
+        "article" -> hydrate_article_delete_cascade(store_in, upstream, id)
+        "blog" -> hydrate_blog_delete_cascade(store_in, upstream, id)
+        _ -> store_in
+      }
+  }
+}
+
+fn hydrate_article_delete_cascade(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> Store {
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "OnlineStoreArticleDeleteCascadeHydrate",
+      online_store_types.online_store_article_delete_cascade_hydrate_query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      serializers.json_get(value, "data")
+      |> option.then(serializers.json_get(_, "article"))
+      |> option.map(fn(article) {
+        let records = article_records_with_comments(article, None)
+        store.upsert_base_online_store_content(store_in, records)
+      })
+      |> option.unwrap(store_in)
+    Error(_) -> store_in
+  }
+}
+
+fn hydrate_blog_delete_cascade(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> Store {
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "OnlineStoreBlogDeleteCascadeHydrate",
+      online_store_types.online_store_blog_delete_cascade_hydrate_query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      serializers.json_get(value, "data")
+      |> option.then(serializers.json_get(_, "blog"))
+      |> option.map(fn(blog) {
+        let blog_record =
+          content_record_from_commit(blog, "blog", None)
+          |> content_record_to_list
+        let article_records =
+          connection_nodes(blog, "articles")
+          |> list.flat_map(fn(article) {
+            article_records_with_comments(article, Some(id))
+          })
+        store.upsert_base_online_store_content(
+          store_in,
+          list.append(blog_record, article_records),
+        )
+      })
+      |> option.unwrap(store_in)
+    Error(_) -> store_in
+  }
+}
+
+fn article_records_with_comments(
+  article: commit.JsonValue,
+  parent_id: Option(String),
+) -> List(OnlineStoreContentRecord) {
+  let article_record =
+    content_record_from_commit(
+      article,
+      "article",
+      option.or(parent_id, article_parent_blog_id(article)),
+    )
+    |> content_record_to_list
+  let article_id = json_get_string(article, "id")
+  let comments =
+    connection_nodes(article, "comments")
+    |> list.filter_map(fn(comment) {
+      case comment_record_from_commit_with_parent(comment, article_id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(article_record, comments)
+}
+
+fn content_record_to_list(
+  record: Option(OnlineStoreContentRecord),
+) -> List(OnlineStoreContentRecord) {
+  case record {
+    Some(record) -> [record]
+    None -> []
+  }
+}
+
+fn content_record_from_commit(
+  value: commit.JsonValue,
+  kind: String,
+  parent_id: Option(String),
+) -> Option(OnlineStoreContentRecord) {
+  case json_get_string(value, "id") {
+    Some(id) ->
+      Some(OnlineStoreContentRecord(
+        id: id,
+        kind: kind,
+        cursor: None,
+        parent_id: parent_id,
+        created_at: json_get_string(value, "createdAt"),
+        updated_at: json_get_string(value, "updatedAt"),
+        data: captured_json_from_commit(value),
+      ))
+    None -> None
+  }
+}
+
+fn article_parent_blog_id(value: commit.JsonValue) -> Option(String) {
+  serializers.json_get(value, "blog")
+  |> option.then(json_get_string(_, "id"))
+}
+
+fn connection_nodes(
+  value: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  serializers.json_get(value, key)
+  |> option.then(serializers.json_get(_, "nodes"))
+  |> option.map(fn(nodes) {
+    case nodes {
+      commit.JsonArray(items) -> items
+      _ -> []
+    }
+  })
+  |> option.unwrap([])
+}
+
+fn cascade_delete_content(
+  store_in: Store,
+  kind: String,
+  id: String,
+) -> #(Store, List(String)) {
+  let article_ids = case kind {
+    "blog" -> child_content_ids(store_in, "article", [id])
+    "article" -> [id]
+    _ -> []
+  }
+  let comment_ids = child_content_ids(store_in, "comment", article_ids)
+  let staged_ids = case kind {
+    "blog" -> [id, ..list.append(article_ids, comment_ids)]
+    "article" -> [id, ..comment_ids]
+    _ -> [id]
+  }
+  let next_store =
+    list.fold(staged_ids, store_in, fn(current_store, staged_id) {
+      store.delete_staged_online_store_content(current_store, staged_id)
+    })
+  #(next_store, staged_ids)
+}
+
+fn child_content_ids(
+  store_in: Store,
+  kind: String,
+  parent_ids: List(String),
+) -> List(String) {
+  store.list_effective_online_store_content(store_in, kind)
+  |> list.filter(fn(record) {
+    case record.parent_id {
+      Some(parent_id) -> list.contains(parent_ids, parent_id)
+      None -> False
+    }
+  })
+  |> list.map(fn(record) { record.id })
 }
 
 fn moderate_comment(
@@ -1093,13 +1491,23 @@ fn hydrate_comment(
 fn comment_record_from_commit(
   value: commit.JsonValue,
 ) -> Option(OnlineStoreContentRecord) {
+  comment_record_from_commit_with_parent(
+    value,
+    comment_parent_article_id(value),
+  )
+}
+
+fn comment_record_from_commit_with_parent(
+  value: commit.JsonValue,
+  parent_id: Option(String),
+) -> Option(OnlineStoreContentRecord) {
   case json_get_string(value, "id") {
     Some(id) ->
       Some(OnlineStoreContentRecord(
         id: id,
         kind: "comment",
         cursor: None,
-        parent_id: comment_parent_article_id(value),
+        parent_id: parent_id,
         created_at: json_get_string(value, "createdAt"),
         updated_at: json_get_string(value, "updatedAt"),
         data: captured_json_from_commit(value),
@@ -1302,9 +1710,14 @@ fn update_theme(
         |> option.unwrap(dict.new())
       let role = case root {
         "themePublish" -> Some("MAIN")
-        _ -> serializers.input_string(input, "role")
+        _ -> None
       }
       let name = serializers.input_string(input, "name")
+      let update_blocked = root == "themeUpdate" && current_role == "LOCKED"
+      let blank_name = case root, name {
+        "themeUpdate", Some(value) -> string.trim(value) == ""
+        _, _ -> False
+      }
       case publish_blocked {
         True ->
           integration_payload_result(
@@ -1325,32 +1738,70 @@ fn update_theme(
             outcome.identity,
             [],
           )
-        False -> {
-          let data =
-            existing.data
-            |> serializers.maybe_insert_string("name", name)
-            |> serializers.maybe_insert_string("role", role)
-          let record = OnlineStoreIntegrationRecord(..existing, data: data)
-          let target_store = case root {
-            "themePublish" -> demote_previous_main_themes(outcome.store, id)
-            _ -> outcome.store
+        False ->
+          case update_blocked, blank_name {
+            True, _ ->
+              integration_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                root,
+                "theme",
+                [
+                  serializers.integration_user_error(
+                    "theme",
+                    ["id"],
+                    "Locked themes cannot be modified.",
+                    "CANNOT_UPDATE_LOCKED_THEME",
+                  ),
+                ],
+              )
+            _, True ->
+              integration_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                root,
+                "theme",
+                [
+                  serializers.integration_user_error(
+                    "theme",
+                    ["input", "name"],
+                    "Name can't be blank",
+                    "INVALID",
+                  ),
+                ],
+              )
+            False, False -> {
+              let data =
+                existing.data
+                |> serializers.maybe_insert_string("name", name)
+                |> serializers.maybe_insert_string("role", role)
+              let record = OnlineStoreIntegrationRecord(..existing, data: data)
+              let target_store = case root {
+                "themePublish" -> demote_previous_main_themes(outcome.store, id)
+                _ -> outcome.store
+              }
+              let #(_, store) =
+                store.upsert_staged_online_store_integration(
+                  target_store,
+                  record,
+                )
+              integration_payload_result(
+                outcome,
+                field,
+                fragments,
+                variables,
+                root,
+                "theme",
+                Some(record),
+                [],
+                store,
+                outcome.identity,
+                [id],
+              )
+            }
           }
-          let #(_, store) =
-            store.upsert_staged_online_store_integration(target_store, record)
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            root,
-            "theme",
-            Some(record),
-            [],
-            store,
-            outcome.identity,
-            [id],
-          )
-        }
       }
     }
     serializers.IntegrationInvalidId ->
@@ -2492,59 +2943,131 @@ fn update_server_pixel_endpoint(
       "serverPixel",
     ))
   let args = graphql_helpers.field_args(field, variables)
-  let address = case mode {
-    "arn" -> serializers.input_string(args, "arn")
-    _ ->
-      case
-        serializers.input_string(args, "pubSubProject"),
-        serializers.input_string(args, "pubSubTopic")
-      {
-        Some(p), Some(t) -> Some(p <> "/" <> t)
-        _, _ -> None
+  let #(address, validation_errors) = server_pixel_endpoint_address(mode, args)
+  case validation_errors {
+    [_, ..] ->
+      integration_validation_error_payload(
+        outcome,
+        field,
+        fragments,
+        root,
+        "serverPixel",
+        validation_errors,
+      )
+    [] ->
+      case existing {
+        Some(existing) -> {
+          let record =
+            OnlineStoreIntegrationRecord(
+              ..existing,
+              data: serializers.maybe_insert_string(
+                existing.data,
+                "webhookEndpointAddress",
+                address,
+              ),
+            )
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(outcome.store, record)
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "serverPixel",
+            Some(record),
+            [],
+            store,
+            outcome.identity,
+            [record.id],
+          )
+        }
+        None ->
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            root,
+            "serverPixel",
+            None,
+            [serializers.integration_not_found_error("serverPixel")],
+            outcome.store,
+            outcome.identity,
+            [],
+          )
       }
   }
-  case existing {
-    Some(existing) -> {
-      let record =
-        OnlineStoreIntegrationRecord(
-          ..existing,
-          data: serializers.maybe_insert_string(
-            existing.data,
-            "webhookEndpointAddress",
-            address,
-          ),
-        )
-      let #(_, store) =
-        store.upsert_staged_online_store_integration(outcome.store, record)
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        root,
-        "serverPixel",
-        Some(record),
-        [],
-        store,
-        outcome.identity,
-        [record.id],
-      )
+}
+
+fn server_pixel_endpoint_address(
+  mode: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> #(Option(String), List(graphql_helpers.SourceValue)) {
+  case mode {
+    "arn" -> {
+      let arn = serializers.input_string(args, "arn")
+      case arn {
+        Some(value) ->
+          case server_pixel_validation.valid_eventbridge_arn(value) {
+            True -> #(Some(value), [])
+            False -> #(None, [eventbridge_endpoint_error()])
+          }
+        _ -> #(None, [eventbridge_endpoint_error()])
+      }
     }
-    None ->
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        root,
-        "serverPixel",
-        None,
-        [serializers.integration_not_found_error("serverPixel")],
-        outcome.store,
-        outcome.identity,
-        [],
-      )
+    _ -> {
+      let project = serializers.input_string(args, "pubSubProject")
+      let topic = serializers.input_string(args, "pubSubTopic")
+      let errors =
+        list.append(
+          pubsub_endpoint_blank_errors(project, "pubSubProject"),
+          pubsub_endpoint_blank_errors(topic, "pubSubTopic"),
+        )
+      case project, topic, errors {
+        Some(p), Some(t), [] -> #(Some(p <> "/" <> t), [])
+        _, _, _ -> #(None, errors)
+      }
+    }
   }
+}
+
+fn pubsub_endpoint_blank_errors(
+  value: Option(String),
+  field: String,
+) -> List(graphql_helpers.SourceValue) {
+  case value {
+    Some(value) ->
+      case server_pixel_validation.non_blank(value) {
+        True -> []
+        False -> [pubsub_endpoint_error(field)]
+      }
+    _ -> [pubsub_endpoint_error(field)]
+  }
+}
+
+fn eventbridge_endpoint_error() -> graphql_helpers.SourceValue {
+  server_pixel_endpoint_error(
+    "arn",
+    "EventBridge server pixel endpoint is invalid",
+    "EVENT_BRIDGE_ERROR",
+  )
+}
+
+fn pubsub_endpoint_error(field: String) -> graphql_helpers.SourceValue {
+  server_pixel_endpoint_error(
+    field,
+    "Pub/Sub server pixel endpoint is invalid",
+    "PUB_SUB_ERROR",
+  )
+}
+
+fn server_pixel_endpoint_error(
+  field: String,
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  serializers.integration_user_error("serverPixel", [field], message, code)
 }
 
 fn create_storefront_token(
@@ -2779,28 +3302,11 @@ fn stage_mobile_app(
   id_field: String,
 ) -> #(String, Json, MutationOutcome) {
   let #(record, identity) =
-    serializers.make_integration(outcome.identity, "mobilePlatformApplication", [
-      #("__typename", SrcString(typename)),
-      #("applicationId", case id_field {
-        "applicationId" -> SrcString(platform_id)
-        _ -> SrcNull
-      }),
-      #("appId", case id_field {
-        "appId" -> SrcString(platform_id)
-        _ -> SrcNull
-      }),
-      #(
-        "appLinksEnabled",
-        serializers.bool_source(
-          serializers.input_bool(app_input, "appLinksEnabled"),
-          True,
-        ),
-      ),
-      #(
-        "sha256CertFingerprints",
-        serializers.value_source_from_dict(app_input, "sha256CertFingerprints"),
-      ),
-    ])
+    serializers.make_integration(
+      outcome.identity,
+      "mobilePlatformApplication",
+      mobile_platform_create_entries(typename, app_input, platform_id, id_field),
+    )
   let #(_, store) =
     store.upsert_staged_online_store_integration(outcome.store, record)
   integration_payload_result(
@@ -2816,6 +3322,71 @@ fn stage_mobile_app(
     identity,
     [record.id],
   )
+}
+
+fn mobile_platform_create_entries(
+  typename: String,
+  app_input: Dict(String, root_field.ResolvedValue),
+  platform_id: String,
+  id_field: String,
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  case typename {
+    "AppleApplication" -> [
+      #("__typename", SrcString(typename)),
+      #("applicationId", SrcNull),
+      #("appId", case id_field {
+        "appId" -> SrcString(platform_id)
+        _ -> SrcNull
+      }),
+      #(
+        "universalLinksEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "universalLinksEnabled"),
+          True,
+        ),
+      ),
+      #(
+        "sharedWebCredentialsEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "sharedWebCredentialsEnabled"),
+          True,
+        ),
+      ),
+      #(
+        "appClipsEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "appClipsEnabled"),
+          False,
+        ),
+      ),
+      #(
+        "appClipApplicationId",
+        serializers.option_source(
+          serializers.input_string(app_input, "appClipApplicationId"),
+          "",
+        ),
+      ),
+    ]
+    _ -> [
+      #("__typename", SrcString("AndroidApplication")),
+      #("applicationId", case id_field {
+        "applicationId" -> SrcString(platform_id)
+        _ -> SrcNull
+      }),
+      #("appId", SrcNull),
+      #(
+        "appLinksEnabled",
+        serializers.bool_source(
+          serializers.input_bool(app_input, "appLinksEnabled"),
+          True,
+        ),
+      ),
+      #(
+        "sha256CertFingerprints",
+        serializers.value_source_from_dict(app_input, "sha256CertFingerprints"),
+      ),
+    ]
+  }
 }
 
 fn mobile_platform_create_input(
@@ -2834,6 +3405,16 @@ fn mobile_platform_branch(
   case dict.get(input, name) {
     Ok(root_field.ObjectVal(fields)) -> Some(fields)
     _ -> None
+  }
+}
+
+fn mobile_platform_has_object(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(input, key) {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
   }
 }
 
@@ -2922,6 +3503,8 @@ fn update_mobile_app(
 ) -> #(String, Json, MutationOutcome) {
   let args = graphql_helpers.field_args(field, variables)
   let id = serializers.input_string(args, "id")
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case
     serializers.lookup_integration_by_id(
       outcome.store,
@@ -2929,20 +3512,63 @@ fn update_mobile_app(
       id,
     )
   {
-    serializers.IntegrationFound(record) ->
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        "mobilePlatformApplicationUpdate",
-        "mobilePlatformApplication",
-        Some(record),
-        [],
-        outcome.store,
-        outcome.identity,
-        [record.id],
-      )
+    serializers.IntegrationFound(record) -> {
+      let typename = mobile_platform_record_typename(record)
+      case mobile_platform_has_wrong_platform_input(input, typename) {
+        True ->
+          integration_validation_error_payload(
+            outcome,
+            field,
+            fragments,
+            "mobilePlatformApplicationUpdate",
+            "mobilePlatformApplication",
+            [
+              mobile_platform_user_error(
+                ["mobilePlatformApplication"],
+                "Mobile platform application platform is invalid",
+                "INVALID",
+              ),
+            ],
+          )
+        False -> {
+          let platform_input = mobile_platform_update_payload(input, typename)
+          let errors = mobile_platform_update_errors(platform_input, typename)
+          case errors {
+            [] -> {
+              let record =
+                mobile_platform_updated_record(record, platform_input, typename)
+              let #(_, store) =
+                store.upsert_staged_online_store_integration(
+                  outcome.store,
+                  record,
+                )
+              integration_payload_result(
+                outcome,
+                field,
+                fragments,
+                variables,
+                "mobilePlatformApplicationUpdate",
+                "mobilePlatformApplication",
+                Some(record),
+                [],
+                store,
+                outcome.identity,
+                [record.id],
+              )
+            }
+            _ ->
+              integration_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                "mobilePlatformApplicationUpdate",
+                "mobilePlatformApplication",
+                errors,
+              )
+          }
+        }
+      }
+    }
     serializers.IntegrationInvalidId ->
       integration_payload_result(
         outcome,
@@ -2972,6 +3598,184 @@ fn update_mobile_app(
         [],
       )
   }
+}
+
+fn mobile_platform_record_typename(
+  record: OnlineStoreIntegrationRecord,
+) -> String {
+  serializers.source_string_field(
+    serializers.captured_to_source(record.data),
+    "__typename",
+    "AndroidApplication",
+  )
+}
+
+fn mobile_platform_has_wrong_platform_input(
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> Bool {
+  case typename {
+    "AppleApplication" -> mobile_platform_has_object(input, "android")
+    "AndroidApplication" -> mobile_platform_has_object(input, "apple")
+    _ -> False
+  }
+}
+
+fn mobile_platform_update_payload(
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  let key = case typename {
+    "AppleApplication" -> "apple"
+    _ -> "android"
+  }
+  case dict.get(input, key) {
+    Ok(root_field.ObjectVal(fields)) -> fields
+    _ -> input
+  }
+}
+
+fn mobile_platform_update_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> List(graphql_helpers.SourceValue) {
+  case typename {
+    "AppleApplication" ->
+      mobile_platform_blank_string_errors(
+        input,
+        "appId",
+        ["mobilePlatformApplication", "apple", "appId"],
+        "App ID can't be blank",
+      )
+    _ ->
+      mobile_platform_blank_string_errors(
+        input,
+        "applicationId",
+        ["mobilePlatformApplication", "android", "applicationId"],
+        "Application ID can't be blank",
+      )
+  }
+}
+
+fn mobile_platform_blank_string_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  input_key: String,
+  field: List(String),
+  message: String,
+) -> List(graphql_helpers.SourceValue) {
+  case serializers.input_string(input, input_key) {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> [mobile_platform_user_error(field, message, "BLANK")]
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn mobile_platform_updated_record(
+  record: OnlineStoreIntegrationRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> OnlineStoreIntegrationRecord {
+  let prior = serializers.captured_to_source(record.data)
+  let entries = case typename {
+    "AppleApplication" -> mobile_platform_updated_apple_entries(input, prior)
+    _ -> mobile_platform_updated_android_entries(input, prior)
+  }
+  OnlineStoreIntegrationRecord(
+    ..record,
+    data: serializers.base_source(prior, entries)
+      |> serializers.source_to_captured,
+  )
+}
+
+fn mobile_platform_updated_android_entries(
+  input: Dict(String, root_field.ResolvedValue),
+  prior: graphql_helpers.SourceValue,
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  [
+    #(
+      "applicationId",
+      serializers.value_or_default(
+        input,
+        "applicationId",
+        serializers.source_field(prior, "applicationId", SrcNull),
+      ),
+    ),
+    #(
+      "appLinksEnabled",
+      serializers.value_or_default(
+        input,
+        "appLinksEnabled",
+        serializers.source_field(prior, "appLinksEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "sha256CertFingerprints",
+      serializers.value_or_default(
+        input,
+        "sha256CertFingerprints",
+        serializers.source_field(prior, "sha256CertFingerprints", SrcNull),
+      ),
+    ),
+  ]
+}
+
+fn mobile_platform_updated_apple_entries(
+  input: Dict(String, root_field.ResolvedValue),
+  prior: graphql_helpers.SourceValue,
+) -> List(#(String, graphql_helpers.SourceValue)) {
+  [
+    #(
+      "appId",
+      serializers.value_or_default(
+        input,
+        "appId",
+        serializers.source_field(prior, "appId", SrcNull),
+      ),
+    ),
+    #(
+      "universalLinksEnabled",
+      serializers.value_or_default(
+        input,
+        "universalLinksEnabled",
+        serializers.source_field(prior, "universalLinksEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "sharedWebCredentialsEnabled",
+      serializers.value_or_default(
+        input,
+        "sharedWebCredentialsEnabled",
+        serializers.source_field(prior, "sharedWebCredentialsEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "appClipsEnabled",
+      serializers.value_or_default(
+        input,
+        "appClipsEnabled",
+        serializers.source_field(prior, "appClipsEnabled", SrcNull),
+      ),
+    ),
+    #(
+      "appClipApplicationId",
+      serializers.value_or_default(
+        input,
+        "appClipApplicationId",
+        serializers.source_field(prior, "appClipApplicationId", SrcNull),
+      ),
+    ),
+  ]
+}
+
+fn mobile_platform_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  serializers.user_error_with_code(field, message, code)
 }
 
 fn delete_integration(

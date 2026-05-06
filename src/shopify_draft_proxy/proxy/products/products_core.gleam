@@ -343,7 +343,6 @@ query ProductsHydrateNodes($ids: [ID!]!) {
             inventoryLevels(first: 50) {
               nodes {
                 id
-                isActive
                 location { id name }
                 quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
                   name
@@ -476,7 +475,6 @@ query ProductsHydrateNodes($ids: [ID!]!) {
       inventoryLevels(first: 50) {
         nodes {
           id
-          isActive
           location { id name }
           quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
             name
@@ -488,7 +486,6 @@ query ProductsHydrateNodes($ids: [ID!]!) {
     }
     ... on InventoryLevel {
       id
-      isActive
       location { id name }
       quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
         name
@@ -502,7 +499,6 @@ query ProductsHydrateNodes($ids: [ID!]!) {
         inventoryLevels(first: 50) {
           nodes {
             id
-            isActive
             location { id name }
             quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
               name

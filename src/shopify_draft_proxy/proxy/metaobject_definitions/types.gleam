@@ -53,7 +53,15 @@ const domain_name = "metaobjects"
 
 const execution_name = "stage-locally"
 
+const metaobject_handle_max_length = 255
+
 const definition_column_size_limit = 255
+
+const default_max_fields_per_definition = 40
+
+const forms_max_fields_per_definition = 100
+
+const max_field_key_length = 64
 
 @internal
 pub type UserError {
@@ -212,10 +220,11 @@ pub fn build_create_definition_validation_errors(
     ),
   )
   |> append_definition_type_validation_errors(type_, requesting_api_client_id)
-  |> append_create_field_definition_key_errors(read_list(
-    input,
-    "fieldDefinitions",
-  ))
+  |> append_create_field_definition_input_errors(
+    read_list(input, "fieldDefinitions"),
+    normalized_definition_type_from_input(input, requesting_api_client_id),
+    read_string(input, "displayNameKey"),
+  )
 }
 
 @internal
@@ -389,7 +398,9 @@ pub fn is_valid_field_key(key: String) -> Bool {
   && list.all(string.to_utf_codepoints(key), fn(char) {
     let codepoint = string.utf_codepoint_to_int(char)
     is_ascii_lowercase_letter(codepoint)
+    || is_ascii_uppercase_letter(codepoint)
     || is_ascii_digit(codepoint)
+    || codepoint == 45
     || codepoint == 95
   })
 }
@@ -410,45 +421,167 @@ pub fn is_ascii_digit(codepoint: Int) -> Bool {
 }
 
 @internal
-pub fn append_create_field_definition_key_errors(
+pub fn append_create_field_definition_input_errors(
   errors: List(UserError),
   values: List(root_field.ResolvedValue),
+  normalized_type: Option(String),
+  display_name_key: Option(String),
 ) -> List(UserError) {
-  list.fold(enumerate_values(values), errors, fn(acc, pair) {
-    let #(index, value) = pair
-    case value {
-      root_field.ObjectVal(input) ->
-        append_field_key_validation_error(acc, read_string(input, "key"), index)
-      _ -> acc
-    }
-  })
+  let #(errors, keys) =
+    list.fold(enumerate_values(values), #(errors, []), fn(acc, pair) {
+      let #(acc_errors, seen_keys) = acc
+      let #(index, value) = pair
+      case value {
+        root_field.ObjectVal(input) ->
+          case read_string(input, "key") {
+            Some(key) -> #(
+              list.append(
+                acc_errors,
+                field_definition_key_user_errors(index, key, seen_keys),
+              ),
+              [key, ..seen_keys],
+            )
+            None -> #(acc_errors, seen_keys)
+          }
+        _ -> #(acc_errors, seen_keys)
+      }
+    })
+  errors
+  |> append_field_count_user_errors(
+    list.length(values),
+    normalized_type |> option.unwrap(""),
+  )
+  |> append_display_name_key_user_errors(display_name_key, keys)
 }
 
 @internal
-pub fn append_field_key_validation_error(
-  errors: List(UserError),
-  key: Option(String),
+pub fn field_definition_key_user_errors(
   index: Int,
+  key: String,
+  seen_keys: List(String),
 ) -> List(UserError) {
-  case key {
-    Some(k) ->
+  []
+  |> append_if(
+    string.length(key) > max_field_key_length,
+    too_long_field_key_user_error(index, key),
+  )
+  |> append_if(
+    !is_valid_field_key(key),
+    invalid_field_key_user_error(index, key),
+  )
+  |> append_if(
+    is_reserved_field_key(key),
+    reserved_field_key_user_error(index, key),
+  )
+  |> append_if(
+    list.contains(seen_keys, key),
+    duplicate_field_key_user_error(index, key),
+  )
+}
+
+@internal
+pub fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    "Key contains one or more invalid characters.",
+    "INVALID",
+    Some(key),
+    None,
+  )
+}
+
+@internal
+pub fn too_long_field_key_user_error(index: Int, key: String) -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    "Key is too long (maximum is 64 characters)",
+    "TOO_LONG",
+    Some(key),
+    None,
+  )
+}
+
+@internal
+pub fn reserved_field_key_user_error(index: Int, key: String) -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    "The name \"" <> key <> "\" is reserved for system use",
+    "RESERVED_NAME",
+    Some(key),
+    None,
+  )
+}
+
+@internal
+pub fn duplicate_field_key_user_error(index: Int, key: String) -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions", int.to_string(index)]),
+    "Field \"" <> key <> "\" duplicates other inputs",
+    "DUPLICATE_FIELD_INPUT",
+    Some(key),
+    None,
+  )
+}
+
+@internal
+pub fn is_reserved_field_key(key: String) -> Bool {
+  list.contains(["id", "handle", "system", "metafields"], key)
+}
+
+@internal
+pub fn append_field_count_user_errors(
+  errors: List(UserError),
+  field_count: Int,
+  type_: String,
+) -> List(UserError) {
+  append_if(
+    errors,
+    field_count > max_fields_per_definition(type_),
+    UserError(
+      Some(["definition", "fieldDefinitions"]),
+      "Maximum "
+        <> int.to_string(max_fields_per_definition(type_))
+        <> " fields per metaobject definition",
+      "INVALID",
+      None,
+      None,
+    ),
+  )
+}
+
+@internal
+pub fn max_fields_per_definition(type_: String) -> Int {
+  case string.starts_with(type_, "shopify--form-") {
+    True -> forms_max_fields_per_definition
+    False -> default_max_fields_per_definition
+  }
+}
+
+@internal
+pub fn append_display_name_key_user_errors(
+  errors: List(UserError),
+  display_name_key: Option(String),
+  field_keys: List(String),
+) -> List(UserError) {
+  case display_name_key {
+    Some(key) ->
       append_if(
         errors,
-        !is_valid_field_key(k),
-        invalid_field_key_user_error(index, k),
+        !list.contains(field_keys, key),
+        undefined_display_name_key_user_error(key),
       )
     None -> errors
   }
 }
 
 @internal
-pub fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
+pub fn undefined_display_name_key_user_error(key: String) -> UserError {
   UserError(
-    Some(["definition", "fieldDefinitions", int.to_string(index), "key"]),
-    "is invalid",
-    "INVALID",
-    Some(key),
-    Some(index),
+    Some(["definition", "displayNameKey"]),
+    "Field definition \"" <> key <> "\" does not exist",
+    "UNDEFINED_OBJECT_FIELD",
+    None,
+    None,
   )
 }
 
@@ -519,6 +652,8 @@ pub fn apply_definition_update(
   let type_ =
     normalized_definition_type_from_input(input, requesting_api_client_id)
     |> option.unwrap(existing.type_)
+  let display_name_key =
+    read_string_if_present(input, "displayNameKey", existing.display_name_key)
   let type_errors =
     build_update_definition_type_user_errors(
       store,
@@ -540,11 +675,7 @@ pub fn apply_definition_update(
       type_: type_,
       name: name,
       description: description,
-      display_name_key: read_string_if_present(
-        input,
-        "displayNameKey",
-        existing.display_name_key,
-      ),
+      display_name_key: display_name_key,
       access: case read_object(input, "access") {
         Some(access) -> build_definition_access(Some(access), existing.access)
         None -> existing.access
@@ -568,6 +699,12 @@ pub fn apply_definition_update(
       scalar_errors,
       access_errors,
       user_errors,
+      append_field_count_user_errors([], list.length(next_fields), type_),
+      append_display_name_key_user_errors(
+        [],
+        display_name_key,
+        list.map(next_fields, fn(field) { field.key }),
+      ),
     ]),
   )
 }
@@ -737,53 +874,67 @@ pub fn apply_field_definition_operations(
   existing: List(MetaobjectFieldDefinitionRecord),
   operations: List(root_field.ResolvedValue),
 ) -> #(List(MetaobjectFieldDefinitionRecord), List(UserError), List(String)) {
-  list.fold(enumerate_values(operations), #(existing, [], []), fn(acc, pair) {
-    let #(fields, errors, ordered_keys) = acc
-    let #(index, value) = pair
-    case read_field_operation(value) {
-      None -> #(fields, errors, ordered_keys)
-      Some(operation) -> {
-        let key = field_operation_key(operation)
-        case key {
-          None -> #(
-            fields,
-            list.append(errors, [
-              UserError(
-                Some([
-                  "definition",
-                  "fieldDefinitions",
-                  int.to_string(index),
-                  "key",
-                ]),
-                "Key can't be blank",
-                "BLANK",
-                None,
-                Some(index),
-              ),
-            ]),
-            ordered_keys,
-          )
-          Some(k) ->
-            case is_valid_field_key(k) {
-              False -> #(
+  let #(fields, errors, ordered_keys, _) =
+    list.fold(
+      enumerate_values(operations),
+      #(existing, [], [], []),
+      fn(acc, pair) {
+        let #(fields, errors, ordered_keys, seen_keys) = acc
+        let #(index, value) = pair
+        case read_field_operation(value) {
+          None -> #(fields, errors, ordered_keys, seen_keys)
+          Some(operation) -> {
+            let key = field_operation_key(operation)
+            case key {
+              None -> #(
                 fields,
-                list.append(errors, [invalid_field_key_user_error(index, k)]),
+                list.append(errors, [
+                  UserError(
+                    Some([
+                      "definition",
+                      "fieldDefinitions",
+                      int.to_string(index),
+                      "key",
+                    ]),
+                    "Key can't be blank",
+                    "BLANK",
+                    None,
+                    Some(index),
+                  ),
+                ]),
                 ordered_keys,
+                seen_keys,
               )
-              True ->
-                apply_field_operation(
-                  fields,
-                  errors,
-                  list.append(ordered_keys, [k]),
-                  operation,
-                  k,
-                  index,
-                )
+              Some(k) -> {
+                let key_errors =
+                  field_definition_key_user_errors(index, k, seen_keys)
+                case key_errors {
+                  [_, ..] -> #(
+                    fields,
+                    list.append(errors, key_errors),
+                    ordered_keys,
+                    [k, ..seen_keys],
+                  )
+                  [] -> {
+                    let #(fields, errors, ordered_keys) =
+                      apply_field_operation(
+                        fields,
+                        errors,
+                        list.append(ordered_keys, [k]),
+                        operation,
+                        k,
+                        index,
+                      )
+                    #(fields, errors, ordered_keys, [k, ..seen_keys])
+                  }
+                }
+              }
             }
+          }
         }
-      }
-    }
-  })
+      },
+    )
+  #(fields, errors, ordered_keys)
 }
 
 @internal
@@ -1027,6 +1178,25 @@ pub fn build_metaobject_from_create_input(
   input: Dict(String, root_field.ResolvedValue),
   definition: MetaobjectDefinitionRecord,
 ) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
+  let handle_errors = explicit_metaobject_create_handle_validation_errors(input)
+  case handle_errors {
+    [_, ..] -> #(None, identity, handle_errors)
+    [] ->
+      build_metaobject_from_valid_create_input(
+        store,
+        identity,
+        input,
+        definition,
+      )
+  }
+}
+
+fn build_metaobject_from_valid_create_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
   let capability_errors =
     build_metaobject_capability_user_errors(input, definition)
   let #(fields, errors) = case capability_errors {
@@ -1076,6 +1246,27 @@ pub fn build_metaobject_from_create_input(
 
 @internal
 pub fn apply_metaobject_update_input(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  existing: MetaobjectRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetaobjectDefinitionRecord,
+) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
+  let handle_errors = explicit_metaobject_update_handle_validation_errors(input)
+  case handle_errors {
+    [_, ..] -> #(None, identity, handle_errors)
+    [] ->
+      apply_valid_metaobject_update_input(
+        store,
+        identity,
+        existing,
+        input,
+        definition,
+      )
+  }
+}
+
+fn apply_valid_metaobject_update_input(
   store: Store,
   identity: SyntheticIdentityRegistry,
   existing: MetaobjectRecord,
@@ -1169,6 +1360,107 @@ pub fn apply_metaobject_update_input(
       }
     }
   }
+}
+
+@internal
+pub fn explicit_metaobject_create_handle_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "handle") {
+    Ok(root_field.StringVal(value)) ->
+      validate_explicit_metaobject_create_handle(value)
+    _ -> []
+  }
+}
+
+@internal
+pub fn explicit_metaobject_update_handle_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "handle") {
+    Ok(root_field.StringVal(value)) ->
+      validate_explicit_metaobject_update_handle(value)
+    _ -> []
+  }
+}
+
+@internal
+pub fn validate_explicit_metaobject_create_handle(
+  handle: String,
+) -> List(UserError) {
+  case string.trim(handle) {
+    "" -> []
+    _ ->
+      validate_explicit_metaobject_handle_with_field(
+        handle,
+        ["metaobject", "handle"],
+        False,
+      )
+  }
+}
+
+@internal
+pub fn validate_explicit_metaobject_update_handle(
+  handle: String,
+) -> List(UserError) {
+  validate_explicit_metaobject_handle_with_field(
+    handle,
+    ["metaobject", "handle"],
+    True,
+  )
+}
+
+@internal
+pub fn validate_explicit_metaobject_handle_with_field(
+  handle: String,
+  field: List(String),
+  reject_blank: Bool,
+) -> List(UserError) {
+  let trimmed = string.trim(handle)
+  case trimmed == "" && reject_blank {
+    True -> [
+      metaobject_handle_user_error(field, "Handle can't be blank", "BLANK"),
+      metaobject_handle_user_error(field, "Handle is invalid", "INVALID"),
+    ]
+    False ->
+      case string.length(handle) > metaobject_handle_max_length {
+        True -> [
+          metaobject_handle_user_error(
+            field,
+            "Handle is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False ->
+          case is_valid_metaobject_handle(handle) {
+            True -> []
+            False -> [
+              metaobject_handle_user_error(
+                field,
+                "Handle contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+                "INVALID",
+              ),
+            ]
+          }
+      }
+  }
+}
+
+fn metaobject_handle_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> UserError {
+  UserError(Some(field), message, code, None, None)
+}
+
+@internal
+pub fn is_valid_metaobject_handle(handle: String) -> Bool {
+  handle != ""
+  && list.all(string.to_utf_codepoints(handle), fn(char) {
+    let codepoint = string.utf_codepoint_to_int(char)
+    is_definition_type_codepoint(codepoint)
+  })
 }
 
 @internal
@@ -1678,10 +1970,21 @@ pub fn unique_handle_loop(
         store,
         type_,
         base,
-        base <> "-" <> int.to_string(suffix + 1),
+        append_metaobject_handle_suffix(base, suffix),
         suffix + 1,
       )
   }
+}
+
+fn append_metaobject_handle_suffix(base: String, suffix: Int) -> String {
+  let suffix_text = "-" <> int.to_string(suffix)
+  let max_base_length =
+    metaobject_handle_max_length - string.length(suffix_text)
+  let base = case string.length(base) > max_base_length {
+    True -> string.slice(base, 0, max_base_length)
+    False -> base
+  }
+  base <> suffix_text
 }
 
 @internal
@@ -1691,6 +1994,32 @@ pub fn normalize_metaobject_handle(value: String) -> String {
   |> string.lowercase
   |> string.replace(" ", "-")
   |> string.replace("_", "-")
+  |> strip_invalid_metaobject_handle_characters
+  |> cap_metaobject_handle
+}
+
+fn strip_invalid_metaobject_handle_characters(value: String) -> String {
+  value
+  |> string.to_utf_codepoints
+  |> list.filter(fn(char) {
+    is_valid_normalized_metaobject_handle_codepoint(string.utf_codepoint_to_int(
+      char,
+    ))
+  })
+  |> string.from_utf_codepoints
+}
+
+fn is_valid_normalized_metaobject_handle_codepoint(codepoint: Int) -> Bool {
+  is_ascii_lowercase_letter(codepoint)
+  || is_ascii_digit(codepoint)
+  || codepoint == 45
+}
+
+fn cap_metaobject_handle(value: String) -> String {
+  case string.length(value) > metaobject_handle_max_length {
+    True -> string.slice(value, 0, metaobject_handle_max_length)
+    False -> value
+  }
 }
 
 @internal

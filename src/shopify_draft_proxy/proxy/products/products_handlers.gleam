@@ -649,6 +649,24 @@ pub fn serialize_product_operation_root(
 }
 
 @internal
+pub fn serialize_product_operation_node_by_id(
+  store: Store,
+  id: String,
+  selection: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_product_operation_by_id(store, id) {
+    Some(operation) ->
+      project_graphql_value(
+        product_operation_source(store, operation),
+        selection,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+@internal
 pub fn product_duplicate_payload(
   store: Store,
   new_product: Option(ProductRecord),

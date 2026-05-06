@@ -1,0 +1,73 @@
+{
+  "fixtureKind": "local-runtime-pub-sub-server-pixel-update-blank-required",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T07:12:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for Pub/Sub ServerPixel endpoint required-field validation.",
+  "expected": {
+    "blankProject": {
+      "response": {
+        "errors": [
+          {
+            "message": "pubSubProject can't be blank",
+            "extensions": {
+              "code": "INVALID_FIELD_ARGUMENTS"
+            },
+            "path": ["pubSubServerPixelUpdate"]
+          }
+        ]
+      }
+    },
+    "blankTopic": {
+      "response": {
+        "errors": [
+          {
+            "message": "pubSubTopic can't be blank",
+            "extensions": {
+              "code": "INVALID_FIELD_ARGUMENTS"
+            },
+            "path": ["pubSubServerPixelUpdate"]
+          }
+        ]
+      }
+    },
+    "missingProject": {
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'pubSubServerPixelUpdate' is missing required arguments: pubSubProject",
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "pubSubServerPixelUpdate",
+              "arguments": "pubSubProject"
+            }
+          }
+        ]
+      }
+    },
+    "missingTopic": {
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'pubSubServerPixelUpdate' is missing required arguments: pubSubTopic",
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "pubSubServerPixelUpdate",
+              "arguments": "pubSubTopic"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "evidence": {
+    "source": "local-runtime",
+    "notes": [
+      "The generic parity runner executes each request against the local proxy with an empty upstream cassette.",
+      "Live probe evidence from the implementation pass confirmed Shopify rejects blank Pub/Sub project input with INVALID_FIELD_ARGUMENTS; current credentials do not permit server-pixel success-path captures."
+    ]
+  },
+  "upstreamCalls": []
+}

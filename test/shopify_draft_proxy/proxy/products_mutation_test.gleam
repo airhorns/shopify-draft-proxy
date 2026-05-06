@@ -13,13 +13,15 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
-  type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
+  type InventoryQuantityRecord, type InventoryTransferRecord,
+  type LocationRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
   type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
   CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryQuantityRecord, MetafieldDefinitionCapabilitiesRecord,
+  InventoryQuantityRecord, InventoryTransferLineItemRecord,
+  InventoryTransferRecord, LocationRecord, MetafieldDefinitionCapabilitiesRecord,
   MetafieldDefinitionCapabilityRecord, MetafieldDefinitionRecord,
   MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
   ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
@@ -1557,7 +1559,7 @@ pub fn product_user_error_shape_validation_branches_test() {
     )
   assert activate_status == 200
   assert json.to_string(activate_body)
-    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"INVALID_INVENTORY_ITEM\"}]}}}"
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
 }
 
 pub fn combined_listing_update_rejects_non_parent_product_test() {
@@ -2880,6 +2882,123 @@ pub fn collection_add_remove_products_updates_count_and_rejects_smart_collection
     == "{\"data\":{\"collectionRemoveProducts\":{\"job\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Can't manually remove products from a smart collection\"}]}}}"
 }
 
+pub fn collection_async_product_membership_jobs_and_caps_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let add_success =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_success))
+  assert add_status == 200
+  assert json.to_string(add_body)
+    == "{\"data\":{\"collectionAddProductsV2\":{\"job\":{\"id\":\"gid://shopify/Job/1\",\"done\":false,\"query\":null},\"userErrors\":[]}}}"
+
+  let add_job_read =
+    "query { job(id: \\\"gid://shopify/Job/1\\\") { __typename id done query { __typename } } }"
+  let #(Response(status: add_job_status, body: add_job_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_job_read))
+  assert add_job_status == 200
+  assert json.to_string(add_job_body)
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/1\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+
+  let unknown_add =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(Response(status: unknown_add_status, body: unknown_add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_add))
+  assert unknown_add_status == 200
+  let unknown_add_json = json.to_string(unknown_add_body)
+  assert string.contains(
+    unknown_add_json,
+    "\"job\":{\"id\":\"gid://shopify/Job/",
+  )
+  assert string.contains(unknown_add_json, "\"done\":false,\"query\":null")
+  assert string.contains(unknown_add_json, "\"userErrors\":[]")
+
+  let too_many_ids =
+    repeated_product_ids_csv("gid://shopify/Product/second", 251)
+  let too_many_add =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/custom\\\", productIds: ["
+    <> too_many_ids
+    <> "]) { job { id done } userErrors { field message } } }"
+  let #(
+    Response(status: too_many_add_status, body: too_many_add_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(too_many_add))
+  let too_many_add_json = json.to_string(too_many_add_body)
+  assert too_many_add_status == 200
+  assert !string.contains(too_many_add_json, "\"data\"")
+  assert string.contains(
+    too_many_add_json,
+    "\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\"",
+  )
+  assert string.contains(
+    too_many_add_json,
+    "\"path\":[\"collectionAddProductsV2\",\"productIds\"]",
+  )
+  assert string.contains(
+    too_many_add_json,
+    "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"",
+  )
+
+  let remove_success =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(remove_success))
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"collectionRemoveProducts\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null},\"userErrors\":[]}}}"
+
+  let remove_job_read =
+    "query { job(id: \\\"gid://shopify/Job/5\\\") { __typename id done query { __typename } } }"
+  let #(Response(status: remove_job_status, body: remove_job_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(remove_job_read))
+  assert remove_job_status == 200
+  assert json.to_string(remove_job_body)
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+
+  let unknown_remove =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(
+    Response(status: unknown_remove_status, body: unknown_remove_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(unknown_remove))
+  assert unknown_remove_status == 200
+  let unknown_remove_json = json.to_string(unknown_remove_body)
+  assert string.contains(
+    unknown_remove_json,
+    "\"job\":{\"id\":\"gid://shopify/Job/",
+  )
+  assert string.contains(unknown_remove_json, "\"done\":false,\"query\":null")
+  assert string.contains(unknown_remove_json, "\"userErrors\":[]")
+
+  let too_many_remove =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: ["
+    <> too_many_ids
+    <> "]) { job { id done } userErrors { field message } } }"
+  let #(
+    Response(status: too_many_remove_status, body: too_many_remove_body, ..),
+    _,
+  ) = draft_proxy.process_request(proxy, graphql_request(too_many_remove))
+  let too_many_remove_json = json.to_string(too_many_remove_body)
+  assert too_many_remove_status == 200
+  assert !string.contains(too_many_remove_json, "\"data\"")
+  assert string.contains(
+    too_many_remove_json,
+    "\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\"",
+  )
+  assert string.contains(
+    too_many_remove_json,
+    "\"path\":[\"collectionRemoveProducts\",\"productIds\"]",
+  )
+  assert string.contains(
+    too_many_remove_json,
+    "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"",
+  )
+}
+
 pub fn collection_update_rejects_invalid_fields_and_custom_to_smart_switch_test() {
   let proxy =
     proxy_state.DraftProxy(
@@ -3114,7 +3233,7 @@ pub fn product_set_rejects_missing_and_suspended_product_references_test() {
 
 pub fn product_bundle_create_rejects_component_validation_branches_test() {
   let missing_query =
-    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/0\\\", quantity: 1, optionSelections: [] }] }) { productBundleOperation { id status product { id } } userErrors { field message } } }"
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/0\\\", quantity: 1, optionSelections: [] }] }) { productBundleOperation { id status product { id } userErrors { field message } } userErrors { field message } } }"
   let #(Response(status: missing_status, body: missing_body, ..), missing_proxy) =
     draft_proxy.process_request(
       draft_proxy.new(),
@@ -3237,19 +3356,55 @@ pub fn product_bundle_create_stages_operation_and_operation_read_test() {
     draft_proxy.process_request(proxy, graphql_request(mutation))
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/2\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productBundleCreate")
   assert entry.status == store_types.Staged
-  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/1"]
+  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/2"]
 
   let operation_read =
-    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/1\\\") { __typename status product { id } ... on ProductBundleOperation { id } } }"
+    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/2\\\") { __typename status product { id title } ... on ProductBundleOperation { id userErrors { field message } } } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     draft_proxy.process_request(next_proxy, graphql_request(operation_read))
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"ACTIVE\",\"product\":null,\"id\":\"gid://shopify/ProductBundleOperation/1\"}}}"
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Bundle\"},\"id\":\"gid://shopify/ProductBundleOperation/2\",\"userErrors\":[]}}}"
+
+  let node_read =
+    "query { node(id: \\\"gid://shopify/ProductBundleOperation/2\\\") { __typename ... on ProductBundleOperation { id status product { id } userErrors { field message } } } }"
+  let #(Response(status: node_status, body: node_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(node_read))
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"node\":{\"__typename\":\"ProductBundleOperation\",\"id\":\"gid://shopify/ProductBundleOperation/2\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_bundle_update_stages_completed_operation_with_product_test() {
+  let option_selections =
+    "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/material\\\", name: \\\"Material\\\", values: [\\\"Cotton\\\"] }"
+  let mutation =
+    "mutation { productBundleUpdate(input: { productId: \\\"gid://shopify/Product/optioned\\\", title: \\\"Updated Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 1, optionSelections: ["
+    <> option_selections
+    <> "] }] }) { productBundleOperation { id status product { id } } userErrors { field message } } }"
+  let proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: three_option_store())
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productBundleUpdate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productBundleUpdate")
+  assert entry.status == store_types.Staged
+  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/1"]
+
+  let operation_read =
+    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/1\\\") { __typename status product { id title } ... on ProductBundleOperation { id userErrors { field message } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(operation_read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Updated Bundle\"},\"id\":\"gid://shopify/ProductBundleOperation/1\",\"userErrors\":[]}}}"
 }
 
 pub fn product_set_async_operation_completes_on_product_operation_read_test() {
@@ -3612,7 +3767,11 @@ pub fn product_set_rejects_invalid_variant_scalars_test() {
 
 pub fn inventory_shipment_extended_roots_stage_locally_test() {
   let proxy = draft_proxy.new()
-  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_transfer("READY_TO_SHIP", 5),
+    )
   let create_query =
     "mutation { inventoryShipmentCreate(input: { movementId: \\\"gid://shopify/InventoryTransfer/7001\\\", trackingInput: { trackingNumber: \\\"1Z999\\\", company: \\\"UPS\\\" }, lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryShipment { id status lineItemTotalQuantity tracking { trackingNumber company } lineItems(first: 10) { nodes { id quantity unreceivedQuantity } } } userErrors { field message code } } }"
 
@@ -3678,6 +3837,196 @@ pub fn inventory_shipment_extended_roots_stage_locally_test() {
   assert remove_entry.operation_name == Some("inventoryShipmentRemoveItems")
   assert string.contains(create_entry.query, "inventoryShipmentCreate")
   assert string.contains(remove_entry.query, "inventoryShipmentRemoveItems")
+}
+
+pub fn inventory_shipment_create_validates_transfer_membership_and_quantity_test() {
+  let unknown_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/missing\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(unknown_status, unknown_body, unknown_proxy) =
+    run_product_mutation(tracked_inventory_store(), unknown_query)
+  assert unknown_status == 200
+  assert unknown_body
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":null,\"userErrors\":[{\"field\":[\"transferId\"],\"message\":\"The specified inventory transfer could not be found.\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [unknown_entry] = store.get_log(unknown_proxy.store)
+  assert unknown_entry.status == store_types.Failed
+
+  let received_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(received_status, received_body, received_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("RECEIVED", 2),
+      received_query,
+    )
+  assert received_status == 200
+  assert string.contains(received_body, "\"code\":\"INVALID_STATE\"")
+  let assert [received_entry] = store.get_log(received_proxy.store)
+  assert received_entry.status == store_types.Failed
+
+  let wrong_line_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/not-member\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(wrong_line_status, wrong_line_body, wrong_line_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+      wrong_line_query,
+    )
+  assert wrong_line_status == 200
+  assert wrong_line_body
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"inventoryTransferLineItemId\"],\"message\":\"The specified inventory transfer line item could not be found.\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [wrong_line_entry] = store.get_log(wrong_line_proxy.store)
+  assert wrong_line_entry.status == store_types.Failed
+
+  let quantity_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 3 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(quantity_status, quantity_body, quantity_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+      quantity_query,
+    )
+  assert quantity_status == 200
+  assert quantity_body
+    == "{\"data\":{\"inventoryShipmentCreate\":{\"inventoryShipment\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"quantity\"],\"message\":\"Quantity exceeds the remaining quantity for the inventory transfer line item.\",\"code\":\"QUANTITY_EXCEEDS_REMAINING\"}]}}}"
+  let assert [quantity_entry] = store.get_log(quantity_proxy.store)
+  assert quantity_entry.status == store_types.Failed
+}
+
+pub fn inventory_shipment_mutators_validate_state_and_remaining_quantity_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+    )
+  let create_query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id lineItems(first: 5) { nodes { id quantity } } } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let add_query =
+    "mutation { inventoryShipmentAddItems(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }]) { inventoryShipment { id } addedItems { id } userErrors { field message code } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+  assert add_status == 200
+  assert string.contains(
+    json.to_string(add_body),
+    "\"code\":\"QUANTITY_EXCEEDS_REMAINING\"",
+  )
+
+  let update_query =
+    "mutation { inventoryShipmentUpdateItemQuantities(id: \\\"gid://shopify/InventoryShipment/1\\\", items: [{ shipmentLineItemId: \\\"gid://shopify/InventoryShipmentLineItem/2\\\", quantity: 3 }]) { shipment { id } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert string.contains(
+    json.to_string(update_body),
+    "\"code\":\"QUANTITY_EXCEEDS_REMAINING\"",
+  )
+
+  let receive_query =
+    "mutation { inventoryShipmentReceive(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ shipmentLineItemId: \\\"gid://shopify/InventoryShipmentLineItem/2\\\", quantity: 1, reason: ACCEPTED }]) { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(Response(status: receive_status, body: receive_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(receive_query))
+  assert receive_status == 200
+  assert string.contains(
+    json.to_string(receive_body),
+    "\"code\":\"INVALID_STATE\"",
+  )
+
+  let transit_query =
+    "mutation { inventoryShipmentMarkInTransit(id: \\\"gid://shopify/InventoryShipment/1\\\") { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(Response(status: transit_status, body: transit_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(transit_query))
+  assert transit_status == 200
+  assert string.contains(json.to_string(transit_body), "\"userErrors\":[]")
+
+  let repeated_transit_query =
+    "mutation { inventoryShipmentMarkInTransit(id: \\\"gid://shopify/InventoryShipment/1\\\") { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(
+    Response(status: repeated_transit_status, body: repeated_transit_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(proxy, graphql_request(repeated_transit_query))
+  assert repeated_transit_status == 200
+  assert string.contains(
+    json.to_string(repeated_transit_body),
+    "\"code\":\"INVALID_STATE\"",
+  )
+
+  let receive_after_transit_query =
+    "mutation { inventoryShipmentReceive(id: \\\"gid://shopify/InventoryShipment/1\\\", lineItems: [{ shipmentLineItemId: \\\"gid://shopify/InventoryShipmentLineItem/2\\\", quantity: 1, reason: ACCEPTED }]) { inventoryShipment { id status } userErrors { field message code } } }"
+  let #(
+    Response(
+      status: receive_after_transit_status,
+      body: receive_after_transit_body,
+      ..,
+    ),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(receive_after_transit_query),
+    )
+  assert receive_after_transit_status == 200
+  assert string.contains(
+    json.to_string(receive_after_transit_body),
+    "\"status\":\"RECEIVED\"",
+  )
+  assert string.contains(
+    json.to_string(receive_after_transit_body),
+    "\"userErrors\":[]",
+  )
+
+  let delete_received_query =
+    "mutation { inventoryShipmentDelete(id: \\\"gid://shopify/InventoryShipment/1\\\") { deletedInventoryShipmentId userErrors { field message code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_received_query))
+  assert delete_status == 200
+  assert string.contains(
+    json.to_string(delete_body),
+    "\"code\":\"INVALID_STATE\"",
+  )
+
+  let assert [
+    create_entry,
+    add_entry,
+    update_entry,
+    receive_entry,
+    transit_entry,
+    repeated_transit_entry,
+    receive_after_transit_entry,
+    delete_received_entry,
+  ] = store.get_log(proxy.store)
+  assert create_entry.status == store_types.Staged
+  assert add_entry.status == store_types.Failed
+  assert update_entry.status == store_types.Failed
+  assert receive_entry.status == store_types.Failed
+  assert transit_entry.status == store_types.Staged
+  assert repeated_transit_entry.status == store_types.Failed
+  assert receive_after_transit_entry.status == store_types.Staged
+  assert delete_received_entry.status == store_types.Failed
+}
+
+pub fn inventory_shipment_tracking_validates_carrier_and_url_test() {
+  let query =
+    "mutation { inventoryShipmentCreate(input: { transferId: \\\"gid://shopify/InventoryTransfer/7001\\\", trackingInput: { carrier: BAD_CARRIER, url: \\\"not-a-url\\\" }, lineItems: [{ inventoryTransferLineItemId: \\\"gid://shopify/InventoryTransferLineItem/7001\\\", inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryShipment { id } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(
+      tracked_inventory_store_with_transfer("READY_TO_SHIP", 2),
+      query,
+    )
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"field\":[\"input\",\"trackingInput\",\"carrier\"]",
+  )
+  assert string.contains(
+    body,
+    "\"field\":[\"input\",\"trackingInput\",\"url\"]",
+  )
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
 }
 
 pub fn inventory_set_quantities_validates_name_quantity_and_duplicates_test() {
@@ -3925,6 +4274,79 @@ pub fn inventory_deactivate_only_location_stays_active_test() {
     == "{\"data\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":true}}}"
 }
 
+pub fn inventory_activate_unknown_location_returns_not_found_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/missing\\\") { inventoryLevel { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"locationId\"],\"message\":\"The product couldn't be stocked because the location wasn't found.\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn inventory_activate_rejects_negative_quantities_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_locations([
+        location_record("gid://shopify/Location/1", "Shop location"),
+        location_record("gid://shopify/Location/2", "Second location"),
+      ]),
+    )
+  let available_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\", available: -1) { inventoryLevel { id } userErrors { field message code } } }"
+
+  let #(Response(status: available_status, body: available_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(available_query))
+
+  assert available_status == 200
+  assert json.to_string(available_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"available\"],\"message\":\"Available must be greater than or equal to 0\",\"code\":\"NEGATIVE\"}]}}}"
+
+  let on_hand_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\", onHand: -1) { inventoryLevel { id } userErrors { field message code } } }"
+
+  let #(Response(status: on_hand_status, body: on_hand_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(on_hand_query))
+
+  assert on_hand_status == 200
+  assert json.to_string(on_hand_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"onHand\"],\"message\":\"On hand must be greater than or equal to 0\",\"code\":\"NEGATIVE\"}]}}}"
+}
+
+pub fn inventory_activate_duplicate_staged_activation_returns_taken_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_locations([
+        location_record("gid://shopify/Location/1", "Shop location"),
+        location_record("gid://shopify/Location/2", "Second location"),
+      ]),
+    )
+  let query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\") { inventoryLevel { id isActive location { id name } } userErrors { field message code } } }"
+
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked\",\"isActive\":true,\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Second location\"}},\"userErrors\":[]}}}"
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked\",\"isActive\":true,\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Second location\"}},\"userErrors\":[{\"field\":[\"locationId\"],\"message\":\"Inventory level has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
 pub fn inventory_activate_available_conflict_requires_active_level_test() {
   let active_proxy = draft_proxy.new()
   let active_proxy =
@@ -3970,6 +4392,73 @@ pub fn inventory_activate_available_conflict_requires_active_level_test() {
     == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[]}}}"
 }
 
+pub fn inventory_bulk_toggle_unknown_location_returns_not_found_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryBulkToggleActivation(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", inventoryItemUpdates: [{ locationId: \\\"gid://shopify/Location/missing\\\", activate: true }]) { inventoryItem { id } inventoryLevels { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryBulkToggleActivation\":{\"inventoryItem\":null,\"inventoryLevels\":null,\"userErrors\":[{\"field\":[\"inventoryItemUpdates\",\"0\",\"locationId\"],\"message\":\"The quantity couldn't be updated because the location was not found.\",\"code\":\"LOCATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn inventory_bulk_toggle_activate_known_location_stages_level_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_locations([
+        location_record("gid://shopify/Location/1", "Shop location"),
+        location_record("gid://shopify/Location/2", "Second location"),
+      ]),
+    )
+  let query =
+    "mutation { inventoryBulkToggleActivation(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", inventoryItemUpdates: [{ locationId: \\\"gid://shopify/Location/2\\\", activate: true }]) { inventoryItem { id } inventoryLevels { id location { id name } item { id } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryBulkToggleActivation\":{\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"inventoryLevels\":[{\"id\":\"gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked\",\"location\":{\"id\":\"gid://shopify/Location/2\",\"name\":\"Second location\"},\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"}}],\"userErrors\":[]}}}"
+}
+
+pub fn inventory_bulk_toggle_deactivate_last_active_location_returns_error_test() {
+  let inactive_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      False,
+      [
+        inventory_quantity("available", 0),
+        inventory_quantity("on_hand", 0),
+      ],
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+        tracked_inventory_level(),
+        inactive_level,
+      ]),
+    )
+  let query =
+    "mutation { inventoryBulkToggleActivation(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", inventoryItemUpdates: [{ locationId: \\\"gid://shopify/Location/1\\\", activate: false }]) { inventoryItem { id } inventoryLevels { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryBulkToggleActivation\":{\"inventoryItem\":null,\"inventoryLevels\":null,\"userErrors\":[{\"field\":[\"inventoryItemUpdates\",\"0\",\"locationId\"],\"message\":\"The variant couldn't be unstocked from Shop location because products need to be stocked at a minimum of 1 location.\",\"code\":\"CANNOT_DEACTIVATE_FROM_ONLY_LOCATION\"}]}}}"
+}
+
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
@@ -4004,6 +4493,199 @@ pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   assert string.contains(create_entry.query, "inventoryTransferCreate")
   assert string.contains(edit_entry.query, "inventoryTransferEdit")
   assert string.contains(duplicate_entry.query, "inventoryTransferDuplicate")
+}
+
+pub fn inventory_transfer_create_rejects_validation_errors_test() {
+  assert_inventory_transfer_create_error(
+    "originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/1\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }]",
+    "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION",
+    "[\"input\",\"destinationLocationId\"]",
+    "The origin location cannot be the same as the destination location.",
+  )
+  assert_inventory_transfer_create_error(
+    "originLocationId: \\\"gid://shopify/Location/missing\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }]",
+    "LOCATION_NOT_FOUND",
+    "[\"input\",\"originLocationId\"]",
+    "The location selected can't be found.",
+  )
+  assert_inventory_transfer_create_error(
+    "originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/missing\\\", quantity: 1 }]",
+    "ITEM_NOT_FOUND",
+    "[\"input\",\"lineItems\",\"0\",\"inventoryItemId\"]",
+    "The inventory item could not be found.",
+  )
+  assert_inventory_transfer_create_error(
+    "originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }, { inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }]",
+    "DUPLICATE_ITEM",
+    "[\"input\",\"lineItems\",\"1\",\"inventoryItemId\"]",
+    "The inventory item is already present in the list. Each item must be unique.",
+  )
+  assert_inventory_transfer_create_error(
+    "originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: -1 }]",
+    "INVALID_QUANTITY",
+    "[\"input\",\"lineItems\",\"0\",\"quantity\"]",
+    "The quantity can't be negative.",
+  )
+
+  let inactive_destination_store =
+    tracked_inventory_store()
+    |> store.upsert_base_locations([
+      LocationRecord(
+        id: "gid://shopify/Location/2",
+        name: "Destination location",
+        is_active: Some(False),
+        cursor: None,
+      ),
+    ])
+  assert_inventory_transfer_create_error_with_store(
+    inactive_destination_store,
+    "originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }]",
+    "LOCATION_NOT_FOUND",
+    "[\"input\",\"destinationLocationId\"]",
+    "The location selected can't be found.",
+  )
+
+  let not_stocked_at_origin_store =
+    tracked_inventory_store_with_levels([
+      inventory_level(
+        "gid://shopify/InventoryLevel/tracked-destination?inventory_item_id=tracked",
+        "gid://shopify/Location/2",
+        "Destination location",
+        True,
+        [
+          inventory_quantity("available", 1),
+          inventory_quantity("on_hand", 1),
+        ],
+      ),
+    ])
+  assert_inventory_transfer_create_error_with_store(
+    not_stocked_at_origin_store,
+    "originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }]",
+    "ITEM_NOT_FOUND",
+    "[\"input\",\"lineItems\",\"0\",\"inventoryItemId\"]",
+    "The inventory item could not be found.",
+  )
+}
+
+pub fn inventory_transfer_edit_rejects_location_validation_errors_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let create_query =
+    "mutation { inventoryTransferCreate(input: { originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+
+  let edit_query =
+    "mutation { inventoryTransferEdit(id: \\\"gid://shopify/InventoryTransfer/1\\\", input: { destinationId: \\\"gid://shopify/Location/1\\\" }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(Response(status: edit_status, body: edit_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(edit_query))
+  let edit_serialized = json.to_string(edit_body)
+  assert edit_status == 200
+  assert string.contains(
+    edit_serialized,
+    "\"code\":\"TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION\"",
+  )
+  assert string.contains(
+    edit_serialized,
+    "\"field\":[\"input\",\"destinationId\"]",
+  )
+
+  let unknown_query =
+    "mutation { inventoryTransferEdit(id: \\\"gid://shopify/InventoryTransfer/1\\\", input: { originId: \\\"gid://shopify/Location/missing\\\" }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_query))
+  let unknown_serialized = json.to_string(unknown_body)
+  assert unknown_status == 200
+  assert string.contains(unknown_serialized, "\"code\":\"LOCATION_NOT_FOUND\"")
+  assert string.contains(
+    unknown_serialized,
+    "\"field\":[\"input\",\"originId\"]",
+  )
+
+  let assert [create_entry, same_entry, unknown_entry] =
+    store.get_log(proxy.store)
+  assert create_entry.status == store_types.Staged
+  assert same_entry.status == store_types.Failed
+  assert unknown_entry.status == store_types.Failed
+}
+
+pub fn inventory_transfer_set_items_rejects_line_item_validation_errors_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let create_query =
+    "mutation { inventoryTransferCreate(input: { originLocationId: \\\"gid://shopify/Location/1\\\", destinationLocationId: \\\"gid://shopify/Location/2\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }] }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+
+  let duplicate_query =
+    "mutation { inventoryTransferSetItems(input: { id: \\\"gid://shopify/InventoryTransfer/1\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1 }, { inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 2 }] }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  let duplicate_serialized = json.to_string(duplicate_body)
+  assert duplicate_status == 200
+  assert string.contains(duplicate_serialized, "\"code\":\"DUPLICATE_ITEM\"")
+  assert string.contains(
+    duplicate_serialized,
+    "\"field\":[\"input\",\"lineItems\",\"1\",\"inventoryItemId\"]",
+  )
+
+  let negative_query =
+    "mutation { inventoryTransferSetItems(input: { id: \\\"gid://shopify/InventoryTransfer/1\\\", lineItems: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: -1 }] }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(Response(status: negative_status, body: negative_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(negative_query))
+  let negative_serialized = json.to_string(negative_body)
+  assert negative_status == 200
+  assert string.contains(negative_serialized, "\"code\":\"INVALID_QUANTITY\"")
+  assert string.contains(
+    negative_serialized,
+    "\"field\":[\"input\",\"lineItems\",\"0\",\"quantity\"]",
+  )
+
+  let assert [create_entry, duplicate_entry, negative_entry] =
+    store.get_log(proxy.store)
+  assert create_entry.status == store_types.Staged
+  assert duplicate_entry.status == store_types.Failed
+  assert negative_entry.status == store_types.Failed
+}
+
+fn assert_inventory_transfer_create_error(
+  input: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  assert_inventory_transfer_create_error_with_store(
+    tracked_inventory_store(),
+    input,
+    code,
+    field_json,
+    message,
+  )
+}
+
+fn assert_inventory_transfer_create_error_with_store(
+  test_store: store.Store,
+  input: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let query =
+    "mutation { inventoryTransferCreate(input: { "
+    <> input
+    <> " }) { inventoryTransfer { id } userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(test_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"inventoryTransfer\":null")
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
 }
 
 fn default_option_store() -> store.Store {
@@ -4328,6 +5010,10 @@ fn collection_membership_store() -> store.Store {
   ])
 }
 
+fn repeated_product_ids_csv(product_id: String, count: Int) -> String {
+  repeat_csv("\\\"" <> product_id <> "\\\"", count)
+}
+
 fn collection_record(
   id: String,
   title: String,
@@ -4391,8 +5077,56 @@ fn tracked_inventory_level() -> InventoryLevelRecord {
   )
 }
 
+fn location_record(id: String, name: String) -> LocationRecord {
+  LocationRecord(id: id, name: name, is_active: Some(True), cursor: None)
+}
+
 fn tracked_inventory_store() -> store.Store {
   tracked_inventory_store_with_levels([tracked_inventory_level()])
+}
+
+fn tracked_inventory_store_with_locations(
+  locations: List(LocationRecord),
+) -> store.Store {
+  tracked_inventory_store()
+  |> store.upsert_base_locations(locations)
+}
+
+fn tracked_inventory_store_with_transfer(
+  status: String,
+  quantity: Int,
+) -> store.Store {
+  tracked_inventory_store()
+  |> store.upsert_base_inventory_transfers([
+    inventory_transfer(status, quantity),
+  ])
+}
+
+fn inventory_transfer(
+  status: String,
+  quantity: Int,
+) -> InventoryTransferRecord {
+  InventoryTransferRecord(
+    id: "gid://shopify/InventoryTransfer/7001",
+    name: "#T7001",
+    reference_name: Some("shipment validation"),
+    status: status,
+    note: None,
+    tags: [],
+    date_created: "2024-01-01T00:00:00.000Z",
+    origin: None,
+    destination: None,
+    line_items: [
+      InventoryTransferLineItemRecord(
+        id: "gid://shopify/InventoryTransferLineItem/7001",
+        inventory_item_id: "gid://shopify/InventoryItem/tracked",
+        title: Some("Tracked Product"),
+        total_quantity: quantity,
+        shipped_quantity: 0,
+        picked_for_shipment_quantity: 0,
+      ),
+    ],
+  )
 }
 
 fn tracked_inventory_store_with_total_inventory(
@@ -4415,6 +5149,10 @@ fn tracked_inventory_store_with_levels(
   levels: List(InventoryLevelRecord),
 ) -> store.Store {
   store.new()
+  |> store.upsert_base_locations([
+    location_record("gid://shopify/Location/1", "Shop location"),
+    location_record("gid://shopify/Location/2", "Destination location"),
+  ])
   |> store.upsert_base_products([
     ProductRecord(
       ..default_product(),

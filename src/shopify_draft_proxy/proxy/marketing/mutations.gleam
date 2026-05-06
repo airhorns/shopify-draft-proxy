@@ -501,36 +501,18 @@ fn marketing_activity_update_external(
             identity,
           )
         True -> {
-          let activity = case
-            graphql_helpers.read_arg_string_nonempty(args, "remoteId")
-          {
-            Some(remote_id) ->
-              store.get_effective_marketing_activity_by_remote_id_for_app(
-                store,
-                remote_id,
-                requesting_api_client_id,
-              )
-            None ->
-              case
-                graphql_helpers.read_arg_string_nonempty(
-                  args,
-                  "marketingActivityId",
-                )
-              {
-                Some(id) ->
-                  store.get_effective_marketing_activity_record_by_id_for_app(
-                    store,
-                    id,
-                    requesting_api_client_id,
-                  )
-                None ->
-                  serializers.find_marketing_activity_by_utm_for_app(
-                    store,
-                    selector_utm,
-                    requesting_api_client_id,
-                  )
-              }
-          }
+          let activity =
+            resolve_external_activity_selectors(
+              store,
+              graphql_helpers.read_arg_string_nonempty(args, "remoteId"),
+              graphql_helpers.read_arg_string_nonempty(
+                args,
+                "marketingActivityId",
+              ),
+              selector_utm,
+              has_utm_selector,
+              requesting_api_client_id,
+            )
           case activity {
             None ->
               validation_result(
@@ -574,6 +556,70 @@ fn marketing_activity_update_external(
             }
           }
         }
+      }
+  }
+}
+
+fn resolve_external_activity_selectors(
+  store: Store,
+  remote_id: Option(String),
+  marketing_activity_id: Option(String),
+  utm: Option(Dict(String, MarketingValue)),
+  has_utm_selector: Bool,
+  requesting_api_client_id: Option(String),
+) -> Option(MarketingRecord) {
+  let selector_matches = []
+  let selector_matches = case remote_id {
+    Some(remote_id) -> [
+      store.get_effective_marketing_activity_by_remote_id_for_app(
+        store,
+        remote_id,
+        requesting_api_client_id,
+      ),
+      ..selector_matches
+    ]
+    None -> selector_matches
+  }
+  let selector_matches = case marketing_activity_id {
+    Some(id) -> [
+      store.get_effective_marketing_activity_record_by_id_for_app(
+        store,
+        id,
+        requesting_api_client_id,
+      ),
+      ..selector_matches
+    ]
+    None -> selector_matches
+  }
+  let selector_matches = case has_utm_selector {
+    True -> [
+      serializers.find_marketing_activity_by_utm_for_app(
+        store,
+        utm,
+        requesting_api_client_id,
+      ),
+      ..selector_matches
+    ]
+    False -> selector_matches
+  }
+
+  case selector_matches {
+    [] -> None
+    [first, ..rest] ->
+      case first {
+        None -> None
+        Some(activity) ->
+          case
+            list.all(rest, fn(candidate) {
+              case candidate {
+                Some(other) -> other.id == activity.id
+                None -> False
+              }
+            })
+          {
+            True -> Some(activity)
+            False -> None
+          }
       }
   }
 }
@@ -986,24 +1032,15 @@ fn marketing_activity_delete_external(
         identity,
       )
     _, _ -> {
-      let activity = case remote_id {
-        Some(remote_id) ->
-          store.get_effective_marketing_activity_by_remote_id_for_app(
-            store,
-            remote_id,
-            requesting_api_client_id,
-          )
-        None ->
-          case marketing_activity_id {
-            Some(id) ->
-              store.get_effective_marketing_activity_record_by_id_for_app(
-                store,
-                id,
-                requesting_api_client_id,
-              )
-            None -> None
-          }
-      }
+      let activity =
+        resolve_external_activity_selectors(
+          store,
+          remote_id,
+          marketing_activity_id,
+          None,
+          False,
+          requesting_api_client_id,
+        )
       case activity {
         None ->
           validation_result(

@@ -119,9 +119,28 @@ pub fn content_validation_error_payload(
   payload_key: String,
   error: graphql_helpers.SourceValue,
 ) -> #(String, Json, MutationOutcome) {
+  content_validation_errors_payload(
+    outcome,
+    field,
+    fragments,
+    root,
+    payload_key,
+    [error],
+  )
+}
+
+@internal
+pub fn content_validation_errors_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  root: String,
+  payload_key: String,
+  errors: List(graphql_helpers.SourceValue),
+) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let payload =
-    mutation_payload(field, fragments, payload_key, json.null(), [error])
+    mutation_payload(field, fragments, payload_key, json.null(), errors)
   #(
     key,
     payload,
@@ -1304,6 +1323,7 @@ pub fn integration_user_error(
 pub fn integration_user_error_typename(kind: String) -> Option(String) {
   case kind {
     "webPixel" -> Some("WebPixelUserError")
+    "serverPixel" -> Some("ServerPixelUserError")
     "scriptTag" -> Some("ScriptTagUserError")
     "theme" -> Some("ThemeUserError")
     _ -> None

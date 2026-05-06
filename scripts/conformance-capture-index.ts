@@ -596,6 +596,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-user-errors-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-user-errors-shape-conformance.ts',
+    purpose: 'stagedUploadsCreate UserError field/message shape and schema rejection for selecting code.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-user-errors-shape.json`,
+      'config/parity-specs/media/media-staged-uploads-create-user-errors-shape.json',
+    ],
+    cleanupBehavior: 'Requests validation-only staged upload metadata and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-acknowledge-update-failed',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
@@ -1261,6 +1275,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-create-field-validations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-field-validations-conformance.ts',
+    purpose:
+      'Metaobject definition create fieldDefinitions validation for reserved keys, duplicate input, displayNameKey resolution, hyphen keys, and max field count.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}definition-create-field-validations.json`,
+      'config/parity-specs/metaobjects/definition_create_field_validations.json',
+      'config/parity-requests/metaobjects/definition-create-field-validations.graphql',
+    ],
+    cleanupBehavior:
+      'Validation branches create no records; the successful hyphen-key definition is deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-name-type-description-length',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-name-type-description-length-conformance.ts',
@@ -1344,6 +1375,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable metaobject definition and setup entry; rejected branches create no rows except captured scalar coercion branches, which are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-handle-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-handle-validation-conformance.ts',
+    purpose:
+      'metaobjectCreate, metaobjectUpdate, and metaobjectUpsert explicit handle format, length, and blank validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject_handle_validation.json`,
+      'config/parity-specs/metaobjects/metaobject_handle_validation.json',
+      'config/parity-requests/metaobjects/metaobject_handle_validation_*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one valid row; rejected validation branches create no rows, then cleanup deletes the row and definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1737,6 +1785,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-update-external-multi-selector',
+    scriptPath: 'scripts/capture-marketing-activity-update-external-multi-selector-conformance.mts',
+    purpose:
+      'External marketing activity update selector conjunction semantics for conflicting remoteId and UTM matches.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-update-external-multi-selector.json`,
+      'config/parity-specs/marketing/marketing-activity-update-external-multi-selector.json',
+      'config/parity-requests/marketing/marketing-activity-update-external-multi-selector*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable external marketing activities, captures a rejected conflicting-selector update, reads back the first activity unchanged, and deletes both remote IDs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-delete-external-guards',
     scriptPath: 'scripts/capture-marketing-activity-delete-external-guards-conformance.mts',
     purpose:
@@ -1907,6 +1971,58 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-article-update-validation',
+    scriptPath: 'scripts/capture-online-store-article-update-validation-conformance.ts',
+    purpose: 'articleUpdate ambiguous author, author user existence, and image URL validation branches.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-update-validation.json`,
+      'config/parity-specs/online-store/article_update_validation.json',
+      'config/parity-requests/online-store/online-store-article-update-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog and article setup record; invalid articleUpdate attempts should not mutate, and cleanup deletes the article then blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-delete-cascades',
+    scriptPath: 'scripts/capture-online-store-delete-cascade-conformance.ts',
+    purpose:
+      'blogDelete and articleDelete dependent-destroy behavior for child articles and comments, including downstream null/empty reads.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}article-delete-cascades-comments.json`,
+      `${CAPTURE_ROOT}blog-delete-cascades-articles-and-comments.json`,
+      'config/parity-specs/online-store/article_delete_cascades_comments.json',
+      'config/parity-specs/online-store/blog_delete_cascades_articles_and_comments.json',
+      'config/parity-requests/online-store/article-delete-cascades-comments*.graphql',
+      'config/parity-requests/online-store/blog-delete-cascades-articles-and-comments*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable blogs/articles and REST article comments, then deletes the article or blog during the scenario; failure cleanup deletes any remaining article/blog records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-theme-update-role-not-an-input',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-online-store-theme-update-validation-conformance.ts',
+    purpose: 'themeUpdate rejects fields that are not exposed by OnlineStoreThemeInput before resolver execution.',
+    requiredAuthScopes: ['authenticated_admin_graphql'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}theme-update-role-not-an-input.json`,
+      'config/parity-specs/online-store/theme_update_role_not_an_input.json',
+      'config/parity-requests/online-store/theme-update-role-not-an-input.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only schema capture; the dummy theme ID is never resolved and no live theme state is modified.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current conformance app is blocked from themeUpdate resolver writes by Shopify write_themes exemption requirements, so blank-name, valid-rename, and locked-theme resolver branches are covered by executable local-runtime parity.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-body-script-verbatim-2025-01',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',
@@ -2021,6 +2137,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable reserved-like, smart, and custom collections and deletes every successful collectionCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
+    captureId: 'collection-product-membership-job-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-collection-product-membership-job-conformance.mts',
+    purpose:
+      'collectionAddProductsV2 and collectionRemoveProducts smart collection guards, async Job payload/readback, unknown productIds acceptance, and productIds cap validation.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-product-membership-job-parity.json`,
+      'config/parity-specs/products/collection-product-membership-job-parity.json',
+      'config/parity-requests/products/collection-product-membership-job-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable smart and custom collections, records validation/job branches, and deletes both collections during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

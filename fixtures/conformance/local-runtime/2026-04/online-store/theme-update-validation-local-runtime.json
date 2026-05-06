@@ -1,0 +1,165 @@
+{
+  "fixtureKind": "local-runtime-theme-update-validation",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T12:30:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for themeUpdate blank-name validation, locked-theme rejection, valid rename, and downstream readback.",
+  "createRenamed": {
+    "variables": {
+      "source": "https://example.com/renamed-theme.zip",
+      "name": "Original fixture"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "themeCreate": {
+            "theme": {
+              "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+              "name": "Original fixture",
+              "role": "UNPUBLISHED"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "createBlank": {
+    "variables": {
+      "source": "https://example.com/blank-theme.zip",
+      "name": "Blank fixture"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "themeCreate": {
+            "theme": {
+              "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+              "name": "Blank fixture",
+              "role": "UNPUBLISHED"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "createLocked": {
+    "variables": {
+      "source": "https://example.com/locked-theme.zip",
+      "name": "Locked fixture"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "themeCreate": {
+            "theme": {
+              "id": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic",
+              "name": "Locked fixture",
+              "role": "LOCKED"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "rename": {
+    "variables": {
+      "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "themeUpdate": {
+            "theme": {
+              "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+              "name": "Renamed fixture",
+              "role": "UNPUBLISHED"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "blank": {
+    "variables": {
+      "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "themeUpdate": {
+            "theme": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "locked": {
+    "variables": {
+      "id": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "themeUpdate": {
+            "theme": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Locked themes cannot be modified.",
+                "code": "CANNOT_UPDATE_LOCKED_THEME"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "readback": {
+    "variables": {
+      "renamedId": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+      "blankId": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+      "lockedId": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "renamed": {
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+            "name": "Renamed fixture",
+            "role": "UNPUBLISHED"
+          },
+          "blank": {
+            "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+            "name": "Blank fixture",
+            "role": "UNPUBLISHED"
+          },
+          "locked": {
+            "id": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic",
+            "name": "Locked fixture",
+            "role": "LOCKED"
+          }
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "Core ThemeUpdate resolver contract plus live schema/access probes",
+    "notes": [
+      "Live 2025-01 schema introspection confirms OnlineStoreThemeInput exposes only name.",
+      "The active conformance credential is blocked from themeUpdate writes by Shopify ACCESS_DENIED requiring write_themes plus exemption, so resolver branches that would mutate themes are represented as executable local-runtime parity.",
+      "The locked branch mirrors the Core resolver's cannot_update_locked_theme guardrail and must not mutate local theme state."
+    ]
+  },
+  "upstreamCalls": []
+}

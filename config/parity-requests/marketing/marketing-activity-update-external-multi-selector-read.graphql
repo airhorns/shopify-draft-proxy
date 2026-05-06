@@ -1,0 +1,5 @@
+query MarketingActivityUpdateExternalMultiSelectorRead($activityId: ID!) {
+  marketingActivity(id: $activityId) {
+    title
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "fixtureKind": "local-runtime-server-pixel-endpoint-update-no-pixel",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T07:12:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for ServerPixel endpoint updates when the app has no current ServerPixel.",
+  "expected": {
+    "response": {
+      "data": {
+        "eventBridge": {
+          "serverPixel": null,
+          "userErrors": [
+            {
+              "__typename": "ServerPixelUserError",
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Server pixel not found"
+            }
+          ]
+        },
+        "pubsub": {
+          "serverPixel": null,
+          "userErrors": [
+            {
+              "__typename": "ServerPixelUserError",
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Server pixel not found"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "local-runtime",
+    "notes": [
+      "The generic parity runner executes the endpoint update request against an empty local proxy with an empty upstream cassette.",
+      "The checked-in runtime test covers the same absent-current-pixel branch and verifies no endpoint record is fabricated."
+    ]
+  },
+  "upstreamCalls": []
+}

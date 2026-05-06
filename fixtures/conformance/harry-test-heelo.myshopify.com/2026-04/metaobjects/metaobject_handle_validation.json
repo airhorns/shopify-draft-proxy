@@ -1,0 +1,658 @@
+{
+  "capturedAt": "2026-05-06T03:56:49.928Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Explicit metaobject handle validation for invalid characters, length over 255, and blank strings across create, update, and upsert mutations.",
+  "seed": {
+    "runId": "1778039807450",
+    "type": "codex_handle_validation_1778039807450",
+    "validHandle": "valid-1778039807450",
+    "definitionId": "gid://shopify/MetaobjectDefinition/17883824434",
+    "setupMetaobjectId": "gid://shopify/Metaobject/188165718322"
+  },
+  "definitionCreate": {
+    "name": "definition-create",
+    "request": {
+      "query": "mutation MetaobjectHandleValidationDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "codex_handle_validation_1778039807450",
+          "name": "Handle Validation 1778039807450",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17883824434",
+            "type": "codex_handle_validation_1778039807450",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setupMetaobjectCreate": {
+    "name": "setup-metaobject-create",
+    "request": {
+      "query": "mutation MetaobjectHandleValidationCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_handle_validation_1778039807450",
+          "handle": "valid-1778039807450",
+          "fields": [
+            {
+              "key": "title",
+              "value": "Valid"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/188165718322",
+            "handle": "valid-1778039807450",
+            "type": "codex_handle_validation_1778039807450",
+            "displayName": "Valid"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidCreateCases": {
+    "invalid": {
+      "name": "create-invalid",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_handle_validation_1778039807450",
+            "handle": "hello world!",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle hello world!"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "too-long": {
+      "name": "create-too-long",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_handle_validation_1778039807450",
+            "handle": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blank": {
+      "name": "create-blank",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_handle_validation_1778039807450",
+            "handle": "",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle blank"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188165751090",
+              "handle": "handle-blank",
+              "type": "codex_handle_validation_1778039807450",
+              "displayName": "Handle blank"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidUpdateCases": {
+    "invalid": {
+      "name": "update-invalid",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188165718322",
+          "metaobject": {
+            "handle": "hello world!",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle hello world!"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "too-long": {
+      "name": "update-too-long",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188165718322",
+          "metaobject": {
+            "handle": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blank": {
+      "name": "update-blank",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188165718322",
+          "metaobject": {
+            "handle": "",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle blank"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "handle"],
+                "message": "Handle can't be blank",
+                "code": "BLANK",
+                "elementKey": null,
+                "elementIndex": null
+              },
+              {
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidUpsertCases": {
+    "invalid": {
+      "name": "upsert-invalid",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "handle": {
+            "type": "codex_handle_validation_1778039807450",
+            "handle": "hello world!"
+          },
+          "metaobject": {
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle hello world!"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpsert": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["handle", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "too-long": {
+      "name": "upsert-too-long",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "handle": {
+            "type": "codex_handle_validation_1778039807450",
+            "handle": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          },
+          "metaobject": {
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpsert": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["handle", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blank": {
+      "name": "upsert-blank",
+      "request": {
+        "query": "mutation MetaobjectHandleValidationUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "handle": {
+            "type": "codex_handle_validation_1778039807450",
+            "handle": ""
+          },
+          "metaobject": {
+            "fields": [
+              {
+                "key": "title",
+                "value": "Handle blank"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpsert": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188165783858",
+              "handle": "handle-blank-1",
+              "type": "codex_handle_validation_1778039807450",
+              "displayName": "Handle blank"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectHandleValidationDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188165718322"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188165718322",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectHandleValidationDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188165751090"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188165751090",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectHandleValidationDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188165783858"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188165783858",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectHandleValidationDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17883824434"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17883824434",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

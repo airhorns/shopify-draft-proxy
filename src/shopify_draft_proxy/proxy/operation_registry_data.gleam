@@ -6306,7 +6306,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Local-only support for seeded/snapshot abandonment records. Unknown abandonment ids mirror the captured safe userError `abandonment_not_found`; known local records update the in-memory delivery activity map and selected abandonment payload without sending runtime writes to Shopify.",
+        "Local-only support for seeded/snapshot abandonment records. Unknown abandonment ids mirror the captured safe userError `abandonment_not_found`; known local records validate the referenced marketing activity, reject backwards transitions and future deliveredAt values, treat same-status updates as no-op success, and stage forward delivery-status changes without sending runtime writes to Shopify.",
       ),
     ),
     RegistryEntry(

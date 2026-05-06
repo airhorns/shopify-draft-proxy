@@ -1,0 +1,63 @@
+{
+  "scenarioId": "inventory-transfer-create-validation",
+  "operationNames": ["inventoryTransferCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["validation-parity", "no-upstream-passthrough"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-transfer-create-validation.graphql",
+    "variablesCapturePath": "$.cases.sameLocation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "same-location",
+        "capturePath": "$.cases.sameLocation.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate"
+      },
+      {
+        "name": "unknown-origin",
+        "capturePath": "$.cases.unknownOrigin.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create-validation.graphql",
+          "variablesCapturePath": "$.cases.unknownOrigin.variables"
+        }
+      },
+      {
+        "name": "unknown-line-item",
+        "capturePath": "$.cases.unknownItem.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create-validation.graphql",
+          "variablesCapturePath": "$.cases.unknownItem.variables"
+        }
+      },
+      {
+        "name": "duplicate-line-item",
+        "capturePath": "$.cases.duplicateItem.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create-validation.graphql",
+          "variablesCapturePath": "$.cases.duplicateItem.variables"
+        }
+      },
+      {
+        "name": "negative-quantity",
+        "capturePath": "$.cases.negativeQuantity.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create-validation.graphql",
+          "variablesCapturePath": "$.cases.negativeQuantity.variables"
+        }
+      }
+    ]
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "notes": "Executable parity for inventoryTransferCreate validation branches: same origin/destination, unknown origin location, unknown line item, duplicate line items, and negative quantity. Live probes showed zero and over-available draft quantities are accepted by Admin API 2025-01/2026-04, so they are intentionally not represented as rejection cases."
+}

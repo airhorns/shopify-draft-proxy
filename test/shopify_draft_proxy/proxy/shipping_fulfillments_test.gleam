@@ -277,11 +277,13 @@ fn delivery_profile_lifecycle_store() -> store.Store {
     LocationRecord(
       id: "gid://shopify/Location/1",
       name: "Shop location",
+      is_active: Some(True),
       cursor: None,
     ),
     LocationRecord(
       id: "gid://shopify/Location/2",
       name: "Warehouse",
+      is_active: Some(True),
       cursor: None,
     ),
   ])
@@ -2336,6 +2338,10 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
   let accepted_order_id = "gid://shopify/FulfillmentOrder/move-accepted"
   let progress_order_id = "gid://shopify/FulfillmentOrder/move-progress"
   let success_order_id = "gid://shopify/FulfillmentOrder/move-success"
+  let cancellation_requested_assignment_order_id =
+    "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested"
+  let cancellation_rejected_assignment_order_id =
+    "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected"
   let unknown_location_order_id =
     "gid://shopify/FulfillmentOrder/move-unknown-location"
   let inactive_location_order_id =
@@ -2359,6 +2365,18 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
       fulfillment_order_record(accepted_order_id, "OPEN", "ACCEPTED"),
       fulfillment_order_record(progress_order_id, "OPEN", "UNSUBMITTED"),
       fulfillment_order_record(success_order_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record_with_assignment_status(
+        cancellation_requested_assignment_order_id,
+        "OPEN",
+        "UNSUBMITTED",
+        "CANCELLATION_REQUESTED",
+      ),
+      fulfillment_order_record_with_assignment_status(
+        cancellation_rejected_assignment_order_id,
+        "OPEN",
+        "UNSUBMITTED",
+        "CANCELLATION_REJECTED",
+      ),
       fulfillment_order_record(unknown_location_order_id, "OPEN", "UNSUBMITTED"),
       fulfillment_order_record(
         inactive_location_order_id,
@@ -2511,6 +2529,39 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
     )
   assert json.to_string(success_move.data)
     == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-success\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let cancellation_requested_assignment_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #(
+          "id",
+          root_field.StringVal(cancellation_requested_assignment_order_id),
+        ),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancellation_requested_assignment_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let cancellation_rejected_assignment_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(cancellation_rejected_assignment_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(cancellation_rejected_assignment_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
 }
 
 pub fn fulfillment_orders_set_deadline_validation_errors_test() {
@@ -2667,6 +2718,26 @@ fn fulfillment_order_record(
       #("id", CapturedString(id)),
       #("status", CapturedString(status)),
       #("requestStatus", CapturedString(request_status)),
+      #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn fulfillment_order_record_with_assignment_status(
+  id: String,
+  status: String,
+  request_status: String,
+  assignment_status: String,
+) -> FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    ..fulfillment_order_record(id, status, request_status),
+    assignment_status: Some(assignment_status),
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString(status)),
+      #("requestStatus", CapturedString(request_status)),
+      #("assignmentStatus", CapturedString(assignment_status)),
       #("lineItems", CapturedObject([#("nodes", CapturedArray([]))])),
       #("fulfillmentHolds", CapturedArray([])),
     ]),

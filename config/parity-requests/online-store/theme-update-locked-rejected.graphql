@@ -1,0 +1,14 @@
+mutation ThemeUpdateLockedRejected($id: ID!) {
+  themeUpdate(id: $id, input: { name: "Renamed locked" }) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

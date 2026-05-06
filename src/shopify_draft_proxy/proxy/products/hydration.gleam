@@ -69,12 +69,24 @@ pub fn hydrate_products_for_live_hybrid_mutation(
     |> list.filter(fn(id) { product_domain_hydratable_gid(id) })
     |> list.filter(fn(id) { !product_domain_has_effective_id(store, id) })
     |> list.sort(by: resource_ids.compare_shopify_resource_ids)
-  let location_ids =
+  let product_set_location_ids =
     collect_product_set_location_ids(variables)
     |> dedupe_hydration_ids
     |> list.filter(fn(id) { !location_has_effective_id(store, id) })
     |> list.sort(by: resource_ids.compare_shopify_resource_ids)
-  let ids = list.append(product_ids, location_ids)
+  let transfer_location_ids =
+    collect_inventory_transfer_location_ids(variables)
+    |> dedupe_hydration_ids
+    |> list.filter(fn(id) { !location_has_effective_id(store, id) })
+    |> list.sort(by: resource_ids.compare_shopify_resource_ids)
+  let ids = case transfer_location_ids {
+    [] -> list.append(product_ids, product_set_location_ids)
+    _ ->
+      list.append(
+        transfer_location_ids,
+        list.append(product_ids, product_set_location_ids),
+      )
+  }
   case ids {
     [] -> store
     _ ->
@@ -137,6 +149,27 @@ pub fn collect_product_set_location_ids(
             _ -> Error(Nil)
           }
         })
+      })
+    _ -> []
+  }
+}
+
+@internal
+pub fn collect_inventory_transfer_location_ids(
+  variables: Dict(String, ResolvedValue),
+) -> List(String) {
+  case dict.get(variables, "input") {
+    Ok(ObjectVal(input)) ->
+      ["originLocationId", "destinationLocationId", "originId", "destinationId"]
+      |> list.filter_map(fn(field_name) {
+        case read_string_field(input, field_name) {
+          Some(id) ->
+            case string.starts_with(id, "gid://shopify/Location/") {
+              True -> Ok(id)
+              False -> Error(Nil)
+            }
+          None -> Error(Nil)
+        }
       })
     _ -> []
   }
@@ -1272,6 +1305,7 @@ pub fn location_record_from_json(
       Some(LocationRecord(
         id: id,
         name: json_string_field(node, "name") |> option.unwrap(""),
+        is_active: json_bool_field(node, "isActive"),
         cursor: None,
       ))
     None -> None

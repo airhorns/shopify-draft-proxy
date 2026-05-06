@@ -202,6 +202,8 @@ fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
   || dict.size(store_in.staged_state.product_options) > 0
   || dict.size(store_in.staged_state.product_metafields) > 0
   || dict.size(store_in.staged_state.collections) > 0
+  || dict.size(store_in.base_state.product_operations) > 0
+  || dict.size(store_in.staged_state.product_operations) > 0
   || dict.size(store_in.staged_state.customers) > 0
   || dict.size(store_in.staged_state.store_property_locations) > 0
   || option.is_some(store_in.base_state.shop)
@@ -885,6 +887,15 @@ fn serialize_node_by_id(
         selections,
         fragments,
       )
+    "ProductBundleOperation"
+    | "ProductDuplicateOperation"
+    | "ProductSetOperation" ->
+      products.serialize_product_operation_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, gid_resource_type(id), fragments),
+        fragments,
+      )
     "Metafield" ->
       serialize_metafield_node_by_id(store, id, selections, fragments)
     "SellingPlan" ->
@@ -1070,11 +1081,34 @@ fn serialize_job(
       case id {
         "" -> json.null()
         _ ->
-          project_selection(
-            job_source(id, !is_local_product_full_sync_job(store, id)),
-            field,
-            fragments,
-          )
+          case
+            store.get_effective_admin_platform_generic_node_by_id(store, id)
+          {
+            Some(record) ->
+              case record.typename {
+                "Job" ->
+                  project_graphql_value(
+                    captured_json_source_with_typename(
+                      record.data,
+                      record.typename,
+                    ),
+                    selection_children(field),
+                    fragments,
+                  )
+                _ ->
+                  project_selection(
+                    job_source(id, !is_local_product_full_sync_job(store, id)),
+                    field,
+                    fragments,
+                  )
+              }
+            None ->
+              project_selection(
+                job_source(id, !is_local_product_full_sync_job(store, id)),
+                field,
+                fragments,
+              )
+          }
       }
     _ -> json.null()
   }
