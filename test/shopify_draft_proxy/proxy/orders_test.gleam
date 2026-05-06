@@ -6507,6 +6507,155 @@ pub fn orders_order_update_validation_guardrails_test() {
   assert store.list_effective_orders(unknown_outcome.store) == []
 }
 
+pub fn orders_order_update_rejects_empty_phone_and_bad_address_test() {
+  let order_id = "gid://shopify/Order/6830627356905"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1323")),
+          #("email", types.CapturedString("before@example.com")),
+          #("phone", types.CapturedString("+16135550100")),
+          #("note", types.CapturedString("before")),
+          #("shippingAddress", types.CapturedNull),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderUpdateValidation($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order {
+          id
+          note
+          phone
+          shippingAddress {
+            countryCodeV2
+            provinceCode
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+
+  let empty_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let empty_json = json.to_string(empty_outcome.data)
+  assert string.contains(empty_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(empty_json, "\"field\":null")
+  assert string.contains(empty_json, "\"code\":\"INVALID\"")
+  assert string.contains(
+    empty_json,
+    "No valid update parameters have been provided",
+  )
+  assert empty_outcome.staged_resource_ids == []
+  assert empty_outcome.log_drafts == []
+
+  let phone_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+              #("phone", root_field.StringVal("not a phone")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let phone_json = json.to_string(phone_outcome.data)
+  assert string.contains(phone_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(phone_json, "\"field\":[\"phone\"]")
+  assert string.contains(phone_json, "\"code\":\"INVALID\"")
+  assert phone_outcome.staged_resource_ids == []
+  assert phone_outcome.log_drafts == []
+
+  let address_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+              #(
+                "shippingAddress",
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("address1", root_field.StringVal("3 Bad Province")),
+                    #("city", root_field.StringVal("Chicago")),
+                    #("countryCode", root_field.StringVal("US")),
+                    #("provinceCode", root_field.StringVal("ON")),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let address_json = json.to_string(address_outcome.data)
+  assert string.contains(address_json, "\"order\":{\"id\":\"" <> order_id)
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"lastName\"]",
+  )
+  assert string.contains(address_json, "Enter a last name")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"zip\"]",
+  )
+  assert string.contains(address_json, "Enter a ZIP code")
+  assert string.contains(
+    address_json,
+    "\"field\":[\"shippingAddress\",\"province\"]",
+  )
+  assert string.contains(
+    address_json,
+    "State is not a valid state in United States",
+  )
+  assert string.contains(address_json, "\"code\":\"INVALID\"")
+  assert address_outcome.staged_resource_ids == []
+  assert address_outcome.log_drafts == []
+}
+
 pub fn orders_order_update_existing_order_read_after_write_test() {
   let order_id = "gid://shopify/Order/6830627356905"
   let metafield_id = "gid://shopify/Metafield/35289666519273"
