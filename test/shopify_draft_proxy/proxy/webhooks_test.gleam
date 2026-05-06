@@ -3,6 +3,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/proxy/webhooks
@@ -711,6 +712,24 @@ fn run_mutation_outcome(
   outcome
 }
 
+fn run_mutation_outcome_with_variables(
+  store_in: store.Store,
+  document: String,
+  variables: dict.Dict(String, root_field.ResolvedValue),
+) -> mutation_helpers.MutationOutcome {
+  let identity = synthetic_identity.new()
+  let outcome =
+    webhooks.process_mutation(
+      store_in,
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      variables,
+      empty_upstream_context(),
+    )
+  outcome
+}
+
 pub fn webhook_subscription_create_stages_record_test() {
   let document =
     "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://hooks.example.com/orders\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }"
@@ -981,6 +1000,52 @@ pub fn webhook_subscription_create_null_topic_top_level_error_test() {
   let body = run_mutation(store.new(), document)
   assert body
     == "{\"errors\":[{\"message\":\"Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (null). Expected type 'WebhookSubscriptionTopic!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}]}"
+}
+
+pub fn webhook_subscription_create_unknown_topic_top_level_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: NOT_A_REAL_TOPIC, webhookSubscription: { uri: \"https://hooks.example.com/orders\" }) { webhookSubscription { id topic } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (NOT_A_REAL_TOPIC). Expected type 'WebhookSubscriptionTopic!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}]}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
+pub fn webhook_subscription_create_hidden_topic_top_level_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: CUSTOMER_INTERACTIONS, webhookSubscription: { uri: \"https://hooks.example.com/orders\" }) { webhookSubscription { id topic } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (CUSTOMER_INTERACTIONS). Expected type 'WebhookSubscriptionTopic!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}]}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
+pub fn webhook_subscription_create_variable_unknown_topic_top_level_error_test() {
+  let document =
+    "mutation CreateWebhook($topic: WebhookSubscriptionTopic!) { webhookSubscriptionCreate(topic: $topic, webhookSubscription: { uri: \"https://hooks.example.com/orders\" }) { webhookSubscription { id topic } userErrors { field message } } }"
+  let outcome =
+    run_mutation_outcome_with_variables(
+      store.new(),
+      document,
+      dict.from_list([#("topic", root_field.StringVal("NOT_A_REAL_TOPIC"))]),
+    )
+  let serialized = json.to_string(outcome.data)
+  assert string.contains(
+    serialized,
+    "Variable $topic of type WebhookSubscriptionTopic! was provided invalid value",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Expected \\\"NOT_A_REAL_TOPIC\\\" to be one of:",
+  )
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
 }
 
 fn seed_update_store() -> store.Store {
