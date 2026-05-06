@@ -2180,6 +2180,8 @@ pub fn customer_merge_error_json(
   json.object([
     #("errorFields", json.array(record.error_fields, json.string)),
     #("message", json.string(record.message)),
+    #("code", optional_string(record.code)),
+    #("blockType", optional_string(record.block_type)),
   ])
 }
 
