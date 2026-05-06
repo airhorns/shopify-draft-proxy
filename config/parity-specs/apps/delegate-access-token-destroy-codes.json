@@ -64,6 +64,11 @@
             "path": "$.delegateAccessToken.createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          },
+          {
+            "path": "$.delegateAccessToken.expiresIn",
+            "matcher": "any-number",
+            "reason": "Live Shopify caps delegate token expiry by the expiring parent token while the proxy records the requested local duration."
           }
         ]
       },
@@ -179,6 +184,11 @@
             "path": "$.delegateAccessToken.createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          },
+          {
+            "path": "$.delegateAccessToken.expiresIn",
+            "matcher": "any-number",
+            "reason": "Live Shopify caps delegate token expiry by the expiring parent token while the proxy records the requested local duration."
           }
         ]
       },
@@ -204,6 +214,11 @@
             "path": "$.delegateAccessToken.createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          },
+          {
+            "path": "$.delegateAccessToken.expiresIn",
+            "matcher": "any-number",
+            "reason": "Live Shopify caps delegate token expiry by the expiring parent token while the proxy records the requested local duration."
           }
         ]
       },
@@ -260,6 +275,11 @@
             "path": "$.delegateAccessToken.createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          },
+          {
+            "path": "$.delegateAccessToken.expiresIn",
+            "matcher": "any-number",
+            "reason": "Live Shopify caps delegate token expiry by the expiring parent token while the proxy records the requested local duration."
           }
         ]
       },
