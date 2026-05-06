@@ -2,7 +2,7 @@
 
 The segments group has an implemented read baseline for segment catalog, detail, count, and filter metadata roots.
 Segment lifecycle mutations are staged locally. Customer segment member query jobs and member reads have a narrow
-HAR-217 implementation for captured customer targeting flows.
+implementation for captured customer targeting flows.
 
 ## Current support and limitations
 
@@ -38,6 +38,7 @@ Staged mutations:
 - `segmentCreate` stages a local segment with a stable synthetic Segment GID, creation/last-edit timestamps, name, and query. Duplicate names follow Shopify's suffix behavior by bumping an existing trailing ` (N)` counter or appending ` (2)` when there is no counter. After 10 duplicate retries the proxy returns `Name has already been taken` without staging a segment.
 - Locally staged Segment payloads project Shopify-like defaults for schema non-null fields: `tagMigrated: false` and `valid: true`. Computed Shopify-owned fields that the proxy cannot derive locally are selected as null for staged segments: `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author`.
 - `segmentCreate` rejects names longer than 255 characters, queries longer than 5000 characters, and shops that already have 6000 effective local segments before staging a new segment. Length validation runs before query grammar validation so overlong queries return Shopify's length error rather than parser errors.
+- `segmentCreate` and `segmentUpdate` accept the broader Shopify segment query grammar at save time for supported filter names, comparison operators, `IS NULL` / `IS NOT NULL`, `CONTAINS` / `NOT CONTAINS`, `BETWEEN`, boolean `AND` / `OR`, parentheses, escaped string literals, and relative date literals. This is storage validation only; it does not mean local member evaluation understands every accepted filter.
 - `segmentUpdate` stages name/query replacement on an existing base or staged segment and preserves the original creation timestamp while advancing `lastEditDate`. Rename collisions use the same bump-then-Taken behavior as `segmentCreate`.
 - `segmentUpdate` applies the same 255-character name and 5000-character query limits before staging updates.
 - `segmentDelete` records local deletion state and removes the segment from downstream detail, catalog, and count reads.
@@ -61,11 +62,11 @@ Staged mutations:
   the supported query grammar. Tag membership is evaluated against normalized local customer `tags` with exact string
   equality, and order-count membership is evaluated against local `numberOfOrders`. The proxy does not infer customer
   membership for filters that are accepted for segment storage but do not have a modeled customer-state dependency, such
-  as `email_subscription_status = 'SUBSCRIBED'`. Broader Shopify segment grammar is not claimed.
+  as `email_subscription_status = 'SUBSCRIBED'`, `companies IS NULL`, or `customer_countries CONTAINS 'CA'`.
 - `customerSegmentMembersQueryCreate(input: { segmentId })` resolves the staged or hydrated segment query at creation
-  time, returns Shopify's captured async creation shape, and stores an immediately readable local job. HAR-458
-  integration coverage verifies that direct `customerSegmentMembers(query:)` reads and `queryId` reads agree for the
-  supported grammar.
+  time, returns Shopify's captured async creation shape, and stores an immediately readable local job. Integration
+  coverage verifies that direct `customerSegmentMembers(query:)` reads and `queryId` reads agree for the supported
+  grammar.
 - Segment search, sort, and uncaptured member-query grammar are not inferred beyond the captured request arguments.
 - Segment filter and value suggestion roots are captured metadata payloads, not a dynamic local suggestion engine. They
   are useful for shape fidelity and empty/no-data behavior, but new suggestion search semantics should be backed by fresh
@@ -81,12 +82,14 @@ Staged mutations:
 - Segment payload non-null field fixture: `fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json`
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-query-grammar-not-contains.json`
+- Segment create/update query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-update-query-grammar.json`
 - Conformance request/spec: `config/parity-requests/segments/segments-baseline-read.graphql`, `config/parity-specs/segments/segments-baseline-read.json`
 - Segment lifecycle validation specs: `config/parity-specs/segments/segment-create-invalid-query-validation.json`, `config/parity-specs/segments/segment-update-unknown-id-validation.json`, `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
 - Segment length/limit validation spec: `config/parity-specs/segments/segments-create-update-validation-limits.json`
 - Segment payload non-null field spec: `config/parity-specs/segments/segment-payload-non-null-fields.json`
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
+- Segment create/update query grammar parity spec: `config/parity-specs/segments/segment-create-update-query-grammar.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
-- HAR-458 review coverage includes segmentId-backed member query jobs, direct query reads, and accepted-but-unmodeled
-  filter storage boundaries.
+- Review coverage includes segmentId-backed member query jobs, direct query reads, and accepted-but-unmodeled filter
+  storage boundaries.

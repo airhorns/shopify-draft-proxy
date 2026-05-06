@@ -1874,11 +1874,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'segments',
     captureId: 'segment-query-grammar',
     scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
-    purpose: 'Segment query grammar support for `NOT CONTAINS` customer-tag predicates.',
+    purpose:
+      'Segment query grammar support for broad segmentCreate/segmentUpdate save-time validation and `NOT CONTAINS` customer-tag predicates.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
-    fixtureOutputs: [`${CAPTURE_ROOT}segment-query-grammar-not-contains.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-query-grammar-not-contains.json`,
+      `${CAPTURE_ROOT}segment-create-update-query-grammar.json`,
+      'config/parity-specs/segments/segment-create-update-query-grammar.json',
+      'config/parity-requests/segments/segment-create-update-query-grammar-*.graphql',
+    ],
     cleanupBehavior:
-      'Creates one disposable segment, deletes it during cleanup, and leaves only Shopify async query state.',
+      'Creates disposable segments, deletes them during cleanup, and leaves only Shopify async query state.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
