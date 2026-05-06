@@ -1,0 +1,771 @@
+{
+  "capturedAt": "2026-05-06T21:32:06.472Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "price-list input validation and catalog currency behavior",
+  "setup": {
+    "market": {
+      "id": "gid://shopify/Market/92276785458",
+      "currency": "CAD"
+    },
+    "mismatchedCurrency": "USD",
+    "note": "Current public Admin GraphQL 2026-04 accepts a zero percentage-decrease adjustment and accepts catalog-linked price-list currencies that differ from the linked market base currency."
+  },
+  "cases": [
+    {
+      "name": "markets read for price-list input validation",
+      "query": "#graphql\nquery PriceListInputValidationMarketsRead($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      currencySettings {\n        baseCurrency {\n          currencyCode\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "MXN"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate zero percentage decrease accepted",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list zero adjustment moukou5c",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 0
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263569714",
+                "currency": "USD",
+                "catalog": null,
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 0
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate negative adjustment invalid",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list negative adjustment moukou5c",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": -10
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "parent", "adjustment", "value"],
+                  "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+                  "code": "INVALID_ADJUSTMENT_VALUE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate percentage decrease above one hundred invalid",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list decrease too large moukou5c",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 250
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "parent", "adjustment", "value"],
+                  "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+                  "code": "INVALID_ADJUSTMENT_VALUE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate percentage increase above one thousand invalid",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list increase too large moukou5c",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_INCREASE",
+              "value": 5000
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "parent", "adjustment", "value"],
+                  "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+                  "code": "INVALID_ADJUSTMENT_VALUE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate for update adjustment validation",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list update adjustment setup moukou5c",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263602482",
+                "currency": "USD",
+                "catalog": null,
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListUpdate percentage decrease above one hundred invalid",
+      "query": "#graphql\nmutation PriceListUpdateInputValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32263602482",
+        "input": {
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 250
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListUpdate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263602482",
+                "currency": "USD",
+                "catalog": null,
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "parent", "adjustment", "value"],
+                  "message": "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+                  "code": "INVALID_ADJUSTMENT_VALUE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate for priceListCreate currency mismatch acceptance",
+      "query": "#graphql\nmutation CatalogCreateRelationValidation($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog create mismatch moukou5c",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/92276785458"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809244466"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate accepts catalog market currency mismatch",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list create mismatch moukou5c",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          },
+          "catalogId": "gid://shopify/MarketCatalog/145809244466"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263635250",
+                "currency": "USD",
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/145809244466"
+                },
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate for priceListUpdate currency mismatch acceptance",
+      "query": "#graphql\nmutation CatalogCreateRelationValidation($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog update mismatch moukou5c",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/92276785458"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809277234"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate for priceListUpdate currency mismatch acceptance",
+      "query": "#graphql\nmutation PriceListCreateInputValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list update mismatch setup moukou5c",
+          "currency": "CAD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          },
+          "catalogId": "gid://shopify/MarketCatalog/145809277234"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263668018",
+                "currency": "CAD",
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/145809277234"
+                },
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListUpdate accepts catalog market currency mismatch",
+      "query": "#graphql\nmutation PriceListUpdateInputValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32263668018",
+        "input": {
+          "currency": "USD"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListUpdate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263668018",
+                "currency": "USD",
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/145809277234"
+                },
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32263668018",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32263668018",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32263635250",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32263635250",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32263602482",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32263602482",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32263569714",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32263569714",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/145809277234",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145809277234",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/145809244466",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145809244466",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "PriceListInputValidationMarketsRead",
+      "variables": {
+        "first": 10
+      },
+      "query": "#graphql\nquery PriceListInputValidationMarketsRead($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      currencySettings {\n        baseCurrency {\n          currencyCode\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "MXN"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

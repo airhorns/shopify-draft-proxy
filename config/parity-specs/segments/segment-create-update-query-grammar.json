@@ -1,0 +1,242 @@
+{
+  "scenarioId": "segment-create-update-query-grammar",
+  "operationNames": ["segmentCreate", "segmentUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "query-grammar", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-update-query-grammar.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence that broader segment query grammar is accepted by segmentCreate and segmentUpdate. Strict parity covers canonical country, amount_spent, companies IS NULL, AND, parenthesized OR, relative date predicates, segmentUpdate query replacement, and captured malformed-query userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-customer-countries-accept",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-amount-spent-accept",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-companies-null-accept",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-and-accept",
+        "capturePath": "$.cases[3].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-parenthesized-or-accept",
+        "capturePath": "$.cases[4].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-relative-date-accept",
+        "capturePath": "$.cases[5].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-update-setup",
+        "capturePath": "$.cases[6].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[6].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-update-customer-countries-accept",
+        "capturePath": "$.cases[7].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-create-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            },
+            "query": {
+              "fromCapturePath": "$.cases[7].request.variables.query"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentUpdate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy updates the locally staged setup segment ID instead of Shopify's store-specific segment ID."
+          },
+          {
+            "path": "$.segmentUpdate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy preserves its deterministic local creation timestamp while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentUpdate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local update timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-malformed-rejected",
+        "capturePath": "$.cases[8].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
+          "variablesCapturePath": "$.cases[8].request.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+#graphql
+query PriceListInputValidationMarketsRead($first: Int!) {
+  markets(first: $first) {
+    nodes {
+      id
+      name
+      currencySettings {
+        baseCurrency {
+          currencyCode
+        }
+      }
+    }
+  }
+}
