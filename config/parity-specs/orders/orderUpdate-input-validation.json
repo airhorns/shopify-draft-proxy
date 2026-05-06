@@ -1,0 +1,45 @@
+{
+  "scenarioId": "orderUpdate-input-validation",
+  "operationNames": ["orderUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderUpdate-input-validation.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin API 2026-04 orderUpdate input validation for an empty mutable payload, malformed phone, malformed shipping address, and a happy-path note update on the same disposable order. Shopify's 2026-04 orderUpdate userErrors selection exposes field/message but not code, so code parity remains covered by runtime tests while this executable parity spec proves the live field/message contract and downstream read-after-write contrast.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.order.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Shopify returns the live order update timestamp on the downstream read; the proxy uses its deterministic staged-order timestamp while preserving timestamp shape."
+      }
+    ],
+    "targets": [
+      {
+        "name": "validation-matrix-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "happy-note-downstream-read",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.happyNote.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

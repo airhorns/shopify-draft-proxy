@@ -2,7 +2,6 @@
   "scenarioId": "product-merchandising-mutation-guardrails",
   "operationNames": [
     "productFeedDelete",
-    "productFullSync",
     "productBundleCreate",
     "productBundleUpdate",
     "combinedListingUpdate",
@@ -28,22 +27,6 @@
         "name": "product-feed-delete-unknown-id",
         "capturePath": "$.probes[1].response.data.productFeedDelete",
         "proxyPath": "$.data.productFeedDelete"
-      },
-      {
-        "name": "product-full-sync-unknown-id",
-        "capturePath": "$.probes[2].response.data.productFullSync",
-        "proxyPath": "$.data.productFullSync",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/product-merchandising-product-full-sync.graphql",
-          "variablesCapturePath": "$.probes[2].variables"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.userErrors[0].code",
-            "matcher": "exact-string:NOT_FOUND",
-            "reason": "The local proxy follows the source-backed ProductFeed lookup error code for productFullSync; the older public 2025-01 capture returned a null code for the same absent feed branch."
-          }
-        ]
       },
       {
         "name": "product-bundle-create-empty-components",
@@ -83,5 +66,5 @@
       }
     ]
   },
-  "notes": "Executable HAR-362 guardrail parity for product-adjacent merchandising roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store still blocks productFeedCreate success with channel lookup and feedback success with write_resource_feedbacks/sales-channel access requirements."
+  "notes": "Executable guardrail parity for product-adjacent merchandising roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store still blocks productFeedCreate success with channel lookup and feedback success with write_resource_feedbacks/sales-channel access requirements. ProductFullSync unknown-feed rejection is covered by the product feed local-runtime lifecycle fixture because the public capture currently returns the older null-code shape."
 }

@@ -1110,6 +1110,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-capability-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-capability-eligibility.mts',
+    purpose:
+      'Metafield definition capability eligibility, required uniqueValues, and PRODUCT admin-filterable owner limit behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-capability-eligibility.json`,
+      'config/parity-specs/metafields/metafield-definition-capability-eligibility.json',
+      'config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions in one namespace, captures validation and limit branches, then deletes the created definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-owner-types',
     scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
     purpose:
@@ -2116,6 +2133,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-update-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
+    purpose:
+      'orderUpdate empty-input, malformed phone, malformed shipping address, and happy-path note update validation parity.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-input-validation.json`,
+      'config/parity-specs/orders/orderUpdate-input-validation.json',
+      'config/parity-requests/orders/orderUpdate-input-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-invoice-send-email-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-invoice-send-email-validation-conformance.ts',
@@ -2203,7 +2236,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'draft-orders',
     captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',
-    purpose: 'Draft order create/update/delete/complete and downstream read behavior.',
+    purpose: 'Draft order create/update/delete/complete, duplicate lifecycle reset, and downstream read behavior.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}draft-order-*.json`],
     cleanupBehavior: 'Creates disposable draft orders and deletes/completes/cancels them per branch.',
@@ -2301,6 +2334,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-disallowed-value-shapes.json`],
     cleanupBehavior: 'Deletes temporary products after capturing rejected discount mutations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-basic-disallowed-discount-on-quantity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-basic-disallowed-discount-on-quantity-conformance.ts',
+    purpose: 'Basic code and automatic discount rejection of customerGets.value.discountOnQuantity on create/update.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-basic-disallowed-discount-on-quantity.json`,
+      'config/parity-specs/discounts/discount-basic-disallowed-discount-on-quantity.json',
+      'config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable basic code discount and one basic automatic discount, then deletes both.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -193,12 +193,12 @@ pub fn product_full_sync_returns_pollable_job_test() {
 
   assert create_status == 200
   assert json.to_string(create_body)
-    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/2\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/US-EN\"},\"userErrors\":[]}}}"
 
   let sync_query =
     "mutation ProductFullSyncJob($id: ID!) { productFullSync(id: $id) { __typename id job { __typename id done query { __typename } } userErrors { field message code } } }"
   let sync_variables =
-    json.object([#("id", json.string("gid://shopify/ProductFeed/2"))])
+    json.object([#("id", json.string("gid://shopify/ProductFeed/US-EN"))])
   let #(Response(status: sync_status, body: sync_body, ..), proxy) =
     draft_proxy.process_request(
       proxy,
@@ -207,11 +207,11 @@ pub fn product_full_sync_returns_pollable_job_test() {
 
   assert sync_status == 200
   assert json.to_string(sync_body)
-    == "{\"data\":{\"productFullSync\":{\"__typename\":\"ProductFullSyncPayload\",\"id\":\"gid://shopify/ProductFeed/2\",\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/4\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"productFullSync\":{\"__typename\":\"ProductFullSyncPayload\",\"id\":\"gid://shopify/ProductFeed/US-EN\",\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/2\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}},\"userErrors\":[]}}}"
 
   let job_query =
     "query ProductFullSyncJobPoll($id: ID!) { job(id: $id) { __typename id done query { __typename } } }"
-  let job_variables = json.object([#("id", json.string("gid://shopify/Job/4"))])
+  let job_variables = json.object([#("id", json.string("gid://shopify/Job/2"))])
   let #(Response(status: job_status, body: job_body, ..), next_proxy) =
     draft_proxy.process_request(
       proxy,
@@ -220,10 +220,10 @@ pub fn product_full_sync_returns_pollable_job_test() {
 
   assert job_status == 200
   assert json.to_string(job_body)
-    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/4\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/2\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
   let assert [_, sync_entry] = store.get_log(next_proxy.store)
   assert sync_entry.staged_resource_ids
-    == ["gid://shopify/ProductFeed/2", "gid://shopify/Job/4"]
+    == ["gid://shopify/ProductFeed/US-EN", "gid://shopify/Job/2"]
 }
 
 fn valid_selling_plan_input() -> String {

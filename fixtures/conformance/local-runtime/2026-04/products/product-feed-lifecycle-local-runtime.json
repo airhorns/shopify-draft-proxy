@@ -12,7 +12,7 @@
       "data": {
         "productFeedCreate": {
           "productFeed": {
-            "id": "gid://shopify/ProductFeed/2",
+            "id": "gid://shopify/ProductFeed/US-EN",
             "country": "US",
             "language": "EN",
             "status": "ACTIVE"
@@ -26,9 +26,9 @@
     "response": {
       "data": {
         "productFullSync": {
-          "id": "gid://shopify/ProductFeed/2",
+          "id": "gid://shopify/ProductFeed/US-EN",
           "job": {
-            "id": "gid://shopify/Job/4",
+            "id": "gid://shopify/Job/2",
             "done": false,
             "query": {
               "__typename": "QueryRoot"
@@ -39,11 +39,28 @@
       }
     }
   },
+  "syncUnknown": {
+    "response": {
+      "data": {
+        "productFullSync": {
+          "id": null,
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "ProductFeed does not exist",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      }
+    }
+  },
   "syncJob": {
     "response": {
       "data": {
         "job": {
-          "id": "gid://shopify/Job/4",
+          "id": "gid://shopify/Job/2",
           "done": false,
           "query": {
             "__typename": "QueryRoot"
@@ -56,7 +73,7 @@
     "response": {
       "data": {
         "productFeed": {
-          "id": "gid://shopify/ProductFeed/2",
+          "id": "gid://shopify/ProductFeed/US-EN",
           "country": "US",
           "language": "EN",
           "status": "ACTIVE"
@@ -64,7 +81,7 @@
         "productFeeds": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductFeed/2",
+              "id": "gid://shopify/ProductFeed/US-EN",
               "country": "US",
               "language": "EN",
               "status": "ACTIVE"
@@ -73,8 +90,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "cursor:gid://shopify/ProductFeed/2",
-            "endCursor": "cursor:gid://shopify/ProductFeed/2"
+            "startCursor": "cursor:gid://shopify/ProductFeed/US-EN",
+            "endCursor": "cursor:gid://shopify/ProductFeed/US-EN"
           }
         }
       }
@@ -84,7 +101,7 @@
     "response": {
       "data": {
         "productFeedDelete": {
-          "deletedId": "gid://shopify/ProductFeed/2",
+          "deletedId": "gid://shopify/ProductFeed/US-EN",
           "userErrors": []
         }
       }
