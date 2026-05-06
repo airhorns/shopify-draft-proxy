@@ -52,6 +52,7 @@ type MutationFieldResult {
     payload: SourceValue,
     staged_resource_ids: List(String),
     should_log: Bool,
+    top_level_errors: List(json.Json),
   )
 }
 
@@ -88,11 +89,24 @@ fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [], False)
-  let #(entries, final_store, final_identity, staged_ids, should_log) =
+  let initial = #([], store, identity, [], False, [])
+  let #(
+    entries,
+    final_store,
+    final_identity,
+    staged_ids,
+    should_log,
+    top_level_errors,
+  ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids, should_log) =
-        acc
+      let #(
+        entries,
+        current_store,
+        current_identity,
+        staged_ids,
+        should_log,
+        top_level_errors,
+      ) = acc
       case field {
         Field(name: name, ..) ->
           case marketing_types.is_marketing_mutation_root(name.value) {
@@ -122,6 +136,7 @@ fn handle_mutation_fields(
                 next_identity,
                 list.append(staged_ids, result.staged_resource_ids),
                 should_log || result.should_log,
+                list.append(top_level_errors, result.top_level_errors),
               )
             }
           }
@@ -152,8 +167,17 @@ fn handle_mutation_fields(
       ),
     ]
   }
+  let data = json.object(entries)
+  let response_body = case top_level_errors {
+    [] -> json.object([#("data", data)])
+    _ ->
+      json.object([
+        #("errors", json.preprocessed_array(top_level_errors)),
+        #("data", data),
+      ])
+  }
   MutationOutcome(
-    data: json.object([#("data", json.object(entries))]),
+    data: response_body,
     store: final_store,
     identity: final_identity,
     staged_resource_ids: final_ids,
@@ -176,9 +200,21 @@ fn handle_marketing_mutation_root(
     Field(name: name, ..) ->
       case name.value {
         "marketingActivityCreate" ->
-          marketing_activity_create(store, identity, key, args)
+          marketing_activity_create(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingActivityUpdate" ->
-          marketing_activity_update(store, identity, key, args)
+          marketing_activity_update(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingActivityCreateExternal" ->
           marketing_activity_create_external(
             store,
@@ -188,7 +224,13 @@ fn handle_marketing_mutation_root(
             requesting_api_client_id,
           )
         "marketingActivityUpdateExternal" ->
-          marketing_activity_update_external(store, identity, key, args)
+          marketing_activity_update_external(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingActivityUpsertExternal" ->
           marketing_activity_upsert_external(
             store,
@@ -198,20 +240,47 @@ fn handle_marketing_mutation_root(
             requesting_api_client_id,
           )
         "marketingActivityDeleteExternal" ->
-          marketing_activity_delete_external(store, identity, key, args)
+          marketing_activity_delete_external(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingActivitiesDeleteAllExternal" ->
-          marketing_activities_delete_all_external(store, identity, key)
+          marketing_activities_delete_all_external(
+            store,
+            identity,
+            key,
+            requesting_api_client_id,
+          )
         "marketingEngagementCreate" ->
-          marketing_engagement_create(store, identity, key, args)
+          marketing_engagement_create(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingEngagementsDelete" ->
-          marketing_engagements_delete(store, identity, key, args)
+          marketing_engagements_delete(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         _ -> #(
-          MutationFieldResult(key, src_object([]), [], False),
+          MutationFieldResult(key, src_object([]), [], False, []),
           store,
           identity,
         )
       }
-    _ -> #(MutationFieldResult(key, src_object([]), [], False), store, identity)
+    _ -> #(
+      MutationFieldResult(key, src_object([]), [], False, []),
+      store,
+      identity,
+    )
   }
 }
 
@@ -220,6 +289,7 @@ fn marketing_activity_create(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
@@ -239,13 +309,18 @@ fn marketing_activity_create(
         ]),
         [],
         False,
+        [],
       ),
       store,
       identity,
     )
     True -> {
       let #(activity, next_identity) =
-        build_native_marketing_activity_from_create_input(identity, input)
+        build_native_marketing_activity_from_create_input(
+          identity,
+          input,
+          requesting_api_client_id,
+        )
       let #(staged, next_store) =
         store.stage_marketing_activity(store, activity)
       #(
@@ -254,6 +329,7 @@ fn marketing_activity_create(
           src_object([#("userErrors", user_errors_source([]))]),
           [staged.id],
           True,
+          [],
         ),
         next_store,
         next_identity,
@@ -267,6 +343,7 @@ fn marketing_activity_update(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
@@ -274,29 +351,48 @@ fn marketing_activity_update(
     Some(id) ->
       case store.get_effective_marketing_activity_record_by_id(store, id) {
         None -> marketing_missing_activity_result(key, store, identity)
-        Some(activity) -> {
-          let #(updated, next_identity) =
-            apply_native_marketing_activity_update(identity, activity, input)
-          let #(staged, next_store) =
-            store.stage_marketing_activity(store, updated)
-          #(
-            MutationFieldResult(
-              key,
-              src_object([
-                #(
-                  "marketingActivity",
-                  serializers.marketing_data_to_source(staged.data),
+        Some(activity) ->
+          case
+            store.marketing_record_visible_to_api_client(
+              activity,
+              requesting_api_client_id,
+            )
+          {
+            False ->
+              marketing_activity_update_access_denied_result(
+                key,
+                store,
+                identity,
+              )
+            True -> {
+              let #(updated, next_identity) =
+                apply_native_marketing_activity_update(
+                  identity,
+                  activity,
+                  input,
+                )
+              let #(staged, next_store) =
+                store.stage_marketing_activity(store, updated)
+              #(
+                MutationFieldResult(
+                  key,
+                  src_object([
+                    #(
+                      "marketingActivity",
+                      serializers.marketing_data_to_source(staged.data),
+                    ),
+                    #("redirectPath", SrcNull),
+                    #("userErrors", user_errors_source([])),
+                  ]),
+                  [staged.id],
+                  True,
+                  [],
                 ),
-                #("redirectPath", SrcNull),
-                #("userErrors", user_errors_source([])),
-              ]),
-              [staged.id],
-              True,
-            ),
-            next_store,
-            next_identity,
-          )
-        }
+                next_store,
+                next_identity,
+              )
+            }
+          }
       }
     None -> marketing_missing_activity_result(key, store, identity)
   }
@@ -311,7 +407,12 @@ fn marketing_activity_create_external(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case store.has_marketing_delete_all_external_in_flight(store) {
+  case
+    store.has_marketing_delete_all_external_in_flight_for_app(
+      store,
+      requesting_api_client_id,
+    )
+  {
     True ->
       validation_result(
         key,
@@ -347,7 +448,13 @@ fn marketing_activity_create_external(
                 identity,
               )
             None ->
-              create_external_activity_success(store, identity, key, input)
+              create_external_activity_success(
+                store,
+                identity,
+                key,
+                input,
+                requesting_api_client_id,
+              )
           }
       }
   }
@@ -358,6 +465,7 @@ fn marketing_activity_update_external(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
@@ -368,7 +476,12 @@ fn marketing_activity_update_external(
     serializers.read_utm(
       graphql_helpers.read_arg_object(args, "utm") |> option.unwrap(dict.new()),
     )
-  case store.has_marketing_delete_all_external_in_flight(store) {
+  case
+    store.has_marketing_delete_all_external_in_flight_for_app(
+      store,
+      requesting_api_client_id,
+    )
+  {
     True ->
       validation_result(
         key,
@@ -392,9 +505,10 @@ fn marketing_activity_update_external(
             graphql_helpers.read_arg_string_nonempty(args, "remoteId")
           {
             Some(remote_id) ->
-              store.get_effective_marketing_activity_by_remote_id(
+              store.get_effective_marketing_activity_by_remote_id_for_app(
                 store,
                 remote_id,
+                requesting_api_client_id,
               )
             None ->
               case
@@ -404,11 +518,16 @@ fn marketing_activity_update_external(
                 )
               {
                 Some(id) ->
-                  store.get_effective_marketing_activity_record_by_id(store, id)
+                  store.get_effective_marketing_activity_record_by_id_for_app(
+                    store,
+                    id,
+                    requesting_api_client_id,
+                  )
                 None ->
-                  serializers.find_marketing_activity_by_utm(
+                  serializers.find_marketing_activity_by_utm_for_app(
                     store,
                     selector_utm,
+                    requesting_api_client_id,
                   )
               }
           }
@@ -432,6 +551,7 @@ fn marketing_activity_update_external(
                   input,
                   serializers.read_utm(requested_utm),
                   !dict.is_empty(requested_utm),
+                  requesting_api_client_id,
                 )
               {
                 Some(error) ->
@@ -467,7 +587,12 @@ fn marketing_activity_upsert_external(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case store.has_marketing_delete_all_external_in_flight(store) {
+  case
+    store.has_marketing_delete_all_external_in_flight_for_app(
+      store,
+      requesting_api_client_id,
+    )
+  {
     True ->
       validation_result(
         key,
@@ -479,7 +604,11 @@ fn marketing_activity_upsert_external(
     False -> {
       let existing = case serializers.read_value_string(input, "remoteId") {
         Some(remote_id) ->
-          store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+          store.get_effective_marketing_activity_by_remote_id_for_app(
+            store,
+            remote_id,
+            requesting_api_client_id,
+          )
         None -> None
       }
       case existing {
@@ -510,7 +639,13 @@ fn marketing_activity_upsert_external(
                     identity,
                   )
                 None ->
-                  create_external_activity_success(store, identity, key, input)
+                  create_external_activity_success(
+                    store,
+                    identity,
+                    key,
+                    input,
+                    requesting_api_client_id,
+                  )
               }
           }
         Some(activity) ->
@@ -521,6 +656,7 @@ fn marketing_activity_upsert_external(
               input,
               serializers.read_utm(input),
               True,
+              requesting_api_client_id,
             )
           {
             Some(error) ->
@@ -561,7 +697,12 @@ fn validate_external_activity_create_input(
     None ->
       case validate_external_activity_currency(input) {
         Some(error) -> Some(error)
-        None -> validate_external_activity_uniqueness(store, input)
+        None ->
+          validate_external_activity_uniqueness(
+            store,
+            input,
+            requesting_api_client_id,
+          )
       }
   }
 }
@@ -601,41 +742,70 @@ fn validate_external_activity_currency(
 fn validate_external_activity_uniqueness(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Option(UserError) {
   case serializers.read_value_string(input, "remoteId") {
     Some(remote_id) ->
       case
-        store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+        store.get_effective_marketing_activity_by_remote_id_for_app(
+          store,
+          remote_id,
+          requesting_api_client_id,
+        )
       {
         Some(_) -> Some(duplicate_remote_id_error())
-        None -> validate_external_activity_utm_uniqueness(store, input)
+        None ->
+          validate_external_activity_utm_uniqueness(
+            store,
+            input,
+            requesting_api_client_id,
+          )
       }
-    None -> validate_external_activity_utm_uniqueness(store, input)
+    None ->
+      validate_external_activity_utm_uniqueness(
+        store,
+        input,
+        requesting_api_client_id,
+      )
   }
 }
 
 fn validate_external_activity_utm_uniqueness(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Option(UserError) {
   case
-    serializers.find_marketing_activity_by_utm(
+    serializers.find_marketing_activity_by_utm_for_app(
       store,
       serializers.read_utm(input),
+      requesting_api_client_id,
     )
   {
     Some(_) -> Some(duplicate_utm_campaign_error())
-    None -> validate_external_activity_url_parameter_uniqueness(store, input)
+    None ->
+      validate_external_activity_url_parameter_uniqueness(
+        store,
+        input,
+        requesting_api_client_id,
+      )
   }
 }
 
 fn validate_external_activity_url_parameter_uniqueness(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Option(UserError) {
   case serializers.read_value_string(input, "urlParameterValue") {
     Some(value) ->
-      case find_marketing_activity_by_url_parameter_value(store, value) {
+      case
+        find_marketing_activity_by_url_parameter_value(
+          store,
+          value,
+          requesting_api_client_id,
+        )
+      {
         Some(_) -> Some(duplicate_url_parameter_value_error())
         None -> None
       }
@@ -646,11 +816,18 @@ fn validate_external_activity_url_parameter_uniqueness(
 fn find_marketing_activity_by_url_parameter_value(
   store: Store,
   value: String,
+  requesting_api_client_id: Option(String),
 ) -> Option(MarketingRecord) {
-  list.find(store.list_effective_marketing_activities(store), fn(activity) {
-    serializers.read_marketing_string(activity.data, "urlParameterValue")
-    == Some(value)
-  })
+  list.find(
+    store.list_effective_marketing_activities_for_app(
+      store,
+      requesting_api_client_id,
+    ),
+    fn(activity) {
+      serializers.read_marketing_string(activity.data, "urlParameterValue")
+      == Some(value)
+    },
+  )
   |> option.from_result
 }
 
@@ -660,6 +837,7 @@ fn validate_external_activity_update(
   input: Dict(String, root_field.ResolvedValue),
   requested_utm: Option(Dict(String, MarketingValue)),
   validate_utm: Bool,
+  requesting_api_client_id: Option(String),
 ) -> Option(UserError) {
   case serializers.read_marketing_bool(activity.data, "isExternal") {
     False -> Some(activity_not_external_error())
@@ -674,6 +852,7 @@ fn validate_external_activity_update(
             input,
             requested_utm,
             validate_utm,
+            requesting_api_client_id,
           )
       }
   }
@@ -686,6 +865,7 @@ fn validate_external_activity_event_update(
   input: Dict(String, root_field.ResolvedValue),
   requested_utm: Option(Dict(String, MarketingValue)),
   validate_utm: Bool,
+  requesting_api_client_id: Option(String),
 ) -> Option(UserError) {
   case
     supplied_string_differs(
@@ -718,6 +898,7 @@ fn validate_external_activity_event_update(
                 store,
                 activity,
                 input,
+                requesting_api_client_id,
               )
           }
       }
@@ -728,6 +909,7 @@ fn validate_external_activity_parent_and_hierarchy(
   store: Store,
   activity: MarketingRecord,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Option(UserError) {
   let existing_parent_remote_id =
     serializers.read_marketing_string(activity.data, "parentRemoteId")
@@ -736,9 +918,10 @@ fn validate_external_activity_parent_and_hierarchy(
       case serializers.read_value_string(input, "parentRemoteId") {
         Some(parent_remote_id) ->
           case
-            serializers.find_marketing_event_by_remote_id(
+            serializers.find_marketing_event_by_remote_id_for_app(
               store,
               parent_remote_id,
+              requesting_api_client_id,
             )
           {
             None -> Some(invalid_remote_id_error())
@@ -788,6 +971,7 @@ fn marketing_activity_delete_external(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let remote_id = graphql_helpers.read_arg_string_nonempty(args, "remoteId")
   let marketing_activity_id =
@@ -804,11 +988,19 @@ fn marketing_activity_delete_external(
     _, _ -> {
       let activity = case remote_id {
         Some(remote_id) ->
-          store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+          store.get_effective_marketing_activity_by_remote_id_for_app(
+            store,
+            remote_id,
+            requesting_api_client_id,
+          )
         None ->
           case marketing_activity_id {
             Some(id) ->
-              store.get_effective_marketing_activity_record_by_id(store, id)
+              store.get_effective_marketing_activity_record_by_id_for_app(
+                store,
+                id,
+                requesting_api_client_id,
+              )
             None -> None
           }
       }
@@ -843,6 +1035,7 @@ fn marketing_activity_delete_external(
                   ]),
                   [activity.id],
                   True,
+                  [],
                 ),
                 next_store,
                 identity,
@@ -872,7 +1065,10 @@ fn has_child_marketing_events(store: Store, activity: MarketingRecord) -> Bool {
   case nested_marketing_event_has_children(activity) {
     True -> True
     False ->
-      store.list_effective_marketing_activities(store)
+      store.list_effective_marketing_activities_for_app(
+        store,
+        activity.api_client_id,
+      )
       |> list.any(fn(candidate) {
         candidate.id != activity.id
         && references_parent_activity(candidate, activity)
@@ -929,9 +1125,13 @@ fn marketing_activities_delete_all_external(
   store: Store,
   identity: SyntheticIdentityRegistry,
   key: String,
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let #(deleted_ids, next_store) =
-    store.stage_delete_all_external_marketing_activities(store)
+    store.stage_delete_all_external_marketing_activities_for_app(
+      store,
+      requesting_api_client_id,
+    )
   let #(job_id, next_identity) =
     synthetic_identity.make_synthetic_gid(identity, "Job")
   #(
@@ -950,6 +1150,7 @@ fn marketing_activities_delete_all_external(
       ]),
       [job_id, ..deleted_ids],
       True,
+      [],
     ),
     next_store,
     next_identity,
@@ -961,6 +1162,7 @@ fn marketing_engagement_create(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "marketingEngagement")
@@ -975,7 +1177,13 @@ fn marketing_engagement_create(
         identity,
       )
     Ok(engagement_currency_code) ->
-      case resolve_marketing_engagement_identifier(store, args) {
+      case
+        resolve_marketing_engagement_identifier(
+          store,
+          args,
+          requesting_api_client_id,
+        )
+      {
         Error(user_error) ->
           validation_result(
             key,
@@ -1001,7 +1209,11 @@ fn marketing_engagement_create(
               )
             Ok(Nil) -> {
               let engagement =
-                build_marketing_engagement_record(identifier, input)
+                build_marketing_engagement_record(
+                  identifier,
+                  input,
+                  requesting_api_client_id,
+                )
               let #(staged, next_store) =
                 store.stage_marketing_engagement(store, engagement)
               #(
@@ -1016,6 +1228,7 @@ fn marketing_engagement_create(
                   ]),
                   [staged.id],
                   True,
+                  [],
                 ),
                 next_store,
                 identity,
@@ -1031,6 +1244,7 @@ fn marketing_engagements_delete(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let channel_handle =
     graphql_helpers.read_arg_string_nonempty(args, "channelHandle")
@@ -1057,7 +1271,13 @@ fn marketing_engagements_delete(
         identity,
       )
     Some(handle), False ->
-      case store.has_known_marketing_channel_handle(store, handle) {
+      case
+        store.has_known_marketing_channel_handle_for_app(
+          store,
+          handle,
+          requesting_api_client_id,
+        )
+      {
         False ->
           validation_result(
             key,
@@ -1068,9 +1288,10 @@ fn marketing_engagements_delete(
           )
         True -> {
           let #(deleted_ids, next_store) =
-            store.stage_delete_marketing_engagements_by_channel_handle(
+            store.stage_delete_marketing_engagements_by_channel_handle_for_app(
               store,
               handle,
+              requesting_api_client_id,
             )
           #(
             MutationFieldResult(
@@ -1086,6 +1307,7 @@ fn marketing_engagements_delete(
               ]),
               deleted_ids,
               True,
+              [],
             ),
             next_store,
             identity,
@@ -1094,7 +1316,10 @@ fn marketing_engagements_delete(
       }
     None, True -> {
       let channel_count =
-        store.list_effective_marketing_engagements(store)
+        store.list_effective_marketing_engagements_for_app(
+          store,
+          requesting_api_client_id,
+        )
         |> list.filter_map(fn(engagement) {
           case engagement.channel_handle {
             Some(handle) -> Ok(handle)
@@ -1104,7 +1329,10 @@ fn marketing_engagements_delete(
         |> serializers.dedupe_strings
         |> list.length
       let #(deleted_ids, next_store) =
-        store.stage_delete_all_channel_marketing_engagements(store)
+        store.stage_delete_all_channel_marketing_engagements_for_app(
+          store,
+          requesting_api_client_id,
+        )
       #(
         MutationFieldResult(
           key,
@@ -1121,6 +1349,7 @@ fn marketing_engagements_delete(
           ]),
           deleted_ids,
           True,
+          [],
         ),
         next_store,
         identity,
@@ -1134,9 +1363,14 @@ fn create_external_activity_success(
   identity: SyntheticIdentityRegistry,
   key: String,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let #(activity, event, next_identity) =
-    build_marketing_records_from_create_input(identity, input)
+    build_marketing_records_from_create_input(
+      identity,
+      input,
+      requesting_api_client_id,
+    )
   let #(_, next_store) = store.stage_marketing_event(store, event)
   let #(staged_activity, next_store) =
     store.stage_marketing_activity(next_store, activity)
@@ -1152,6 +1386,7 @@ fn create_external_activity_success(
       ]),
       [staged_activity.id, event.id],
       True,
+      [],
     ),
     next_store,
     next_identity,
@@ -1182,6 +1417,7 @@ fn update_external_activity_success(
       ]),
       [staged_activity.id, event.id],
       True,
+      [],
     ),
     next_store,
     next_identity,
@@ -1206,7 +1442,22 @@ fn marketing_missing_activity_result(
       ]),
       [],
       False,
+      [],
     ),
+    store,
+    identity,
+  )
+}
+
+fn marketing_activity_update_access_denied_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  #(
+    MutationFieldResult(key, SrcNull, [], False, [
+      access_denied_top_level_error("marketingActivityUpdate"),
+    ]),
     store,
     identity,
   )
@@ -1225,6 +1476,7 @@ fn validation_result(
       marketing_validation_payload(root_field, user_errors),
       [],
       False,
+      [],
     ),
     store,
     identity,
@@ -1273,6 +1525,30 @@ fn user_error_source(user_error: UserError) -> SourceValue {
     #("field", serializers.optional_string_list_source(user_error.field)),
     #("message", SrcString(user_error.message)),
     #("code", graphql_helpers.option_string_source(user_error.code)),
+  ])
+}
+
+fn access_denied_top_level_error(root_field: String) -> json.Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Access denied for "
+        <> root_field
+        <> " field. Required access: `write_marketing_events` access scope.",
+      ),
+    ),
+    #("path", json.array([root_field], json.string)),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("ACCESS_DENIED")),
+        #(
+          "requiredAccess",
+          json.string("`write_marketing_events` access scope."),
+        ),
+      ]),
+    ),
   ])
 }
 
@@ -1491,6 +1767,7 @@ fn marketing_activity_currency_code_mismatch_error() -> UserError {
 fn build_marketing_records_from_create_input(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MarketingRecord, MarketingRecord, SyntheticIdentityRegistry) {
   let #(activity_id, identity) =
     synthetic_identity.make_synthetic_gid(identity, "MarketingActivity")
@@ -1633,8 +1910,18 @@ fn build_marketing_records_from_create_input(
       #("marketingEvent", MarketingObject(event_data)),
     ])
   #(
-    MarketingRecord(id: activity_id, cursor: None, data: activity_data),
-    MarketingRecord(id: event_id, cursor: None, data: event_data),
+    MarketingRecord(
+      id: activity_id,
+      cursor: None,
+      api_client_id: requesting_api_client_id,
+      data: activity_data,
+    ),
+    MarketingRecord(
+      id: event_id,
+      cursor: None,
+      api_client_id: requesting_api_client_id,
+      data: event_data,
+    ),
     identity,
   )
 }
@@ -1642,6 +1929,7 @@ fn build_marketing_records_from_create_input(
 fn build_native_marketing_activity_from_create_input(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MarketingRecord, SyntheticIdentityRegistry) {
   let #(activity_id, identity) =
     synthetic_identity.make_synthetic_gid(identity, "MarketingActivity")
@@ -1736,7 +2024,15 @@ fn build_native_marketing_activity_from_create_input(
       ),
       #("marketingEvent", MarketingNull),
     ])
-  #(MarketingRecord(id: activity_id, cursor: None, data: data), identity)
+  #(
+    MarketingRecord(
+      id: activity_id,
+      cursor: None,
+      api_client_id: requesting_api_client_id,
+      data: data,
+    ),
+    identity,
+  )
 }
 
 fn apply_native_marketing_activity_update(
@@ -2004,7 +2300,12 @@ fn apply_external_activity_update(
     ])
   #(
     MarketingRecord(..record, data: activity_data),
-    MarketingRecord(id: event_id, cursor: None, data: event_data),
+    MarketingRecord(
+      id: event_id,
+      cursor: None,
+      api_client_id: record.api_client_id,
+      data: event_data,
+    ),
     identity,
   )
 }
@@ -2012,6 +2313,7 @@ fn apply_external_activity_update(
 fn build_marketing_engagement_record(
   identifier: EngagementIdentifier,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MarketingEngagementRecord {
   let occurred_on =
     option.unwrap(serializers.read_value_string(input, "occurredOn"), "")
@@ -2051,6 +2353,7 @@ fn build_marketing_engagement_record(
     |> serializers.overlay_marketing_data(decimal_engagement_entries(input))
   MarketingEngagementRecord(
     id: engagement_record_id(identifier, occurred_on),
+    api_client_id: requesting_api_client_id,
     marketing_activity_id: option.map(activity, fn(a) { a.id }),
     remote_id: case identifier {
       RemoteIdentifier(value, ..) -> Some(value)
@@ -2068,6 +2371,7 @@ fn build_marketing_engagement_record(
 fn resolve_marketing_engagement_identifier(
   store: Store,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Result(EngagementIdentifier, UserError) {
   let marketing_activity_id =
     graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
@@ -2084,22 +2388,35 @@ fn resolve_marketing_engagement_identifier(
     _ ->
       case marketing_activity_id, remote_id, channel_handle {
         Some(id), _, _ ->
-          case store.get_effective_marketing_activity_record_by_id(store, id) {
+          case
+            store.get_effective_marketing_activity_record_by_id_for_app(
+              store,
+              id,
+              requesting_api_client_id,
+            )
+          {
             Some(activity) -> Ok(ActivityIdentifier(id, activity))
             None -> Error(marketing_activity_missing_error())
           }
         _, Some(remote_id), _ ->
           case
-            store.get_effective_marketing_activity_by_remote_id(
+            store.get_effective_marketing_activity_by_remote_id_for_app(
               store,
               remote_id,
+              requesting_api_client_id,
             )
           {
             Some(activity) -> Ok(RemoteIdentifier(remote_id, activity))
             None -> Error(marketing_activity_missing_error())
           }
         _, _, Some(handle) ->
-          case store.has_known_marketing_channel_handle(store, handle) {
+          case
+            store.has_known_marketing_channel_handle_for_app(
+              store,
+              handle,
+              requesting_api_client_id,
+            )
+          {
             True -> Ok(ChannelIdentifier(handle))
             False -> Error(invalid_channel_handle_error())
           }

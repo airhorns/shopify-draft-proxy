@@ -533,6 +533,12 @@ fn staged_state_dump_fields(state: store.StagedState) -> List(#(String, Json)) {
       "marketingDeleteAllExternalInFlight",
       json.bool(state.marketing_delete_all_external_in_flight),
     ),
+    #(
+      "marketingDeleteAllExternalInFlightApiClientIds",
+      bool_dict_to_json(
+        state.marketing_delete_all_external_in_flight_api_client_ids,
+      ),
+    ),
     #("validations", dict_to_json(state.validations, validation_json)),
     #("validationOrder", json.array(state.validation_order, json.string)),
     #("deletedValidationIds", bool_dict_to_json(state.deleted_validation_ids)),
@@ -992,6 +998,11 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     empty.marketing_delete_all_external_in_flight,
     decode.bool,
   )
+  use marketing_delete_all_external_in_flight_api_client_ids <- optional_field(
+    "marketingDeleteAllExternalInFlightApiClientIds",
+    empty.marketing_delete_all_external_in_flight_api_client_ids,
+    decode.dict(decode.string, decode.bool),
+  )
   use validations <- dict_field("validations", validation_decoder())
   use validation_order <- string_list_field("validationOrder")
   use deleted_validation_ids <- bool_dict_field("deletedValidationIds")
@@ -1195,6 +1206,7 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     deleted_marketing_event_ids: deleted_marketing_event_ids,
     deleted_marketing_engagement_ids: deleted_marketing_engagement_ids,
     marketing_delete_all_external_in_flight: marketing_delete_all_external_in_flight,
+    marketing_delete_all_external_in_flight_api_client_ids: marketing_delete_all_external_in_flight_api_client_ids,
     validations: validations,
     validation_order: validation_order,
     deleted_validation_ids: deleted_validation_ids,

@@ -1566,12 +1566,18 @@ pub fn metaobject_online_store_decoder() -> Decoder(
 pub fn marketing_record_decoder() -> Decoder(types.MarketingRecord) {
   use id <- decode.field("id", decode.string)
   use cursor <- optional_string_field("cursor")
+  use api_client_id <- optional_string_field("apiClientId")
   use data <- optional_field(
     "data",
     dict.new(),
     decode.dict(decode.string, marketing_value_decoder()),
   )
-  decode.success(types.MarketingRecord(id: id, cursor: cursor, data: data))
+  decode.success(types.MarketingRecord(
+    id: id,
+    cursor: cursor,
+    api_client_id: api_client_id,
+    data: data,
+  ))
 }
 
 @internal
@@ -1595,6 +1601,7 @@ pub fn marketing_engagement_decoder() -> Decoder(
   types.MarketingEngagementRecord,
 ) {
   use id <- decode.field("id", decode.string)
+  use api_client_id <- optional_string_field("apiClientId")
   use marketing_activity_id <- optional_string_field("marketingActivityId")
   use remote_id <- optional_string_field("remoteId")
   use channel_handle <- optional_string_field("channelHandle")
@@ -1606,6 +1613,7 @@ pub fn marketing_engagement_decoder() -> Decoder(
   )
   decode.success(types.MarketingEngagementRecord(
     id: id,
+    api_client_id: api_client_id,
     marketing_activity_id: marketing_activity_id,
     remote_id: remote_id,
     channel_handle: channel_handle,

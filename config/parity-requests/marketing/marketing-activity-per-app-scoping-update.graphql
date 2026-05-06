@@ -1,0 +1,13 @@
+mutation MarketingActivityPerAppUpdate {
+  updateExternal: marketingActivityUpdateExternal(remoteId: "campaign-1", input: { title: "App B Attempted Update" }) {
+    marketingActivity {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

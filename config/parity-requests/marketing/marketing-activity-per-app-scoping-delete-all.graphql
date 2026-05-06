@@ -1,0 +1,12 @@
+mutation MarketingActivityPerAppDeleteAll {
+  deleteAllExternal: marketingActivitiesDeleteAllExternal {
+    job {
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
