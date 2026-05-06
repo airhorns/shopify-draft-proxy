@@ -1,0 +1,12 @@
+mutation DiscountActivationFailureFieldBaseAutomaticActivate($id: ID!) {
+  discountAutomaticActivate(id: $id) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

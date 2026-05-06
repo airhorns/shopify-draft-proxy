@@ -1,0 +1,99 @@
+{
+  "scenarioId": "discount-delete-unknown-id",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountAutomaticBasicCreate",
+    "discountCodeDelete",
+    "discountAutomaticDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-validation", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-delete-unknown-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-delete-unknown-id-setup.graphql",
+    "variablesCapturePath": "$.requests.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-discounts-created-without-user-errors",
+        "capturePath": "$.setup.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.codeSetup.userErrors", "$.automaticSetup.userErrors"]
+      },
+      {
+        "name": "unknown-code-delete-invalid-error",
+        "capturePath": "$.unknownCodeDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-delete-unknown-id-code.graphql",
+          "variables": {
+            "id": "gid://shopify/DiscountCodeNode/0"
+          }
+        }
+      },
+      {
+        "name": "unknown-automatic-delete-invalid-error",
+        "capturePath": "$.unknownAutomaticDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-delete-unknown-id-automatic.graphql",
+          "variables": {
+            "id": "gid://shopify/DiscountAutomaticNode/0"
+          }
+        }
+      },
+      {
+        "name": "known-code-delete-success",
+        "capturePath": "$.codeDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.discountCodeDelete.deletedCodeDiscountId",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy deletes the locally staged synthetic code discount ID instead of Shopify's live setup ID."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-delete-unknown-id-code.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.codeSetup.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "known-automatic-delete-success",
+        "capturePath": "$.automaticDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.discountAutomaticDelete.deletedAutomaticDiscountId",
+            "matcher": "shopify-gid:DiscountAutomaticNode",
+            "reason": "The proxy deletes the locally staged synthetic automatic discount ID instead of Shopify's live setup ID."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-delete-unknown-id-automatic.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticDiscountNode.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captured Shopify behavior for discountCodeDelete and discountAutomaticDelete when the supplied ID resolves to no discount, plus success-path delete regression checks for setup code and automatic basic discounts. Unknown IDs must return an INVALID id userError with a null deleted ID; successful deletes still echo the deleted ID."
+}

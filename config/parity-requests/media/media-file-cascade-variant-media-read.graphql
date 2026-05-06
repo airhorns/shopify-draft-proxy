@@ -1,0 +1,12 @@
+query MediaFileCascadeVariantMediaRead($variantId: ID!) {
+  productVariant(id: $variantId) {
+    id
+    media(first: 5) {
+      nodes {
+        id
+        alt
+        mediaContentType
+      }
+    }
+  }
+}

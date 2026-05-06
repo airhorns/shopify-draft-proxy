@@ -1,0 +1,13 @@
+query MobilePlatformApplicationUpdateReadApple($id: ID!) {
+  mobilePlatformApplication(id: $id) {
+    __typename
+    ... on AppleApplication {
+      id
+      appId
+      universalLinksEnabled
+      sharedWebCredentialsEnabled
+      appClipsEnabled
+      appClipApplicationId
+    }
+  }
+}

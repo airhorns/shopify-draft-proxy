@@ -35,6 +35,7 @@ import shopify_draft_proxy/proxy/products/products_handlers.{
 }
 import shopify_draft_proxy/proxy/products/selling_plans_core.{
   find_selling_plan, make_selling_plan_group_record,
+  max_selling_plan_group_memberships,
   product_variant_count_for_selling_plan_group, selling_plan_group_cursor,
   selling_plan_group_does_not_exist_error, selling_plan_group_staged_ids,
   serialize_selling_plans_connection,
@@ -42,11 +43,11 @@ import shopify_draft_proxy/proxy/products/selling_plans_core.{
   update_variant_selling_plan_group_membership,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  captured_object_field, dedupe_preserving_order, mutation_error_result,
-  mutation_rejected_result, mutation_result, read_arg_string_list,
-  read_int_field, read_list_field_length, read_object_field,
-  read_object_list_field, read_string_argument, read_string_field,
-  read_string_list_field, serialize_exact_count,
+  captured_int_field, captured_object_field, captured_string_field,
+  dedupe_preserving_order, mutation_error_result, mutation_rejected_result,
+  mutation_result, read_arg_string_list, read_int_field, read_list_field_length,
+  read_object_field, read_object_list_field, read_string_argument,
+  read_string_field, read_string_list_field, serialize_exact_count,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   option_to_result, optional_int_json, optional_string,
@@ -62,8 +63,25 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type ProductRecord, type ProductVariantRecord,
-  type SellingPlanGroupRecord, type SellingPlanRecord, CapturedString,
-  SellingPlanGroupRecord,
+  type SellingPlanGroupRecord, type SellingPlanRecord, CapturedArray,
+  CapturedObject, CapturedString, SellingPlanGroupRecord,
+}
+
+type SellingPlanAnchorSignature {
+  SellingPlanAnchorSignature(
+    type_: Option(String),
+    day: Option(Int),
+    month: Option(Int),
+    cutoff_day: Option(Int),
+  )
+}
+
+type SellingPlanRecurringSchedule {
+  SellingPlanRecurringSchedule(
+    interval: Option(String),
+    interval_count: Option(Int),
+    anchors: List(SellingPlanAnchorSignature),
+  )
 }
 
 // ===== from selling_plans_l10 =====
@@ -1026,11 +1044,17 @@ fn selling_plan_group_add_product_errors(
         )
       })
     [] ->
-      case
-        requested != [] && all_ids_are_members(requested, group.product_ids)
-      {
+      case requested != [] && any_id_is_member(requested, group.product_ids) {
         True -> [resource_already_taken_error(["productIds"])]
-        False -> []
+        False ->
+          case
+            product_add_would_exceed_membership_cap(store, group, requested)
+          {
+            True -> [
+              too_many_selling_plan_groups_for_field_error(["productIds"]),
+            ]
+            False -> []
+          }
       }
   }
 }
@@ -1060,10 +1084,18 @@ fn selling_plan_group_add_variant_errors(
     [] ->
       case
         requested != []
-        && all_ids_are_members(requested, group.product_variant_ids)
+        && any_id_is_member(requested, group.product_variant_ids)
       {
         True -> [resource_already_taken_error(["productVariantIds"])]
-        False -> []
+        False ->
+          case
+            variant_add_would_exceed_membership_cap(store, group, requested)
+          {
+            True -> [
+              too_many_selling_plan_groups_for_field_error(["productVariantIds"]),
+            ]
+            False -> []
+          }
       }
   }
 }
@@ -1072,8 +1104,53 @@ fn resource_already_taken_error(field: List(String)) -> ProductUserError {
   ProductUserError(field, "Resource has already been taken", Some("TAKEN"))
 }
 
-fn all_ids_are_members(requested: List(String), members: List(String)) -> Bool {
-  list.all(requested, fn(id) { list.contains(members, id) })
+fn any_id_is_member(requested: List(String), members: List(String)) -> Bool {
+  list.any(requested, fn(id) { list.contains(members, id) })
+}
+
+fn product_add_would_exceed_membership_cap(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  requested: List(String),
+) -> Bool {
+  requested
+  |> list.any(fn(product_id) {
+    !list.contains(group.product_ids, product_id)
+    && {
+      store.list_effective_selling_plan_groups_for_product(store, product_id)
+      |> list.length
+    }
+    >= max_selling_plan_group_memberships
+  })
+}
+
+fn variant_add_would_exceed_membership_cap(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  requested: List(String),
+) -> Bool {
+  requested
+  |> list.any(fn(variant_id) {
+    !list.contains(group.product_variant_ids, variant_id)
+    && {
+      store.list_effective_selling_plan_groups_for_product_variant(
+        store,
+        variant_id,
+      )
+      |> list.length
+    }
+    >= max_selling_plan_group_memberships
+  })
+}
+
+fn too_many_selling_plan_groups_for_field_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "Cannot join more than 31 selling plan groups.",
+    Some("SELLING_PLAN_GROUPS_TOO_MANY"),
+  )
 }
 
 fn first_malformed_shopify_gid(
@@ -1316,6 +1393,8 @@ fn selling_plan_input_errors(
   }
   let delivery_policy_errors =
     delivery_policy_update_union_errors(input, field_prefix, existing_plan)
+  let recurring_policy_errors =
+    recurring_policy_input_errors(input, field_prefix, existing_plan)
   let policy_errors = case delivery_policy_errors {
     [] ->
       case
@@ -1343,11 +1422,89 @@ fn selling_plan_input_errors(
         pricing_policy_errors,
         list.append(
           position_errors,
-          list.append(delivery_policy_errors, policy_errors),
+          list.append(
+            delivery_policy_errors,
+            list.append(policy_errors, recurring_policy_errors),
+          ),
         ),
       ),
     ),
   )
+}
+
+fn recurring_policy_input_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  existing_plan: Option(SellingPlanRecord),
+) -> List(ProductUserError) {
+  list.append(
+    recurring_interval_count_errors(input, field_prefix, "deliveryPolicy"),
+    list.append(
+      recurring_interval_count_errors(input, field_prefix, "billingPolicy"),
+      recurring_schedule_errors(input, field_prefix, existing_plan),
+    ),
+  )
+}
+
+fn recurring_interval_count_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  field_name: String,
+) -> List(ProductUserError) {
+  case input_recurring_policy(input, field_name) {
+    Some(recurring) ->
+      case read_int_field(recurring, "intervalCount") {
+        Some(count) if count <= 0 -> [
+          ProductUserError(
+            list.append(field_prefix, [
+              field_name,
+              "recurring",
+              "intervalCount",
+            ]),
+            "Interval count must be greater than 0",
+            Some("GREATER_THAN"),
+          ),
+        ]
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn recurring_schedule_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  existing_plan: Option(SellingPlanRecord),
+) -> List(ProductUserError) {
+  let input_billing = input_recurring_schedule(input, "billingPolicy")
+  let input_delivery = input_recurring_schedule(input, "deliveryPolicy")
+  let existing_billing =
+    existing_plan
+    |> option.then(fn(plan) {
+      captured_recurring_schedule(plan.data, "billingPolicy")
+    })
+  let existing_delivery =
+    existing_plan
+    |> option.then(fn(plan) {
+      captured_recurring_schedule(plan.data, "deliveryPolicy")
+    })
+  let effective_billing = input_billing |> option.or(existing_billing)
+  let effective_delivery = input_delivery |> option.or(existing_delivery)
+
+  case
+    option.is_some(input_billing) || option.is_some(input_delivery),
+    effective_billing,
+    effective_delivery
+  {
+    True, Some(billing), Some(delivery) if billing != delivery -> [
+      ProductUserError(
+        field_prefix,
+        "Billing and delivery policy anchors must be the same",
+        Some("SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL"),
+      ),
+    ]
+    _, _, _ -> []
+  }
 }
 
 fn delivery_policy_update_union_errors(
@@ -1370,6 +1527,84 @@ fn delivery_policy_update_union_errors(
       ),
     ]
     _, _ -> []
+  }
+}
+
+fn input_recurring_policy(
+  input: Dict(String, ResolvedValue),
+  field_name: String,
+) -> Option(Dict(String, ResolvedValue)) {
+  case read_object_field(input, field_name) {
+    Some(policy) -> read_object_field(policy, "recurring")
+    None -> None
+  }
+}
+
+fn input_recurring_schedule(
+  input: Dict(String, ResolvedValue),
+  field_name: String,
+) -> Option(SellingPlanRecurringSchedule) {
+  case input_recurring_policy(input, field_name) {
+    Some(recurring) ->
+      Some(SellingPlanRecurringSchedule(
+        interval: read_string_field(recurring, "interval"),
+        interval_count: read_int_field(recurring, "intervalCount"),
+        anchors: input_anchor_signatures(recurring),
+      ))
+    None -> None
+  }
+}
+
+fn input_anchor_signatures(
+  recurring: Dict(String, ResolvedValue),
+) -> List(SellingPlanAnchorSignature) {
+  read_object_list_field(recurring, "anchors")
+  |> list.map(fn(anchor) {
+    SellingPlanAnchorSignature(
+      type_: read_string_field(anchor, "type"),
+      day: read_int_field(anchor, "day"),
+      month: read_int_field(anchor, "month"),
+      cutoff_day: read_int_field(anchor, "cutoffDay"),
+    )
+  })
+}
+
+fn captured_recurring_schedule(
+  value: CapturedJsonValue,
+  field_name: String,
+) -> Option(SellingPlanRecurringSchedule) {
+  case
+    captured_policy_kind(value, field_name),
+    captured_object_field(value, field_name)
+  {
+    Some("recurring"), Some(policy) ->
+      Some(SellingPlanRecurringSchedule(
+        interval: captured_string_field(policy, "interval"),
+        interval_count: captured_int_field(policy, "intervalCount"),
+        anchors: captured_anchor_signatures(policy),
+      ))
+    _, _ -> None
+  }
+}
+
+fn captured_anchor_signatures(
+  policy: CapturedJsonValue,
+) -> List(SellingPlanAnchorSignature) {
+  case captured_object_field(policy, "anchors") {
+    Some(CapturedArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          CapturedObject(_) ->
+            Ok(SellingPlanAnchorSignature(
+              type_: captured_string_field(item, "type"),
+              day: captured_int_field(item, "day"),
+              month: captured_int_field(item, "month"),
+              cutoff_day: captured_int_field(item, "cutoffDay"),
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 
