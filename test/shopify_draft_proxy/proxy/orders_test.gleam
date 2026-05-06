@@ -1,4 +1,5 @@
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -9049,6 +9050,191 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       dict.new(),
     )
   assert json.to_string(after_delete_read) == "{\"data\":{\"draftOrder\":null}}"
+}
+
+pub fn orders_draft_order_bulk_tags_validation_partial_success_test() {
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderCreate(input: {
+          email: \"bulk-validation@example.test\"
+          tags: [\"Initial\"]
+          lineItems: [{ title: \"Bulk validation item\", quantity: 1, originalUnitPrice: \"2.00\" }]
+        }) {
+          draftOrder { id tags }
+          userErrors { field message code }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  let long_tag = string.repeat("x", times: 256)
+  let bulk_add_mutation =
+    "
+    mutation BulkAdd($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message code }
+      }
+    }
+  "
+  let add_outcome =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      bulk_add_mutation,
+      dict.from_list([
+        #(
+          "ids",
+          root_field.ListVal([
+            root_field.StringVal("gid://shopify/DraftOrder/1"),
+            root_field.StringVal("gid://shopify/DraftOrder/999999"),
+          ]),
+        ),
+        #(
+          "tags",
+          root_field.ListVal([
+            root_field.StringVal(" added "),
+            root_field.StringVal("ADDED"),
+            root_field.StringVal(long_tag),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(add_outcome.data)
+    == "{\"data\":{\"draftOrderBulkAddTags\":{\"job\":{\"id\":\"gid://shopify/Job/3\",\"done\":false},\"userErrors\":[{\"field\":[\"input\",\"tags\",\"2\"],\"message\":\"tag_too_long\",\"code\":\"INVALID\"},{\"field\":[\"input\",\"ids\",\"1\"],\"message\":\"Draft order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let assert Ok(after_add_read) =
+    orders.process(
+      add_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_add_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"tags\":[\"added\",\"Initial\"]}}}"
+}
+
+pub fn orders_draft_order_bulk_tags_count_validation_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/250"
+  let existing_tags = numbered_draft_order_tags(250)
+  let seeded_store =
+    store.new()
+    |> store.stage_draft_order(types.DraftOrderRecord(
+      id: draft_order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(draft_order_id)),
+        #(
+          "tags",
+          types.CapturedArray(list.map(existing_tags, types.CapturedString)),
+        ),
+      ]),
+    ))
+
+  let bulk_add_mutation =
+    "
+    mutation BulkAdd($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message code }
+      }
+    }
+  "
+  let add_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      bulk_add_mutation,
+      dict.from_list([
+        #("ids", root_field.ListVal([root_field.StringVal(draft_order_id)])),
+        #("tags", root_field.ListVal([root_field.StringVal("bulk-extra")])),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(add_outcome.data)
+    == "{\"data\":{\"draftOrderBulkAddTags\":{\"job\":null,\"userErrors\":[{\"field\":[\"input\",\"tags\"],\"message\":\"too_many_tags\",\"code\":\"INVALID\"}]}}}"
+
+  let assert Ok(after_add_read) =
+    orders.process(
+      add_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/250\") { id tags } }",
+      dict.new(),
+    )
+  let read_json = json.to_string(after_add_read)
+  assert string.contains(read_json, "\"tag-250\"")
+  assert !string.contains(read_json, "bulk-extra")
+}
+
+pub fn orders_draft_order_bulk_remove_tags_normalizes_identity_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/normalization"
+  let seeded_store =
+    store.new()
+    |> store.stage_draft_order(types.DraftOrderRecord(
+      id: draft_order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(draft_order_id)),
+        #(
+          "tags",
+          types.CapturedArray([
+            types.CapturedString("Initial"),
+            types.CapturedString("vip"),
+          ]),
+        ),
+      ]),
+    ))
+
+  let bulk_remove_mutation =
+    "
+    mutation BulkRemove($ids: [ID!], $tags: [String!]!) {
+      draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
+        job { id done }
+        userErrors { field message code }
+      }
+    }
+  "
+  let remove_outcome =
+    orders.process_mutation(
+      seeded_store,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      bulk_remove_mutation,
+      dict.from_list([
+        #("ids", root_field.ListVal([root_field.StringVal(draft_order_id)])),
+        #("tags", root_field.ListVal([root_field.StringVal(" initial ")])),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(remove_outcome.data)
+    == "{\"data\":{\"draftOrderBulkRemoveTags\":{\"job\":{\"id\":\"gid://shopify/Job/1\",\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Ok(after_remove_read) =
+    orders.process(
+      remove_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/normalization\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(after_remove_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/normalization\",\"tags\":[\"vip\"]}}}"
+}
+
+fn numbered_draft_order_tags(count: Int) -> List(String) {
+  int.range(from: 1, to: count + 1, with: [], run: fn(acc, index) {
+    ["tag-" <> int.to_string(index), ..acc]
+  })
+  |> list.reverse
 }
 
 pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {
