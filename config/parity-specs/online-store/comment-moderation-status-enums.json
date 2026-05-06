@@ -1,6 +1,6 @@
 {
   "scenarioId": "comment-moderation-status-enums",
-  "operationNames": ["comment", "commentSpam", "commentNotSpam", "commentApprove", "commentDelete"],
+  "operationNames": ["comment", "commentSpam", "commentNotSpam", "commentApprove"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "mutation-lifecycle", "user-errors-parity", "local-runtime-backed"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/online-store/comment-moderation-status-enums.json"],
@@ -39,58 +39,8 @@
           "variablesCapturePath": "$.variables",
           "apiVersion": "2026-04"
         }
-      },
-      {
-        "name": "comment-delete-sets-removed",
-        "capturePath": "$.delete.response.data.commentDelete",
-        "proxyPath": "$.data.commentDelete",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-delete.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "comment-read-after-delete-shows-removed-status",
-        "capturePath": "$.readAfterDelete.response.data",
-        "proxyPath": "$.data",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-read.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "comment-spam-removed-invalid",
-        "capturePath": "$.spamRemoved.response.data.commentSpam",
-        "proxyPath": "$.data.commentSpam",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-spam.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "comment-approve-removed-invalid",
-        "capturePath": "$.approveRemoved.response.data.commentApprove",
-        "proxyPath": "$.data.commentApprove",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-approve.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "comment-delete-removed-idempotent",
-        "capturePath": "$.deleteRemoved.response.data.commentDelete",
-        "proxyPath": "$.data.commentDelete",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-delete.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
       }
     ]
   },
-  "notes": "Local-runtime parity starts from a cassette-hydrated unapproved comment because the Admin API has moderation roots but no supported local comment-create root. The generic Gleam runner then threads local state through spam, not-spam, approve, delete, removed readback, removed spam/approve INVALID guardrails, and idempotent removed delete without runtime Shopify writes."
+  "notes": "Local-runtime parity starts from a cassette-hydrated unapproved comment because the Admin API has moderation roots but no supported local comment-create root. This spec is limited to commentSpam, commentNotSpam, and commentApprove status enum behavior; public commentDelete true-destroy lifecycle parity is covered by the live comment-delete-true-destroy scenario."
 }

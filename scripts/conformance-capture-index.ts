@@ -2194,6 +2194,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-comment-delete-true-destroy',
+    scriptPath: 'scripts/capture-online-store-comment-delete-true-destroy-conformance.ts',
+    purpose:
+      'commentDelete true-destroy behavior for singular comment reads, root/nested comment connections, and Article.commentsCount.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}comment-delete-true-destroy.json`,
+      'config/parity-specs/online-store/comment-delete-true-destroy.json',
+      'config/parity-requests/online-store/comment-delete-true-destroy-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog/article and one REST article comment, approves and deletes the comment during the scenario, then deletes the article and blog in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-comment-moderation-state-transitions',
     scriptPath: 'scripts/capture-online-store-comment-moderation-state-transitions-conformance.ts',
     purpose:
