@@ -54,11 +54,12 @@ import shopify_draft_proxy/proxy/products/publications_l02.{
   shop_resource_feedback_source,
 }
 import shopify_draft_proxy/proxy/products/shared_l00.{
-  read_arg_object_list, read_object_list_field, read_string_argument,
-  read_string_field,
+  read_arg_object_list, read_int_field, read_object_field,
+  read_object_list_field, read_string_argument, read_string_field,
+  read_string_list_field,
 }
 import shopify_draft_proxy/proxy/products/shared_l01.{
-  mutation_result, user_errors_source,
+  mutation_rejected_result, mutation_result, user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/types.{
   type MutationFieldResult, type NullableFieldUserError, type ProductUserError,
@@ -73,7 +74,7 @@ import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
+  type SyntheticIdentityRegistry, is_proxy_synthetic_gid, make_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type ChannelRecord, type CollectionImageRecord,
@@ -298,26 +299,320 @@ pub fn handle_product_bundle_mutation(
     Some(id) -> store.get_effective_product_by_id(store, id)
     None -> None
   }
+  let components = read_object_list_field(input, "components")
   let user_errors = case root_name, product_id, existing_product {
     "productBundleUpdate", _, None -> [
       NullableFieldUserError(None, "Product does not exist"),
     ]
     _, _, _ -> {
-      case read_object_list_field(input, "components") {
+      case components {
         [] -> [
           NullableFieldUserError(None, "At least one component is required."),
         ]
-        _ -> []
+        _ -> validate_product_bundle_components(store, input, components)
       }
     }
   }
-  mutation_result(
-    key,
-    product_bundle_mutation_payload(root_name, user_errors, field, fragments),
-    store,
-    identity,
-    [],
-  )
+  case user_errors {
+    [] -> {
+      let #(operation_id, next_identity) =
+        make_synthetic_gid(identity, "ProductBundleOperation")
+      let completed_operation =
+        ProductOperationRecord(
+          id: operation_id,
+          type_name: "ProductBundleOperation",
+          product_id: None,
+          new_product_id: None,
+          status: "ACTIVE",
+          user_errors: [],
+        )
+      let #(staged_operation, next_store) =
+        store.stage_product_operation(store, completed_operation)
+      let initial_operation =
+        ProductOperationRecord(..staged_operation, status: "CREATED")
+      mutation_result(
+        key,
+        product_bundle_mutation_payload(
+          root_name,
+          Some(initial_operation),
+          [],
+          field,
+          fragments,
+        ),
+        next_store,
+        next_identity,
+        [operation_id],
+      )
+    }
+    _ ->
+      mutation_rejected_result(
+        key,
+        product_bundle_mutation_payload(
+          root_name,
+          None,
+          user_errors,
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+      )
+  }
+}
+
+const product_bundle_quantity_max = 2000
+
+fn validate_product_bundle_components(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let missing_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case read_string_field(component, "productId") {
+        Some(id) ->
+          case store.get_effective_product_by_id(store, id) {
+            Some(_) -> Error(Nil)
+            None -> Ok(resource_id_tail(id))
+          }
+        None -> Error(Nil)
+      }
+    })
+  case missing_product_tails {
+    [] -> {
+      list.append(
+        product_bundle_option_mapping_errors(store, components),
+        list.append(
+          product_bundle_quantity_errors(components),
+          list.append(
+            product_bundle_quantity_option_errors(components),
+            product_bundle_consolidated_option_errors(input, components),
+          ),
+        ),
+      )
+    }
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Failed to locate the following products: "
+          <> numeric_id_array_literal(missing_product_tails),
+      ),
+    ]
+  }
+}
+
+fn product_bundle_option_mapping_errors(
+  store: Store,
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let invalid_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case read_string_field(component, "productId") {
+        Some(id) ->
+          case store.get_effective_product_by_id(store, id) {
+            Some(_) -> {
+              let options = store.get_effective_options_by_product_id(store, id)
+              case product_bundle_component_options_valid(component, options) {
+                True -> Error(Nil)
+                False -> Ok(resource_id_tail(id))
+              }
+            }
+            None -> Error(Nil)
+          }
+        None -> Error(Nil)
+      }
+    })
+  case invalid_product_tails {
+    [] -> []
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids "
+          <> numeric_id_array_literal(invalid_product_tails)
+          <> ".",
+      ),
+    ]
+  }
+}
+
+fn product_bundle_component_options_valid(
+  component: Dict(String, ResolvedValue),
+  options: List(ProductOptionRecord),
+) -> Bool {
+  let selections = read_object_list_field(component, "optionSelections")
+  list.length(selections) == list.length(options)
+  && list.all(options, fn(option) {
+    case product_bundle_selection_for_option(selections, option.id) {
+      Some(selection) -> {
+        let values =
+          read_string_list_field(selection, "values") |> option.unwrap([])
+        let valid_values =
+          list.map(option.option_values, fn(value) { value.name })
+        values != []
+        && list.all(values, fn(value) { list.contains(valid_values, value) })
+        && read_string_field(selection, "name") == Some(option.name)
+      }
+      None -> False
+    }
+  })
+}
+
+fn product_bundle_selection_for_option(
+  selections: List(Dict(String, ResolvedValue)),
+  option_id: String,
+) -> Option(Dict(String, ResolvedValue)) {
+  case
+    selections
+    |> list.filter(fn(selection) {
+      read_string_field(selection, "componentOptionId") == Some(option_id)
+    })
+  {
+    [selection] -> Some(selection)
+    _ -> None
+  }
+}
+
+fn product_bundle_quantity_errors(
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let exceeding_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case
+        read_int_field(component, "quantity"),
+        read_string_field(component, "productId")
+      {
+        Some(quantity), Some(product_id)
+          if quantity > product_bundle_quantity_max
+        -> Ok(resource_id_tail(product_id))
+        _, _ -> Error(Nil)
+      }
+    })
+  case exceeding_product_tails {
+    [] -> []
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Quantity cannot be greater than "
+          <> int.to_string(product_bundle_quantity_max)
+          <> ". The following products have a quantity that exceeds the maximum: "
+          <> numeric_id_array_literal(exceeding_product_tails),
+      ),
+    ]
+  }
+}
+
+fn product_bundle_quantity_option_errors(
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let invalid_product_tails =
+    components
+    |> list.filter_map(fn(component) {
+      case
+        read_object_field(component, "quantityOption"),
+        read_string_field(component, "productId")
+      {
+        Some(quantity_option), Some(product_id) -> {
+          case read_object_list_field(quantity_option, "values") {
+            [_] -> Ok(resource_id_tail(product_id))
+            [] -> Ok(resource_id_tail(product_id))
+            _ -> Error(Nil)
+          }
+        }
+        _, _ -> Error(Nil)
+      }
+    })
+  case invalid_product_tails {
+    [] -> []
+    _ -> [
+      NullableFieldUserError(
+        None,
+        "Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids "
+          <> numeric_id_array_literal(invalid_product_tails)
+          <> ".",
+      ),
+    ]
+  }
+}
+
+fn product_bundle_consolidated_option_errors(
+  input: Dict(String, ResolvedValue),
+  components: List(Dict(String, ResolvedValue)),
+) -> List(NullableFieldUserError) {
+  let component_options =
+    components
+    |> list.flat_map(fn(component) {
+      read_object_list_field(component, "optionSelections")
+      |> list.filter_map(fn(selection) {
+        case
+          read_string_field(selection, "componentOptionId"),
+          read_string_list_field(selection, "values")
+        {
+          Some(id), Some(values) -> Ok(#(id, values))
+          _, _ -> Error(Nil)
+        }
+      })
+    })
+  let invalid =
+    read_object_list_field(input, "consolidatedOptions")
+    |> list.any(fn(component) {
+      read_string_field(component, "optionName") == Some("")
+      || {
+        read_object_list_field(component, "optionSelections")
+        |> list.any(fn(selection) {
+          read_object_list_field(selection, "components")
+          |> list.any(fn(selection_component) {
+            case read_string_field(selection_component, "componentOptionId") {
+              Some(component_option_id) ->
+                !component_option_value_exists(
+                  component_options,
+                  component_option_id,
+                  read_string_field(selection_component, "componentOptionValue"),
+                )
+              None -> False
+            }
+          })
+        })
+      }
+    })
+  case invalid {
+    True -> [
+      NullableFieldUserError(
+        None,
+        "Consolidated option selections are invalid.",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn component_option_value_exists(
+  component_options: List(#(String, List(String))),
+  component_option_id: String,
+  component_option_value: Option(String),
+) -> Bool {
+  case component_option_value {
+    Some(value) ->
+      component_options
+      |> list.any(fn(option) {
+        let #(option_id, values) = option
+        option_id == component_option_id && list.contains(values, value)
+      })
+    None -> False
+  }
+}
+
+fn numeric_id_array_literal(values: List(String)) -> String {
+  "[" <> string.join(values, ",") <> "]"
+}
+
+fn resource_id_tail(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) -> tail
+    Error(_) -> id
+  }
 }
 
 @internal

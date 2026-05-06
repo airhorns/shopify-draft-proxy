@@ -340,6 +340,7 @@ pub fn product_full_sync_payload(
 @internal
 pub fn product_bundle_mutation_payload(
   root_name: String,
+  operation: Option(ProductOperationRecord),
   user_errors: List(NullableFieldUserError),
   field: Selection,
   fragments: FragmentMap,
@@ -351,12 +352,26 @@ pub fn product_bundle_mutation_payload(
   project_graphql_value(
     src_object([
       #("__typename", SrcString(typename)),
-      #("productBundleOperation", SrcNull),
+      #("productBundleOperation", case operation {
+        Some(operation) -> product_bundle_operation_source(operation)
+        None -> SrcNull
+      }),
       #("userErrors", nullable_field_user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
   )
+}
+
+fn product_bundle_operation_source(
+  operation: ProductOperationRecord,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString(operation.type_name)),
+    #("id", SrcString(operation.id)),
+    #("status", SrcString(operation.status)),
+    #("product", SrcNull),
+  ])
 }
 
 @internal

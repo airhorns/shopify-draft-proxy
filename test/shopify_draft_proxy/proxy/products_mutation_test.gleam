@@ -1885,6 +1885,146 @@ pub fn product_set_rejects_missing_and_suspended_product_references_test() {
   assert suspended_entry.staged_resource_ids == []
 }
 
+pub fn product_bundle_create_rejects_component_validation_branches_test() {
+  let missing_query =
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/0\\\", quantity: 1, optionSelections: [] }] }) { productBundleOperation { id status product { id } } userErrors { field message } } }"
+  let #(Response(status: missing_status, body: missing_body, ..), missing_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(missing_query),
+    )
+  assert missing_status == 200
+  assert json.to_string(missing_body)
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Failed to locate the following products: [0]\"}]}}}"
+  let assert [missing_entry] = store.get_log(missing_proxy.store)
+  assert missing_entry.operation_name == Some("productBundleCreate")
+  assert missing_entry.status == store_types.Failed
+  assert missing_entry.staged_resource_ids == []
+
+  let valid_option_selections =
+    "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }"
+  let max_quantity_query =
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 2001, optionSelections: ["
+    <> valid_option_selections
+    <> "] }] }) { productBundleOperation { id status } userErrors { field message } } }"
+  let max_quantity_proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: option_update_store())
+  let #(
+    Response(status: max_quantity_status, body: max_quantity_body, ..),
+    max_quantity_proxy,
+  ) =
+    draft_proxy.process_request(
+      max_quantity_proxy,
+      graphql_request(max_quantity_query),
+    )
+  assert max_quantity_status == 200
+  assert json.to_string(max_quantity_body)
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Quantity cannot be greater than 2000. The following products have a quantity that exceeds the maximum: [optioned]\"}]}}}"
+  let assert [max_quantity_entry] = store.get_log(max_quantity_proxy.store)
+  assert max_quantity_entry.status == store_types.Failed
+  assert max_quantity_entry.staged_resource_ids == []
+
+  let quantity_option_query =
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantityOption: { name: \\\"Pack\\\", values: [{ name: \\\"One\\\", quantity: 1 }] }, optionSelections: ["
+    <> valid_option_selections
+    <> "] }] }) { productBundleOperation { id status } userErrors { field message } } }"
+  let quantity_option_proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: option_update_store())
+  let #(
+    Response(status: quantity_option_status, body: quantity_option_body, ..),
+    quantity_option_proxy,
+  ) =
+    draft_proxy.process_request(
+      quantity_option_proxy,
+      graphql_request(quantity_option_query),
+    )
+  assert quantity_option_status == 200
+  assert json.to_string(quantity_option_body)
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Quantity options must have at least two values. Invalid quantity options found for components targeting product_ids [optioned].\"}]}}}"
+  let assert [quantity_option_entry] =
+    store.get_log(quantity_option_proxy.store)
+  assert quantity_option_entry.status == store_types.Failed
+  assert quantity_option_entry.staged_resource_ids == []
+
+  let invalid_mapping_query =
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 1, optionSelections: ["
+    <> valid_option_selections
+    <> ", { componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }] }] }) { productBundleOperation { id status } userErrors { field message } } }"
+  let invalid_mapping_proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: option_update_store())
+  let #(
+    Response(status: invalid_mapping_status, body: invalid_mapping_body, ..),
+    invalid_mapping_proxy,
+  ) =
+    draft_proxy.process_request(
+      invalid_mapping_proxy,
+      graphql_request(invalid_mapping_query),
+    )
+  assert invalid_mapping_status == 200
+  assert json.to_string(invalid_mapping_body)
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Mapping of components targeting products need to map all of the options of the product. Missing or invalid options found for components targeting product_ids [optioned].\"}]}}}"
+  let assert [invalid_mapping_entry] =
+    store.get_log(invalid_mapping_proxy.store)
+  assert invalid_mapping_entry.status == store_types.Failed
+  assert invalid_mapping_entry.staged_resource_ids == []
+
+  let consolidated_option_selections =
+    "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/material\\\", name: \\\"Material\\\", values: [\\\"Cotton\\\"] }"
+  let invalid_consolidated_query =
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 1, optionSelections: ["
+    <> consolidated_option_selections
+    <> "] }], consolidatedOptions: [{ optionName: \\\"Bundle Color\\\", optionSelections: [{ optionValue: \\\"Red Display\\\", components: [{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", componentOptionValue: \\\"Blue\\\" }] }] }] }) { productBundleOperation { id status } userErrors { field message } } }"
+  let invalid_consolidated_proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: three_option_store())
+  let #(
+    Response(
+      status: invalid_consolidated_status,
+      body: invalid_consolidated_body,
+      ..,
+    ),
+    invalid_consolidated_proxy,
+  ) =
+    draft_proxy.process_request(
+      invalid_consolidated_proxy,
+      graphql_request(invalid_consolidated_query),
+    )
+  assert invalid_consolidated_status == 200
+  assert json.to_string(invalid_consolidated_body)
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Consolidated option selections are invalid.\"}]}}}"
+  let assert [invalid_consolidated_entry] =
+    store.get_log(invalid_consolidated_proxy.store)
+  assert invalid_consolidated_entry.status == store_types.Failed
+  assert invalid_consolidated_entry.staged_resource_ids == []
+}
+
+pub fn product_bundle_create_stages_operation_and_operation_read_test() {
+  let option_selections =
+    "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/material\\\", name: \\\"Material\\\", values: [\\\"Cotton\\\"] }"
+  let mutation =
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 0, optionSelections: ["
+    <> option_selections
+    <> "] }] }) { productBundleOperation { id status product { id } } userErrors { field message } } }"
+  let proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: three_option_store())
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productBundleCreate")
+  assert entry.status == store_types.Staged
+  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/1"]
+
+  let operation_read =
+    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/1\\\") { __typename status product { id } ... on ProductBundleOperation { id } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(operation_read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"ACTIVE\",\"product\":null,\"id\":\"gid://shopify/ProductBundleOperation/1\"}}}"
+}
+
 pub fn product_set_async_operation_completes_on_product_operation_read_test() {
   let mutation =
     "mutation { productSet(input: { title: \\\"Async ProductSet\\\", vendor: \\\"Hermes\\\", status: DRAFT }, synchronous: false) { product { id } productSetOperation { id status product { id } userErrors { field message code } } userErrors { field message code } } }"
