@@ -531,7 +531,7 @@ fn serialize_query_field(
       serialize_nodes(store, shop_origin, field, fragments, variables),
       [],
     )
-    "job" -> #(serialize_job(field, fragments, variables), [])
+    "job" -> #(serialize_job(store, field, fragments, variables), [])
     "domain" -> #(serialize_domain(store, field, fragments, variables), [])
     "backupRegion" -> {
       let value = case effective_backup_region(store, shop_origin) {
@@ -1050,6 +1050,7 @@ fn gid_resource_type(id: String) -> String {
 }
 
 fn serialize_job(
+  store: Store,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1059,7 +1060,25 @@ fn serialize_job(
     Ok(root_field.StringVal(id)) ->
       case id {
         "" -> json.null()
-        _ -> project_selection(job_source(id), field, fragments)
+        _ ->
+          case
+            store.get_effective_admin_platform_generic_node_by_id(store, id)
+          {
+            Some(record) ->
+              case record.typename {
+                "Job" ->
+                  project_graphql_value(
+                    captured_json_source_with_typename(
+                      record.data,
+                      record.typename,
+                    ),
+                    selection_children(field),
+                    fragments,
+                  )
+                _ -> project_selection(job_source(id), field, fragments)
+              }
+            None -> project_selection(job_source(id), field, fragments)
+          }
       }
     _ -> json.null()
   }

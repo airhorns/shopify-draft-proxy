@@ -2322,6 +2322,123 @@ pub fn collection_add_remove_products_updates_count_and_rejects_smart_collection
     == "{\"data\":{\"collectionRemoveProducts\":{\"job\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Can't manually remove products from a smart collection\"}]}}}"
 }
 
+pub fn collection_async_product_membership_jobs_and_caps_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let add_success =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_success))
+  assert add_status == 200
+  assert json.to_string(add_body)
+    == "{\"data\":{\"collectionAddProductsV2\":{\"job\":{\"id\":\"gid://shopify/Job/1\",\"done\":false,\"query\":null},\"userErrors\":[]}}}"
+
+  let add_job_read =
+    "query { job(id: \\\"gid://shopify/Job/1\\\") { __typename id done query { __typename } } }"
+  let #(Response(status: add_job_status, body: add_job_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_job_read))
+  assert add_job_status == 200
+  assert json.to_string(add_job_body)
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/1\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+
+  let unknown_add =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(Response(status: unknown_add_status, body: unknown_add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_add))
+  assert unknown_add_status == 200
+  let unknown_add_json = json.to_string(unknown_add_body)
+  assert string.contains(
+    unknown_add_json,
+    "\"job\":{\"id\":\"gid://shopify/Job/",
+  )
+  assert string.contains(unknown_add_json, "\"done\":false,\"query\":null")
+  assert string.contains(unknown_add_json, "\"userErrors\":[]")
+
+  let too_many_ids =
+    repeated_product_ids_csv("gid://shopify/Product/second", 251)
+  let too_many_add =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/custom\\\", productIds: ["
+    <> too_many_ids
+    <> "]) { job { id done } userErrors { field message } } }"
+  let #(
+    Response(status: too_many_add_status, body: too_many_add_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(too_many_add))
+  let too_many_add_json = json.to_string(too_many_add_body)
+  assert too_many_add_status == 200
+  assert !string.contains(too_many_add_json, "\"data\"")
+  assert string.contains(
+    too_many_add_json,
+    "\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\"",
+  )
+  assert string.contains(
+    too_many_add_json,
+    "\"path\":[\"collectionAddProductsV2\",\"productIds\"]",
+  )
+  assert string.contains(
+    too_many_add_json,
+    "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"",
+  )
+
+  let remove_success =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(remove_success))
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"collectionRemoveProducts\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null},\"userErrors\":[]}}}"
+
+  let remove_job_read =
+    "query { job(id: \\\"gid://shopify/Job/5\\\") { __typename id done query { __typename } } }"
+  let #(Response(status: remove_job_status, body: remove_job_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(remove_job_read))
+  assert remove_job_status == 200
+  assert json.to_string(remove_job_body)
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+
+  let unknown_remove =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { job { id done query { __typename } } userErrors { field message } } }"
+  let #(
+    Response(status: unknown_remove_status, body: unknown_remove_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(unknown_remove))
+  assert unknown_remove_status == 200
+  let unknown_remove_json = json.to_string(unknown_remove_body)
+  assert string.contains(
+    unknown_remove_json,
+    "\"job\":{\"id\":\"gid://shopify/Job/",
+  )
+  assert string.contains(unknown_remove_json, "\"done\":false,\"query\":null")
+  assert string.contains(unknown_remove_json, "\"userErrors\":[]")
+
+  let too_many_remove =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: ["
+    <> too_many_ids
+    <> "]) { job { id done } userErrors { field message } } }"
+  let #(
+    Response(status: too_many_remove_status, body: too_many_remove_body, ..),
+    _,
+  ) = draft_proxy.process_request(proxy, graphql_request(too_many_remove))
+  let too_many_remove_json = json.to_string(too_many_remove_body)
+  assert too_many_remove_status == 200
+  assert !string.contains(too_many_remove_json, "\"data\"")
+  assert string.contains(
+    too_many_remove_json,
+    "\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\"",
+  )
+  assert string.contains(
+    too_many_remove_json,
+    "\"path\":[\"collectionRemoveProducts\",\"productIds\"]",
+  )
+  assert string.contains(
+    too_many_remove_json,
+    "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"",
+  )
+}
+
 pub fn collection_update_rejects_invalid_fields_and_custom_to_smart_switch_test() {
   let proxy =
     proxy_state.DraftProxy(
@@ -3670,6 +3787,10 @@ fn collection_membership_store() -> store.Store {
       cursor: None,
     ),
   ])
+}
+
+fn repeated_product_ids_csv(product_id: String, count: Int) -> String {
+  repeat_csv("\\\"" <> product_id <> "\\\"", count)
 }
 
 fn collection_record(

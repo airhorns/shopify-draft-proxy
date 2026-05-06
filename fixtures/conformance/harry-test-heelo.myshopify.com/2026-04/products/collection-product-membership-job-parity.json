@@ -1,0 +1,907 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seedProduct": {
+    "id": "gid://shopify/Product/9899734597938",
+    "title": "Test Product - 995",
+    "handle": "test-product-995"
+  },
+  "missingProductId": "gid://shopify/Product/9999999991778046961274",
+  "smartCreate": {
+    "variables": {
+      "input": {
+        "title": "Collection Membership Job Smart 1778046961274",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": [
+            {
+              "column": "TITLE",
+              "relation": "CONTAINS",
+              "condition": "membership-job-1778046961274"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/512447873330",
+            "title": "Collection Membership Job Smart 1778046961274",
+            "handle": "collection-membership-job-smart-1778046961274",
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "membership-job-1778046961274"
+                }
+              ]
+            },
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customCreate": {
+    "variables": {
+      "input": {
+        "title": "Collection Membership Job Custom 1778046961274",
+        "sortOrder": "MANUAL"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/512447906098",
+            "title": "Collection Membership Job Custom 1778046961274",
+            "handle": "collection-membership-job-custom-1778046961274",
+            "sortOrder": "MANUAL",
+            "ruleSet": null,
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartAddV2": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447873330",
+      "productIds": ["gid://shopify/Product/9899734597938"]
+    },
+    "response": {
+      "data": {
+        "collectionAddProductsV2": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Can't manually add products to a smart collection"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartRemove": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447873330",
+      "productIds": ["gid://shopify/Product/9899734597938"]
+    },
+    "response": {
+      "data": {
+        "collectionRemoveProducts": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Can't manually remove products from a smart collection"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unknownAddV2": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447906098",
+      "productIds": ["gid://shopify/Product/9999999991778046961274"]
+    },
+    "response": {
+      "data": {
+        "collectionAddProductsV2": {
+          "job": {
+            "id": "gid://shopify/Job/4682208d-b72e-4160-96cd-47840fb14654",
+            "done": false,
+            "query": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tooManyAddV2": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447906098",
+      "productIds": [
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938"
+      ]
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["collectionAddProductsV2", "productIds"],
+          "extensions": {
+            "code": "MAX_INPUT_SIZE_EXCEEDED"
+          }
+        }
+      ],
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": null,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "successAddV2": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447906098",
+      "productIds": ["gid://shopify/Product/9899734597938"]
+    },
+    "response": {
+      "data": {
+        "collectionAddProductsV2": {
+          "job": {
+            "id": "gid://shopify/Job/c84e0764-6ead-478c-b08c-facf0ea26684",
+            "done": false,
+            "query": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "successAddJobRead": {
+    "variables": {
+      "id": "gid://shopify/Job/c84e0764-6ead-478c-b08c-facf0ea26684"
+    },
+    "response": {
+      "data": {
+        "job": {
+          "__typename": "Job",
+          "id": "gid://shopify/Job/c84e0764-6ead-478c-b08c-facf0ea26684",
+          "done": true,
+          "query": {
+            "__typename": "QueryRoot"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unknownRemove": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447906098",
+      "productIds": ["gid://shopify/Product/9999999991778046961274"]
+    },
+    "response": {
+      "data": {
+        "collectionRemoveProducts": {
+          "job": {
+            "id": "gid://shopify/Job/840da012-1f39-4d19-bb12-a5ca6ea9e0ac",
+            "done": false,
+            "query": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tooManyRemove": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447906098",
+      "productIds": [
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938",
+        "gid://shopify/Product/9899734597938"
+      ]
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["collectionRemoveProducts", "productIds"],
+          "extensions": {
+            "code": "MAX_INPUT_SIZE_EXCEEDED"
+          }
+        }
+      ],
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": null,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "successRemove": {
+    "variables": {
+      "id": "gid://shopify/Collection/512447906098",
+      "productIds": ["gid://shopify/Product/9899734597938"]
+    },
+    "response": {
+      "data": {
+        "collectionRemoveProducts": {
+          "job": {
+            "id": "gid://shopify/Job/7b4180af-74e1-4320-8307-ff6cc73b2117",
+            "done": false,
+            "query": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "successRemoveJobRead": {
+    "variables": {
+      "id": "gid://shopify/Job/7b4180af-74e1-4320-8307-ff6cc73b2117"
+    },
+    "response": {
+      "data": {
+        "job": {
+          "__typename": "Job",
+          "id": "gid://shopify/Job/7b4180af-74e1-4320-8307-ff6cc73b2117",
+          "done": true,
+          "query": {
+            "__typename": "QueryRoot"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -77,6 +77,26 @@ pub fn upsert_base_admin_platform_generic_nodes(
   })
 }
 
+pub fn upsert_staged_admin_platform_generic_nodes(
+  store: Store,
+  records: List(AdminPlatformGenericNodeRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      staged_state: StagedState(
+        ..staged,
+        admin_platform_generic_nodes: dict.insert(
+          staged.admin_platform_generic_nodes,
+          record.id,
+          record,
+        ),
+      ),
+    )
+  })
+}
+
 pub fn get_effective_admin_platform_generic_node_by_id(
   store: Store,
   id: String,
