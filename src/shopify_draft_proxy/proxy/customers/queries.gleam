@@ -118,6 +118,7 @@ pub fn request_upstream_context(
     transport: proxy.upstream_transport,
     origin: proxy.config.shopify_admin_origin,
     headers: request.headers,
+    allow_upstream_reads: proxy.config.read_mode == LiveHybrid,
   )
 }
 

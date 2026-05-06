@@ -1,0 +1,38 @@
+mutation MetaobjectDefinitionUpdateCapabilityInvariantsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      name
+      capabilities {
+        publishable {
+          enabled
+        }
+        translatable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        type {
+          name
+          category
+        }
+      }
+      metaobjectsCount
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

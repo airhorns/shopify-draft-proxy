@@ -1,0 +1,106 @@
+{
+  "scenarioId": "metaobjectDefinitionUpdate-capability-invariants",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjectDefinitionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinitionUpdate-capability-invariants.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-definition-create.graphql",
+    "variablesCapturePath": "$.captures.publishable-definition-create.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publishable-definition-create",
+        "capturePath": "$.captures.publishable-definition-create.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.metaobjectDefinition.type", "$.metaobjectDefinition.capabilities", "$.userErrors"]
+      },
+      {
+        "name": "publishable-draft-entry-create",
+        "capturePath": "$.captures.publishable-draft-entry-create.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-entry-create.graphql",
+          "variablesCapturePath": "$.captures.publishable-draft-entry-create.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.capabilities", "$.userErrors"]
+      },
+      {
+        "name": "renderable-missing-definition-create",
+        "capturePath": "$.captures.renderable-missing-definition-create.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-definition-create.graphql",
+          "variablesCapturePath": "$.captures.renderable-missing-definition-create.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobjectDefinition.type", "$.metaobjectDefinition.capabilities", "$.userErrors"]
+      },
+      {
+        "name": "renderable-enable-missing-field-rejected",
+        "capturePath": "$.captures.renderable-enable-missing-field-rejected.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renderable-missing-definition-create",
+              "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.captures.renderable-enable-missing-field-rejected.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobjectDefinition", "$.userErrors"]
+      },
+      {
+        "name": "renderable-type-definition-create",
+        "capturePath": "$.captures.renderable-type-definition-create.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-definition-create.graphql",
+          "variablesCapturePath": "$.captures.renderable-type-definition-create.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobjectDefinition.type", "$.metaobjectDefinition.capabilities", "$.userErrors"]
+      },
+      {
+        "name": "renderable-enable-type-rejected",
+        "capturePath": "$.captures.renderable-enable-type-rejected.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-capability-invariants-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renderable-type-definition-create",
+              "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.captures.renderable-enable-type-rejected.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobjectDefinition", "$.userErrors"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectDefinitionUpdate capability transitions and renderable enable validation. The fixture records that this public dev shop accepted disabling publishable after a DRAFT metaobject, onlineStore after an ACTIVE metaobject, renderable after an existing metaobject, and translatable after a registered translation. HAR-981 is source-backed to add conservative local before-disable guards for those branches, so executable Gleam runtime tests cover the intentional local rejections and atomicity. Strict parity targets compare the live branches the public API rejected and the local proxy can faithfully replay: missing renderable field references and non-text renderable field references."
+}

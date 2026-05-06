@@ -294,6 +294,19 @@ try {
   const imageFilenameMismatch = await runGraphql<FileUpdateData>(fileUpdateMutation, imageFilenameMismatchVariables);
   expectUserErrorCode('image filename extension mismatch', imageFilenameMismatch, 'INVALID_FILENAME_EXTENSION');
 
+  const missingReferenceIds = ['gid://shopify/Product/999999999991', 'gid://shopify/Product/999999999992'];
+  const missingReferencesVariables = {
+    files: [
+      {
+        id: imageId,
+        referencesToAdd: [missingReferenceIds[0]],
+        referencesToRemove: [missingReferenceIds[1]],
+      },
+    ],
+  };
+  const missingReferences = await runGraphql<FileUpdateData>(fileUpdateMutation, missingReferencesVariables);
+  expectUserErrorCode('missing reference targets', missingReferences, 'REFERENCE_TARGET_DOES_NOT_EXIST');
+
   const sourceAndVersionVariables = {
     files: [
       {
@@ -349,6 +362,7 @@ try {
       videoOriginalSource: { variables: videoOriginalSourceVariables, response: videoOriginalSource },
       videoFilename: { variables: videoFilenameVariables, response: videoFilename },
       imageFilenameMismatch: { variables: imageFilenameMismatchVariables, response: imageFilenameMismatch },
+      missingReferences: { variables: missingReferencesVariables, response: missingReferences },
       sourceAndVersion: { variables: sourceAndVersionVariables, response: sourceAndVersion },
       wrongType: { variables: wrongTypeVariables, response: wrongType },
       successAlt: { variables: successAltVariables, response: successAlt },
@@ -372,6 +386,15 @@ try {
           body: { data: { nodes: [readyVideoRead.data?.node ?? null] } },
         },
       },
+      ...missingReferenceIds.map((productId) => ({
+        operationName: 'MediaProductHydrate',
+        variables: { id: productId },
+        query: 'sha:media-product-hydrate',
+        response: {
+          status: 200,
+          body: { data: { product: null } },
+        },
+      })),
     ],
   };
 } finally {
