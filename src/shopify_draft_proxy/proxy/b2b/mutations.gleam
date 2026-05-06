@@ -1272,15 +1272,43 @@ pub fn not_found_result(
         company: None,
       )
     "companyContact" ->
-      b2b_types.Payload(
-        ..empty_payload([resource_not_found(field_path)]),
-        company_contact: None,
-      )
+      case field_path {
+        ["companyContactId"] ->
+          b2b_types.Payload(
+            ..empty_payload([
+              user_error(
+                Some(field_path),
+                "The company contact doesn't exist.",
+                user_error_code.resource_not_found,
+              ),
+            ]),
+            company_contact: None,
+          )
+        _ ->
+          b2b_types.Payload(
+            ..empty_payload([resource_not_found(field_path)]),
+            company_contact: None,
+          )
+      }
     "companyLocation" ->
-      b2b_types.Payload(
-        ..empty_payload([resource_not_found(field_path)]),
-        company_location: None,
-      )
+      case field_path {
+        ["companyLocationId"] ->
+          b2b_types.Payload(
+            ..empty_payload([
+              user_error(
+                Some(["input"]),
+                "The company location doesn't exist",
+                user_error_code.resource_not_found,
+              ),
+            ]),
+            company_location: None,
+          )
+        _ ->
+          b2b_types.Payload(
+            ..empty_payload([resource_not_found(field_path)]),
+            company_location: None,
+          )
+      }
     _ -> empty_payload([resource_not_found(field_path)])
   }
   b2b_types.RootResult(payload, store, identity, [])

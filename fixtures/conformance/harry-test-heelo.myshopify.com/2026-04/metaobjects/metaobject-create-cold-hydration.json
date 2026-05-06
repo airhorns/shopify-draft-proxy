@@ -1,18 +1,17 @@
 {
+  "scenarioId": "metaobject-create-cold-hydration",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "capturedAt": "2026-05-04T00:00:00.000Z",
-  "scenarioId": "metaobject-create-cold-hydration",
-  "notes": "Hand-synthesized fixture exercising metaobjectCreate against a metaobject definition the proxy has never seen. The cassette only carries the upstream definition lookup; the create itself stages locally and is graded against the captured Shopify response.",
+  "capturedAt": "2026-05-06T23:22:57.868Z",
   "setup": [
     {
       "name": "create-metaobject-cold",
       "request": {
-        "query": "#graphql\n  #graphql\n  fragment MetaobjectReadFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    titleField: field(key: \"title\") {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectReadFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "query": "fragment MetaobjectColdCreateFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectCreateColdHydrationCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectColdCreateFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_har_240_1777156845370",
-            "handle": "codex-har-240-1777156845370",
+            "type": "recorder_cold_1778109777016",
+            "handle": "recorder-cold-1778109777016",
             "capabilities": {
               "publishable": {
                 "status": "ACTIVE"
@@ -21,26 +20,25 @@
             "fields": [
               {
                 "key": "title",
-                "value": "HAR-240 title 1777156845370"
+                "value": "Recorder cold title 1778109777016"
               },
               {
                 "key": "body",
-                "value": "HAR-240 body 1777156845370"
+                "value": "Recorder cold body 1778109777016"
               }
             ]
           }
         }
       },
-      "status": 200,
       "response": {
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/185593102642",
-              "handle": "codex-har-240-1777156845370",
-              "type": "codex_har_240_1777156845370",
-              "displayName": "HAR-240 title 1777156845370",
-              "updatedAt": "2026-04-25T22:40:46Z",
+              "id": "gid://shopify/Metaobject/188289548594",
+              "handle": "recorder-cold-1778109777016",
+              "type": "recorder_cold_1778109777016",
+              "displayName": "Recorder cold title 1778109777016",
+              "updatedAt": "2026-05-06T23:22:57Z",
               "capabilities": {
                 "publishable": {
                   "status": "ACTIVE"
@@ -51,8 +49,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "HAR-240 title 1777156845370",
-                  "jsonValue": "HAR-240 title 1777156845370",
+                  "value": "Recorder cold title 1778109777016",
+                  "jsonValue": "Recorder cold title 1778109777016",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -66,8 +64,8 @@
                 {
                   "key": "body",
                   "type": "multi_line_text_field",
-                  "value": "HAR-240 body 1777156845370",
-                  "jsonValue": "HAR-240 body 1777156845370",
+                  "value": "Recorder cold body 1778109777016",
+                  "jsonValue": "Recorder cold body 1778109777016",
                   "definition": {
                     "key": "body",
                     "name": "Body",
@@ -82,8 +80,8 @@
               "titleField": {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "HAR-240 title 1777156845370",
-                "jsonValue": "HAR-240 title 1777156845370",
+                "value": "Recorder cold title 1778109777016",
+                "jsonValue": "Recorder cold title 1778109777016",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -112,22 +110,78 @@
       }
     }
   ],
+  "cleanup": {
+    "metaobject": {
+      "request": {
+        "query": "#graphql\n    mutation MetaobjectColdDelete($id: ID!) {\n      metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }\n    }\n  ",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188289548594"
+        }
+      },
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188289548594",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "definition": {
+      "request": {
+        "query": "#graphql\n    mutation MetaobjectColdDefinitionDelete($id: ID!) {\n      metaobjectDefinitionDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }\n    }\n  ",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17912889650"
+        }
+      },
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17912889650",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "upstreamCalls": [
     {
       "operationName": "MetaobjectDefinitionHydrateByType",
       "variables": {
-        "type": "codex_har_240_1777156845370"
+        "type": "recorder_cold_1778109777016"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "metaobjectDefinitionByType": {
-              "id": "gid://shopify/MetaobjectDefinition/17537171762",
-              "type": "codex_har_240_1777156845370",
-              "name": "Codex HAR-240 1777156845370",
-              "description": "Temporary HAR-240 conformance definition for metaobject read fixture capture.",
+              "id": "gid://shopify/MetaobjectDefinition/17912889650",
+              "type": "recorder_cold_1778109777016",
+              "name": "Recorder cold 1778109777016",
+              "description": null,
               "displayNameKey": "title",
               "access": {
                 "admin": "PUBLIC_READ_WRITE",
@@ -151,29 +205,52 @@
                 {
                   "key": "title",
                   "name": "Title",
-                  "description": "Display title for HAR-240 fixture capture.",
+                  "description": null,
                   "required": true,
                   "type": {
                     "name": "single_line_text_field",
                     "category": "TEXT"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false
+                    }
                   },
                   "validations": []
                 },
                 {
                   "key": "body",
                   "name": "Body",
-                  "description": "Body text for HAR-240 fixture capture.",
+                  "description": null,
                   "required": false,
                   "type": {
                     "name": "multi_line_text_field",
                     "category": "TEXT"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false
+                    }
                   },
                   "validations": []
                 }
               ],
               "hasThumbnailField": false,
               "metaobjectsCount": 1,
-              "standardTemplate": null
+              "standardTemplate": null,
+              "createdAt": "2026-05-06T23:22:57Z",
+              "updatedAt": "2026-05-06T23:22:57Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
             }
           }
         }

@@ -1,0 +1,32 @@
+mutation B2BCompanyMutationValidation($companyId: ID!, $companyLocationId: ID!, $companyContactId: ID!) {
+  companyUpdate(companyId: $companyId, input: { name: "Missing company" }) {
+    company {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: { name: "Missing location" }) {
+    companyLocation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  companyContactUpdate(companyContactId: $companyContactId, input: { title: "Missing contact" }) {
+    companyContact {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

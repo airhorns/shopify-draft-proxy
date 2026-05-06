@@ -94,13 +94,19 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
           "variables": {
-            "resourceId": "gid://shopify/Product/9801098789170",
+            "resourceId": {
+              "fromCapturePath": "$.translationLifecycle.registerRequest.variables.resourceId"
+            },
             "translations": [
               {
                 "locale": "fr",
                 "key": "title",
-                "value": "Titre HAR-314 1777169385875",
-                "translatableContentDigest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142"
+                "value": {
+                  "fromCapturePath": "$.translationLifecycle.registerRequest.variables.translations[0].value"
+                },
+                "translatableContentDigest": {
+                  "fromCapturePath": "$.translationLifecycle.registerRequest.variables.translations[0].translatableContentDigest"
+                }
               }
             ]
           }
@@ -121,7 +127,11 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
-          "variables": { "resourceId": "gid://shopify/Product/9801098789170" }
+          "variables": {
+            "resourceId": {
+              "fromCapturePath": "$.translationLifecycle.resourceId"
+            }
+          }
         }
       },
       {
@@ -138,9 +148,15 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
           "variables": {
-            "resourceId": "gid://shopify/Product/9801098789170",
-            "keys": ["title"],
-            "locales": ["fr"]
+            "resourceId": {
+              "fromCapturePath": "$.translationLifecycle.removeRequest.variables.resourceId"
+            },
+            "keys": {
+              "fromCapturePath": "$.translationLifecycle.removeRequest.variables.keys"
+            },
+            "locales": {
+              "fromCapturePath": "$.translationLifecycle.removeRequest.variables.locales"
+            }
           }
         }
       },
@@ -151,7 +167,11 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
-          "variables": { "resourceId": "gid://shopify/Product/9801098789170" }
+          "variables": {
+            "resourceId": {
+              "fromCapturePath": "$.translationLifecycle.resourceId"
+            }
+          }
         }
       },
       {
