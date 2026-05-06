@@ -410,24 +410,44 @@ pub fn staged_uploads_create_requires_video_file_size_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
       registry_proxy(),
-      "mutation { stagedUploadsCreate(input: [{ resource: VIDEO, filename: \"x.mp4\", mimeType: \"video/mp4\" }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message code } } }",
+      "mutation { stagedUploadsCreate(input: [{ resource: VIDEO, filename: \"x.mp4\", mimeType: \"video/mp4\" }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message } } }",
     )
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"fileSize\"],\"message\":\"file size is required for video resources\",\"code\":\"REQUIRED\"}]}}}"
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"fileSize\"],\"message\":\"file size is required for video resources\"}]}}}"
 }
 
 pub fn staged_uploads_create_rejects_image_unsupported_mime_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
       registry_proxy(),
-      "mutation { stagedUploadsCreate(input: [{ resource: IMAGE, filename: \"x.exe\", mimeType: \"application/x-msdownload\" }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message code } } }",
+      "mutation { stagedUploadsCreate(input: [{ resource: IMAGE, filename: \"x.exe\", mimeType: \"application/x-msdownload\" }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message } } }",
     )
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"mimeType\"],\"message\":\"x.exe: (application/x-msdownload) is not a recognized format\",\"code\":\"INVALID\"}]}}}"
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"mimeType\"],\"message\":\"x.exe: (application/x-msdownload) is not a recognized format\"}]}}}"
+}
+
+pub fn staged_uploads_create_user_errors_rejects_code_selection_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: VIDEO, filename: \"x.mp4\", mimeType: \"video/mp4\" }]) { userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(
+    body_json,
+    "\"message\":\"Field 'code' doesn't exist on type 'UserError'\"",
+  )
+  assert string.contains(
+    body_json,
+    "\"extensions\":{\"code\":\"undefinedField\",\"typeName\":\"UserError\",\"fieldName\":\"code\"}",
+  )
+  assert !string.contains(body_json, "\"data\"")
 }
 
 pub fn staged_uploads_create_rejects_unknown_resource_variable_test() {

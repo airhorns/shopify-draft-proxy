@@ -769,7 +769,7 @@ fn staged_uploads_payload(
     src_object([
       #("__typename", SrcString("StagedUploadsCreatePayload")),
       #("stagedTargets", SrcList(list.map(targets, staged_target_source))),
-      #("userErrors", files_user_errors_source(errors)),
+      #("userErrors", user_errors_source(errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
@@ -832,6 +832,18 @@ fn files_user_errors_source(errors: List(FilesUserError)) -> SourceValue {
         #("field", SrcList(list.map(field, SrcString))),
         #("message", SrcString(message)),
         #("code", SrcString(code)),
+      ])
+    }),
+  )
+}
+
+fn user_errors_source(errors: List(FilesUserError)) -> SourceValue {
+  SrcList(
+    list.map(errors, fn(error) {
+      let FilesUserError(field: field, message: message, ..) = error
+      src_object([
+        #("field", SrcList(list.map(field, SrcString))),
+        #("message", SrcString(message)),
       ])
     }),
   )

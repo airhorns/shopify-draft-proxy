@@ -580,6 +580,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-user-errors-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-user-errors-shape-conformance.ts',
+    purpose: 'stagedUploadsCreate UserError field/message shape and schema rejection for selecting code.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-user-errors-shape.json`,
+      'config/parity-specs/media/media-staged-uploads-create-user-errors-shape.json',
+    ],
+    cleanupBehavior: 'Requests validation-only staged upload metadata and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-acknowledge-update-failed',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
