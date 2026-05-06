@@ -70,6 +70,104 @@ fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
   #(json.to_string(body), proxy)
 }
 
+pub fn content_create_rejects_publishing_with_future_publish_date_test() {
+  let page_query =
+    "mutation { pageCreate(page: { title: \"Future Page\", isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { page { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: page_status, body: page_body, ..), page_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(page_query))
+  assert page_status == 200
+  assert json.to_string(page_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  assert store.list_effective_online_store_content(page_proxy.store, "page")
+    |> list.length
+    == 0
+  let assert [page_log] = store.get_log(page_proxy.store)
+  assert page_log.status == store_types.Failed
+  assert page_log.staged_resource_ids == []
+
+  let proxy = draft_proxy.new()
+  let blog_query =
+    "mutation { blogCreate(blog: { title: \"Future Articles\" }) { blog { id } userErrors { field message code } } }"
+  let #(Response(status: blog_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(blog_query))
+  assert blog_status == 200
+  let article_query =
+    "mutation { articleCreate(article: { title: \"Future Article\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Future Author\" }, isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { article { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: article_status, body: article_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(article_query))
+  assert article_status == 200
+  assert json.to_string(article_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+  let assert [blog_log, article_log] = store.get_log(proxy.store)
+  assert blog_log.status == store_types.Staged
+  assert article_log.status == store_types.Failed
+  assert article_log.staged_resource_ids == []
+}
+
+pub fn content_update_rejects_publishing_with_future_publish_date_test() {
+  let proxy = draft_proxy.new()
+  let create_page =
+    "mutation { pageCreate(page: { title: \"Draft Page\", isPublished: false, publishDate: \"2099-01-01T00:00:00Z\" }) { page { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: create_page_status, body: create_page_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_page))
+  assert create_page_status == 200
+  assert json.to_string(create_page_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"publishedAt\":\"2099-01-01T00:00:00Z\"},\"userErrors\":[]}}}"
+
+  let update_page =
+    "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { page { id publishedAt } userErrors { field message code } } }"
+  let #(Response(status: update_page_status, body: update_page_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_page))
+  assert update_page_status == 200
+  assert json.to_string(update_page_body)
+    == "{\"data\":{\"pageUpdate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  let assert [page_record] =
+    store.list_effective_online_store_content(proxy.store, "page")
+  assert page_record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
+  let assert [page_create_log, page_update_log] = store.get_log(proxy.store)
+  assert page_create_log.status == store_types.Staged
+  assert page_update_log.status == store_types.Failed
+  assert page_update_log.staged_resource_ids == []
+
+  let proxy = draft_proxy.new()
+  let create_blog =
+    "mutation { blogCreate(blog: { title: \"Draft Articles\" }) { blog { id } userErrors { field message code } } }"
+  let #(Response(status: create_blog_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_blog))
+  assert create_blog_status == 200
+  let create_article =
+    "mutation { articleCreate(article: { title: \"Draft Article\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Future Author\" }, isPublished: false, publishDate: \"2099-01-01T00:00:00Z\" }) { article { id publishedAt } userErrors { field message code } } }"
+  let #(
+    Response(status: create_article_status, body: create_article_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(create_article))
+  assert create_article_status == 200
+  assert json.to_string(create_article_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"publishedAt\":\"2099-01-01T00:00:00Z\"},\"userErrors\":[]}}}"
+
+  let update_article =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { isPublished: true, publishDate: \"2099-01-01T00:00:00Z\" }) { article { id publishedAt } userErrors { field message code } } }"
+  let #(
+    Response(status: update_article_status, body: update_article_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(update_article))
+  assert update_article_status == 200
+  assert json.to_string(update_article_body)
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\"],\"message\":\"Can’t set isPublished to true and also set a future publish date.\",\"code\":\"INVALID_PUBLISH_DATE\"}]}}}"
+  let assert [article_record] =
+    store.list_effective_online_store_content(proxy.store, "article")
+  assert article_record.id
+    == "gid://shopify/Article/3?shopify-draft-proxy=synthetic"
+  let assert [_blog_log, article_create_log, article_update_log] =
+    store.get_log(proxy.store)
+  assert article_create_log.status == store_types.Staged
+  assert article_update_log.status == store_types.Failed
+  assert article_update_log.staged_resource_ids == []
+}
+
 pub fn comment_moderation_uses_core_status_enum_values_test() {
   let #(approved, proxy) =
     run_graphql(
