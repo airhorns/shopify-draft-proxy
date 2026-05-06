@@ -395,6 +395,60 @@ pub fn gift_card_create_rejects_missing_customer_test() {
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
 }
 
+pub fn gift_card_create_rejects_trial_shop_customer_assignment_before_customer_lookup_test() {
+  let s = store.new() |> store.upsert_base_shop(trial_shop())
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardCreate(input: { initialValue: \"10\", customerId: \"gid://shopify/Customer/9999999\", recipientAttributes: { id: \"gid://shopify/Customer/also-missing\" } }) { giftCard { id customer { id } recipientAttributes { recipient { id } } } giftCardCode userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"INVALID\",\"message\":\"A trial shop cannot assign a customer to a gift card.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
+}
+
+pub fn gift_card_create_rejects_trial_shop_recipient_attributes_assignment_test() {
+  let recipient_id = "gid://shopify/Customer/recipient"
+  let s =
+    store.new()
+    |> store.upsert_base_shop(trial_shop())
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\" } }) { giftCard { id recipientAttributes { recipient { id } } } giftCardCode userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\"],\"code\":\"INVALID\",\"message\":\"A trial shop cannot assign a recipient to a gift card.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
+}
+
+pub fn gift_card_create_rejects_trial_shop_top_level_recipient_id_assignment_test() {
+  let recipient_id = "gid://shopify/Customer/recipient"
+  let s =
+    store.new()
+    |> store.upsert_base_shop(trial_shop())
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardCreate(input: { initialValue: \"10\", recipientId: \""
+        <> recipient_id
+        <> "\" }) { giftCard { id recipientAttributes { recipient { id } } } giftCardCode userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\"],\"code\":\"INVALID\",\"message\":\"A trial shop cannot assign a recipient to a gift card.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
+}
+
 pub fn gift_card_create_rejects_initial_value_over_issue_limit_test() {
   let configured_store =
     store.new()
@@ -614,6 +668,66 @@ pub fn gift_card_update_rejects_missing_changed_customer_test() {
     )
   assert body
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_trial_shop_customer_assignment_before_customer_lookup_test() {
+  let id = "gid://shopify/GiftCard/update-trial-customer"
+  let missing_customer_id = "gid://shopify/Customer/9999999"
+  let card = transaction_card(id, True, None, "50.0", "CAD")
+  let s =
+    store.new()
+    |> store.upsert_base_shop(trial_shop())
+    |> seed_card(card)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { customerId: \""
+        <> missing_customer_id
+        <> "\", recipientAttributes: { id: \"gid://shopify/Customer/also-missing\" } }) { giftCard { id customer { id } recipientAttributes { recipient { id } } } userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"INVALID\",\"message\":\"A trial shop cannot assign a customer to a gift card.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert Some(unchanged) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert unchanged.customer_id == None
+  assert unchanged.recipient_id == None
+  assert unchanged.updated_at == card.updated_at
+}
+
+pub fn gift_card_update_rejects_trial_shop_recipient_assignment_before_recipient_validation_test() {
+  let id = "gid://shopify/GiftCard/update-trial-recipient"
+  let recipient_id = "gid://shopify/Customer/recipient"
+  let too_long_name = string.repeat("x", times: 256)
+  let card = transaction_card(id, True, None, "50.0", "CAD")
+  let s =
+    store.new()
+    |> store.upsert_base_shop(trial_shop())
+    |> seed_card(card)
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", preferredName: \""
+        <> too_long_name
+        <> "\" } }) { giftCard { id recipientAttributes { preferredName recipient { id } } } userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\"],\"code\":\"INVALID\",\"message\":\"A trial shop cannot assign a recipient to a gift card.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert Some(unchanged) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert unchanged.recipient_id == None
+  assert unchanged.recipient_attributes == None
+  assert unchanged.updated_at == card.updated_at
 }
 
 pub fn gift_card_update_rejects_too_long_recipient_preferred_name_test() {
