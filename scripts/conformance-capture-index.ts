@@ -3125,6 +3125,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-cart-transform-api-mismatch',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-cart-transform-api-mismatch-conformance.ts',
+    purpose:
+      'cartTransformCreate API-mismatched Function identifier userError code split for functionId versus functionHandle plus downstream empty cartTransforms read.',
+    requiredAuthScopes: [
+      'read_cart_transforms',
+      'write_cart_transforms for cleanup of pre-existing conformance cart transforms',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-cart-transform-create-api-mismatch-by-identifier.json`,
+      'config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json',
+      'config/parity-requests/functions/functions-cart-transform-create-api-mismatch-by-id.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-api-mismatch-by-handle.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes pre-existing cartTransforms before capturing validation Function mismatch probes, then verifies the failed probes leave cartTransforms empty.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-delete-error-shape',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-delete-error-shape-conformance.ts',
