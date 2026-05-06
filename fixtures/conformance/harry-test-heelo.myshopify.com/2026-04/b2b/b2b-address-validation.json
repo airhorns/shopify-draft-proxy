@@ -1,0 +1,569 @@
+{
+  "scenarioId": "b2b-address-validation",
+  "capturedAt": "2026-05-06T20:20:25.078Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Record B2B CompanyAddressInput country, zone, zip, HTML, emoji, and URL validation branches for company location create, assign-address, and nested company create paths."
+  },
+  "setupCompany": {
+    "request": {
+      "query": "mutation B2BAddressValidationCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          shippingAddress {\n            address1\n            countryCode\n            zoneCode\n            zip\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "b2b-address-validation-1778098822493 setup"
+          },
+          "companyLocation": {
+            "name": "b2b-address-validation-1778098822493 HQ",
+            "shippingAddress": {
+              "address1": "1 Pine St",
+              "countryCode": "US",
+              "zoneCode": "CA",
+              "zip": "94105"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5442928946",
+            "name": "b2b-address-validation-1778098822493 setup",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8269627698",
+                  "name": "b2b-address-validation-1778098822493 HQ",
+                  "shippingAddress": {
+                    "address1": "1 Pine St",
+                    "countryCode": "US",
+                    "zoneCode": "CA",
+                    "zip": "94105"
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateInvalidCountry": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 invalid country",
+          "shippingAddress": {
+            "address1": "1 Pine St",
+            "countryCode": "ZZ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress", "countryCode"],
+              "message": "Country code is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateInvalidZone": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 invalid zone",
+          "shippingAddress": {
+            "address1": "1 Pine St",
+            "countryCode": "US",
+            "zoneCode": "ZZ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress", "zoneCode"],
+              "message": "Zone code is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateInvalidZip": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 invalid zip",
+          "shippingAddress": {
+            "address1": "1 Pine St",
+            "countryCode": "US",
+            "zoneCode": "CA",
+            "zip": "abcde"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress", "zip"],
+              "message": "Zip is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateHtmlAddress1": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 html address1",
+          "shippingAddress": {
+            "address1": "<b>1 Pine</b>",
+            "countryCode": "US",
+            "zoneCode": "CA",
+            "zip": "94105"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress", "address1"],
+              "message": "Address1 is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateHtmlRecipient": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 html recipient",
+          "billingAddress": {
+            "address1": "1 Pine St",
+            "recipient": "<b>Buyer</b>",
+            "countryCode": "CA",
+            "zoneCode": "ON",
+            "zip": "K1A 0B1"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "billingAddress", "recipient"],
+              "message": "Recipient is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateHtmlAddress2": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 html address2",
+          "billingAddress": {
+            "address1": "1 Pine St",
+            "address2": "<i>Suite</i>",
+            "countryCode": "CA",
+            "zoneCode": "ON",
+            "zip": "K1A 0B1"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "billingAddress", "address2"],
+              "message": "Address2 is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateEmojiCity": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 emoji city",
+          "billingAddress": {
+            "address1": "1 Pine St",
+            "city": "Ottawa 👋",
+            "countryCode": "CA",
+            "zoneCode": "ON",
+            "zip": "K1A 0B1"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "billingAddress", "city"],
+              "message": "City is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateEmojiFirstName": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 emoji first name",
+          "shippingAddress": {
+            "address1": "1 Pine St",
+            "firstName": "👋",
+            "countryCode": "US",
+            "zoneCode": "CA",
+            "zip": "94105"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress", "firstName"],
+              "message": "First name is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateUrlLastName": {
+    "request": {
+      "query": "mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      billingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n      shippingAddress {\n        address1\n        address2\n        city\n        recipient\n        firstName\n        lastName\n        countryCode\n        zoneCode\n        zip\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5442928946",
+        "input": {
+          "name": "b2b-address-validation-1778098822493 url last name",
+          "shippingAddress": {
+            "address1": "1 Pine St",
+            "lastName": "https://example.com",
+            "countryCode": "US",
+            "zoneCode": "CA",
+            "zip": "94105"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress", "lastName"],
+              "message": "Last name is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignAddressInvalidCountry": {
+    "request": {
+      "query": "mutation B2BAddressValidationAssignAddress(\n  $locationId: ID!\n  $address: CompanyAddressInput!\n  $addressTypes: [CompanyAddressType!]!\n) {\n  companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {\n    addresses {\n      id\n      countryCode\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8269627698",
+        "address": {
+          "address1": "1 Pine St",
+          "countryCode": "ZZ"
+        },
+        "addressTypes": ["BILLING"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignAddress": {
+          "addresses": null,
+          "userErrors": [
+            {
+              "field": ["address", "countryCode"],
+              "message": "Country code is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreateNestedInvalidCountry": {
+    "request": {
+      "query": "mutation B2BAddressValidationCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          shippingAddress {\n            address1\n            countryCode\n            zoneCode\n            zip\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "b2b-address-validation-1778098822493 nested invalid"
+          },
+          "companyLocation": {
+            "shippingAddress": {
+              "address1": "1 Pine St",
+              "countryCode": "ZZ"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "companyLocation", "shippingAddress", "countryCode"],
+              "message": "Country code is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BAddressValidationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5442928946"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5442928946",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

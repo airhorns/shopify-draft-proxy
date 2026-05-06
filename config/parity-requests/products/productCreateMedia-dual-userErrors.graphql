@@ -1,0 +1,18 @@
+mutation ProductCreateMediaDualUserErrors($productId: ID!, $media: [CreateMediaInput!]!) {
+  productCreateMedia(productId: $productId, media: $media) {
+    media {
+      id
+      alt
+      mediaContentType
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+    mediaUserErrors {
+      field
+      message
+    }
+  }
+}

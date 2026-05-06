@@ -1,0 +1,77 @@
+{
+  "scenarioId": "customer-merge-blockers",
+  "operationNames": ["customerCreate", "giftCardCreate", "customerMerge"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-blocker-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-merge-blockers.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-merge-blockers-setup.graphql",
+    "variablesCapturePath": "$.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict replay stages disposable customers locally through customerCreate, then compares synchronous customerMerge blocker userErrors for live-reproducible tags overflow, note overflow, and customer gift-card blockers. Subscription-contract setup is covered by local runtime tests because the conformance shop does not expose a reproducible public setup path for subscription contracts in this workflow. The public Admin schema exposes blocker details through customerMerge.userErrors; local tests cover the proxy-projected customerMergeErrors block_type fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "tags-overflow-user-errors",
+        "capturePath": "$.tagsOverflow.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.job", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-blocker.graphql",
+          "variables": {
+            "one": { "fromPrimaryProxyPath": "$.data.tagsOne.customer.id" },
+            "two": { "fromPrimaryProxyPath": "$.data.tagsTwo.customer.id" }
+          }
+        }
+      },
+      {
+        "name": "note-overflow-user-errors",
+        "capturePath": "$.noteOverflow.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.job", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-blocker.graphql",
+          "variables": {
+            "one": { "fromPrimaryProxyPath": "$.data.noteOne.customer.id" },
+            "two": { "fromPrimaryProxyPath": "$.data.noteTwo.customer.id" }
+          }
+        }
+      },
+      {
+        "name": "gift-card-create-setup-user-errors",
+        "capturePath": "$.giftCard.setup.response.data.giftCardCreate",
+        "proxyPath": "$.data.giftCardCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-blocker-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": { "fromCapturePath": "$.giftCard.setup.variables.input.initialValue" },
+              "code": { "fromCapturePath": "$.giftCard.setup.variables.input.code" },
+              "customerId": { "fromPrimaryProxyPath": "$.data.giftOne.customer.id" }
+            }
+          }
+        }
+      },
+      {
+        "name": "gift-card-user-errors",
+        "capturePath": "$.giftCard.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.job", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-blocker.graphql",
+          "variables": {
+            "one": { "fromPrimaryProxyPath": "$.data.giftOne.customer.id" },
+            "two": { "fromPrimaryProxyPath": "$.data.giftTwo.customer.id" }
+          }
+        }
+      }
+    ]
+  }
+}

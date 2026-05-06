@@ -1,0 +1,47 @@
+{
+  "variables": {
+    "id": "gid://shopify/Order/0",
+    "amount": {
+      "amount": "16.00",
+      "currencyCode": "USD"
+    },
+    "paymentMethodName": "Shopify draft proxy manual payment",
+    "processedAt": "2026-05-06T22:09:03.472Z"
+  },
+  "mutation": {
+    "response": {
+      "errors": [
+        {
+          "message": "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.",
+          "locations": [
+            {
+              "line": 7,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field."
+          },
+          "path": ["orderCreateManualPayment"]
+        }
+      ],
+      "data": {
+        "orderCreateManualPayment": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

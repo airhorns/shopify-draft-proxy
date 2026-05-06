@@ -1,0 +1,23 @@
+#graphql
+mutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {
+  catalogCreate(input: $input) {
+    catalog {
+      id
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

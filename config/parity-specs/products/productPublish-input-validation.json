@@ -1,0 +1,39 @@
+{
+  "scenarioId": "productPublish-input-validation",
+  "operationNames": ["productPublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation-parity", "user-errors-parity", "input-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productPublish-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productPublish-input-validation.graphql",
+    "variablesCapturePath": "$.cases.unknownPublication.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 productPublish ProductPublicationInput validation capture. Shopify returned top-level INVALID_VARIABLE for omitted variable productPublications, accepted empty productPublications arrays with empty userErrors on this store/API version, and returned field/message userErrors for unknown publication/channel targets. Empty-list BLANK handling remains a local guardrail requested by the ticket and is runtime-test-backed rather than strict Shopify parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-publication-user-errors",
+        "capturePath": "$.cases.unknownPublication.response.payload.data.productPublish.userErrors",
+        "proxyPath": "$.data.productPublish.userErrors",
+        "selectedPaths": ["$[0].field", "$[0].message"]
+      },
+      {
+        "name": "unknown-channel-user-errors",
+        "capturePath": "$.cases.unknownChannel.response.payload.data.productPublish.userErrors",
+        "proxyPath": "$.data.productPublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productPublish-input-validation.graphql",
+          "variablesCapturePath": "$.cases.unknownChannel.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$[0].field", "$[0].message"]
+      }
+    ]
+  }
+}

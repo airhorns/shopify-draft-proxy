@@ -1,0 +1,63 @@
+{
+  "scenarioId": "price-list-fixed-prices-by-product-update-validation",
+  "operationNames": ["priceListFixedPricesByProductUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-by-product-update-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql",
+    "variablesCapturePath": "$.cases.noOp.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "no-update-operations-specified",
+        "capturePath": "$.cases.noOp.response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate"
+      },
+      {
+        "name": "prices-to-add-currency-mismatch",
+        "capturePath": "$.cases.currencyMismatch.response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql",
+          "variablesCapturePath": "$.cases.currencyMismatch.request.variables"
+        }
+      },
+      {
+        "name": "duplicate-prices-to-add-product-id",
+        "capturePath": "$.cases.duplicateAdd.response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql",
+          "variablesCapturePath": "$.cases.duplicateAdd.request.variables"
+        }
+      },
+      {
+        "name": "duplicate-prices-to-delete-product-id",
+        "capturePath": "$.cases.duplicateDelete.response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql",
+          "variablesCapturePath": "$.cases.duplicateDelete.request.variables"
+        }
+      },
+      {
+        "name": "add-delete-product-id-mutual-exclusion",
+        "capturePath": "$.cases.mutuallyExclusive.response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql",
+          "variablesCapturePath": "$.cases.mutuallyExclusive.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 validation branches for priceListFixedPricesByProductUpdate: no-op input, pricesToAdd price/compareAtPrice currency mismatch, duplicate add product IDs, duplicate delete product IDs, and add/delete mutual exclusivity. Each branch rejects before mutating Shopify and compares the full selected mutation payload including PriceListFixedPricesByProductBulkUpdateUserError.__typename."
+}

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "catalog-context-update-catalog-not-found",
+  "operationNames": ["catalogContextUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-not-found.graphql",
+    "variablesCapturePath": "$.cases[14].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-not-found-payload",
+        "capturePath": "$.cases[14].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate"
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture proves an unknown catalogId returns typed CatalogUserError CATALOG_NOT_FOUND at field [\"catalogId\"]."
+}

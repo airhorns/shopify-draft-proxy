@@ -1,0 +1,7 @@
+query TagsMultiResourceOrderRead($orderId: ID!) {
+  order(id: $orderId) {
+    id
+    name
+    tags
+  }
+}

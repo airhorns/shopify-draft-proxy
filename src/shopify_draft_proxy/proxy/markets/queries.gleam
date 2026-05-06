@@ -314,6 +314,119 @@ fn variables_to_json(
   )
 }
 
+const placeholder_preflight_query: String = "query MarketsMutationPreflightHydrate { __typename }"
+
+fn mutation_preflight_request(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(String, Json) {
+  case has_root_field(fields, "priceListFixedPricesByProductUpdate") {
+    True -> #(
+      product_fixed_prices_preflight_query,
+      product_fixed_prices_preflight_variables(variables),
+    )
+    False ->
+      case mutation_uses_market_localizations(fields) {
+        True -> #(
+          market_localization_preflight_query,
+          variables_to_json(variables),
+        )
+        False ->
+          case mutation_needs_price_list_preflight(fields) {
+            True -> #(
+              price_list_mutation_preflight_query,
+              variables_to_json(variables),
+            )
+            False -> #(
+              placeholder_preflight_query,
+              variables_to_json(variables),
+            )
+          }
+      }
+  }
+}
+
+fn product_fixed_prices_preflight_variables(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object([
+    #("priceListId", case string_variable(variables, "priceListId") {
+      Some(value) -> json.string(value)
+      None -> json.null()
+    }),
+    #("priceQuery", case string_variable(variables, "priceQuery") {
+      Some(value) -> json.string(value)
+      None -> json.null()
+    }),
+    #(
+      "productIds",
+      json.array(product_fixed_prices_product_ids(variables), json.string),
+    ),
+  ])
+}
+
+fn product_fixed_prices_product_ids(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  let add_ids = case dict.get(variables, "pricesToAdd") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(input) ->
+            case dict.get(input, "productId") {
+              Ok(root_field.StringVal(id)) -> Ok(id)
+              _ -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  let delete_ids = case dict.get(variables, "pricesToDeleteByProductIds") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.StringVal(id) -> Ok(id)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  dedupe_strings(list.append(add_ids, delete_ids))
+}
+
+fn string_variable(
+  variables: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(variables, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn dedupe_strings(values: List(String)) -> List(String) {
+  values
+  |> list.fold([], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
+fn has_root_field(fields: List(Selection), root_name: String) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) -> name.value == root_name
+      _ -> False
+    }
+  })
+}
+
 fn fetch_error_message(error: upstream_query.FetchError) -> String {
   case error {
     upstream_query.TransportFailed(message) -> message
@@ -336,22 +449,99 @@ pub fn hydrate_mutation_preconditions(
   upstream: UpstreamContext,
 ) -> Store {
   case upstream.transport, mutation_needs_preflight(fields) {
-    Some(_), True ->
+    Some(_), True -> {
+      let #(query, preflight_variables) =
+        mutation_preflight_request(fields, variables)
       case
         upstream_query.fetch_sync(
           upstream.origin,
           upstream.transport,
           upstream.headers,
           "MarketsMutationPreflightHydrate",
-          mutation_preflight_query(fields),
-          variables_to_json(variables),
+          query,
+          preflight_variables,
         )
       {
         Ok(value) -> hydrate_from_upstream_response(store_in, value)
         Error(_) -> store_in
       }
+    }
     _, _ -> store_in
   }
+}
+
+const product_fixed_prices_preflight_query: String = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }"
+
+const price_list_mutation_preflight_query: String = "
+query MarketsMutationPreflightHydrate($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    quantityRules(first: 20) {
+      edges {
+        cursor
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant { id }
+        }
+      }
+    }
+    prices(first: 20, originType: FIXED) {
+      edges {
+        cursor
+        node {
+          price { amount currencyCode }
+          compareAtPrice { amount currencyCode }
+          originType
+          variant { id sku product { id title } }
+          quantityPriceBreaks(first: 20) {
+            edges {
+              cursor
+              node {
+                minimumQuantity
+                price { amount currencyCode }
+                variant { id }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  products(first: 10) {
+    nodes {
+      id
+      title
+      variants(first: 20) {
+        nodes { id title sku }
+      }
+    }
+  }
+}
+"
+
+fn mutation_needs_price_list_preflight(fields: List(Selection)) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) ->
+        case name.value {
+          "priceListFixedPricesByProductUpdate"
+          | "quantityPricingByVariantUpdate"
+          | "quantityRulesAdd"
+          | "quantityRulesDelete" -> True
+          _ -> False
+        }
+      _ -> False
+    }
+  })
 }
 
 fn mutation_needs_preflight(fields: List(Selection)) -> Bool {
@@ -389,13 +579,6 @@ fn mutation_uses_market_localizations(fields: List(Selection)) -> Bool {
       _ -> False
     }
   })
-}
-
-fn mutation_preflight_query(fields: List(Selection)) -> String {
-  case mutation_uses_market_localizations(fields) {
-    True -> market_localization_preflight_query
-    False -> "query MarketsMutationPreflightHydrate { __typename }"
-  }
 }
 
 const market_localization_preflight_query = "
@@ -470,6 +653,7 @@ fn hydrate_from_upstream_response(
       |> hydrate_product_records(data)
       |> hydrate_market_localizable_metafields(data)
       |> hydrate_market_localizable_resource_content(data)
+      |> hydrate_market_localizable_resource_records(data)
       |> hydrate_markets_root_payloads(data)
     None -> store_in
   }
@@ -562,7 +746,10 @@ fn hydrate_product_records(store_in: Store, data: commit.JsonValue) -> Store {
     list.append(
       list.append(
         record_json_nodes_from_field(data, "products"),
-        nested_product_json_nodes(data),
+        list.append(
+          nested_product_json_nodes(data),
+          json_array_values_from_field(data, "productNodes"),
+        ),
       ),
       case json_get(data, "product") {
         Some(commit.JsonNull) | None -> []
@@ -702,6 +889,75 @@ fn upsert_base_metafield(
   store.replace_base_metafields_for_owner(store_in, metafield.owner_id, next)
 }
 
+fn hydrate_market_localizable_resource_records(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let records =
+    list.append(
+      case json_get(data, "marketLocalizableResource") {
+        Some(commit.JsonNull) | None -> []
+        Some(value) ->
+          case market_localizable_metafield_record_from_resource(value) {
+            Ok(record) -> [record]
+            Error(_) -> []
+          }
+      },
+      record_json_nodes_from_field(data, "marketLocalizableResources")
+        |> list.filter_map(market_localizable_metafield_record_from_resource),
+    )
+  list.fold(records, store_in, fn(current_store, record) {
+    case store.find_effective_metafield_by_id(current_store, record.id) {
+      Some(existing) ->
+        upsert_base_metafield(
+          current_store,
+          ProductMetafieldRecord(
+            ..existing,
+            market_localizable_content: record.market_localizable_content,
+          ),
+        )
+      None -> upsert_base_metafield(current_store, record)
+    }
+  })
+}
+
+fn market_localizable_metafield_record_from_resource(
+  value: commit.JsonValue,
+) -> Result(ProductMetafieldRecord, Nil) {
+  use resource_id <- result.try(
+    json_get_string(value, "resourceId") |> option_to_result,
+  )
+  case string.starts_with(resource_id, "gid://shopify/Metafield/") {
+    False -> Error(Nil)
+    True -> {
+      let content = market_localizable_content_from_json(value)
+      Ok(ProductMetafieldRecord(
+        id: resource_id,
+        owner_id: resource_id,
+        namespace: "",
+        key: "",
+        type_: None,
+        value: content_value(content),
+        compare_digest: None,
+        json_value: None,
+        created_at: None,
+        updated_at: None,
+        owner_type: Some("PRODUCT"),
+        market_localizable_content: content,
+      ))
+    }
+  }
+}
+
+fn content_value(
+  content: List(MarketLocalizableContentRecord),
+) -> Option(String) {
+  case list.find(content, fn(item) { item.key == "value" }) {
+    Ok(item) -> Some(item.value)
+    Error(_) -> None
+  }
+}
+
 fn hydrate_markets_root_payloads(
   store_in: Store,
   data: commit.JsonValue,
@@ -732,6 +988,16 @@ fn record_json_nodes_from_field(
   case json_get(data, key) {
     Some(connection) -> connection_nodes(connection)
     None -> []
+  }
+}
+
+fn json_array_values_from_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(commit.JsonValue) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(items)) -> non_null_json_values(items)
+    _ -> []
   }
 }
 

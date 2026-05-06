@@ -524,6 +524,32 @@ pub fn graphql_order_create_mandate_payment_missing_mandate_id_errors_test() {
     == "{\"errors\":[{\"message\":\"Field 'orderCreateMandatePayment' is missing required arguments: mandateId\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderCreateMandatePayment\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderCreateMandatePayment\",\"arguments\":\"mandateId\"}}]}"
 }
 
+pub fn graphql_order_edit_add_custom_item_missing_required_title_errors_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderEditAddCustomItem(id: \\\"gid://shopify/CalculatedOrder/1\\\", quantity: 1, price: { amount: \\\"1.00\\\", currencyCode: CAD }) { calculatedLineItem { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'orderEditAddCustomItem' is missing required arguments: title\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderEditAddCustomItem\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderEditAddCustomItem\",\"arguments\":\"title\"}}]}"
+}
+
+pub fn graphql_order_edit_add_custom_item_inline_price_requires_currency_code_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderEditAddCustomItem(id: \\\"gid://shopify/CalculatedOrder/1\\\", title: \\\"Missing currency\\\", quantity: 1, price: { amount: \\\"1.00\\\" }) { calculatedLineItem { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'currencyCode' on InputObject 'MoneyInput' is required. Expected type CurrencyCode!\",\"locations\":[{\"line\":1,\"column\":121}],\"path\":[\"mutation\",\"orderEditAddCustomItem\",\"price\",\"currencyCode\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"currencyCode\",\"argumentType\":\"CurrencyCode!\",\"inputObjectType\":\"MoneyInput\"}}]}"
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -892,6 +918,90 @@ pub fn graphql_saved_search_create_duplicate_base_state_name_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+}
+
+pub fn graphql_saved_search_create_rejects_reserved_resource_names_test() {
+  assert_reserved_create_name("PRODUCT", "All products")
+  assert_reserved_create_name("PRODUCT", "ALL PRODUCTS")
+  assert_reserved_create_name("COLLECTION", "All collections")
+  assert_reserved_create_name("ORDER", "All")
+  assert_reserved_create_name("DRAFT_ORDER", "All Drafts")
+  assert_reserved_create_name("FILE", "All Files")
+}
+
+pub fn graphql_saved_search_create_allows_reserved_name_for_unscoped_resource_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"All products\\\", query: \\\"code:SUMMER\\\", resourceType: DISCOUNT_REDEEM_CODE }) { savedSearch { name query resourceType } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"name\":\"All products\",\"query\":\"code:SUMMER\",\"resourceType\":\"DISCOUNT_REDEEM_CODE\"},\"userErrors\":[]}}}"
+}
+
+pub fn graphql_saved_search_update_rejects_reserved_resource_name_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Reserved update source\\\", query: \\\"vendor:Acme\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create)
+  let update =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\", name: \\\"All products\\\", query: \\\"vendor:Changed\\\" }) { savedSearch { id name query resourceType filters { key value } } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, update)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Reserved update source\",\"query\":\"vendor:Changed\",\"resourceType\":\"PRODUCT\",\"filters\":[{\"key\":\"vendor\",\"value\":\"Changed\"}]},\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(query: \\\"Reserved update source\\\") { nodes { name query } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Reserved update source\",\"query\":\"vendor:Acme\"}]}}}"
+}
+
+fn assert_reserved_create_name(resource_type: String, name: String) {
+  let proxy = draft_proxy.new()
+  let query = case resource_type {
+    "PRODUCT" -> "vendor:Acme"
+    "COLLECTION" -> "title:Sale"
+    "ORDER" -> "status:open"
+    "DRAFT_ORDER" -> "status:open"
+    "FILE" -> ""
+    _ -> ""
+  }
+  let body =
+    "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\""
+    <> name
+    <> "\\\", query: \\\""
+    <> query
+    <> "\\\", resourceType: "
+    <> resource_type
+    <> " }) { savedSearch { id name query resourceType } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  let #(Response(body: state_body, ..), proxy) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/state"))
+  assert string.contains(json.to_string(state_body), "\"savedSearches\":{}")
+  let #(Response(body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/log"))
+  let serialized_log = json.to_string(log_body)
+  assert string.contains(
+    serialized_log,
+    "\"primaryRootField\":\"savedSearchCreate\"",
+  )
+  assert string.contains(serialized_log, "\"status\":\"failed\"")
+  assert string.contains(serialized_log, "\"stagedResourceIds\":[]")
 }
 
 pub fn meta_state_reflects_staged_saved_search_test() {
@@ -1290,6 +1400,52 @@ pub fn graphql_webhook_subscription_create_blank_uri_user_error_test() {
   assert status == 200
   assert json.to_string(response_body)
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
+}
+
+pub fn graphql_carrier_service_create_missing_callback_url_invalid_variable_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Hermes Missing Callback\",\"supportsServiceDiscovery\":false,\"active\":false}}}"
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let response_json = json.to_string(response_body)
+  assert string.contains(
+    response_json,
+    "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Expected value to not be null)",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    response_json,
+    "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Expected value to not be null\"}]",
+  )
+
+  let read_body =
+    "{\"query\":\"query { carrierServices(first: 5) { nodes { id name callbackUrl } } }\"}"
+  let #(Response(status: read_status, body: read_response, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_body))
+  assert read_status == 200
+  assert json.to_string(read_response)
+    == "{\"data\":{\"carrierServices\":{\"nodes\":[]}}}"
+}
+
+pub fn graphql_carrier_service_create_unparseable_callback_url_invalid_variable_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Hermes Bad Callback\",\"callbackUrl\":\"not-a-url\",\"supportsServiceDiscovery\":false,\"active\":false}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let response_json = json.to_string(response_body)
+  assert string.contains(
+    response_json,
+    "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Invalid url 'not-a-url', missing scheme)",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    response_json,
+    "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Invalid url 'not-a-url', missing scheme\",\"message\":\"Invalid url 'not-a-url', missing scheme\"}]",
+  )
 }
 
 // ---------------------------------------------------------------------------

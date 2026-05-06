@@ -36,8 +36,8 @@ import shopify_draft_proxy/proxy/products/inventory_core.{
   write_inventory_quantity,
 }
 import shopify_draft_proxy/proxy/products/product_types.{
-  type ProductSetInventoryQuantityInput, type ProductUserError,
-  type RenamedOptionValue, ProductUserError,
+  type NullableFieldUserError, type ProductSetInventoryQuantityInput,
+  type ProductUserError, type RenamedOptionValue, ProductUserError,
   product_description_html_limit_bytes, product_set_file_limit,
   product_string_character_limit, product_tag_character_limit, product_tag_limit,
 }
@@ -46,10 +46,10 @@ import shopify_draft_proxy/proxy/products/publications_core.{
 }
 import shopify_draft_proxy/proxy/products/shared.{
   dedupe_preserving_order, host_from_origin, max_input_size_error,
-  read_bool_argument, read_list_field_length, read_non_empty_string_field,
-  read_object_list_field, read_string_argument, read_string_field,
-  read_string_list_field, resource_id_matches, store_slug_from_admin_origin,
-  trimmed_non_empty, user_errors_source,
+  nullable_field_user_errors_source, read_bool_argument, read_list_field_length,
+  read_non_empty_string_field, read_object_list_field, read_string_argument,
+  read_string_field, read_string_list_field, resource_id_matches,
+  store_slug_from_admin_origin, trimmed_non_empty, user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   compare_optional_strings_as_empty, optional_string, optional_string_json,
@@ -68,9 +68,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type InventoryQuantityRecord, type ProductMetafieldRecord,
-  type ProductOperationUserErrorRecord, type ProductRecord,
-  type ProductSeoRecord, type SellingPlanGroupRecord, ProductMetafieldRecord,
-  ProductOperationUserErrorRecord, ProductSeoRecord,
+  type ProductOperationRecord, type ProductOperationUserErrorRecord,
+  type ProductRecord, type ProductSeoRecord, type SellingPlanGroupRecord,
+  ProductMetafieldRecord, ProductOperationUserErrorRecord, ProductSeoRecord,
 }
 
 // ===== from products_l00 =====
@@ -286,12 +286,15 @@ query ProductsHydrateNodes($ids: [ID!]!) {
       }
       media(first: 250) {
         nodes {
+          __typename
           id
           alt
           mediaContentType
           status
           preview { image { url width height } }
-          image { id url altText width height }
+          ... on MediaImage {
+            image { id url altText width height }
+          }
         }
       }
       collections(first: 250) {
@@ -1700,7 +1703,41 @@ pub fn build_product_delete_null_input_id_error(
 @internal
 pub fn product_delete_payload(
   deleted_product_id: Option(String),
+  operation: Option(ProductOperationRecord),
   user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  product_delete_payload_from_user_errors_source(
+    deleted_product_id,
+    operation,
+    user_errors_source(user_errors),
+    field,
+    fragments,
+  )
+}
+
+@internal
+pub fn product_delete_nullable_user_error_payload(
+  deleted_product_id: Option(String),
+  operation: Option(ProductOperationRecord),
+  user_errors: List(NullableFieldUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  product_delete_payload_from_user_errors_source(
+    deleted_product_id,
+    operation,
+    nullable_field_user_errors_source(user_errors),
+    field,
+    fragments,
+  )
+}
+
+fn product_delete_payload_from_user_errors_source(
+  deleted_product_id: Option(String),
+  operation: Option(ProductOperationRecord),
+  user_errors: SourceValue,
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
@@ -1708,11 +1745,38 @@ pub fn product_delete_payload(
     Some(id) -> SrcString(id)
     None -> SrcNull
   }
+  let operation_value = case operation {
+    Some(operation) -> {
+      let deleted_operation_value = case operation.status {
+        "COMPLETE" ->
+          case operation.product_id {
+            Some(id) -> SrcString(id)
+            None -> SrcNull
+          }
+        _ -> SrcNull
+      }
+      src_object([
+        #("__typename", SrcString(operation.type_name)),
+        #("id", SrcString(operation.id)),
+        #("status", SrcString(operation.status)),
+        #("deletedProductId", deleted_operation_value),
+        #(
+          "userErrors",
+          SrcList(list.map(
+            operation.user_errors,
+            product_operation_user_error_source,
+          )),
+        ),
+      ])
+    }
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductDeletePayload")),
       #("deletedProductId", deleted_value),
-      #("userErrors", user_errors_source(user_errors)),
+      #("productDeleteOperation", operation_value),
+      #("userErrors", user_errors),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,

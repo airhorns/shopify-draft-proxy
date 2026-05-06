@@ -1,12 +1,11 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-04-28T03:24:00.000Z",
-  "scope": "HAR-391 priceListFixedPricesByProductUpdate product-level fixed-price parity",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
+  "scope": "priceListFixedPricesByProductUpdate product-level fixed-price parity",
   "setup": {
     "priceListId": "gid://shopify/PriceList/31575376178",
     "productId": "gid://shopify/Product/9801098789170",
-    "variantId": "gid://shopify/ProductVariant/49875425296690",
     "priceQuery": "product_id:9801098789170",
     "cleanup": "The success path deletes the product-level fixed price after the add/read capture."
   },
@@ -26,7 +25,27 @@
           "endCursor": null
         }
       }
-    }
+    },
+    "productNodes": [
+      {
+        "__typename": "Product",
+        "id": "gid://shopify/Product/9801098789170",
+        "title": "The Inventory Not Tracked Snowboard",
+        "handle": "the-inventory-not-tracked-snowboard",
+        "status": "ACTIVE",
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "price": "949.95",
+              "compareAtPrice": null
+            }
+          ]
+        }
+      }
+    ]
   },
   "schemaEvidence": {
     "mutationArgs": ["priceListId", "pricesToAdd", "pricesToDeleteByProductIds"],
@@ -58,6 +77,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
@@ -108,6 +128,17 @@
               "pricesToDeleteProducts": [],
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -122,6 +153,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceList": {
@@ -162,6 +194,17 @@
                 }
               }
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -177,6 +220,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
@@ -204,6 +248,17 @@
               ],
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -218,6 +273,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceList": {
@@ -233,6 +289,17 @@
                   "startCursor": null,
                   "endCursor": null
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
               }
             }
           }
@@ -259,6 +326,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
@@ -272,6 +340,17 @@
                   "code": "PRODUCT_DOES_NOT_EXIST"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -287,6 +366,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
@@ -300,6 +380,17 @@
                   "code": "PRODUCT_DOES_NOT_EXIST"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -323,6 +414,7 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
@@ -337,6 +429,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1961,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -347,23 +450,10 @@
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
         "priceListId": "gid://shopify/PriceList/31575376178",
-        "priceQuery": "product_id:9801098789170",
-        "pricesToAdd": [
-          {
-            "productId": "gid://shopify/Product/9801098789170",
-            "price": {
-              "amount": "881.25",
-              "currencyCode": "CAD"
-            },
-            "compareAtPrice": {
-              "amount": "999.99",
-              "currencyCode": "CAD"
-            }
-          }
-        ],
-        "pricesToDeleteByProductIds": []
+        "productIds": ["gid://shopify/Product/9801098789170"],
+        "priceQuery": "product_id:9801098789170"
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -384,190 +474,36 @@
                 }
               }
             },
-            "products": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard",
-                  "handle": "the-inventory-not-tracked-snowboard",
-                  "variants": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/ProductVariant/49875425296690",
-                        "title": "Default Title",
-                        "sku": "sku-untracked-1",
-                        "price": "949.95",
-                        "compareAtPrice": null
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MarketsMutationPreflightHydrate",
-      "variables": {
-        "priceListId": "gid://shopify/PriceList/31575376178",
-        "priceQuery": "product_id:9801098789170",
-        "pricesToAdd": [],
-        "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
-      },
-      "query": "hand-synthesized from checked-in capture",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "priceList": {
-              "__typename": "PriceList",
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "prices": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
+            "productNodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard",
+                "status": "ACTIVE",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "title": "Default Title",
+                      "sku": "sku-untracked-1",
+                      "price": "949.95",
+                      "compareAtPrice": null
+                    }
+                  ]
                 }
               }
-            },
-            "products": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard",
-                  "handle": "the-inventory-not-tracked-snowboard",
-                  "variants": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/ProductVariant/49875425296690",
-                        "title": "Default Title",
-                        "sku": "sku-untracked-1",
-                        "price": "949.95",
-                        "compareAtPrice": null
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MarketsMutationPreflightHydrate",
-      "variables": {
-        "priceListId": "gid://shopify/PriceList/31575376178",
-        "pricesToAdd": [
-          {
-            "productId": "gid://shopify/Product/0",
-            "price": {
-              "amount": "1.00",
-              "currencyCode": "CAD"
-            }
-          }
-        ],
-        "pricesToDeleteByProductIds": []
-      },
-      "query": "hand-synthesized from checked-in capture",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "priceList": {
-              "__typename": "PriceList",
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "prices": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
               }
-            },
-            "products": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard",
-                  "handle": "the-inventory-not-tracked-snowboard",
-                  "variants": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/ProductVariant/49875425296690",
-                        "title": "Default Title",
-                        "sku": "sku-untracked-1",
-                        "price": "949.95",
-                        "compareAtPrice": null
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MarketsMutationPreflightHydrate",
-      "variables": {
-        "priceListId": "gid://shopify/PriceList/31575376178",
-        "pricesToAdd": [],
-        "pricesToDeleteByProductIds": ["gid://shopify/Product/0"]
-      },
-      "query": "hand-synthesized from checked-in capture",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "priceList": {
-              "__typename": "PriceList",
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "prices": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
-              }
-            },
-            "products": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard",
-                  "handle": "the-inventory-not-tracked-snowboard",
-                  "variants": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/ProductVariant/49875425296690",
-                        "title": "Default Title",
-                        "sku": "sku-untracked-1",
-                        "price": "949.95",
-                        "compareAtPrice": null
-                      }
-                    ]
-                  }
-                }
-              ]
             }
           }
         }

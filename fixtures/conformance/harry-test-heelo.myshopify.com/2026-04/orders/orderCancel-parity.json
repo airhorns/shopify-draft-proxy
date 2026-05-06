@@ -1,0 +1,124 @@
+{
+  "variables": {
+    "orderId": "gid://shopify/Order/8733114532146",
+    "restock": false,
+    "reason": "OTHER",
+    "notifyCustomer": false,
+    "staffNote": "shopify-draft-proxy order cancel capture"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderCancel": {
+          "orderCancelUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8733114532146"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8733114532146",
+          "name": "#1286",
+          "closed": true,
+          "closedAt": "2026-05-06T22:09:00Z",
+          "cancelledAt": "2026-05-06T22:09:00Z",
+          "cancelReason": "OTHER",
+          "displayFinancialStatus": null,
+          "paymentGatewayNames": [],
+          "totalOutstandingSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "USD"
+            }
+          },
+          "currentTotalPriceSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "USD"
+            }
+          },
+          "customer": null,
+          "transactions": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8733114532146"
+      },
+      "query": "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733114532146",
+              "name": "#1286",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "14.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "14.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "customer": null,
+              "transactions": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

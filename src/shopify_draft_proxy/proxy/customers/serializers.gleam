@@ -39,9 +39,10 @@ import shopify_draft_proxy/state/types.{
   type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
   type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
-  type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
-  type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
-  type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
+  type CustomerMergeErrorRecord, type CustomerMergeRequestRecord,
+  type CustomerMetafieldRecord, type CustomerOrderSummaryRecord,
+  type CustomerPaymentMethodRecord, type CustomerRecord,
+  type CustomerSmsMarketingConsentRecord, type Money,
   type ProductMetafieldRecord, type StoreCreditAccountRecord,
   type StoreCreditAccountTransactionRecord, CustomerCatalogPageInfoRecord,
   CustomerDefaultAddressRecord, CustomerMetafieldRecord,
@@ -1676,7 +1677,14 @@ pub fn merge_request_source(
         list.map(request.customer_merge_errors, fn(err) {
           src_object([
             #("errorFields", SrcList(list.map(err.error_fields, SrcString))),
+            #("field", SrcList(list.map(err.error_fields, SrcString))),
             #("message", SrcString(err.message)),
+            #("code", graphql_helpers.option_string_source(err.code)),
+            #(
+              "block_type",
+              graphql_helpers.option_string_source(err.block_type),
+            ),
+            #("blockType", graphql_helpers.option_string_source(err.block_type)),
           ])
         }),
       ),
@@ -1982,6 +1990,21 @@ pub fn merge_payload_json(request, field, fragments) {
 
 @internal
 pub fn merge_error_payload(field, fragments, error_field, message, code) {
+  merge_errors_payload(
+    field,
+    fragments,
+    [UserError(error_field, message, code)],
+    [],
+  )
+}
+
+@internal
+pub fn merge_errors_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(UserError),
+  merge_errors: List(CustomerMergeErrorRecord),
+) {
   case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
       project_graphql_value(
@@ -1989,11 +2012,30 @@ pub fn merge_error_payload(field, fragments, error_field, message, code) {
           #("__typename", SrcString("CustomerMergePayload")),
           #("resultingCustomerId", SrcNull),
           #("job", SrcNull),
+          #("userErrors", SrcList(list.map(user_errors, user_error_source))),
           #(
-            "userErrors",
-            SrcList([
-              user_error_source(UserError(error_field, message, code)),
-            ]),
+            "customerMergeErrors",
+            SrcList(
+              list.map(merge_errors, fn(err) {
+                src_object([
+                  #(
+                    "errorFields",
+                    SrcList(list.map(err.error_fields, SrcString)),
+                  ),
+                  #("field", SrcList(list.map(err.error_fields, SrcString))),
+                  #("message", SrcString(err.message)),
+                  #("code", graphql_helpers.option_string_source(err.code)),
+                  #(
+                    "block_type",
+                    graphql_helpers.option_string_source(err.block_type),
+                  ),
+                  #(
+                    "blockType",
+                    graphql_helpers.option_string_source(err.block_type),
+                  ),
+                ])
+              }),
+            ),
           ),
         ]),
         selections,

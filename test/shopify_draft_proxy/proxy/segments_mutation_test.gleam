@@ -272,6 +272,29 @@ pub fn member_query_create_stages_initialized_query_job_test() {
     == "{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false}}"
 }
 
+pub fn member_query_create_accepts_broad_save_time_grammar_test() {
+  let s =
+    store.new()
+    |> seed_customer(customer("gid://shopify/Customer/1", "Buyer", "3"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { customerSegmentMembersQueryCreate(input: { query: \"country = 'CA'\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Ok(members) =
+    segments.handle_segments_query(
+      outcome.store,
+      "{ customerSegmentMembers(queryId: \"gid://shopify/CustomerSegmentMembersQuery/1\", first: 10) { nodes { id } } }",
+      dict.new(),
+    )
+  assert json.to_string(members)
+    == "{\"customerSegmentMembers\":{\"nodes\":[]}}"
+}
+
 pub fn member_query_create_from_segment_id_stages_initialized_query_job_test() {
   let s =
     store.new()
@@ -323,6 +346,37 @@ pub fn segment_create_customer_tags_contains_test() {
     )
   assert body
     == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"name\":\"Tagged\",\"query\":\"customer_tags CONTAINS 'gold'\"},\"userErrors\":[]}}}"
+}
+
+pub fn segment_create_accepts_broad_query_grammar_test() {
+  let cases = [
+    #("Country", "country = 'CA'"),
+    #("Total spent", "total_spent > 100"),
+    #("Companies", "companies IS NULL"),
+    #("And", "number_of_orders >= 1 AND country = 'CA'"),
+    #("Or", "(number_of_orders >= 1) OR (number_of_orders = 0)"),
+    #("Relative date", "last_order_date >= -30d"),
+    #("Not null", "companies IS NOT NULL"),
+    #("Contains", "customer_cities NOT CONTAINS 'US-CA-LosAngeles'"),
+  ]
+  list.each(cases, fn(test_case) {
+    let #(name, query) = test_case
+    let body =
+      run_mutation(
+        store.new(),
+        "mutation { segmentCreate(name: \""
+          <> name
+          <> "\", query: \""
+          <> query
+          <> "\") { segment { id name query } userErrors { field message } } }",
+      )
+    assert body
+      == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"name\":\""
+      <> name
+      <> "\",\"query\":\""
+      <> query
+      <> "\"},\"userErrors\":[]}}}"
+  })
 }
 
 pub fn segment_create_blank_name_emits_user_error_test() {
@@ -453,6 +507,19 @@ pub fn segment_update_name_only_preserves_query_test() {
     )
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/101\",\"name\":\"Renamed\",\"query\":\"number_of_orders >= 1\"},\"userErrors\":[]}}}"
+}
+
+pub fn segment_update_accepts_broad_query_grammar_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/106", "Old", "number_of_orders >= 1")
+  let s = seed(store.new(), existing)
+  let body =
+    run_mutation(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/106\", query: \"(number_of_orders >= 1) OR (number_of_orders = 0)\") { segment { id name query } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/106\",\"name\":\"Old\",\"query\":\"(number_of_orders >= 1) OR (number_of_orders = 0)\"},\"userErrors\":[]}}}"
 }
 
 pub fn segment_update_missing_id_emits_user_error_test() {

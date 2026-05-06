@@ -127,7 +127,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["productOperation", "ProductOperation"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false) and ProductDuplicateOperation records created by asynchronous productDuplicate(synchronous: false); unknown operation IDs return null.",
+        "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false), ProductDuplicateOperation records created by asynchronous productDuplicate(synchronous: false), and ProductDeleteOperation records created by asynchronous productDelete(synchronous: false); unknown operation IDs return null.",
       ),
     ),
     RegistryEntry(
@@ -2144,7 +2144,9 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["productDelete", "ProductDelete"],
       runtime_tests: ["test/parity_test.gleam"],
-      support_notes: None,
+      support_notes: Some(
+        "Stages synchronous delete payloads and asynchronous productDelete(synchronous: false) ProductDeleteOperation records locally without runtime Shopify writes; async operation readback is observable through productOperation(id:) and node(id:).",
+      ),
     ),
     RegistryEntry(
       name: "productDuplicate",

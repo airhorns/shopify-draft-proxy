@@ -1,0 +1,8 @@
+query TagsMultiResourceCustomerRead($customerId: ID!) {
+  customer(id: $customerId) {
+    id
+    email
+    displayName
+    tags
+  }
+}

@@ -1,0 +1,24 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`conformance capture index > profiles checked-in live Shopify fixtures without recorder-declared outputs 1`] = `
+[
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-mutation-validation.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-roots-read.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definitions-product-read.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-terms-templates-read.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/shopify-payments-account-access-denied.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-url-redirects.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-validation.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-create-lifecycle.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-validators.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json",
+  "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-create-cold-hydration.json",
+]
+`;

@@ -1,0 +1,7 @@
+query TagsMultiResourceDraftOrderRead($draftOrderId: ID!) {
+  draftOrder(id: $draftOrderId) {
+    id
+    name
+    tags
+  }
+}

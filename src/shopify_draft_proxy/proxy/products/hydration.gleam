@@ -939,7 +939,7 @@ pub fn product_record_from_json(
             description: json_string_field_at(node, ["seo", "description"]),
           ),
           category: None,
-          publication_ids: json_string_array_field(node, ["publicationIds"]),
+          publication_ids: product_publication_ids_from_json(node),
           contextual_pricing: json_field(node, ["contextualPricing"])
             |> option.map(captured_json_from_commit),
           cursor: None,
@@ -963,7 +963,7 @@ pub fn collection_record_from_json(
         legacy_resource_id: json_string_field(node, "legacyResourceId"),
         title: json_string_field(node, "title") |> option.unwrap(""),
         handle: json_string_field(node, "handle") |> option.unwrap(id),
-        publication_ids: json_string_array_field(node, ["publicationIds"]),
+        publication_ids: product_publication_ids_from_json(node),
         updated_at: json_string_field(node, "updatedAt"),
         description: json_string_field(node, "description"),
         description_html: json_string_field(node, "descriptionHtml"),
@@ -1523,6 +1523,17 @@ pub fn json_string_array_field(
       _ -> Error(Nil)
     }
   })
+}
+
+fn product_publication_ids_from_json(node: commit.JsonValue) -> List(String) {
+  list.append(
+    json_string_array_field(node, ["publicationIds"]),
+    json_array_field(node, ["productPublications"])
+      |> list.filter_map(fn(item) {
+        json_string_field(item, "publicationId") |> option_to_result
+      }),
+  )
+  |> dedupe_preserving_order
 }
 
 @internal

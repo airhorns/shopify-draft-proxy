@@ -1,0 +1,32 @@
+{
+  "scenarioId": "web-presence-create-pt-br-locale",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[7].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "pt-br-alternate-locale-is-accepted",
+        "capturePath": "$.cases[7].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "selectedPaths": [
+          "$.webPresence.defaultLocale.locale",
+          "$.webPresence.alternateLocales[0].locale",
+          "$.userErrors"
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves webPresenceCreate accepts a published pt-BR alternate locale with no userErrors. The selected comparison avoids rootUrl and locale-name differences already covered by dedicated web-presence rootUrl parity."
+}
