@@ -764,31 +764,106 @@ fn handle_catalog_context_update(
     Some(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(existing) -> {
-          let market_ids =
+          let contexts_to_add =
             graphql_helpers.read_arg_object(args, "contextsToAdd")
-            |> option.then(read_arg_string_array(_, "marketIds"))
-            |> option.unwrap([])
-          let data =
-            captured_object_upsert(existing.data, [
-              #("markets", market_connection_from_ids(store, market_ids)),
-            ])
-          let #(_, next_store) =
-            store.upsert_staged_catalog(
-              store,
-              CatalogRecord(id, existing.cursor, data),
-            )
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "catalogContextUpdate",
-            "catalog",
-            data,
-            [],
-            next_store,
-            identity,
-            [id],
-          )
+          let contexts_to_remove =
+            graphql_helpers.read_arg_object(args, "contextsToRemove")
+          case contexts_to_add, contexts_to_remove {
+            None, None ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "catalogContextUpdate",
+                "catalog",
+                CapturedNull,
+                [
+                  user_error(
+                    [],
+                    "At least one context to add or remove is required",
+                    "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
+                  ),
+                ],
+                store,
+                identity,
+                [],
+              )
+            _, _ -> {
+              let add_market_ids =
+                contexts_to_add
+                |> option.then(read_arg_string_array(_, "marketIds"))
+                |> option.unwrap([])
+              let remove_market_ids =
+                contexts_to_remove
+                |> option.then(read_arg_string_array(_, "marketIds"))
+                |> option.unwrap([])
+              let errors =
+                []
+                |> list.append(catalog_context_market_not_found_errors(
+                  store,
+                  "contextsToAdd",
+                  add_market_ids,
+                ))
+                |> list.append(catalog_context_market_not_found_errors(
+                  store,
+                  "contextsToRemove",
+                  remove_market_ids,
+                ))
+                |> list.append(catalog_context_market_taken_errors(
+                  store,
+                  id,
+                  add_market_ids,
+                ))
+              case errors {
+                [] -> {
+                  let remaining_market_ids =
+                    catalog_market_ids(existing.data)
+                    |> list.filter(fn(market_id) {
+                      !list.contains(remove_market_ids, market_id)
+                    })
+                  let market_ids =
+                    append_unique_strings(remaining_market_ids, add_market_ids)
+                  let data =
+                    captured_object_upsert(existing.data, [
+                      #(
+                        "markets",
+                        market_connection_from_ids(store, market_ids),
+                      ),
+                    ])
+                  let #(_, next_store) =
+                    store.upsert_staged_catalog(
+                      store,
+                      CatalogRecord(id, existing.cursor, data),
+                    )
+                  mutation_result(
+                    key,
+                    field,
+                    fragments,
+                    "catalogContextUpdate",
+                    "catalog",
+                    data,
+                    [],
+                    next_store,
+                    identity,
+                    [id],
+                  )
+                }
+                _ ->
+                  mutation_result(
+                    key,
+                    field,
+                    fragments,
+                    "catalogContextUpdate",
+                    "catalog",
+                    CapturedNull,
+                    errors,
+                    store,
+                    identity,
+                    [],
+                  )
+              }
+            }
+          }
         }
         None ->
           not_found_mutation_result(
@@ -817,6 +892,112 @@ fn handle_catalog_context_update(
         store,
         identity,
       )
+  }
+}
+
+fn catalog_context_market_not_found_errors(
+  store: Store,
+  context_field: String,
+  market_ids: List(String),
+) -> List(CapturedJsonValue) {
+  market_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_market_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          [context_field, "marketIds", int.to_string(index)],
+          "Market does not exist",
+          "MARKET_NOT_FOUND",
+        ))
+    }
+  })
+}
+
+fn catalog_context_market_taken_errors(
+  store: Store,
+  catalog_id: String,
+  market_ids: List(String),
+) -> List(CapturedJsonValue) {
+  market_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case market_taken_by_other_market_catalog(store, catalog_id, id) {
+      False -> Error(Nil)
+      True ->
+        Ok(user_error(
+          ["contextsToAdd", "marketIds", int.to_string(index)],
+          "Market has already been taken",
+          "MARKET_TAKEN",
+        ))
+    }
+  })
+}
+
+fn market_taken_by_other_market_catalog(
+  store: Store,
+  catalog_id: String,
+  market_id: String,
+) -> Bool {
+  store.list_effective_catalogs(store)
+  |> list.any(fn(record) {
+    record.id != catalog_id
+    && catalog_driver_type_is_market(record.data)
+    && list.contains(catalog_market_ids(record.data), market_id)
+  })
+}
+
+fn catalog_driver_type_is_market(data: CapturedJsonValue) -> Bool {
+  case captured_string_field(data, "__typename") {
+    Some("MarketCatalog") -> True
+    _ ->
+      case captured_field(data, "markets") {
+        Some(_) -> True
+        None -> False
+      }
+  }
+}
+
+fn catalog_market_ids(data: CapturedJsonValue) -> List(String) {
+  captured_field(data, "markets")
+  |> option.map(market_ids_from_connection)
+  |> option.unwrap([])
+}
+
+fn market_ids_from_connection(connection: CapturedJsonValue) -> List(String) {
+  let node_ids =
+    captured_field(connection, "nodes")
+    |> option.map(market_ids_from_nodes)
+    |> option.unwrap([])
+  let edge_ids =
+    captured_field(connection, "edges")
+    |> option.map(market_ids_from_edges)
+    |> option.unwrap([])
+  append_unique_strings(node_ids, edge_ids)
+}
+
+fn market_ids_from_nodes(nodes: CapturedJsonValue) -> List(String) {
+  case nodes {
+    CapturedArray(items) ->
+      list.filter_map(items, fn(item) {
+        captured_string_field(item, "id") |> option_to_result
+      })
+    _ -> []
+  }
+}
+
+fn market_ids_from_edges(edges: CapturedJsonValue) -> List(String) {
+  case edges {
+    CapturedArray(items) ->
+      list.filter_map(items, fn(edge) {
+        captured_field(edge, "node")
+        |> option.then(captured_string_field(_, "id"))
+        |> option_to_result
+      })
+    _ -> []
   }
 }
 

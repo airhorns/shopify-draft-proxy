@@ -771,3 +771,129 @@ pub fn catalog_create_stages_market_context_test() {
     "\"title\":\"EU Catalog\",\"status\":\"ACTIVE\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
   )
 }
+
+pub fn catalog_context_update_requires_add_or_remove_contexts_test() {
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogContextUpdate(catalogId: \"gid://shopify/MarketCatalog/3\") { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[],\"message\":\"At least one context to add or remove is required\",\"code\":\"REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE\"}]}}}"
+}
+
+pub fn catalog_context_update_removes_market_contexts_test() {
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"North America\", regions: [{ countryCode: US }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Global Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\", \"gid://shopify/Market/3\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogContextUpdate(catalogId: \"gid://shopify/MarketCatalog/5\", contextsToRemove: { marketIds: [\"gid://shopify/Market/1\"] }) { catalog { id markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/5\") { id markets(first: 5) { nodes { id } } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/5\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}},\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/5\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}}}}"
+}
+
+pub fn catalog_context_update_validates_missing_market_context_ids_test() {
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogContextUpdate(catalogId: \"gid://shopify/MarketCatalog/3\", contextsToAdd: { marketIds: [\"gid://shopify/Market/404\"] }, contextsToRemove: { marketIds: [\"gid://shopify/Market/405\"] }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"contextsToAdd\",\"marketIds\",\"0\"],\"message\":\"Market does not exist\",\"code\":\"MARKET_NOT_FOUND\"},{\"field\":[\"contextsToRemove\",\"marketIds\",\"0\"],\"message\":\"Market does not exist\",\"code\":\"MARKET_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_context_update_rejects_market_taken_by_same_driver_catalog_test() {
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"North America\", regions: [{ countryCode: US }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: _, body: _, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"NA Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/3\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogContextUpdate(catalogId: \"gid://shopify/MarketCatalog/7\", contextsToAdd: { marketIds: [\"gid://shopify/Market/1\"] }) { catalog { id markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/7\") { id markets(first: 5) { nodes { id } } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"contextsToAdd\",\"marketIds\",\"0\"],\"message\":\"Market has already been taken\",\"code\":\"MARKET_TAKEN\"}]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/7\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/3\"}]}}}}"
+}
+
+pub fn catalog_context_update_unknown_catalog_returns_typed_user_error_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogContextUpdate(catalogId: \"gid://shopify/MarketCatalog/404\", contextsToAdd: { marketIds: [\"gid://shopify/Market/404\"] }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogContextUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"catalogId\"],\"message\":\"Catalog does not exist\",\"code\":\"CATALOG_NOT_FOUND\"}]}}}"
+}
