@@ -203,22 +203,23 @@ function dataRoot(result: ConformanceGraphqlResult, rootName: string): JsonObjec
 }
 
 function orderIdFromCreate(result: ConformanceGraphqlResult): string {
-  const order = dataRoot(result, 'orderCreate').order;
-  if (typeof order !== 'object' || order === null || typeof (order as JsonObject).id !== 'string') {
+  const order = dataRoot(result, 'orderCreate')['order'];
+  const orderId = typeof order === 'object' && order !== null ? (order as JsonObject)['id'] : null;
+  if (typeof orderId !== 'string') {
     throw new Error(`Missing created order id: ${JSON.stringify(result.payload, null, 2)}`);
   }
-  return (order as JsonObject).id;
+  return orderId;
 }
 
 function assertUserError(label: string, result: ConformanceGraphqlResult, rootName: string): void {
-  const userErrors = dataRoot(result, rootName).userErrors;
+  const userErrors = dataRoot(result, rootName)['userErrors'];
   if (!Array.isArray(userErrors) || userErrors.length === 0) {
     throw new Error(`${label} did not return userErrors: ${JSON.stringify(result.payload, null, 2)}`);
   }
 }
 
 function assertEmptyUserErrors(label: string, result: ConformanceGraphqlResult, rootName: string): void {
-  const userErrors = dataRoot(result, rootName).userErrors;
+  const userErrors = dataRoot(result, rootName)['userErrors'];
   if (!Array.isArray(userErrors) || userErrors.length !== 0) {
     throw new Error(`${label} returned userErrors: ${JSON.stringify(userErrors, null, 2)}`);
   }
@@ -369,7 +370,7 @@ await writeJson(fixturePath, {
         status: 200,
         body: {
           data: {
-            order: (beforeRead.payload.data as JsonObject).order,
+            order: (beforeRead.payload.data as JsonObject)['order'],
           },
         },
       },
