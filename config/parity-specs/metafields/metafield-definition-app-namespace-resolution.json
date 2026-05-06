@@ -1,0 +1,161 @@
+{
+  "scenarioId": "metafield-definition-app-namespace-resolution",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionDelete",
+    "metafieldDefinition",
+    "metafieldDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "read-after-write",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-app-namespace-resolution.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-create.graphql",
+    "variablesCapturePath": "$.appPrefixedCreate.request.variables",
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "app-prefixed-create",
+        "capturePath": "$.appPrefixedCreate.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "app-prefixed-update",
+        "capturePath": "$.appPrefixedUpdate.response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-update.graphql",
+          "variablesCapturePath": "$.appPrefixedUpdate.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy updates the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "read-by-canonical-and-app-prefix",
+        "capturePath": "$.appNamespaceRead.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-read.graphql",
+          "variablesCapturePath": "$.appNamespaceRead.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.canonical.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy reads back the staged synthetic definition ID for the canonical identifier."
+          },
+          {
+            "path": "$.appPrefix.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy reads back the staged synthetic definition ID for the `$app:` identifier."
+          },
+          {
+            "path": "$.catalog.nodes[0].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy reads back the staged synthetic definition ID in the namespace-filtered catalog."
+          }
+        ]
+      },
+      {
+        "name": "delete-by-canonical-identifier",
+        "capturePath": "$.canonicalDelete.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-delete.graphql",
+          "variablesCapturePath": "$.canonicalDelete.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "post-delete-read",
+        "capturePath": "$.postDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-read.graphql",
+          "variablesCapturePath": "$.postDeleteRead.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "cross-app-create",
+        "capturePath": "$.crossAppCreate.response",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-create.graphql",
+          "variablesCapturePath": "$.crossAppCreate.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"]
+      },
+      {
+        "name": "cross-app-update",
+        "capturePath": "$.crossAppUpdate.response",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-app-namespace-update.graphql",
+          "variablesCapturePath": "$.crossAppUpdate.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"]
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence shows `$app:<suffix>` metafield definition namespaces persist and serialize as `app--<api_client_id>--<suffix>`, identifier reads accept both forms, canonical identifiers can delete definitions created with `$app:`, and canonical namespaces owned by another API client return top-level ACCESS_DENIED errors."
+}

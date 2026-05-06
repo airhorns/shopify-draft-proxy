@@ -3,6 +3,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/string
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
@@ -17,15 +18,22 @@ fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
       method: "POST",
       path: "/admin/api/2026-04/graphql.json",
       headers: dict.new(),
-      body: "{\"query\":\"" <> escape(query) <> "\"}",
+      body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
     )
   draft_proxy.process_request(proxy, request)
 }
 
-fn escape(value: String) -> String {
-  value
-  |> string.replace("\\", "\\\\")
-  |> string.replace("\"", "\\\"")
+fn graphql_with_api_client(proxy: draft_proxy.DraftProxy, query: String) {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.from_list([
+        #(app_identity.api_client_id_header, "999001"),
+      ]),
+      body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
+    )
+  draft_proxy.process_request(proxy, request)
 }
 
 const path = "/admin/api/2025-01/graphql.json"
@@ -253,6 +261,185 @@ pub fn metafield_definition_create_rejects_long_name_and_description_test() {
   assert description.staged_resource_ids == []
   assert json.to_string(description.data)
     == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"description\"],\"message\":\"Description is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+}
+
+pub fn metafield_definition_app_namespace_resolution_lifecycle_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"App Tier\",
+        namespace: \"$app:loyalty\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id namespace key ownerType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_api_client(proxy, create)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"namespace\":\"app--999001--loyalty\"")
+  assert string.contains(create_json, "\"userErrors\":[]")
+
+  let #(Response(status: log_status, body: log_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: ""),
+    )
+  assert log_status == 200
+  let log_json = json.to_string(log_body)
+  assert string.contains(log_json, "$app:loyalty")
+  assert !string.contains(log_json, "app--999001--loyalty")
+
+  let read =
+    "query {
+      canonical: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: \"app--999001--loyalty\", key: \"tier\" }) { namespace key }
+      appPrefix: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: \"$app:loyalty\", key: \"tier\" }) { namespace key }
+      catalog: metafieldDefinitions(ownerType: PRODUCT, namespace: \"$app:loyalty\", first: 5) { nodes { namespace key } }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql_with_api_client(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"canonical\":{\"namespace\":\"app--999001--loyalty\",\"key\":\"tier\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"appPrefix\":{\"namespace\":\"app--999001--loyalty\",\"key\":\"tier\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"catalog\":{\"nodes\":[{\"namespace\":\"app--999001--loyalty\",\"key\":\"tier\"}]}",
+  )
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        name: \"App Tier Updated\",
+        namespace: \"$app:loyalty\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        description: \"Updated app namespace definition\"
+      }) {
+        updatedDefinition { namespace key name description }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_api_client(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"namespace\":\"app--999001--loyalty\"")
+  assert string.contains(update_json, "\"name\":\"App Tier Updated\"")
+  assert string.contains(update_json, "\"userErrors\":[]")
+
+  let pin =
+    "mutation {
+      metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: \"$app:loyalty\", key: \"tier\" }) {
+        pinnedDefinition { namespace key pinnedPosition }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: pin_status, body: pin_body, ..), proxy) =
+    graphql_with_api_client(proxy, pin)
+  assert pin_status == 200
+  let pin_json = json.to_string(pin_body)
+  assert string.contains(pin_json, "\"pinnedPosition\":1")
+  assert string.contains(pin_json, "\"userErrors\":[]")
+
+  let unpin =
+    "mutation {
+      metafieldDefinitionUnpin(identifier: { ownerType: PRODUCT, namespace: \"app--999001--loyalty\", key: \"tier\" }) {
+        unpinnedDefinition { namespace key pinnedPosition }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: unpin_status, body: unpin_body, ..), proxy) =
+    graphql_with_api_client(proxy, unpin)
+  assert unpin_status == 200
+  let unpin_json = json.to_string(unpin_body)
+  assert string.contains(unpin_json, "\"pinnedPosition\":null")
+  assert string.contains(unpin_json, "\"userErrors\":[]")
+
+  let delete =
+    "mutation {
+      metafieldDefinitionDelete(identifier: { ownerType: PRODUCT, namespace: \"app--999001--loyalty\", key: \"tier\" }, deleteAllAssociatedMetafields: true) {
+        deletedDefinition { namespace key }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql_with_api_client(proxy, delete)
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(
+    delete_json,
+    "\"deletedDefinition\":{\"namespace\":\"app--999001--loyalty\",\"key\":\"tier\"}",
+  )
+  assert string.contains(delete_json, "\"userErrors\":[]")
+
+  let #(Response(status: after_status, body: after_body, ..), _) =
+    graphql_with_api_client(proxy, read)
+  assert after_status == 200
+  let after_json = json.to_string(after_body)
+  assert string.contains(after_json, "\"canonical\":null")
+  assert string.contains(after_json, "\"appPrefix\":null")
+}
+
+pub fn metafield_definition_cross_app_namespace_rejected_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Other App\",
+        namespace: \"app--999002--loyalty\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { namespace key }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    graphql_with_api_client(proxy, create)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(
+    create_json,
+    "\"message\":\"Access denied for metafieldDefinitionCreate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\\n\"",
+  )
+  assert string.contains(create_json, "\"code\":\"ACCESS_DENIED\"")
+  assert string.contains(create_json, "\"metafieldDefinitionCreate\":null")
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        name: \"Other App\",
+        namespace: \"app--999002--loyalty\",
+        key: \"tier\",
+        ownerType: PRODUCT
+      }) {
+        updatedDefinition { namespace key }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql_with_api_client(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(
+    update_json,
+    "\"message\":\"Access denied for metafieldDefinitionUpdate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\\n\"",
+  )
+  assert string.contains(update_json, "\"code\":\"ACCESS_DENIED\"")
+  assert string.contains(update_json, "\"metafieldDefinitionUpdate\":null")
 }
 
 fn create_and_pin(

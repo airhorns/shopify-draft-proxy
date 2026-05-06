@@ -3,9 +3,11 @@
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
+import gleam/option.{type Option, None}
 import gleam/result
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers
 import shopify_draft_proxy/proxy/metafield_definitions/serializers
 import shopify_draft_proxy/proxy/metafield_definitions/types as definition_types
@@ -70,7 +72,12 @@ pub fn handle_query_request(
     _, _ ->
       respond_local(
         proxy,
-        process(proxy.store, query, variables),
+        process_with_requesting_api_client_id(
+          proxy.store,
+          query,
+          variables,
+          app_identity.read_requesting_api_client_id(request.headers),
+        ),
         "Failed to handle metafield definitions query",
       )
   }
@@ -81,10 +88,29 @@ pub fn handle_metafield_definitions_query(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, definition_types.MetafieldDefinitionsError) {
+  handle_metafield_definitions_query_with_requesting_api_client_id(
+    store,
+    document,
+    variables,
+    None,
+  )
+}
+
+pub fn handle_metafield_definitions_query_with_requesting_api_client_id(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Result(Json, definition_types.MetafieldDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(definition_types.ParseFailed(err))
     Ok(fields) ->
-      Ok(serializers.serialize_root_fields(store, fields, variables))
+      Ok(serializers.serialize_root_fields_with_requesting_api_client_id(
+        store,
+        fields,
+        variables,
+        requesting_api_client_id,
+      ))
   }
 }
 
@@ -93,11 +119,23 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, definition_types.MetafieldDefinitionsError) {
-  use data <- result.try(handle_metafield_definitions_query(
-    store,
-    document,
-    variables,
-  ))
+  process_with_requesting_api_client_id(store, document, variables, None)
+}
+
+pub fn process_with_requesting_api_client_id(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Result(Json, definition_types.MetafieldDefinitionsError) {
+  use data <- result.try(
+    handle_metafield_definitions_query_with_requesting_api_client_id(
+      store,
+      document,
+      variables,
+      requesting_api_client_id,
+    ),
+  )
   Ok(graphql_helpers.wrap_data(data))
 }
 
