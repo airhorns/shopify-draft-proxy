@@ -2174,6 +2174,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-comment-moderation-state-transitions',
+    scriptPath: 'scripts/capture-online-store-comment-moderation-state-transitions-conformance.ts',
+    purpose:
+      'commentApprove, commentSpam, and commentNotSpam state-machine preconditions, idempotent branches, and invalid source-state userErrors.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}comment-moderation-state-transitions.json`,
+      'config/parity-specs/online-store/comment-moderation-state-transitions.json',
+      'config/parity-requests/online-store/comment-moderation-state-transition-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable moderated blog/article and REST article comments, prepares PUBLISHED and SPAM source states with Admin GraphQL moderation roots, then deletes the article and blog during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-theme-update-role-not-an-input',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-theme-update-validation-conformance.ts',
