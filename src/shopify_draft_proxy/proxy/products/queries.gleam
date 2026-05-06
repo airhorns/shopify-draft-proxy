@@ -40,64 +40,56 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/products/collections_l16.{
+import shopify_draft_proxy/proxy/products/collections_serializers.{
   serialize_collection_by_handle_root, serialize_collection_by_identifier_root,
   serialize_collection_root, serialize_collections_connection,
 }
-import shopify_draft_proxy/proxy/products/inventory_l01.{
+import shopify_draft_proxy/proxy/products/inventory_core.{
   serialize_locations_connection,
 }
-import shopify_draft_proxy/proxy/products/inventory_l02.{
-  serialize_inventory_properties,
+import shopify_draft_proxy/proxy/products/inventory_handlers.{
+  serialize_inventory_item_root, serialize_inventory_items_connection,
+  serialize_inventory_level_root,
 }
-import shopify_draft_proxy/proxy/products/inventory_l10.{
-  serialize_inventory_items_connection,
-}
-import shopify_draft_proxy/proxy/products/inventory_l11.{
-  serialize_inventory_item_root, serialize_inventory_level_root,
-}
-import shopify_draft_proxy/proxy/products/inventory_shipments_l13.{
+import shopify_draft_proxy/proxy/products/inventory_shipments_handlers.{
   serialize_inventory_shipment_root,
 }
-import shopify_draft_proxy/proxy/products/inventory_transfers_l13.{
+import shopify_draft_proxy/proxy/products/inventory_transfers.{
   serialize_inventory_transfer_root, serialize_inventory_transfers_connection,
 }
-import shopify_draft_proxy/proxy/products/products_l00.{
+import shopify_draft_proxy/proxy/products/inventory_validation.{
+  serialize_inventory_properties,
+}
+import shopify_draft_proxy/proxy/products/products_core.{
   has_effective_product_metafield_owner, product_tags, product_types,
-  product_vendors,
+  product_vendors, published_products_count_for_field,
+  serialize_product_duplicate_job,
 }
-import shopify_draft_proxy/proxy/products/products_l01.{
-  published_products_count_for_field, serialize_product_duplicate_job,
+import shopify_draft_proxy/proxy/products/products_handlers.{
+  serialize_product_by_identifier_root, serialize_product_operation_root,
+  serialize_product_root, serialize_products_connection,
 }
-import shopify_draft_proxy/proxy/products/products_l05.{product_count_for_field}
-import shopify_draft_proxy/proxy/products/products_l12.{
-  serialize_product_by_identifier_root, serialize_product_root,
-  serialize_products_connection,
+import shopify_draft_proxy/proxy/products/products_records.{
+  product_count_for_field,
 }
-import shopify_draft_proxy/proxy/products/products_l13.{
-  serialize_product_operation_root,
-}
-import shopify_draft_proxy/proxy/products/publications_l01.{
+import shopify_draft_proxy/proxy/products/publications_core.{
   serialize_product_feed_root, serialize_product_feeds_connection,
 }
-import shopify_draft_proxy/proxy/products/publications_l02.{
+import shopify_draft_proxy/proxy/products/publications_feeds.{
   serialize_channel_root, serialize_channels_connection,
-}
-import shopify_draft_proxy/proxy/products/publications_l03.{
   serialize_product_resource_feedback_root,
 }
-import shopify_draft_proxy/proxy/products/publications_l08.{
+import shopify_draft_proxy/proxy/products/publications_publishable.{
   serialize_publication_root, serialize_publications_connection,
 }
-import shopify_draft_proxy/proxy/products/selling_plans_l15.{
+import shopify_draft_proxy/proxy/products/selling_plans_handlers.{
   serialize_selling_plan_group_root, serialize_selling_plan_groups_connection,
 }
-import shopify_draft_proxy/proxy/products/shared_l00.{serialize_exact_count}
-import shopify_draft_proxy/proxy/products/shared_l01.{
-  serialize_string_connection,
+import shopify_draft_proxy/proxy/products/shared.{
+  serialize_exact_count, serialize_string_connection,
 }
 import shopify_draft_proxy/proxy/products/types.{type ProductsError, ParseFailed} as product_types
-import shopify_draft_proxy/proxy/products/variants_l10.{
+import shopify_draft_proxy/proxy/products/variants_sources.{
   serialize_product_variant_by_identifier_root, serialize_product_variant_root,
   serialize_product_variants_connection,
 }
