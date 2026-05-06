@@ -1,0 +1,306 @@
+{
+  "scenarioId": "segment-name-suffix-and-limit",
+  "operationNames": ["segmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "validation-parity", "duplicate-name-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-name-suffix-and-limit.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+    "apiVersion": "2025-01",
+    "variables": {
+      "name": "Draft Proxy Segment Suffix Parity Foo (5)",
+      "query": "number_of_orders >= 1"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture fills the disposable conformance shop to the 6000-segment cap and records trailing numeric suffix bumping, duplicate retry exhaustion, and the cap-reached UserError field/message shape. The proxy replay earns equivalent local state through real repeated segmentCreate requests, then compares the behavior-bearing payloads without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-trailing-suffix-bump",
+        "capturePath": "$.results.suffixBump.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Foo (5)",
+            "query": "number_of_orders >= 1"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses a deterministic local Segment GID while Shopify returns a live store Segment GID."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-retry-setup-base",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Bar",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-retry-setup-suffixes",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 10,
+          "start": 2
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Bar ({{repeat.index}})",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-duplicate-retry-taken",
+        "capturePath": "$.results.retryTaken.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Bar",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-1-500",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 1
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-501-1000",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 501
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-1001-1500",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 1001
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-1501-2000",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 1501
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-2001-2500",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 2001
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-2501-3000",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 2501
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-3001-3500",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 3001
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-3501-4000",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 3501
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-4001-4500",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 4001
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-4501-5000",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 4501
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-5001-5500",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 500,
+          "start": 5001
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-cap-setup-5501-5987",
+        "capturePath": "$.results.suffixSetup.payload.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors",
+        "repeat": {
+          "times": 487,
+          "start": 5501
+        },
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Local Cap {{repeat.index}}",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      },
+      {
+        "name": "segment-create-limit-base-field-null",
+        "capturePath": "$.results.segmentLimit.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-and-limit.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "name": "Draft Proxy Segment Suffix Parity Extra",
+            "query": "number_of_orders >= 1"
+          }
+        }
+      }
+    ]
+  }
+}

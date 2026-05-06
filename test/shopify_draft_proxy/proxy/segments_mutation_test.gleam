@@ -82,6 +82,34 @@ fn seed_segment_count(
   }
 }
 
+fn seed_duplicate_segment_names(
+  store_in: store.Store,
+  base_name: String,
+  next: Int,
+  last: Int,
+) -> store.Store {
+  case next > last {
+    True -> store_in
+    False -> {
+      let suffix = int.to_string(next)
+      let name = case next {
+        1 -> base_name
+        _ -> base_name <> " (" <> suffix <> ")"
+      }
+      let seeded =
+        seed(
+          store_in,
+          segment_record(
+            "gid://shopify/Segment/retry-" <> suffix,
+            name,
+            "number_of_orders >= 1",
+          ),
+        )
+      seed_duplicate_segment_names(seeded, base_name, next + 1, last)
+    }
+  }
+}
+
 fn customer(
   id: String,
   first_name: String,
@@ -336,7 +364,7 @@ pub fn segment_create_at_shop_segment_limit_emits_user_error_test() {
     )
   let body = json.to_string(outcome.data)
   assert body
-    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Segment limit reached\"}]}}}"
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":null,\"message\":\"Segment limit reached. Delete an existing segment to create more.\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert list.length(store.list_effective_segments(outcome.store)) == 6000
 }
@@ -532,6 +560,37 @@ pub fn segment_create_resolves_double_collision_test() {
     == "{\"data\":{\"segmentCreate\":{\"segment\":{\"name\":\"VIPs (3)\"},\"userErrors\":[]}}}"
 }
 
+pub fn segment_create_bumps_requested_trailing_numeric_suffix_test() {
+  let existing =
+    segment_record(
+      "gid://shopify/Segment/303",
+      "Foo (5)",
+      "number_of_orders >= 5",
+    )
+  let s = seed(store.new(), existing)
+  let body =
+    run_mutation(
+      s,
+      "mutation { segmentCreate(name: \"Foo (5)\", query: \"number_of_orders >= 10\") { segment { name } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":{\"name\":\"Foo (6)\"},\"userErrors\":[]}}}"
+}
+
+pub fn segment_create_duplicate_retry_cap_returns_taken_test() {
+  let s = seed_duplicate_segment_names(store.new(), "Bar", 1, 11)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentCreate(name: \"Bar\", query: \"number_of_orders >= 10\") { segment { name } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert list.length(store.list_effective_segments(outcome.store)) == 11
+}
+
 pub fn segment_update_self_rename_does_not_collide_test() {
   // An update keeping its own existing name shouldn't suffix-bump itself.
   let existing =
@@ -544,6 +603,60 @@ pub fn segment_update_self_rename_does_not_collide_test() {
     )
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"name\":\"Solo\"},\"userErrors\":[]}}}"
+}
+
+pub fn segment_update_bumps_requested_trailing_numeric_suffix_test() {
+  let current =
+    segment_record(
+      "gid://shopify/Segment/401",
+      "Current",
+      "number_of_orders >= 1",
+    )
+  let colliding =
+    segment_record(
+      "gid://shopify/Segment/402",
+      "Foo (5)",
+      "number_of_orders >= 1",
+    )
+  let s =
+    store.new()
+    |> seed(current)
+    |> seed(colliding)
+  let body =
+    run_mutation(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/401\", name: \"Foo (5)\") { segment { name } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"name\":\"Foo (6)\"},\"userErrors\":[]}}}"
+}
+
+pub fn segment_update_duplicate_retry_cap_returns_taken_test() {
+  let current =
+    segment_record(
+      "gid://shopify/Segment/403",
+      "Original",
+      "number_of_orders >= 1",
+    )
+  let s =
+    store.new()
+    |> seed(current)
+    |> seed_duplicate_segment_names("Bar", 1, 11)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/403\", name: \"Bar\") { segment { name } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert Some(still_current) =
+    store.get_effective_segment_by_id(
+      outcome.store,
+      "gid://shopify/Segment/403",
+    )
+  assert still_current.name == Some("Original")
 }
 
 // ----------- predicate -----------

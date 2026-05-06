@@ -1,0 +1,12 @@
+mutation SegmentNameSuffixAndLimitCreate($name: String!, $query: String!) {
+  segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

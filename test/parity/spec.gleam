@@ -77,6 +77,10 @@ pub type TargetRequest {
   OverrideRequest(request: ProxyRequest)
 }
 
+pub type Repeat {
+  Repeat(times: Int, start: Int)
+}
+
 pub type ProxySource {
   ProxyResponse
   ProxyState
@@ -93,6 +97,7 @@ pub type Target {
     selected_paths: List(String),
     expected_differences: List(ExpectedDifference),
     excluded_paths: List(String),
+    repeat: Option(Repeat),
     request: TargetRequest,
   )
 }
@@ -281,6 +286,11 @@ fn target_decoder() -> Decoder(Target) {
     ReusePrimary,
     decode.map(proxy_request_decoder(), OverrideRequest),
   )
+  use repeat <- decode.optional_field(
+    "repeat",
+    None,
+    decode.optional(repeat_decoder()),
+  )
   let expected_differences =
     list.append(
       expected_differences,
@@ -297,6 +307,7 @@ fn target_decoder() -> Decoder(Target) {
         selected_paths: selected_paths,
         expected_differences: expected_differences,
         excluded_paths: excluded_paths,
+        repeat: repeat,
         request: request,
       ))
     None, Some(path), _ ->
@@ -309,6 +320,7 @@ fn target_decoder() -> Decoder(Target) {
         selected_paths: selected_paths,
         expected_differences: expected_differences,
         excluded_paths: excluded_paths,
+        repeat: repeat,
         request: request,
       ))
     None, None, Some(path) ->
@@ -321,6 +333,7 @@ fn target_decoder() -> Decoder(Target) {
         selected_paths: selected_paths,
         expected_differences: expected_differences,
         excluded_paths: excluded_paths,
+        repeat: repeat,
         request: request,
       ))
     None, None, None ->
@@ -334,9 +347,23 @@ fn target_decoder() -> Decoder(Target) {
           selected_paths: selected_paths,
           expected_differences: expected_differences,
           excluded_paths: excluded_paths,
+          repeat: repeat,
           request: request,
         ),
         "target must define proxyPath, proxyStatePath, or proxyLogPath",
+      )
+  }
+}
+
+fn repeat_decoder() -> Decoder(Repeat) {
+  use times <- decode.field("times", decode.int)
+  use start <- decode.optional_field("start", 1, decode.int)
+  case times > 0 {
+    True -> decode.success(Repeat(times: times, start: start))
+    False ->
+      decode.failure(
+        Repeat(times: 1, start: start),
+        "repeat.times must be positive",
       )
   }
 }

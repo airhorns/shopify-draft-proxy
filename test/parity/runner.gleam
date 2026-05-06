@@ -159,6 +159,7 @@ pub fn run_with_config(
     None,
     None,
     dict.new(),
+    None,
     "<primary>",
   ))
   let primary_vars = replace_customer_one_variables(capture, primary_vars)
@@ -360,10 +361,7 @@ fn run_targets(
         named_responses,
         current_proxy,
       ))
-      let next_ops = case executed {
-        Some(op) -> [op, ..acc_ops]
-        None -> acc_ops
-      }
+      let next_ops = list.append(list.reverse(executed), acc_ops)
       Ok(#(
         next_proxy,
         [report.0, ..acc_reports],
@@ -389,21 +387,80 @@ fn run_target(
   named_responses: Dict(String, JsonValue),
   proxy: DraftProxy,
 ) -> Result(
-  #(DraftProxy, #(TargetReport, JsonValue), Option(ExecutedOperation)),
+  #(DraftProxy, #(TargetReport, JsonValue), List(ExecutedOperation)),
   RunError,
 ) {
-  use #(actual_response, next_proxy, executed) <- result.try(
-    actual_response_for(
-      config,
-      parsed,
-      target,
-      capture,
-      primary_response,
-      previous_response,
-      named_responses,
-      proxy,
-    ),
-  )
+  case target.repeat {
+    None -> {
+      use #(actual_response, next_proxy, executed) <- result.try(
+        actual_response_for(
+          config,
+          parsed,
+          target,
+          capture,
+          primary_response,
+          previous_response,
+          named_responses,
+          proxy,
+          None,
+        ),
+      )
+      let executed = case executed {
+        Some(op) -> [op]
+        None -> []
+      }
+      compare_target_response(
+        config,
+        parsed,
+        target,
+        capture,
+        actual_response,
+        next_proxy,
+        executed,
+      )
+    }
+    Some(repeat) -> {
+      use #(actual_response, next_proxy, executed) <- result.try(
+        repeated_actual_response_for(
+          repeat.times,
+          repeat.start,
+          config,
+          parsed,
+          target,
+          capture,
+          primary_response,
+          previous_response,
+          named_responses,
+          proxy,
+          None,
+          [],
+        ),
+      )
+      compare_target_response(
+        config,
+        parsed,
+        target,
+        capture,
+        actual_response,
+        next_proxy,
+        executed,
+      )
+    }
+  }
+}
+
+fn compare_target_response(
+  config: RunnerConfig,
+  parsed: Spec,
+  target: Target,
+  capture: JsonValue,
+  actual_response: JsonValue,
+  next_proxy: DraftProxy,
+  executed: List(ExecutedOperation),
+) -> Result(
+  #(DraftProxy, #(TargetReport, JsonValue), List(ExecutedOperation)),
+  RunError,
+) {
   let expected_opt = jsonpath.lookup(capture, target.capture_path)
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
   case expected_opt, actual_opt {
@@ -452,6 +509,137 @@ fn run_target(
   }
 }
 
+fn repeated_actual_response_for(
+  remaining: Int,
+  repeat_index: Int,
+  config: RunnerConfig,
+  parsed: Spec,
+  target: Target,
+  capture: JsonValue,
+  primary_response: JsonValue,
+  previous_response: Option(JsonValue),
+  named_responses: Dict(String, JsonValue),
+  proxy: DraftProxy,
+  latest_response: Option(JsonValue),
+  executed: List(ExecutedOperation),
+) -> Result(#(JsonValue, DraftProxy, List(ExecutedOperation)), RunError) {
+  case remaining <= 0 {
+    True ->
+      case latest_response {
+        Some(response) -> Ok(#(response, proxy, list.reverse(executed)))
+        None ->
+          Error(SpecError(
+            reason: "repeat target '" <> target.name <> "' did not execute",
+          ))
+      }
+    False -> {
+      use #(actual_response, next_proxy, next_executed) <- result.try(
+        actual_response_for(
+          config,
+          parsed,
+          target,
+          capture,
+          primary_response,
+          previous_response,
+          named_responses,
+          proxy,
+          Some(repeat_index),
+        ),
+      )
+      let executed = case next_executed {
+        Some(op) -> [op, ..executed]
+        None -> executed
+      }
+      repeated_actual_response_for(
+        remaining - 1,
+        repeat_index + 1,
+        config,
+        parsed,
+        target,
+        capture,
+        primary_response,
+        previous_response,
+        named_responses,
+        next_proxy,
+        Some(actual_response),
+        executed,
+      )
+    }
+  }
+}
+
+/// Resolve which JsonValue tree to use as the proxy-side response for
+/// a target. Targets without a per-target override reuse the primary
+/// response (no extra HTTP call). Override targets execute their own
+/// request, threading proxy state forward.
+fn actual_response_for(
+  config: RunnerConfig,
+  parsed: Spec,
+  target: Target,
+  capture: JsonValue,
+  primary_response: JsonValue,
+  previous_response: Option(JsonValue),
+  named_responses: Dict(String, JsonValue),
+  proxy: DraftProxy,
+  repeat_index: Option(Int),
+) -> Result(#(JsonValue, DraftProxy, Option(ExecutedOperation)), RunError) {
+  case target.request {
+    ReusePrimary -> {
+      use #(value, next_proxy) <- result.try(proxy_source_value(
+        target,
+        primary_response,
+        proxy,
+      ))
+      Ok(#(value, next_proxy, None))
+    }
+    OverrideRequest(request: request) -> {
+      case
+        target.upstream_capture_path,
+        override_request_uses_upstream_capture(parsed.scenario_id)
+      {
+        Some(path), True ->
+          case jsonpath.lookup(capture, path) {
+            Some(value) -> Ok(#(value, proxy, None))
+            None -> Error(CaptureUnresolved(target: target.name, path: path))
+          }
+        _, _ -> {
+          use document <- result.try(read_proxy_document(
+            config,
+            request,
+            capture,
+          ))
+          use variables <- result.try(resolve_variables(
+            config,
+            request.variables,
+            capture,
+            Some(primary_response),
+            previous_response,
+            named_responses,
+            repeat_index,
+            target.name,
+          ))
+          use #(response, next_proxy, executed) <- result.try(execute(
+            proxy,
+            document,
+            variables,
+            target.name,
+            request.api_version,
+            request.headers,
+            config.debug,
+          ))
+          use value <- result.try(parse_response_body(response))
+          use #(value, next_proxy) <- result.try(proxy_source_value(
+            target,
+            value,
+            next_proxy,
+          ))
+          Ok(#(value, next_proxy, Some(executed)))
+        }
+      }
+    }
+  }
+}
+
 /// Print the per-target assertion result. Truncates long mismatch
 /// values so the log stays scrollable. No-ops when debug is off.
 fn log_target_assertion(
@@ -490,76 +678,6 @@ fn debug_truncate(value: String, max: Int) -> String {
   case string.length(value) > max {
     True -> string.slice(value, 0, max) <> "…"
     False -> value
-  }
-}
-
-/// Resolve which JsonValue tree to use as the proxy-side response for
-/// a target. Targets without a per-target override reuse the primary
-/// response (no extra HTTP call). Override targets execute their own
-/// request, threading proxy state forward.
-fn actual_response_for(
-  config: RunnerConfig,
-  parsed: Spec,
-  target: Target,
-  capture: JsonValue,
-  primary_response: JsonValue,
-  previous_response: Option(JsonValue),
-  named_responses: Dict(String, JsonValue),
-  proxy: DraftProxy,
-) -> Result(#(JsonValue, DraftProxy, Option(ExecutedOperation)), RunError) {
-  case target.request {
-    ReusePrimary -> {
-      use #(value, next_proxy) <- result.try(proxy_source_value(
-        target,
-        primary_response,
-        proxy,
-      ))
-      Ok(#(value, next_proxy, None))
-    }
-    OverrideRequest(request: request) -> {
-      case
-        target.upstream_capture_path,
-        override_request_uses_upstream_capture(parsed.scenario_id)
-      {
-        Some(path), True ->
-          case jsonpath.lookup(capture, path) {
-            Some(value) -> Ok(#(value, proxy, None))
-            None -> Error(CaptureUnresolved(target: target.name, path: path))
-          }
-        _, _ -> {
-          use document <- result.try(read_proxy_document(
-            config,
-            request,
-            capture,
-          ))
-          use variables <- result.try(resolve_variables(
-            config,
-            request.variables,
-            capture,
-            Some(primary_response),
-            previous_response,
-            named_responses,
-            target.name,
-          ))
-          use #(response, next_proxy, executed) <- result.try(execute(
-            proxy,
-            document,
-            variables,
-            target.name,
-            request.api_version,
-            request.headers,
-            config.debug,
-          ))
-          use value <- result.try(parse_response_body(response))
-          use #(value, next_proxy) <- result.try(proxy_source_value(
-            target,
-            value,
-            next_proxy,
-          ))
-          Ok(#(value, next_proxy, Some(executed)))
-        }
-      }
-    }
   }
 }
 
@@ -629,6 +747,7 @@ fn resolve_variables(
   primary_response: Option(JsonValue),
   previous_response: Option(JsonValue),
   named_responses: Dict(String, JsonValue),
+  repeat_index: Option(Int),
   context: String,
 ) -> Result(JsonValue, RunError) {
   case variables {
@@ -642,6 +761,7 @@ fn resolve_variables(
             previous_response,
             named_responses,
             capture,
+            repeat_index,
           )
         None -> Error(VariablesUnresolved(path: path))
       }
@@ -655,6 +775,7 @@ fn resolve_variables(
         previous_response,
         named_responses,
         capture,
+        repeat_index,
       )
     }
     VariablesInline(template: template) -> {
@@ -665,6 +786,7 @@ fn resolve_variables(
         previous_response,
         named_responses,
         capture,
+        repeat_index,
       )
     }
   }
@@ -679,6 +801,7 @@ fn substitute(
   previous: Option(JsonValue),
   named: Dict(String, JsonValue),
   capture: JsonValue,
+  repeat_index: Option(Int),
 ) -> Result(JsonValue, RunError) {
   case as_primary_ref(template) {
     Some(path) ->
@@ -721,6 +844,7 @@ fn substitute(
                 previous,
                 named,
                 capture,
+                repeat_index,
               )
           }
       }
@@ -733,6 +857,7 @@ fn substitute_capture_or_children(
   previous: Option(JsonValue),
   named: Dict(String, JsonValue),
   capture: JsonValue,
+  repeat_index: Option(Int),
 ) -> Result(JsonValue, RunError) {
   case as_capture_ref(template) {
     Some(path) ->
@@ -746,7 +871,9 @@ fn substitute_capture_or_children(
           entries
           |> list.try_map(fn(pair) {
             let #(k, v) = pair
-            case substitute(v, primary, previous, named, capture) {
+            case
+              substitute(v, primary, previous, named, capture, repeat_index)
+            {
               Ok(v2) -> Ok(#(k, v2))
               Error(e) -> Error(e)
             }
@@ -755,11 +882,21 @@ fn substitute_capture_or_children(
         JArray(items) ->
           items
           |> list.try_map(fn(item) {
-            substitute(item, primary, previous, named, capture)
+            substitute(item, primary, previous, named, capture, repeat_index)
           })
           |> result.map(JArray)
+        JString(value) ->
+          Ok(JString(substitute_repeat_index(value, repeat_index)))
         leaf -> Ok(leaf)
       }
+  }
+}
+
+fn substitute_repeat_index(value: String, repeat_index: Option(Int)) -> String {
+  case repeat_index {
+    Some(index) ->
+      string.replace(value, "{{repeat.index}}", int.to_string(index))
+    None -> value
   }
 }
 

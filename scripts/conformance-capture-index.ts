@@ -1668,6 +1668,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-name-suffix-and-limit',
+    scriptPath: 'scripts/capture-segment-name-suffix-and-limit-conformance.ts',
+    purpose:
+      'segmentCreate duplicate-name suffix bumping, duplicate retry exhaustion, and live segment-limit userError shape.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-name-suffix-and-limit.json`,
+      'config/parity-specs/segments/segment-name-suffix-and-limit.json',
+      'config/parity-requests/segments/segment-name-suffix-and-limit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable duplicate-name setup segments and enough cap setup segments to reach the live shop segment limit, captures the rejection, then deletes every segment created by the script.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segments-user-errors-shape',
     scriptPath: 'scripts/capture-segments-user-errors-shape-conformance.ts',
     purpose:

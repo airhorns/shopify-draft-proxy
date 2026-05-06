@@ -5,6 +5,7 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
@@ -193,47 +194,75 @@ fn handle_segment_create(
     |> list.append(limit_errors)
   case errors, raw_name, raw_query {
     [], Some(name_value), Some(query_value) -> {
-      let #(gid, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "Segment")
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let unique_name =
+      case
         resolve_unique_segment_name(
           store,
           normalize_segment_name(name_value),
           None,
         )
-      let record =
-        SegmentRecord(
-          id: gid,
-          name: Some(unique_name),
-          query: Some(string.trim(query_value)),
-          creation_date: Some(timestamp),
-          last_edit_date: Some(timestamp),
-        )
-      let #(_, store_after) = store.upsert_staged_segment(store, record)
-      let payload =
-        segment_types.SegmentMutationPayload(
-          segment: Some(record),
-          deleted_segment_id: None,
-          user_errors: [],
-        )
-      let json_payload =
-        serializers.segment_payload_json(
-          payload,
-          "SegmentCreatePayload",
-          field,
-          fragments,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [record.id],
-        ),
-        store_after,
-        identity_after_ts,
-      )
+      {
+        Ok(unique_name) -> {
+          let #(gid, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(identity, "Segment")
+          let #(timestamp, identity_after_ts) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_id)
+          let record =
+            SegmentRecord(
+              id: gid,
+              name: Some(unique_name),
+              query: Some(string.trim(query_value)),
+              creation_date: Some(timestamp),
+              last_edit_date: Some(timestamp),
+            )
+          let #(_, store_after) = store.upsert_staged_segment(store, record)
+          let payload =
+            segment_types.SegmentMutationPayload(
+              segment: Some(record),
+              deleted_segment_id: None,
+              user_errors: [],
+            )
+          let json_payload =
+            serializers.segment_payload_json(
+              payload,
+              "SegmentCreatePayload",
+              field,
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: json_payload,
+              staged_resource_ids: [record.id],
+            ),
+            store_after,
+            identity_after_ts,
+          )
+        }
+        Error(error) -> {
+          let payload =
+            segment_types.SegmentMutationPayload(
+              segment: None,
+              deleted_segment_id: None,
+              user_errors: [error],
+            )
+          let json_payload =
+            serializers.segment_payload_json(
+              payload,
+              "SegmentCreatePayload",
+              field,
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: json_payload,
+              staged_resource_ids: [],
+            ),
+            store,
+            identity,
+          )
+        }
+      }
     }
     _, _, _ -> {
       let payload =
@@ -310,52 +339,81 @@ fn handle_segment_update(
     |> list.append(change_errors)
   case errors, id, existing {
     [], Some(id_value), Some(current) -> {
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let new_name = case raw_name {
-        None -> current.name
+      let resolved_name = case raw_name {
+        None -> Ok(current.name)
         Some(s) ->
-          Some(resolve_unique_segment_name(
+          resolve_unique_segment_name(
             store,
             normalize_segment_name(s),
             Some(current.id),
-          ))
+          )
+          |> result.map(Some)
       }
-      let new_query = case raw_query {
-        None -> current.query
-        Some(s) -> Some(string.trim(s))
+      case resolved_name {
+        Ok(new_name) -> {
+          let #(timestamp, identity_after_ts) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let new_query = case raw_query {
+            None -> current.query
+            Some(s) -> Some(string.trim(s))
+          }
+          let updated =
+            SegmentRecord(
+              id: id_value,
+              name: new_name,
+              query: new_query,
+              creation_date: current.creation_date,
+              last_edit_date: Some(timestamp),
+            )
+          let #(_, store_after) = store.upsert_staged_segment(store, updated)
+          let payload =
+            segment_types.SegmentMutationPayload(
+              segment: Some(updated),
+              deleted_segment_id: None,
+              user_errors: [],
+            )
+          let json_payload =
+            serializers.segment_payload_json(
+              payload,
+              "SegmentUpdatePayload",
+              field,
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: json_payload,
+              staged_resource_ids: [updated.id],
+            ),
+            store_after,
+            identity_after_ts,
+          )
+        }
+        Error(error) -> {
+          let payload =
+            segment_types.SegmentMutationPayload(
+              segment: None,
+              deleted_segment_id: None,
+              user_errors: [error],
+            )
+          let json_payload =
+            serializers.segment_payload_json(
+              payload,
+              "SegmentUpdatePayload",
+              field,
+              fragments,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: json_payload,
+              staged_resource_ids: [],
+            ),
+            store,
+            identity,
+          )
+        }
       }
-      let updated =
-        SegmentRecord(
-          id: id_value,
-          name: new_name,
-          query: new_query,
-          creation_date: current.creation_date,
-          last_edit_date: Some(timestamp),
-        )
-      let #(_, store_after) = store.upsert_staged_segment(store, updated)
-      let payload =
-        segment_types.SegmentMutationPayload(
-          segment: Some(updated),
-          deleted_segment_id: None,
-          user_errors: [],
-        )
-      let json_payload =
-        serializers.segment_payload_json(
-          payload,
-          "SegmentUpdatePayload",
-          field,
-          fragments,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [updated.id],
-        ),
-        store_after,
-        identity_after_ts,
-      )
     }
     _, _, _ -> {
       let payload =
@@ -644,22 +702,25 @@ fn validate_segment_limit(store: Store) -> List(segment_types.UserError) {
     >= segment_types.max_segments_per_shop
   {
     True -> [
-      segment_types.user_error(["base"], "Segment limit reached", None),
+      segment_types.null_field_user_error(
+        "Segment limit reached. Delete an existing segment to create more.",
+        None,
+      ),
     ]
     False -> []
   }
 }
 
-/// Resolve a segment name against existing names, appending " (N)" until
-/// a free slot is found. Mirrors `resolveUniqueSegmentName`. The
-/// `current_id` argument lets `segmentUpdate` keep its existing name
-/// without colliding with itself.
+/// Resolve a segment name against existing names, bumping a trailing " (N)"
+/// suffix when present. Shopify returns Taken after 10 duplicate retries. The
+/// `current_id` argument lets `segmentUpdate` keep its existing name without
+/// colliding with itself.
 @internal
 pub fn resolve_unique_segment_name(
   store: Store,
   requested: String,
   current_id: Option(String),
-) -> String {
+) -> Result(String, segment_types.UserError) {
   let used =
     store.list_effective_segments(store)
     |> list.filter(fn(s) {
@@ -681,20 +742,87 @@ pub fn resolve_unique_segment_name(
   let used_set =
     list.fold(used, dict.new(), fn(acc, n) { dict.insert(acc, n, True) })
   case dict.get(used_set, requested) {
-    Error(_) -> requested
-    Ok(_) -> next_unique_candidate(used_set, requested, 2)
+    Error(_) -> Ok(requested)
+    Ok(_) ->
+      next_unique_candidate(
+        used_set,
+        increment_duplicate_segment_name(requested),
+        10,
+      )
   }
 }
 
 fn next_unique_candidate(
   used: Dict(String, Bool),
-  base: String,
-  suffix: Int,
-) -> String {
-  let candidate = base <> " (" <> int.to_string(suffix) <> ")"
+  candidate: String,
+  remaining_attempts: Int,
+) -> Result(String, segment_types.UserError) {
   case dict.get(used, candidate) {
-    Error(_) -> candidate
-    Ok(_) -> next_unique_candidate(used, base, suffix + 1)
+    Error(_) -> Ok(candidate)
+    Ok(_) ->
+      case remaining_attempts <= 1 {
+        True -> Error(segment_name_taken_error())
+        False ->
+          next_unique_candidate(
+            used,
+            increment_duplicate_segment_name(candidate),
+            remaining_attempts - 1,
+          )
+      }
+  }
+}
+
+fn segment_name_taken_error() -> segment_types.UserError {
+  segment_types.user_error(["name"], "Name has already been taken", None)
+}
+
+fn increment_duplicate_segment_name(name: String) -> String {
+  case string.ends_with(name, ")") {
+    False -> name <> " (2)"
+    True -> {
+      let without_close = string.drop_end(name, 1)
+      let reversed = string.to_graphemes(without_close) |> list.reverse
+      let digits_reversed = list.take_while(reversed, is_decimal_digit)
+      let rest = list.drop(reversed, list.length(digits_reversed))
+      case digits_reversed, rest {
+        [], _ -> name <> " (2)"
+        [_, ..], ["(", " ", ..prefix_reversed] -> {
+          let raw_number =
+            digits_reversed
+            |> list.reverse
+            |> string.join("")
+          case int.parse(raw_number) {
+            Ok(number) ->
+              prefix_reversed
+              |> list.reverse
+              |> string.join("")
+              |> finish_incremented_duplicate_name(number + 1)
+            Error(_) -> name <> " (2)"
+          }
+        }
+        _, _ -> name <> " (2)"
+      }
+    }
+  }
+}
+
+fn finish_incremented_duplicate_name(prefix: String, number: Int) -> String {
+  prefix <> " (" <> int.to_string(number) <> ")"
+}
+
+fn is_decimal_digit(char: String) -> Bool {
+  case char {
+    "0" -> True
+    "1" -> True
+    "2" -> True
+    "3" -> True
+    "4" -> True
+    "5" -> True
+    "6" -> True
+    "7" -> True
+    "8" -> True
+    "9" -> True
+    _ -> False
   }
 }
 

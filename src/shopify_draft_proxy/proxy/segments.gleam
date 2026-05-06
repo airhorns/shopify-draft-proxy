@@ -121,7 +121,7 @@ pub fn resolve_unique_segment_name(
   store: Store,
   requested: String,
   current_id: Option(String),
-) -> String {
+) -> Result(String, UserError) {
   mutations.resolve_unique_segment_name(store, requested, current_id)
 }
 
