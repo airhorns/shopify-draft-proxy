@@ -693,7 +693,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory'],
-    fixtureOutputs: [`${CAPTURE_ROOT}inventory-item-mutation-*.json`],
+    fixtureOutputs: [`${CAPTURE_ROOT}inventory-item-*.json`],
     cleanupBehavior: 'Creates disposable products to own inventory items and deletes those products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
