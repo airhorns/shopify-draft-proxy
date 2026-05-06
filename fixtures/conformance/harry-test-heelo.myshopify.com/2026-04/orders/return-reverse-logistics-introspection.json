@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-27T14:26:17Z",
+  "capturedAt": "2026-05-06T22:03:18.920Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "captureType": "no-side-effect-introspection",
@@ -20,7 +20,7 @@
     },
     "returnableFulfillments": {
       "args": ["orderId: ID!", "first: Int", "after: String", "last: Int", "before: String", "reverse: Boolean"],
-      "type": "ReturnableFulfillmentConnection",
+      "type": "ReturnableFulfillmentConnection!",
       "blocker": "Requires order eligibility, pagination, reverse ordering, and returnable line-item quantity behavior."
     },
     "reverseDelivery": {
@@ -94,7 +94,13 @@
   "typeEvidence": {
     "ReturnStatus": ["CANCELED", "CLOSED", "OPEN", "REQUESTED", "DECLINED"],
     "ReturnInput": ["exchangeLineItems", "requestedAt", "orderId", "returnLineItems", "returnShippingFee"],
-    "ReturnLineItemInput": ["quantity", "returnReason", "returnReasonNote", "fulfillmentLineItemId", "restockingFee"],
+    "ReturnLineItemInput": [
+      "quantity",
+      "returnReasonDefinitionId",
+      "returnReasonNote",
+      "fulfillmentLineItemId",
+      "restockingFee"
+    ],
     "ReturnRequestInput": ["orderId", "returnLineItems", "returnShippingFee"],
     "ReturnProcessInput": [
       "returnId",

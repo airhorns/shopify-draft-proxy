@@ -75,6 +75,8 @@ Shared in-memory store helpers for cross-domain shop capability reads.
 
 - `shop_sells_subscriptions` reads the effective staged/base `ShopRecord.features.sellsSubscriptions` capability and defaults missing synthetic shop state to `False`
 - `set_shop_sells_subscriptions` configures the effective shop capability for tests and local-runtime parity scenarios without introducing ambient/global shop state
+- `shop_discounts_by_market_enabled` reads the effective staged/base `ShopRecord.features.discountsByMarketEnabled` capability and defaults missing synthetic shop state to `False`
+- `set_shop_discounts_by_market_enabled` configures the effective shop discount-market capability for tests and local-runtime scenarios without introducing ambient/global shop state
 - `payment_gateway_by_id` reads an opt-in synthetic shop payment gateway by ID from effective staged/base `ShopRecord.paymentSettings.paymentGateways`
 - `set_shop_payment_gateways` configures the effective shop payment gateway catalog for tests and local-runtime scenarios without introducing ambient/global shop state
 

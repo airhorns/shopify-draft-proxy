@@ -124,6 +124,7 @@ fn make_shop(policies: List(ShopPolicyRecord)) -> ShopRecord {
       live_view: True,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
+      discounts_by_market_enabled: False,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,
