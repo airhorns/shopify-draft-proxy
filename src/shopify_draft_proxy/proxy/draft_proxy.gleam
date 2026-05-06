@@ -1368,6 +1368,7 @@ fn route_mutation_to_domain(
       transport: proxy.upstream_transport,
       origin: proxy.config.shopify_admin_origin,
       headers: request_headers,
+      allow_upstream_reads: proxy.config.read_mode == LiveHybrid,
     )
 
   case mutation_handler_for(proxy, parsed, query, primary_root_field) {

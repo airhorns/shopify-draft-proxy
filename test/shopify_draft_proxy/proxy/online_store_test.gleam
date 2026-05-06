@@ -17,6 +17,8 @@ import shopify_draft_proxy/state/types.{
 
 const comment_id: String = "gid://shopify/Comment/local-moderation"
 
+const article_id: String = "gid://shopify/Article/local-moderation"
+
 fn proxy() -> DraftProxy {
   draft_proxy.new()
   |> draft_proxy.with_default_registry()
@@ -24,6 +26,21 @@ fn proxy() -> DraftProxy {
 
 fn proxy_with_comment(status: String) -> DraftProxy {
   let proxy = proxy()
+  let article =
+    types.OnlineStoreContentRecord(
+      id: article_id,
+      kind: "article",
+      cursor: None,
+      parent_id: Some("gid://shopify/Blog/local-moderation"),
+      created_at: Some("2026-05-05T00:00:00.000Z"),
+      updated_at: Some("2026-05-05T00:00:00.000Z"),
+      data: types.CapturedObject([
+        #("__typename", types.CapturedString("Article")),
+        #("id", types.CapturedString(article_id)),
+        #("title", types.CapturedString("Comment Moderation Article")),
+        #("isPublished", types.CapturedBool(True)),
+      ]),
+    )
   let published_at = case status {
     "PUBLISHED" -> [
       #("publishedAt", types.CapturedString("2026-05-05T01:00:00.000Z")),
@@ -35,7 +52,7 @@ fn proxy_with_comment(status: String) -> DraftProxy {
       id: comment_id,
       kind: "comment",
       cursor: None,
-      parent_id: Some("gid://shopify/Article/local-moderation"),
+      parent_id: Some(article_id),
       created_at: Some("2026-05-05T00:00:00.000Z"),
       updated_at: Some("2026-05-05T00:00:00.000Z"),
       data: types.CapturedObject(list.append(
@@ -51,7 +68,7 @@ fn proxy_with_comment(status: String) -> DraftProxy {
       )),
     )
   let seeded_store =
-    store.upsert_base_online_store_content(proxy.store, [comment])
+    store.upsert_base_online_store_content(proxy.store, [article, comment])
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
@@ -278,6 +295,18 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
   assert not_spam
     == "{\"data\":{\"commentNotSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\"},\"userErrors\":[]}}}"
 
+  let #(read_before_delete, proxy) =
+    run_graphql(
+      proxy,
+      "query { comment(id: \""
+        <> comment_id
+        <> "\") { id status } comments(first: 10) { nodes { id } } article(id: \""
+        <> article_id
+        <> "\") { comments(first: 10) { nodes { id } } commentsCount { count precision } } }",
+    )
+  assert read_before_delete
+    == "{\"data\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"PUBLISHED\"},\"comments\":{\"nodes\":[{\"id\":\"gid://shopify/Comment/local-moderation\"}]},\"article\":{\"comments\":{\"nodes\":[{\"id\":\"gid://shopify/Comment/local-moderation\"}]},\"commentsCount\":{\"count\":1,\"precision\":\"EXACT\"}}}}"
+
   let #(deleted, proxy) =
     run_graphql(
       proxy,
@@ -291,10 +320,26 @@ pub fn comment_moderation_uses_core_status_enum_values_test() {
   let #(read_after_delete, _) =
     run_graphql(
       proxy,
-      "query { comment(id: \"" <> comment_id <> "\") { id status } }",
+      "query { comment(id: \""
+        <> comment_id
+        <> "\") { id status } comments(first: 10) { nodes { id } } article(id: \""
+        <> article_id
+        <> "\") { comments(first: 10) { nodes { id } } commentsCount { count precision } } }",
     )
   assert read_after_delete
-    == "{\"data\":{\"comment\":{\"id\":\"gid://shopify/Comment/local-moderation\",\"status\":\"REMOVED\"}}}"
+    == "{\"data\":{\"comment\":null,\"comments\":{\"nodes\":[]},\"article\":{\"comments\":{\"nodes\":[]},\"commentsCount\":{\"count\":0,\"precision\":\"EXACT\"}}}}"
+
+  let assert [approve_log, spam_log, not_spam_log, delete_log] =
+    store.get_log(proxy.store)
+  assert approve_log.interpreted.primary_root_field == Some("commentApprove")
+  assert spam_log.interpreted.primary_root_field == Some("commentSpam")
+  assert not_spam_log.interpreted.primary_root_field == Some("commentNotSpam")
+  assert delete_log.staged_resource_ids == [comment_id]
+  let expected_delete_query =
+    "mutation { commentDelete(id: \""
+    <> comment_id
+    <> "\") { deletedCommentId userErrors { field message code } } }"
+  assert delete_log.query == expected_delete_query
 }
 
 pub fn comment_moderation_enforces_state_machine_preconditions_test() {
@@ -352,7 +397,7 @@ pub fn comment_moderation_enforces_state_machine_preconditions_test() {
 }
 
 pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test() {
-  let #(body, _) =
+  let #(body, proxy) =
     run_graphql(
       proxy_with_comment("REMOVED"),
       "mutation { approve: commentApprove(id: \""
@@ -365,6 +410,45 @@ pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test(
     )
   assert body
     == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"delete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
+
+  let assert [_approve_log, _spam_log, delete_log] = store.get_log(proxy.store)
+  assert delete_log.status == store_types.Staged
+  assert delete_log.staged_resource_ids == [comment_id]
+}
+
+pub fn comment_delete_repeated_after_local_delete_is_idempotent_test() {
+  let #(first_body, proxy) =
+    run_graphql(
+      proxy_with_comment("PUBLISHED"),
+      "mutation { commentDelete(id: \""
+        <> comment_id
+        <> "\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert first_body
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
+
+  let staged_after_first =
+    dict.size(proxy.store.staged_state.online_store_content)
+  let deleted_after_first =
+    dict.size(proxy.store.staged_state.deleted_online_store_content_ids)
+
+  let #(second_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentDelete(id: \""
+        <> comment_id
+        <> "\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert second_body
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/local-moderation\",\"userErrors\":[]}}}"
+  assert dict.size(proxy.store.staged_state.online_store_content)
+    == staged_after_first
+  assert dict.size(proxy.store.staged_state.deleted_online_store_content_ids)
+    == deleted_after_first
+
+  let assert [first_log, second_log] = store.get_log(proxy.store)
+  assert first_log.staged_resource_ids == [comment_id]
+  assert second_log.staged_resource_ids == [comment_id]
 }
 
 pub fn blog_delete_cascades_articles_and_comments_test() {

@@ -108,6 +108,7 @@ fn run_mutation_outcome_with_headers(
         transport: None,
         origin: "https://shopify.example",
         headers: headers,
+        allow_upstream_reads: True,
       ),
     )
   outcome
@@ -1556,6 +1557,7 @@ pub fn usage_record_create_caps_balance_and_reuses_idempotency_key_test() {
         transport: None,
         origin: "https://shopify.example",
         headers: dict.new(),
+        allow_upstream_reads: True,
       ),
     )
   assert json.to_string(over_cap.data)
@@ -1576,6 +1578,7 @@ pub fn usage_record_create_caps_balance_and_reuses_idempotency_key_test() {
         transport: None,
         origin: "https://shopify.example",
         headers: dict.new(),
+        allow_upstream_reads: True,
       ),
     )
   assert json.to_string(duplicate.data)

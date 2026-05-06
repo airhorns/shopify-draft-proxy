@@ -6,9 +6,13 @@ import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/media
-import shopify_draft_proxy/proxy/proxy_state.{DraftProxy, Request, Response}
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, DraftProxy, LiveHybrid, Request, Response,
+}
+import shopify_draft_proxy/shopify/upstream_client
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type FileRecord, FileRecord, ProductMediaRecord, ProductRecord,
@@ -25,8 +29,19 @@ fn registry_proxy() {
   |> draft_proxy.with_default_registry
 }
 
+fn live_hybrid_registry_proxy() {
+  let config = draft_proxy.default_config()
+  draft_proxy.with_config(Config(..config, read_mode: LiveHybrid))
+  |> draft_proxy.with_default_registry
+}
+
 fn registry_proxy_with_files(files: List(FileRecord)) {
   let proxy = registry_proxy()
+  DraftProxy(..proxy, store: store.upsert_staged_files(proxy.store, files))
+}
+
+fn live_hybrid_registry_proxy_with_files(files: List(FileRecord)) {
+  let proxy = live_hybrid_registry_proxy()
   DraftProxy(..proxy, store: store.upsert_staged_files(proxy.store, files))
 }
 
@@ -521,6 +536,64 @@ pub fn file_update_rejects_source_and_revert_version_conflict_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"Specify either a source or revertToVersionId, not both.\",\"code\":\"CANNOT_SPECIFY_SOURCE_AND_VERSION_ID\"}]}}}"
+}
+
+pub fn file_update_rejects_unknown_revert_version_id_test() {
+  let transport =
+    upstream_client.SyncTransport(send: fn(_req) {
+      Ok(commit.HttpOutcome(
+        status: 200,
+        headers: [],
+        body: "{\"data\":{\"nodes\":[null]}}",
+      ))
+    })
+  let proxy =
+    live_hybrid_registry_proxy_with_files([ready_image()])
+    |> draft_proxy.with_upstream_transport(transport)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", revertToVersionId: \"gid://shopify/FileVersion/9999\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File version id 9999 does not exist\",\"code\":\"MEDIA_VERSION_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn file_update_accepts_hydrated_revert_version_id_test() {
+  let transport =
+    upstream_client.SyncTransport(send: fn(_req) {
+      Ok(commit.HttpOutcome(
+        status: 200,
+        headers: [],
+        body: "{\"data\":{\"nodes\":[{\"id\":\"gid://shopify/FileVersion/7\",\"__typename\":\"MediaVersion\",\"file\":{\"id\":\"gid://shopify/MediaImage/1\"}}]}}",
+      ))
+    })
+  let proxy =
+    live_hybrid_registry_proxy_with_files([ready_image()])
+    |> draft_proxy.with_upstream_transport(transport)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", revertToVersionId: \"gid://shopify/FileVersion/7\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Seed\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
+}
+
+pub fn file_update_aggregates_missing_reference_targets_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", referencesToAdd: [\"gid://shopify/Product/123\"], referencesToRemove: [\"gid://shopify/Product/456\"] }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"The reference target does not exist\",\"code\":\"REFERENCE_TARGET_DOES_NOT_EXIST\"}]}}}"
 }
 
 pub fn file_update_rejects_mismatched_gid_type_test() {
