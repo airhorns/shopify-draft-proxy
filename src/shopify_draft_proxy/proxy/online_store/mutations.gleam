@@ -19,6 +19,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/online_store/serializers
 import shopify_draft_proxy/proxy/online_store/types as online_store_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -330,16 +331,8 @@ fn create_content(
         error,
       )
     None ->
-      case
-        serializers.resolve_content_handle(
-          outcome.store,
-          kind,
-          input,
-          None,
-          None,
-        )
-      {
-        Error(error) ->
+      case future_publish_date_error(payload_key, input, None) {
+        Some(error) ->
           serializers.content_validation_error_payload(
             outcome,
             field,
@@ -348,40 +341,61 @@ fn create_content(
             payload_key,
             error,
           )
-        Ok(handle) -> {
-          let #(record, identity) =
-            serializers.make_content(
-              outcome.identity,
+        None -> {
+          case
+            serializers.resolve_content_handle(
+              outcome.store,
               kind,
               input,
               None,
               None,
-              handle,
             )
-          let #(_, store) =
-            store.upsert_staged_online_store_content(outcome.store, record)
-          let payload =
-            serializers.mutation_payload(
-              field,
-              fragments,
-              payload_key,
-              serializers.project_content_payload(
-                store,
-                record,
+          {
+            Error(error) ->
+              serializers.content_validation_error_payload(
+                outcome,
                 field,
                 fragments,
-                variables,
+                root,
                 payload_key,
-              ),
-              [],
-            )
-          #(
-            key,
-            payload,
-            serializers.mutation_outcome(outcome, store, identity, root, [
-              record.id,
-            ]),
-          )
+                error,
+              )
+            Ok(handle) -> {
+              let #(record, identity) =
+                serializers.make_content(
+                  outcome.identity,
+                  kind,
+                  input,
+                  None,
+                  None,
+                  handle,
+                )
+              let #(_, store) =
+                store.upsert_staged_online_store_content(outcome.store, record)
+              let payload =
+                serializers.mutation_payload(
+                  field,
+                  fragments,
+                  payload_key,
+                  serializers.project_content_payload(
+                    store,
+                    record,
+                    field,
+                    fragments,
+                    variables,
+                    payload_key,
+                  ),
+                  [],
+                )
+              #(
+                key,
+                payload,
+                serializers.mutation_outcome(outcome, store, identity, root, [
+                  record.id,
+                ]),
+              )
+            }
+          }
         }
       }
   }
@@ -586,7 +600,11 @@ fn article_create_validation_error(
             "Must reference or create a blog when creating an article.",
             "BLOG_REFERENCE_REQUIRED",
           ))
-        _, _ -> article_author_validation_error(article_input)
+        _, _ ->
+          case article_author_validation_error(article_input) {
+            Some(error) -> Some(error)
+            None -> future_publish_date_error("article", article_input, None)
+          }
       }
   }
 }
@@ -622,6 +640,59 @@ fn article_author_validation_error(
   }
 }
 
+const invalid_publish_date_message: String = "Can’t set isPublished to true and also set a future publish date."
+
+fn future_publish_date_error(
+  payload_key: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(OnlineStoreContentRecord),
+) -> Option(graphql_helpers.SourceValue) {
+  case payload_key {
+    "page" | "article" ->
+      case effective_is_published(input, existing) {
+        False -> None
+        True ->
+          case serializers.input_string(input, "publishDate") {
+            Some(publish_date) ->
+              case iso_timestamp_after(publish_date, iso_timestamp.now_iso()) {
+                True ->
+                  Some(serializers.user_error_with_code(
+                    [payload_key],
+                    invalid_publish_date_message,
+                    "INVALID_PUBLISH_DATE",
+                  ))
+                False -> None
+              }
+            None -> None
+          }
+      }
+    _ -> None
+  }
+}
+
+fn effective_is_published(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(OnlineStoreContentRecord),
+) -> Bool {
+  let default = case existing {
+    Some(record) ->
+      serializers.source_bool_field(
+        serializers.captured_to_source(record.data),
+        "isPublished",
+        True,
+      )
+    None -> True
+  }
+  serializers.option_bool(serializers.input_bool(input, "isPublished"), default)
+}
+
+fn iso_timestamp_after(value: String, timestamp: String) -> Bool {
+  case iso_timestamp.parse_iso(value), iso_timestamp.parse_iso(timestamp) {
+    Ok(value_ms), Ok(timestamp_ms) -> value_ms > timestamp_ms
+    _, _ -> False
+  }
+}
+
 fn update_content(
   outcome: MutationOutcome,
   field: Selection,
@@ -641,16 +712,8 @@ fn update_content(
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
         Some(existing) -> {
-          case
-            serializers.resolve_content_handle(
-              outcome.store,
-              kind,
-              input,
-              existing.parent_id,
-              Some(existing),
-            )
-          {
-            Error(error) ->
+          case future_publish_date_error(payload_key, input, Some(existing)) {
+            Some(error) ->
               serializers.content_validation_error_payload(
                 outcome,
                 field,
@@ -659,40 +722,68 @@ fn update_content(
                 payload_key,
                 error,
               )
-            Ok(handle) -> {
-              let #(record, identity) =
-                serializers.make_content(
-                  outcome.identity,
+            None -> {
+              case
+                serializers.resolve_content_handle(
+                  outcome.store,
                   kind,
                   input,
                   existing.parent_id,
                   Some(existing),
-                  handle,
                 )
-              let #(_, store) =
-                store.upsert_staged_online_store_content(outcome.store, record)
-              let payload =
-                serializers.mutation_payload(
-                  field,
-                  fragments,
-                  payload_key,
-                  serializers.project_content_payload(
-                    store,
-                    record,
+              {
+                Error(error) ->
+                  serializers.content_validation_error_payload(
+                    outcome,
                     field,
                     fragments,
-                    variables,
+                    root,
                     payload_key,
-                  ),
-                  [],
-                )
-              #(
-                key,
-                payload,
-                serializers.mutation_outcome(outcome, store, identity, root, [
-                  id,
-                ]),
-              )
+                    error,
+                  )
+                Ok(handle) -> {
+                  let #(record, identity) =
+                    serializers.make_content(
+                      outcome.identity,
+                      kind,
+                      input,
+                      existing.parent_id,
+                      Some(existing),
+                      handle,
+                    )
+                  let #(_, store) =
+                    store.upsert_staged_online_store_content(
+                      outcome.store,
+                      record,
+                    )
+                  let payload =
+                    serializers.mutation_payload(
+                      field,
+                      fragments,
+                      payload_key,
+                      serializers.project_content_payload(
+                        store,
+                        record,
+                        field,
+                        fragments,
+                        variables,
+                        payload_key,
+                      ),
+                      [],
+                    )
+                  #(
+                    key,
+                    payload,
+                    serializers.mutation_outcome(
+                      outcome,
+                      store,
+                      identity,
+                      root,
+                      [id],
+                    ),
+                  )
+                }
+              }
             }
           }
         }

@@ -1872,6 +1872,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-invalid-publish-date',
+    scriptPath: 'scripts/capture-online-store-invalid-publish-date-conformance.ts',
+    purpose:
+      'pageCreate, articleCreate, pageUpdate, and articleUpdate validation for publishing content with a future publishDate, plus scheduled-publish allowed setup branches.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-invalid-publish-date.json`,
+      'config/parity-specs/online-store/page_create_invalid_publish_date.json',
+      'config/parity-specs/online-store/article_create_invalid_publish_date.json',
+      'config/parity-specs/online-store/page_update_invalid_publish_date.json',
+      'config/parity-specs/online-store/article_update_invalid_publish_date.json',
+      'config/parity-requests/online-store/online-store-invalid-publish-date-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog plus unpublished scheduled page/article setup records; invalid publish attempts do not create records, and cleanup deletes the scheduled article, scheduled page, and blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-page-handle-dedupe-and-takenness',
     scriptPath: 'scripts/capture-online-store-page-handle-conformance.ts',
     purpose:
