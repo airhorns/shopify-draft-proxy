@@ -270,10 +270,10 @@ try {
 } catch (error) {
   captureFailure = error;
 } finally {
-  for (const id of createdCatalogIds.toReversed()) {
+  for (const id of createdCatalogIds.slice().reverse()) {
     await cleanupCatalog(id);
   }
-  for (const id of createdMarketIds.toReversed()) {
+  for (const id of createdMarketIds.slice().reverse()) {
     await cleanupMarket(id);
   }
 }
