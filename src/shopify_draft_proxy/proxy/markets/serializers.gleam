@@ -20,7 +20,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/markets/types as market_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, combine_error_lists, single_root_log_draft,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -1143,6 +1143,80 @@ pub fn market_connection_from_ids(
 }
 
 @internal
+pub fn catalog_connection_from_ids(
+  store: Store,
+  catalog_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(catalog_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", catalog_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(list.map(catalog_ids, catalog_node_for_id(store, _))),
+    ),
+    #("pageInfo", page_info_for_cursors(catalog_ids)),
+  ])
+}
+
+fn catalog_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_catalog_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketCatalog")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
+pub fn web_presence_connection_from_ids(
+  store: Store,
+  web_presence_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(web_presence_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", web_presence_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(
+        list.map(web_presence_ids, web_presence_node_for_id(store, _)),
+      ),
+    ),
+    #("pageInfo", page_info_for_cursors(web_presence_ids)),
+  ])
+}
+
+fn web_presence_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_web_presence_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketWebPresence")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
 pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
   case store.get_effective_market_by_id(store, id) {
     Some(record) -> record.data
@@ -1173,9 +1247,7 @@ pub fn price_list_input_errors(
     [] -> price_list_parent_errors(input, existing)
     _ -> []
   }
-  name_errors
-  |> list.append(currency_errors)
-  |> list.append(parent_errors)
+  combine_error_lists([name_errors, currency_errors, parent_errors])
 }
 
 @internal
@@ -1412,22 +1484,21 @@ pub fn product_level_fixed_price_errors(
           ))
       }
     })
-  no_op_errors
-  |> list.append(add_errors)
-  |> list.append(delete_errors)
-  |> list.append(price_currency_mismatch_errors(price_list, price_inputs))
-  |> list.append(duplicate_price_input_errors(price_inputs))
-  |> list.append(duplicate_delete_product_errors(delete_product_ids))
-  |> list.append(mutually_exclusive_product_errors(
-    price_inputs,
-    delete_product_ids,
-  ))
-  |> list.append(price_list_fixed_price_limit_errors(
-    store,
-    price_list,
-    price_inputs,
-    delete_product_ids,
-  ))
+  combine_error_lists([
+    no_op_errors,
+    add_errors,
+    delete_errors,
+    price_currency_mismatch_errors(price_list, price_inputs),
+    duplicate_price_input_errors(price_inputs),
+    duplicate_delete_product_errors(delete_product_ids),
+    mutually_exclusive_product_errors(price_inputs, delete_product_ids),
+    price_list_fixed_price_limit_errors(
+      store,
+      price_list,
+      price_inputs,
+      delete_product_ids,
+    ),
+  ])
 }
 
 fn price_currency_mismatch_errors(
@@ -1441,13 +1512,15 @@ fn price_currency_mismatch_errors(
       |> enumerate_dicts
       |> list.flat_map(fn(entry) {
         let #(input, index) = entry
-        money_currency_mismatch_error(input, index, "price", currency)
-        |> list.append(money_currency_mismatch_error(
-          input,
-          index,
-          "compareAtPrice",
-          currency,
-        ))
+        combine_error_lists([
+          money_currency_mismatch_error(input, index, "price", currency),
+          money_currency_mismatch_error(
+            input,
+            index,
+            "compareAtPrice",
+            currency,
+          ),
+        ])
       })
     }
     None -> []
@@ -1850,7 +1923,7 @@ pub fn quantity_pricing_input_errors(
       "PRICE_ADD_VARIANT_NOT_FOUND",
       "Variant not found.",
     )
-  list.append(price_break_errors, list.append(rule_errors, price_errors))
+  combine_error_lists([price_break_errors, rule_errors, price_errors])
 }
 
 @internal
@@ -1880,20 +1953,16 @@ fn quantity_rules_input_errors_loop(
       let variant_id =
         graphql_helpers.read_arg_string_nonempty(input, "variantId")
       let current_errors =
-        list.append(
+        combine_error_lists([
           quantity_rule_variant_errors(store, input, index),
-          list.append(
-            quantity_rule_numeric_errors(input, index),
-            list.append(
-              quantity_rule_price_break_errors(price_list, input, index),
-              quantity_rule_duplicate_variant_errors(
-                variant_id,
-                index,
-                duplicate_variant_ids,
-              ),
-            ),
+          quantity_rule_numeric_errors(input, index),
+          quantity_rule_price_break_errors(price_list, input, index),
+          quantity_rule_duplicate_variant_errors(
+            variant_id,
+            index,
+            duplicate_variant_ids,
           ),
-        )
+        ])
       list.append(
         current_errors,
         quantity_rules_input_errors_loop(
@@ -2666,6 +2735,7 @@ pub fn empty_price_connection() -> CapturedJsonValue {
 pub fn market_localizable_resource_payload(
   store: Store,
   resource_id: String,
+  market_id: Option(String),
 ) -> CapturedJsonValue {
   case store.find_effective_metafield_by_id(store, resource_id) {
     Some(metafield) ->
@@ -2682,6 +2752,12 @@ pub fn market_localizable_resource_payload(
           "marketLocalizations",
           CapturedArray(
             store.list_effective_market_localizations(store, resource_id)
+            |> list.filter(fn(record) {
+              case market_id {
+                Some(id) -> record.market_id == id
+                None -> True
+              }
+            })
             |> list.map(fn(record) {
               market_localization_payload(store, record)
             }),
@@ -2976,15 +3052,19 @@ pub fn root_payload_for_field(
         "marketLocalizableResource" -> {
           let args = graphql_helpers.field_args(field, variables)
           case graphql_helpers.read_arg_string_nonempty(args, "resourceId") {
-            Some(resource_id) ->
+            Some(resource_id) -> {
+              let market_id =
+                market_localizations_market_id_arg(field, variables)
               project_record(
                 field,
                 fragments,
                 captured_json_source(market_localizable_resource_payload(
                   store,
                   resource_id,
+                  market_id,
                 )),
               )
+            }
             None -> json.null()
           }
         }
@@ -2993,6 +3073,30 @@ pub fn root_payload_for_field(
         _ -> json.null()
       }
     _ -> json.null()
+  }
+}
+
+fn market_localizations_market_id_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.find_map(fn(child) {
+      case child {
+        Field(name: name, ..) if name.value == "marketLocalizations" -> {
+          let args = graphql_helpers.field_args(child, variables)
+          case graphql_helpers.read_arg_string_nonempty(args, "marketId") {
+            Some(id) -> Ok(id)
+            None -> Error(Nil)
+          }
+        }
+        _ -> Error(Nil)
+      }
+    })
+  {
+    Ok(id) -> Some(id)
+    Error(_) -> None
   }
 }
 

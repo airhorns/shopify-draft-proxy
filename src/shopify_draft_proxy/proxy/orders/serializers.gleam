@@ -23,7 +23,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   default_selected_field_options, get_field_response_key,
   get_selected_child_fields, paginate_connection_items,
   project_graphql_field_value, project_graphql_value, serialize_connection,
-  src_object,
+  serialize_static_connection, src_object,
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -244,31 +244,15 @@ pub fn serialize_order_fulfillment_orders_connection(
   fulfillment_orders: List(CapturedJsonValue),
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: fulfillment_orders,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(fulfillment_order, _index) {
-        captured_string_field(fulfillment_order, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(fulfillment_order, selection, _index) {
-        serialize_order_fulfillment_order(
-          selection,
-          fulfillment_order,
-          fragments,
-        )
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    fulfillment_orders,
+    fn(fulfillment_order) {
+      captured_string_field(fulfillment_order, "id") |> option.unwrap("")
+    },
+    fn(fulfillment_order, selection) {
+      serialize_order_fulfillment_order(selection, fulfillment_order, fragments)
+    },
   )
 }
 
@@ -336,27 +320,15 @@ pub fn serialize_order_fulfillment_order_line_items_connection(
   line_items: List(CapturedJsonValue),
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: line_items,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(line_item, _index) {
-        captured_string_field(line_item, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(line_item, selection, _index) {
-        serialize_fulfillment_order_line_item(selection, line_item, fragments)
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    line_items,
+    fn(line_item) {
+      captured_string_field(line_item, "id") |> option.unwrap("")
+    },
+    fn(line_item, selection) {
+      serialize_fulfillment_order_line_item(selection, line_item, fragments)
+    },
   )
 }
 
@@ -481,32 +453,18 @@ pub fn serialize_fulfillment_order_merchant_requests_connection(
   fragments: FragmentMap,
 ) -> Json {
   let requests = fulfillment_order_merchant_requests(fulfillment_order)
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: requests,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(request, _index) {
-        captured_string_field(request, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(request, selection, _index) {
-        serialize_fulfillment_order_merchant_request(
-          selection,
-          fulfillment_order,
-          request,
-          fragments,
-        )
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    requests,
+    fn(request) { captured_string_field(request, "id") |> option.unwrap("") },
+    fn(request, selection) {
+      serialize_fulfillment_order_merchant_request(
+        selection,
+        fulfillment_order,
+        request,
+        fragments,
+      )
+    },
   )
 }
 
@@ -2286,27 +2244,15 @@ pub fn serialize_order_returns_connection(
   order: OrderRecord,
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: returns,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(order_return, _index) {
-        captured_string_field(order_return, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(order_return, selection, _index) {
-        serialize_order_return(selection, order_return, order, fragments)
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    returns,
+    fn(order_return) {
+      captured_string_field(order_return, "id") |> option.unwrap("")
+    },
+    fn(order_return, selection) {
+      serialize_order_return(selection, order_return, order, fragments)
+    },
   )
 }
 
@@ -2316,27 +2262,15 @@ pub fn serialize_return_line_items_connection(
   line_items: List(CapturedJsonValue),
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: line_items,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(line_item, _index) {
-        captured_string_field(line_item, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(line_item, selection, _index) {
-        serialize_return_line_item(selection, line_item, fragments)
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    line_items,
+    fn(line_item) {
+      captured_string_field(line_item, "id") |> option.unwrap("")
+    },
+    fn(line_item, selection) {
+      serialize_return_line_item(selection, line_item, fragments)
+    },
   )
 }
 
@@ -2431,33 +2365,21 @@ pub fn serialize_reverse_fulfillment_orders_connection(
   order: OrderRecord,
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: reverse_orders,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(reverse_order, _index) {
-        captured_string_field(reverse_order, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(reverse_order, selection, _index) {
-        serialize_reverse_fulfillment_order(
-          selection,
-          reverse_order,
-          order_return,
-          order,
-          fragments,
-        )
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    reverse_orders,
+    fn(reverse_order) {
+      captured_string_field(reverse_order, "id") |> option.unwrap("")
+    },
+    fn(reverse_order, selection) {
+      serialize_reverse_fulfillment_order(
+        selection,
+        reverse_order,
+        order_return,
+        order,
+        fragments,
+      )
+    },
   )
 }
 
@@ -2643,33 +2565,21 @@ pub fn serialize_reverse_delivery_line_items_connection(
   order_return: CapturedJsonValue,
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: line_items,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(line_item, _index) {
-        captured_string_field(line_item, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(line_item, selection, _index) {
-        serialize_reverse_delivery_line_item(
-          selection,
-          line_item,
-          reverse_order,
-          order_return,
-          fragments,
-        )
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    line_items,
+    fn(line_item) {
+      captured_string_field(line_item, "id") |> option.unwrap("")
+    },
+    fn(line_item, selection) {
+      serialize_reverse_delivery_line_item(
+        selection,
+        line_item,
+        reverse_order,
+        order_return,
+        fragments,
+      )
+    },
   )
 }
 
@@ -2727,34 +2637,22 @@ pub fn serialize_reverse_deliveries_connection(
   order: OrderRecord,
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: reverse_deliveries,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(reverse_delivery, _index) {
-        captured_string_field(reverse_delivery, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(reverse_delivery, selection, _index) {
-        serialize_reverse_delivery(
-          selection,
-          reverse_delivery,
-          reverse_order,
-          order_return,
-          order,
-          fragments,
-        )
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    reverse_deliveries,
+    fn(reverse_delivery) {
+      captured_string_field(reverse_delivery, "id") |> option.unwrap("")
+    },
+    fn(reverse_delivery, selection) {
+      serialize_reverse_delivery(
+        selection,
+        reverse_delivery,
+        reverse_order,
+        order_return,
+        order,
+        fragments,
+      )
+    },
   )
 }
 
@@ -2765,32 +2663,20 @@ pub fn serialize_reverse_fulfillment_order_line_items_connection(
   order_return: CapturedJsonValue,
   fragments: FragmentMap,
 ) -> Json {
-  serialize_connection(
+  serialize_static_connection(
     field,
-    SerializeConnectionConfig(
-      items: line_items,
-      has_next_page: False,
-      has_previous_page: False,
-      get_cursor_value: fn(line_item, _index) {
-        captured_string_field(line_item, "id") |> option.unwrap("")
-      },
-      serialize_node: fn(line_item, selection, _index) {
-        serialize_reverse_fulfillment_order_line_item(
-          selection,
-          line_item,
-          order_return,
-          fragments,
-        )
-      },
-      selected_field_options: SelectedFieldOptions(True),
-      page_info_options: ConnectionPageInfoOptions(
-        include_inline_fragments: True,
-        prefix_cursors: False,
-        include_cursors: False,
-        fallback_start_cursor: None,
-        fallback_end_cursor: None,
-      ),
-    ),
+    line_items,
+    fn(line_item) {
+      captured_string_field(line_item, "id") |> option.unwrap("")
+    },
+    fn(line_item, selection) {
+      serialize_reverse_fulfillment_order_line_item(
+        selection,
+        line_item,
+        order_return,
+        fragments,
+      )
+    },
   )
 }
 
