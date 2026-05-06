@@ -1,0 +1,97 @@
+{
+  "scenarioId": "discount-basic-disallowed-discount-on-quantity",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountAutomaticBasicCreate",
+    "discountAutomaticBasicUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-basic-disallowed-discount-on-quantity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-code-create.graphql",
+    "variablesCapturePath": "$.setup.codeCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-basic-setup",
+        "capturePath": "$.setup.codeCreate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicCreate.userErrors"]
+      },
+      {
+        "name": "automatic-basic-setup",
+        "capturePath": "$.setup.automaticCreate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountAutomaticBasicCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-automatic-create.graphql",
+          "variablesCapturePath": "$.setup.automaticCreate.variables"
+        }
+      },
+      {
+        "name": "code-basic-create-disallowed-discount-on-quantity",
+        "capturePath": "$.validation.codeCreate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-code-create.graphql",
+          "variablesCapturePath": "$.validation.codeCreate.variables"
+        }
+      },
+      {
+        "name": "code-basic-update-disallowed-discount-on-quantity",
+        "capturePath": "$.validation.codeUpdate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-code-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.codeUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-basic-create-disallowed-discount-on-quantity",
+        "capturePath": "$.validation.automaticCreate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountAutomaticBasicCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-automatic-create.graphql",
+          "variablesCapturePath": "$.validation.automaticCreate.variables"
+        }
+      },
+      {
+        "name": "automatic-basic-update-disallowed-discount-on-quantity",
+        "capturePath": "$.validation.automaticUpdate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountAutomaticBasicUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-basic-disallowed-discount-on-quantity-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-basic-setup",
+              "path": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validation.automaticUpdate.variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence that basic code and automatic discount create/update mutations reject customerGets.value.discountOnQuantity with Shopify's INVALID userErrors shape. Setup creates one basic code discount and one basic automatic discount, then cleanup deletes both live records."
+}
