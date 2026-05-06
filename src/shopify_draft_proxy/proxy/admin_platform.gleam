@@ -47,6 +47,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -1605,7 +1606,7 @@ fn handle_mutation_fields(
         query: None,
         variables: None,
         staged_resource_ids: staged_ids,
-        status: store.Staged,
+        status: store_types.Staged,
         notes: case notes {
           [] -> Some("Handled Admin Platform utility mutation locally.")
           _ -> Some(string.join(notes, " "))
