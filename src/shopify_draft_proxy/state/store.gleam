@@ -118,6 +118,10 @@ pub const replace_staged_media_for_product = products.replace_staged_media_for_p
 
 pub const get_effective_media_by_product_id = products.get_effective_media_by_product_id
 
+pub const remove_media_ids_from_product_variants = products.remove_media_ids_from_product_variants
+
+pub const remove_media_ids_from_variants_for_products = products.remove_media_ids_from_variants_for_products
+
 pub const upsert_base_files = products.upsert_base_files
 
 pub const upsert_staged_files = products.upsert_staged_files
@@ -648,19 +652,33 @@ pub const stage_delete_marketing_activity = marketing.stage_delete_marketing_act
 
 pub const stage_delete_all_external_marketing_activities = marketing.stage_delete_all_external_marketing_activities
 
+pub const stage_delete_all_external_marketing_activities_for_app = marketing.stage_delete_all_external_marketing_activities_for_app
+
 pub const get_effective_marketing_activity_record_by_id = marketing.get_effective_marketing_activity_record_by_id
+
+pub const get_effective_marketing_activity_record_by_id_for_app = marketing.get_effective_marketing_activity_record_by_id_for_app
 
 pub const get_effective_marketing_event_record_by_id = marketing.get_effective_marketing_event_record_by_id
 
+pub const get_effective_marketing_event_record_by_id_for_app = marketing.get_effective_marketing_event_record_by_id_for_app
+
 pub const get_effective_marketing_activity_by_remote_id = marketing.get_effective_marketing_activity_by_remote_id
+
+pub const get_effective_marketing_activity_by_remote_id_for_app = marketing.get_effective_marketing_activity_by_remote_id_for_app
 
 pub const list_effective_marketing_activities = marketing.list_effective_marketing_activities
 
+pub const list_effective_marketing_activities_for_app = marketing.list_effective_marketing_activities_for_app
+
 pub const list_effective_marketing_events = marketing.list_effective_marketing_events
+
+pub const list_effective_marketing_events_for_app = marketing.list_effective_marketing_events_for_app
 
 pub const has_staged_marketing_records = marketing.has_staged_marketing_records
 
 pub const has_marketing_delete_all_external_in_flight = marketing.has_marketing_delete_all_external_in_flight
+
+pub const has_marketing_delete_all_external_in_flight_for_app = marketing.has_marketing_delete_all_external_in_flight_for_app
 
 pub const stage_marketing_engagement = marketing.stage_marketing_engagement
 
@@ -668,9 +686,17 @@ pub const stage_delete_marketing_engagement = marketing.stage_delete_marketing_e
 
 pub const stage_delete_marketing_engagements_by_channel_handle = marketing.stage_delete_marketing_engagements_by_channel_handle
 
+pub const stage_delete_marketing_engagements_by_channel_handle_for_app = marketing.stage_delete_marketing_engagements_by_channel_handle_for_app
+
 pub const stage_delete_all_channel_marketing_engagements = marketing.stage_delete_all_channel_marketing_engagements
 
+pub const stage_delete_all_channel_marketing_engagements_for_app = marketing.stage_delete_all_channel_marketing_engagements_for_app
+
 pub const list_effective_marketing_engagements = marketing.list_effective_marketing_engagements
+
+pub const list_effective_marketing_engagements_for_app = marketing.list_effective_marketing_engagements_for_app
+
+pub const marketing_record_visible_to_api_client = marketing.record_visible_to_api_client
 
 pub const has_known_marketing_channel_handle = marketing.has_known_marketing_channel_handle
 

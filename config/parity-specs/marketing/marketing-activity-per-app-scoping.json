@@ -1,0 +1,100 @@
+{
+  "scenarioId": "marketing-activity-per-app-scoping",
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityUpdateExternal",
+    "marketingActivityDeleteExternal",
+    "marketingActivitiesDeleteAllExternal",
+    "marketingEngagementCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-runtime-backed"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/marketing/marketing-activity-per-app-scoping.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-per-app-scoping-create.graphql",
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "app-a"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "app-a-create",
+        "capturePath": "$.expected.data.createExternal",
+        "proxyPath": "$.data.createExternal",
+        "selectedPaths": ["$.marketingActivity.title", "$.marketingActivity.remoteId", "$.userErrors"]
+      },
+      {
+        "name": "app-b-update-missing",
+        "capturePath": "$.expected.data.updateExternal",
+        "proxyPath": "$.data.updateExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-per-app-scoping-update.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "app-b"
+          }
+        }
+      },
+      {
+        "name": "app-b-delete-missing",
+        "capturePath": "$.expected.data.deleteExternal",
+        "proxyPath": "$.data.deleteExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-per-app-scoping-delete.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "app-b"
+          }
+        }
+      },
+      {
+        "name": "app-b-engagement-missing-before-currency",
+        "capturePath": "$.expected.data.engagementCreate",
+        "proxyPath": "$.data.engagementCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-per-app-scoping-engagement.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "app-b"
+          }
+        }
+      },
+      {
+        "name": "app-b-delete-all-skips-foreign",
+        "capturePath": "$.expected.data.deleteAllExternal",
+        "proxyPath": "$.data.deleteAllExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-per-app-scoping-delete-all.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "app-b"
+          }
+        }
+      },
+      {
+        "name": "app-a-remains-readable",
+        "capturePath": "$.expected.data.appAReadAfterDeleteAll",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-per-app-scoping-read.graphql",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "app-a"
+          },
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.createExternal.marketingActivity.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Local-runtime parity for app-owned marketing activity scoping. Live capture is not available in the current conformance shop because only one app is installed; the executable scenario uses request-owned API client headers to prove App B cannot resolve, engage, or delete App A's staged external activity and that App B delete-all leaves App A readable."
+}

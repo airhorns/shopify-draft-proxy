@@ -1547,14 +1547,24 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store_types.Staged,
+                  "Staged productFullSync locally.",
+                )
+                True -> #(
+                  store_types.Failed,
+                  "Rejected productFullSync locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged productFullSync locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -1731,14 +1741,24 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                True -> #(
+                  store_types.Failed,
+                  Some("ProductVariant media membership rejected locally."),
+                )
+                False -> #(
+                  store_types.Staged,
+                  Some("Staged ProductVariant media membership locally."),
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged ProductVariant media membership locally."),
+                  note,
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),

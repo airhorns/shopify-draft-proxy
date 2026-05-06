@@ -22,6 +22,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationFieldResult, type MutationOutcome, MutationFieldResult,
   MutationOutcome,
 }
+import shopify_draft_proxy/proxy/products/hydration as product_hydration
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -29,8 +30,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type FileRecord, type ProductMediaRecord, type ProductRecord, FileRecord,
-  ProductMediaRecord, ProductRecord, ProductSeoRecord,
+  type FileRecord, type ProductMediaRecord, type ProductRecord,
+  type ProductVariantRecord, FileRecord, ProductMediaRecord, ProductRecord,
+  ProductSeoRecord,
 }
 
 const google_form_upload_parameter_names: List(String) = [
@@ -1319,6 +1321,7 @@ fn stage_product_media_file_update(
     }
     store.replace_staged_media_for_product(current, product_id, next_media)
   })
+  |> store.remove_media_ids_from_variants_for_products(remove_ids, [file.id])
 }
 
 fn new_product_media_from_file(
@@ -1542,7 +1545,29 @@ fn maybe_hydrate_product(
     None -> {
       let query =
         "query MediaProductHydrate($id: ID!) {
-  product(id: $id) { id title handle status }
+  product(id: $id) {
+    id
+    title
+    handle
+    status
+    media(first: 50) {
+      nodes {
+        id
+        alt
+        mediaContentType
+        status
+        preview { image { url width height } }
+        ... on MediaImage { image { url width height } }
+      }
+    }
+    variants(first: 50) {
+      nodes {
+        id
+        title
+        media(first: 10) { nodes { id } }
+      }
+    }
+  }
 }
 "
       let variables = json.object([#("id", json.string(product_id))])
@@ -1557,10 +1582,7 @@ fn maybe_hydrate_product(
         )
       {
         Ok(value) ->
-          case product_record_from_hydrate(value, product_id) {
-            Some(product) -> store.upsert_base_products(store, [product])
-            None -> store
-          }
+          hydrate_product_relations_from_response(store, value, product_id)
         Error(_) -> store
       }
     }
@@ -1736,7 +1758,23 @@ fn maybe_hydrate_file_product_media(
       status
       preview { image { url width height } }
       image { url width height }
-      references(first: 10) { nodes { ... on Product { id title handle status } } }
+      references(first: 10) {
+        nodes {
+          ... on Product {
+            id
+            title
+            handle
+            status
+            variants(first: 50) {
+              nodes {
+                id
+                title
+                media(first: 10) { nodes { id } }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -1799,6 +1837,12 @@ fn hydrate_file_product_media_node(
     case product_record_from_node(product_node, None) {
       Some(product) -> {
         let current = store.upsert_base_products(current, [product])
+        let variants =
+          product_variants_from_product_node(product.id, product_node)
+        let current = case variants {
+          [] -> current
+          _ -> store.upsert_base_product_variants(current, variants)
+        }
         let existing_media =
           store.get_effective_media_by_product_id(current, product.id)
         case product_media_list_has_file(existing_media, file_id) {
@@ -1824,10 +1868,100 @@ fn hydrate_file_product_media_node(
   })
 }
 
+fn hydrate_product_relations_from_response(
+  store: Store,
+  value: commit.JsonValue,
+  fallback_id: String,
+) -> Store {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "product") {
+        Some(product_node) ->
+          case product_record_from_node(product_node, Some(fallback_id)) {
+            Some(product) -> {
+              let media =
+                product_media_from_product_node(product.id, product_node)
+              let variants =
+                product_variants_from_product_node(product.id, product_node)
+              store
+              |> store.upsert_base_products([product])
+              |> store.replace_base_media_for_product(product.id, media)
+              |> store.upsert_base_product_variants(variants)
+            }
+            None -> store
+          }
+        None -> store
+      }
+    None -> store
+  }
+}
+
 fn referenced_product_nodes(node: commit.JsonValue) -> List(commit.JsonValue) {
   case json_get(node, "references") {
     Some(references) -> json_array(json_get(references, "nodes"))
     None -> []
+  }
+}
+
+fn product_media_from_product_node(
+  product_id: String,
+  node: commit.JsonValue,
+) -> List(ProductMediaRecord) {
+  case json_get(node, "media") {
+    Some(media_connection) ->
+      json_array(json_get(media_connection, "nodes"))
+      |> enumerate_json
+      |> list.filter_map(fn(entry) {
+        let #(media_node, index) = entry
+        case
+          product_hydration.product_media_from_json(
+            product_id,
+            media_node,
+            index,
+          )
+        {
+          Some(media) -> Ok(media)
+          None -> Error(Nil)
+        }
+      })
+    None -> []
+  }
+}
+
+fn product_variants_from_product_node(
+  product_id: String,
+  node: commit.JsonValue,
+) -> List(ProductVariantRecord) {
+  case json_get(node, "variants") {
+    Some(variant_connection) ->
+      json_array(json_get(variant_connection, "nodes"))
+      |> list.filter_map(fn(variant_node) {
+        case
+          product_hydration.product_variant_from_json(product_id, variant_node)
+        {
+          Some(variant) -> Ok(variant)
+          None -> Error(Nil)
+        }
+      })
+    None -> []
+  }
+}
+
+fn enumerate_json(
+  items: List(commit.JsonValue),
+) -> List(#(commit.JsonValue, Int)) {
+  enumerate_json_loop(items, 0, [])
+}
+
+fn enumerate_json_loop(
+  items: List(commit.JsonValue),
+  index: Int,
+  acc: List(#(commit.JsonValue, Int)),
+) -> List(#(commit.JsonValue, Int)) {
+  case items {
+    [] -> list.fold(acc, [], fn(reversed, item) { [item, ..reversed] })
+    [item, ..rest] ->
+      enumerate_json_loop(rest, index + 1, [#(item, index), ..acc])
   }
 }
 
@@ -1869,20 +2003,6 @@ fn product_media_record_from_node(
         |> option.then(fn(value) { json_get_string(value, "url") }),
       ),
   )
-}
-
-fn product_record_from_hydrate(
-  value: commit.JsonValue,
-  fallback_id: String,
-) -> Option(ProductRecord) {
-  case json_get(value, "data") {
-    Some(data) ->
-      case non_null_node(json_get(data, "product")) {
-        Some(product) -> product_record_from_node(product, Some(fallback_id))
-        None -> None
-      }
-    None -> None
-  }
 }
 
 fn product_record_from_node(

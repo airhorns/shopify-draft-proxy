@@ -1,0 +1,40 @@
+{
+  "fixtureKind": "local-runtime-mobile-platform-application-create-blank-application-id",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for mobilePlatformApplicationCreate platform id presence validation.",
+  "expected": {
+    "primary": {
+      "data": {
+        "blankAndroid": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["mobilePlatformApplication", "android", "applicationId"],
+              "message": "Application can't be blank"
+            }
+          ]
+        },
+        "blankApple": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["mobilePlatformApplication", "apple", "appId"],
+              "message": "App can't be blank"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "Core mobile platform application create behavior",
+    "notes": [
+      "The supported proxy mutation must reject blank platform identifiers locally without staging mobile platform application records."
+    ]
+  },
+  "upstreamCalls": []
+}

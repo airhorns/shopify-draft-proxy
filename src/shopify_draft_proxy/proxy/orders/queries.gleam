@@ -366,7 +366,12 @@ pub fn serialize_query_field(
         Some(id) ->
           case store.get_draft_order_by_id(store, id) {
             Some(draft_order) ->
-              serialize_draft_order_node(field, draft_order, fragments)
+              serialize_draft_order_node(
+                Some(store),
+                field,
+                draft_order,
+                fragments,
+              )
             None -> json.null()
           }
         None -> json.null()

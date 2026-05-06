@@ -15,16 +15,17 @@ import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
   type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
-  type MetafieldDefinitionValidationRecord, type ProductRecord,
-  type ProductVariantRecord, type SellingPlanGroupRecord, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, ProductCollectionRecord,
-  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, SellingPlanGroupRecord,
+  type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
+  type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
+  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryQuantityRecord, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  SellingPlanGroupRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -50,6 +51,20 @@ fn graphql_request_body(body: String) -> Request {
     path: "/admin/api/2025-01/graphql.json",
     headers: empty_headers(),
     body: body,
+  )
+}
+
+fn graphql_request_with_variables(
+  query: String,
+  variables: json.Json,
+) -> Request {
+  graphql_request_body(
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #("variables", variables),
+      ]),
+    ),
   )
 }
 
@@ -87,6 +102,63 @@ fn assert_combined_listing_user_error(
   assert string.contains(body, "\"code\":\"" <> code <> "\"")
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Failed
+}
+
+fn assert_product_variant_media_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
+pub fn product_variant_append_media_rejects_variant_from_other_product_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/child\\\", mediaIds: [\\\"gid://shopify/MediaImage/ready\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+    "[\"variantMedia\",\"0\",\"variantId\"]",
+    "Variant does not exist on the specified product.",
+  )
+}
+
+pub fn product_variant_append_media_rejects_media_from_other_product_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/child\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+    "[\"variantMedia\",\"0\",\"mediaIds\"]",
+    "Media does not exist on the specified product.",
+  )
+}
+
+pub fn product_variant_append_media_rejects_processing_media_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/processing\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "NON_READY_MEDIA",
+    "[\"variantMedia\",\"0\",\"mediaIds\"]",
+    "Non-ready media cannot be attached to variants.",
+  )
+}
+
+pub fn product_variant_detach_media_rejects_unattached_media_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantDetachMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/ready\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "MEDIA_IS_NOT_ATTACHED_TO_VARIANT",
+    "[\"variantMedia\",\"0\",\"variantId\"]",
+    "The specified media is not attached to the specified variant.",
+  )
 }
 
 fn assert_selling_plan_group_create_user_error(
@@ -280,8 +352,176 @@ fn graphql_document_request(query: String) -> Request {
   )
 }
 
+pub fn product_full_sync_unknown_feed_returns_not_found_test() {
+  let query =
+    "mutation ProductFullSyncUnknown($id: ID!) { productFullSync(id: $id) { id userErrors { field message code } } }"
+  let variables =
+    json.object([
+      #("id", json.string("gid://shopify/ProductFeed/999999999")),
+    ])
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_with_variables(query, variables),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productFullSync\":{\"id\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"ProductFeed does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_full_sync_returns_pollable_job_test() {
+  let create_query =
+    "mutation ProductFeedCreateForSync($input: ProductFeedInput) { productFeedCreate(input: $input) { productFeed { id } userErrors { field message code } } }"
+  let create_variables =
+    json.object([
+      #(
+        "input",
+        json.object([
+          #("country", json.string("US")),
+          #("language", json.string("EN")),
+        ]),
+      ),
+    ])
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_with_variables(create_query, create_variables),
+    )
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productFeedCreate\":{\"productFeed\":{\"id\":\"gid://shopify/ProductFeed/US-EN\"},\"userErrors\":[]}}}"
+
+  let sync_query =
+    "mutation ProductFullSyncJob($id: ID!) { productFullSync(id: $id) { __typename id job { __typename id done query { __typename } } userErrors { field message code } } }"
+  let sync_variables =
+    json.object([#("id", json.string("gid://shopify/ProductFeed/US-EN"))])
+  let #(Response(status: sync_status, body: sync_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_with_variables(sync_query, sync_variables),
+    )
+
+  assert sync_status == 200
+  assert json.to_string(sync_body)
+    == "{\"data\":{\"productFullSync\":{\"__typename\":\"ProductFullSyncPayload\",\"id\":\"gid://shopify/ProductFeed/US-EN\",\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/2\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}},\"userErrors\":[]}}}"
+
+  let job_query =
+    "query ProductFullSyncJobPoll($id: ID!) { job(id: $id) { __typename id done query { __typename } } }"
+  let job_variables = json.object([#("id", json.string("gid://shopify/Job/2"))])
+  let #(Response(status: job_status, body: job_body, ..), next_proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_with_variables(job_query, job_variables),
+    )
+
+  assert job_status == 200
+  assert json.to_string(job_body)
+    == "{\"data\":{\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/2\",\"done\":false,\"query\":{\"__typename\":\"QueryRoot\"}}}}"
+  let assert [_, sync_entry] = store.get_log(next_proxy.store)
+  assert sync_entry.staged_resource_ids
+    == ["gid://shopify/ProductFeed/US-EN", "gid://shopify/Job/2"]
+}
+
 fn valid_selling_plan_input() -> String {
   "name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 1, minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 1, cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }]"
+}
+
+pub fn product_feedback_invalid_state_uses_resource_feedback_enum_coercion_test() {
+  let query =
+    "mutation { bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: BANANAS, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }]) { feedback { productId } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+  )
+  assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn shop_feedback_invalid_state_uses_resource_feedback_enum_coercion_test() {
+  let query =
+    "mutation { shopResourceFeedbackCreate(input: { state: BANANAS, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }) { feedback { state } userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+  )
+  assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn product_feedback_create_rejects_validation_errors_without_staging_test() {
+  let too_long_message = string.repeat("x", times: 101)
+  let batch_input =
+    string.repeat(
+      "{ productId: \\\"gid://shopify/Product/optioned\\\", state: ACCEPTED, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] },",
+      times: 51,
+    )
+  let query =
+    "mutation { blankMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }]) { feedback { productId } userErrors { field message code } } futureGeneratedAt: bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: ACCEPTED, feedbackGeneratedAt: \\\"2099-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }]) { feedback { productId } userErrors { field message code } } tooLongMessage: bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [\\\""
+    <> too_long_message
+    <> "\\\"] }]) { feedback { productId } userErrors { field message code } } batchTooLong: bulkProductResourceFeedbackCreate(feedbackInput: ["
+    <> batch_input
+    <> "]) { feedback { productId } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"blankMessages\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\",\"0\",\"messages\"],\"message\":\"Messages can't be blank\",\"code\":\"BLANK\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"futureGeneratedAt\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\",\"0\",\"feedbackGeneratedAt\"],\"message\":\"Feedback generated at must not be in the future\",\"code\":\"INVALID\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"tooLongMessage\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\",\"0\",\"messages\",\"0\"],\"message\":\"Message is too long (maximum is 100 characters)\",\"code\":\"TOO_LONG\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"batchTooLong\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\"],\"message\":\"Feedback cannot contain more than 50 entries\",\"code\":\"TOO_LONG\"}]}",
+  )
+  assert store.get_effective_product_resource_feedback(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+    == None
+}
+
+pub fn shop_feedback_create_rejects_validation_errors_without_staging_test() {
+  let too_long_message = string.repeat("x", times: 101)
+  let query =
+    "mutation { blankMessages: shopResourceFeedbackCreate(input: { state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }) { feedback { state } userErrors { field message code } } futureGeneratedAt: shopResourceFeedbackCreate(input: { state: ACCEPTED, feedbackGeneratedAt: \\\"2099-01-01T00:00:00Z\\\", messages: [] }) { feedback { state } userErrors { field message code } } tooLongMessage: shopResourceFeedbackCreate(input: { state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [\\\""
+    <> too_long_message
+    <> "\\\"] }) { feedback { state } userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"blankMessages\":{\"feedback\":null,\"userErrors\":[{\"field\":[\"feedback\",\"messages\"],\"message\":\"Messages can't be blank\",\"code\":\"BLANK\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"futureGeneratedAt\":{\"feedback\":null,\"userErrors\":[{\"field\":[\"feedback\",\"feedbackGeneratedAt\"],\"message\":\"Feedback generated at must not be in the future\",\"code\":\"INVALID\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"tooLongMessage\":{\"feedback\":null,\"userErrors\":[{\"field\":[\"feedback\",\"messages\",\"0\"],\"message\":\"Message is too long (maximum is 100 characters)\",\"code\":\"TOO_LONG\"}]}",
+  )
+  assert store.get_log(next_proxy.store) != []
 }
 
 pub fn selling_plan_group_create_rejects_group_input_validation_errors_test() {
@@ -338,6 +578,18 @@ pub fn selling_plan_group_create_rejects_nested_plan_validation_errors_test() {
     "BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME",
     "[\"input\",\"sellingPlansToCreate\",\"0\"]",
     "billing and delivery policy types must be the same.",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Zero interval\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 0, minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 0, cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "GREATER_THAN",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"billingPolicy\",\"recurring\",\"intervalCount\"]",
+    "Interval count must be greater than 0",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Anchor mismatch\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 1, anchors: [{ type: MONTHDAY, day: 1 }], minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 1, anchors: [{ type: MONTHDAY, day: 2 }], cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL",
+    "[\"input\",\"sellingPlansToCreate\",\"0\"]",
+    "Billing and delivery policy anchors must be the same",
   )
 }
 
@@ -544,7 +796,7 @@ pub fn product_join_selling_plan_groups_enforces_31_group_cap_test() {
   assert status == 200
   assert string.contains(
     serialized,
-    "\"code\":\"TOO_MANY_SELLING_PLAN_GROUPS\"",
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
   )
   assert store.list_effective_selling_plan_groups_for_product(
       next_proxy.store,
@@ -603,7 +855,7 @@ pub fn product_variant_join_selling_plan_groups_enforces_31_group_cap_test() {
   assert status == 200
   assert string.contains(
     serialized,
-    "\"code\":\"TOO_MANY_SELLING_PLAN_GROUPS\"",
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
   )
   assert store.list_effective_selling_plan_groups_for_product_variant(
       next_proxy.store,
@@ -634,6 +886,169 @@ pub fn product_variant_leave_selling_plan_groups_rejects_non_member_test() {
   assert status == 200
   assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
   assert string.contains(serialized, "\"code\":\"NOT_A_MEMBER\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn selling_plan_group_add_products_rejects_unknown_and_mixed_duplicate_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+          selling_plan_group(
+            "gid://shopify/SellingPlanGroup/one",
+            [
+              "gid://shopify/Product/optioned",
+            ],
+            [],
+          ),
+        ])
+        |> store.upsert_base_products([
+          ProductRecord(
+            ..default_product(),
+            id: "gid://shopify/Product/second",
+            title: "Second Board",
+            handle: "second-board",
+          ),
+        ]),
+    )
+
+  let unknown_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\"gid://shopify/SellingPlanGroup/one\\\", productIds: [\\\"gid://shopify/Product/missing\\\"]) { sellingPlanGroup { id } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(unknown_query))
+  let unknown_serialized = json.to_string(unknown_body)
+
+  assert unknown_status == 200
+  assert string.contains(unknown_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(unknown_serialized, "\"field\":[\"productIds\"]")
+  assert string.contains(unknown_serialized, "\"code\":\"NOT_FOUND\"")
+
+  let duplicate_query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\"gid://shopify/SellingPlanGroup/one\\\", productIds: [\\\"gid://shopify/Product/optioned\\\", \\\"gid://shopify/Product/second\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+  let duplicate_serialized = json.to_string(duplicate_body)
+
+  assert duplicate_status == 200
+  assert string.contains(duplicate_serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(duplicate_serialized, "\"code\":\"TAKEN\"")
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      proxy.store,
+      "gid://shopify/SellingPlanGroup/one",
+    )
+  assert group.product_ids == ["gid://shopify/Product/optioned"]
+}
+
+pub fn selling_plan_group_add_product_variants_rejects_mixed_duplicate_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+          selling_plan_group("gid://shopify/SellingPlanGroup/one", [], [
+            "gid://shopify/ProductVariant/default",
+          ]),
+        ])
+        |> store.upsert_base_product_variants([
+          ProductVariantRecord(
+            ..default_variant(),
+            id: "gid://shopify/ProductVariant/second",
+          ),
+        ]),
+    )
+  let query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\"gid://shopify/SellingPlanGroup/one\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\", \\\"gid://shopify/ProductVariant/second\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(serialized, "\"code\":\"TAKEN\"")
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/one",
+    )
+  assert group.product_variant_ids == ["gid://shopify/ProductVariant/default"]
+}
+
+pub fn selling_plan_group_add_products_enforces_31_group_cap_test() {
+  let existing_groups =
+    numbered_selling_plan_group_ids(31)
+    |> list.map(fn(id) {
+      selling_plan_group(id, ["gid://shopify/Product/optioned"], [])
+    })
+  let target_group =
+    selling_plan_group("gid://shopify/SellingPlanGroup/32", [], [])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([target_group, ..existing_groups]),
+    )
+  let query =
+    "mutation { sellingPlanGroupAddProducts(id: \\\"gid://shopify/SellingPlanGroup/32\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { sellingPlanGroup { id productsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(
+    serialized,
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
+  )
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/32",
+    )
+  assert group.product_ids == []
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn selling_plan_group_add_product_variants_enforces_31_group_cap_test() {
+  let existing_groups =
+    numbered_selling_plan_group_ids(31)
+    |> list.map(fn(id) {
+      selling_plan_group(id, [], ["gid://shopify/ProductVariant/default"])
+    })
+  let target_group =
+    selling_plan_group("gid://shopify/SellingPlanGroup/32", [], [])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([target_group, ..existing_groups]),
+    )
+  let query =
+    "mutation { sellingPlanGroupAddProductVariants(id: \\\"gid://shopify/SellingPlanGroup/32\\\", productVariantIds: [\\\"gid://shopify/ProductVariant/default\\\"]) { sellingPlanGroup { id productVariantsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"sellingPlanGroup\":null")
+  assert string.contains(
+    serialized,
+    "\"code\":\"SELLING_PLAN_GROUPS_TOO_MANY\"",
+  )
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/32",
+    )
+  assert group.product_variant_ids == []
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Failed
   assert entry.staged_resource_ids == []
@@ -4247,6 +4662,57 @@ fn child_variant() -> ProductVariantRecord {
       ),
     ),
   )
+}
+
+fn product_media_record(
+  id: String,
+  product_id: String,
+  position: Int,
+  status: String,
+) -> ProductMediaRecord {
+  ProductMediaRecord(
+    key: product_id <> ":" <> id,
+    product_id: product_id,
+    position: position,
+    id: Some(id),
+    media_content_type: Some("IMAGE"),
+    alt: None,
+    status: Some(status),
+    product_image_id: None,
+    image_url: None,
+    image_width: None,
+    image_height: None,
+    preview_image_url: None,
+    source_url: None,
+  )
+}
+
+fn variant_media_validation_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([default_product(), child_product()])
+  |> store.upsert_base_product_variants([default_variant(), child_variant()])
+  |> store.replace_base_media_for_product("gid://shopify/Product/optioned", [
+    product_media_record(
+      "gid://shopify/MediaImage/ready",
+      "gid://shopify/Product/optioned",
+      0,
+      "READY",
+    ),
+    product_media_record(
+      "gid://shopify/MediaImage/processing",
+      "gid://shopify/Product/optioned",
+      1,
+      "PROCESSING",
+    ),
+  ])
+  |> store.replace_base_media_for_product("gid://shopify/Product/child", [
+    product_media_record(
+      "gid://shopify/MediaImage/child",
+      "gid://shopify/Product/child",
+      0,
+      "READY",
+    ),
+  ])
 }
 
 fn default_variant() -> ProductVariantRecord {
