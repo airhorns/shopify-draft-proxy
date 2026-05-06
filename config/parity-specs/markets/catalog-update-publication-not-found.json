@@ -1,0 +1,68 @@
+{
+  "scenarioId": "catalog-update-publication-not-found",
+  "operationNames": ["catalogCreate", "catalogUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-relation-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable catalog, then proves catalogUpdate rejects an unknown publicationId before staging relation changes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-setup",
+        "capturePath": "$.cases[5].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[5].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[5].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "catalog-update-publication-not-found",
+        "capturePath": "$.cases[6].response.payload.data.catalogUpdate",
+        "proxyPath": "$.data.catalogUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "input": {
+              "publicationId": {
+                "fromCapturePath": "$.cases[6].variables.input.publicationId"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

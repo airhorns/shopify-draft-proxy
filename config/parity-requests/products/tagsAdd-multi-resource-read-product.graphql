@@ -1,0 +1,7 @@
+query TagsMultiResourceProductRead($productId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    tags
+  }
+}

@@ -1,0 +1,18 @@
+mutation CustomerMergeBlockerGiftCardCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      enabled
+      customer {
+        id
+        email
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

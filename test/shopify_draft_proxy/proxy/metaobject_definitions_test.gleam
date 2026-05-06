@@ -2,7 +2,7 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/draft_proxy
@@ -99,6 +99,40 @@ fn create_definition_query(type_: String) -> String {
         capabilities { publishable { enabled } translatable { enabled } }
         fieldDefinitions { key name required type { name category } }
         metaobjectsCount
+      }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn create_definition_with_capabilities_query(type_: String) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"Codex Capability Rows\",
+      displayNameKey: \"title\",
+      capabilities: {
+        publishable: { enabled: true },
+        translatable: { enabled: true },
+        renderable: { enabled: true },
+        onlineStore: { enabled: true }
+      },
+      fieldDefinitions: [
+        { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true },
+        { key: \"count\", name: \"Count\", type: \"number_integer\", required: false }
+      ]
+    }) {
+      metaobjectDefinition {
+        id
+        type
+        name
+        capabilities {
+          publishable { enabled }
+          translatable { enabled }
+          renderable { enabled }
+          onlineStore { enabled }
+        }
+        fieldDefinitions { key type { name category } }
       }
       userErrors { field message code elementKey elementIndex }
     }
@@ -438,6 +472,118 @@ pub fn standard_definition_enable_existing_type_is_idempotent_test() {
   assert first.identity == second.identity
 }
 
+pub fn definition_update_rejects_standard_template_definition_test() {
+  let enabled =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query("shopify--qa-pair"),
+    )
+
+  let update =
+    run_mutation(
+      enabled.store,
+      enabled.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Renamed\",
+            fieldDefinitions: [{ delete: { key: \"answer\" } }]
+          }
+        ) {
+          metaobjectDefinition { id name standardTemplate { type name } fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Standard metaobject definitions can't be updated\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { name standardTemplate { type name } fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinition\":{\"name\":\"Question and Answer Pairs\",\"standardTemplate\":{\"type\":\"shopify--qa-pair\",\"name\":\"Question and Answer Pairs\"},\"fieldDefinitions\":[{\"key\":\"question\"},{\"key\":\"answer\"},{\"key\":\"sources\"}]}}}"
+}
+
+pub fn definition_update_rejects_standard_type_even_without_template_metadata_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("shopify--qa-pair"),
+    )
+
+  let update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Renamed\",
+            description: \"Changed\",
+            fieldDefinitions: [{ delete: { key: \"body\" } }]
+          }
+        ) {
+          metaobjectDefinition { id name description fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Standard metaobject definitions can't be updated\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { name description fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinition\":{\"name\":\"Codex Rows\",\"description\":null,\"fieldDefinitions\":[{\"key\":\"title\"},{\"key\":\"body\"}]}}}"
+}
+
+pub fn definition_update_rejects_shopify_reserved_namespace_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("shopify--not-a-standard-template"),
+    )
+
+  let update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Renamed\",
+            fieldDefinitions: [{ delete: { key: \"body\" } }]
+          }
+        ) {
+          metaobjectDefinition { id name fieldDefinitions { key } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Standard metaobject definitions can't be updated\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinitionByType(type: \"shopify--not-a-standard-template\") { name fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"name\":\"Codex Rows\",\"fieldDefinitions\":[{\"key\":\"title\"},{\"key\":\"body\"}]}}}"
+}
+
 pub fn definition_create_rejects_invalid_field_key_test() {
   let outcome =
     run_mutation(
@@ -729,6 +875,184 @@ pub fn definition_update_validates_field_definition_input_test() {
       }")
   assert json.to_string(too_many.data)
     == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_update_rejects_capability_disables_atomically_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_capabilities_query("codex_capability_disable"),
+    )
+
+  let entry =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_capability_disable\",
+          handle: \"draft-row\",
+          fields: [
+            { key: \"title\", value: \"Draft row\" },
+            { key: \"count\", value: \"4\" }
+          ]
+        }) {
+          metaobject { id capabilities { publishable { status } } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert json.to_string(entry.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"capabilities\":{\"publishable\":{\"status\":\"DRAFT\"}}},\"userErrors\":[]}}}"
+
+  let update =
+    run_mutation(
+      entry.store,
+      entry.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Should Not Persist\",
+            capabilities: {
+              publishable: { enabled: false },
+              onlineStore: { enabled: false },
+              renderable: { enabled: false }
+            }
+          }
+        ) {
+          metaobjectDefinition { id name capabilities { publishable { enabled } onlineStore { enabled } renderable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"publishable\"],\"message\":\"Cannot disable publishable while draft metaobjects exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null},{\"field\":[\"definition\",\"capabilities\",\"onlineStore\"],\"message\":\"Cannot disable online store while metaobjects exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null},{\"field\":[\"definition\",\"capabilities\",\"renderable\"],\"message\":\"Cannot disable renderable while metaobjects exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinitionByType(type: \"codex_capability_disable\") { name capabilities { publishable { enabled } onlineStore { enabled } renderable { enabled } translatable { enabled } } metaobjectsCount } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"name\":\"Codex Capability Rows\",\"capabilities\":{\"publishable\":{\"enabled\":true},\"onlineStore\":{\"enabled\":true},\"renderable\":{\"enabled\":true},\"translatable\":{\"enabled\":true}},\"metaobjectsCount\":1}}}"
+}
+
+pub fn definition_update_rejects_translatable_disable_with_translations_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_capabilities_query("codex_translatable_disable"),
+    )
+  let entry =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_translatable_disable\",
+          handle: \"translated-row\",
+          fields: [{ key: \"title\", value: \"Translated row\" }]
+        }) {
+          metaobject { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let #(_, translated_store) =
+    store.stage_translation(
+      entry.store,
+      state_types.TranslationRecord(
+        resource_id: "gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic",
+        key: "title",
+        locale: "fr",
+        value: "Ligne traduite",
+        translatable_content_digest: "digest-title",
+        market_id: None,
+        updated_at: "2024-01-01T00:00:03.000Z",
+        outdated: False,
+      ),
+    )
+
+  let update =
+    run_mutation(
+      translated_store,
+      entry.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { capabilities: { translatable: { enabled: false } } }
+        ) {
+          metaobjectDefinition { id capabilities { translatable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"translatable\"],\"message\":\"Cannot disable translatable while translations exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_update_validates_renderable_enable_data_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_renderable_enable",
+        "title",
+        ["title"],
+      ),
+    )
+
+  let missing =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Should Not Persist\",
+            capabilities: { renderable: { enabled: true, data: { metaTitleKey: \"missing\" } } }
+          }
+        ) {
+          metaobjectDefinition { id name capabilities { renderable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(missing.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"renderable\"],\"message\":\"Field definition \\\"missing\\\" does not exist\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let with_number_field =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            fieldDefinitions: [{ create: { key: \"count\", name: \"Count\", type: \"number_integer\" } }],
+            capabilities: { renderable: { enabled: true, data: { metaDescriptionKey: \"count\" } } }
+          }
+        ) {
+          metaobjectDefinition { id capabilities { renderable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(with_number_field.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"renderable\"],\"message\":\"Renderable Capability \\\"meta_description_key\\\" cannot reference the field definition \\\"count\\\" of type \\\"number_integer\\\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed.\",\"code\":\"FIELD_TYPE_INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      missing.store,
+      "{ metaobjectDefinitionByType(type: \"codex_renderable_enable\") { name capabilities { renderable { enabled } } fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"name\":\"Codex Rows\",\"capabilities\":{\"renderable\":{\"enabled\":false}},\"fieldDefinitions\":[{\"key\":\"title\"}]}}}"
 }
 
 pub fn definition_and_entry_lifecycle_stages_locally_test() {

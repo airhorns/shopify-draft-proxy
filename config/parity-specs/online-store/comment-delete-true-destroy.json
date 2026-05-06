@@ -1,0 +1,48 @@
+{
+  "scenarioId": "comment-delete-true-destroy",
+  "operationNames": ["article", "comment", "comments", "commentApprove", "commentDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "downstream-read-parity", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/comment-delete-true-destroy.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/comment-delete-true-destroy-approve.graphql",
+    "variablesCapturePath": "$.approve.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "commentApprove publishes the disposable comment",
+        "capturePath": "$.approve.response.data.commentApprove",
+        "proxyPath": "$.data.commentApprove"
+      },
+      {
+        "name": "commentDelete returns the deleted comment id",
+        "capturePath": "$.delete.response.data.commentDelete",
+        "proxyPath": "$.data.commentDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/comment-delete-true-destroy-delete.graphql",
+          "variablesCapturePath": "$.delete.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "deleted comment disappears from root and article connection reads",
+        "capturePath": "$.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/comment-delete-true-destroy-read.graphql",
+          "variablesCapturePath": "$.readAfterDelete.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture creates a disposable moderated blog/article plus one REST-created article comment, approves the comment through Admin GraphQL, records the pre-delete comment/article graph as the parity cassette, deletes the comment through Admin GraphQL, then proves root and Article.comments connections exclude the deleted row and Article.commentsCount is decremented to zero. Direct comment(id:) after true destroy is kept in the capture for evidence, but public Admin 2025-01/2026-04 returned top-level INTERNAL_SERVER_ERROR rather than a stable null payload for the destroyed id, so executable direct-null behavior is covered by focused runtime tests. Proxy replay hydrates the existing upstream comment/article graph through the cassette before staging the supported commentDelete locally."
+}

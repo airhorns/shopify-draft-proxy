@@ -60,8 +60,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, CapturedArray, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, OrderRecord,
+  type CapturedJsonValue, type OrderRecord, CapturedArray, CapturedInt,
+  CapturedNull, CapturedObject, CapturedString, OrderRecord,
 }
 
 @internal
@@ -163,16 +163,20 @@ pub fn handle_return_lifecycle_mutation(
           user_errors,
           fragments,
         )
-      let staged_ids = case order_return {
-        Some(value) ->
+      let idempotent_noop = next_store == store && user_errors == []
+      let staged_ids = case idempotent_noop, order_return {
+        True, _ -> []
+        False, Some(value) ->
           captured_string_field(value, "id")
           |> option.map(fn(id) { [id] })
           |> option.unwrap([])
-        None -> []
+        False, None -> []
       }
-      #(key, payload, next_store, next_identity, staged_ids, [
-        return_log_draft(root_name, staged_ids, user_errors),
-      ])
+      let log_drafts = case idempotent_noop {
+        True -> []
+        False -> [return_log_draft(root_name, staged_ids, user_errors)]
+      }
+      #(key, payload, next_store, next_identity, staged_ids, log_drafts)
     }
     "removeFromReturn" -> {
       let args = field_arguments(field, variables)
@@ -459,47 +463,132 @@ pub fn apply_return_status_update(
           ])
         Some(match) -> {
           let #(order, order_return) = match
-          let #(closed_at, identity_after_closed) = case status {
-            "CLOSED" -> {
-              let #(timestamp, after_closed) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              #(CapturedString(timestamp), after_closed)
+          case return_status_transition_error(status, order_return) {
+            Some(error) -> {
+              let #(message, code) = error
+              ReturnMutationResult(Some(order), None, store, identity, [
+                user_error(["id"], message, Some(code)),
+              ])
             }
-            _ -> #(CapturedNull, identity)
+            None ->
+              apply_allowed_return_status_update(
+                store,
+                identity,
+                order,
+                order_return,
+                return_id,
+                status,
+              )
           }
-          let #(updated_at, next_identity) =
-            synthetic_identity.make_synthetic_timestamp(identity_after_closed)
-          let updated_return =
-            replace_captured_object_fields(order_return, [
-              #("status", CapturedString(status)),
-              #("closedAt", closed_at),
-            ])
-          let returns =
-            order_returns(order.data)
-            |> list.map(fn(candidate) {
-              case captured_string_field(candidate, "id") == Some(return_id) {
-                True -> updated_return
-                False -> candidate
-              }
-            })
-          let updated_order =
-            OrderRecord(
-              ..order,
-              data: replace_captured_object_fields(order.data, [
-                #("updatedAt", CapturedString(updated_at)),
-                #("returns", CapturedArray(returns)),
-              ]),
-            )
-          ReturnMutationResult(
-            Some(updated_order),
-            Some(updated_return),
-            store.stage_order(store, updated_order),
-            next_identity,
-            [],
-          )
         }
       }
   }
+}
+
+fn apply_allowed_return_status_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  order: OrderRecord,
+  order_return: CapturedJsonValue,
+  return_id: String,
+  status: String,
+) -> ReturnMutationResult {
+  case captured_string_field(order_return, "status") == Some(status) {
+    True ->
+      ReturnMutationResult(Some(order), Some(order_return), store, identity, [])
+    False -> {
+      let #(closed_at, identity_after_closed) = case status {
+        "CLOSED" -> {
+          let #(timestamp, after_closed) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          #(CapturedString(timestamp), after_closed)
+        }
+        _ -> #(CapturedNull, identity)
+      }
+      let #(updated_at, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity_after_closed)
+      let updated_return =
+        replace_captured_object_fields(order_return, [
+          #("status", CapturedString(status)),
+          #("closedAt", closed_at),
+        ])
+      let returns =
+        order_returns(order.data)
+        |> list.map(fn(candidate) {
+          case captured_string_field(candidate, "id") == Some(return_id) {
+            True -> updated_return
+            False -> candidate
+          }
+        })
+      let updated_order =
+        OrderRecord(
+          ..order,
+          data: replace_captured_object_fields(order.data, [
+            #("updatedAt", CapturedString(updated_at)),
+            #("returns", CapturedArray(returns)),
+          ]),
+        )
+      ReturnMutationResult(
+        Some(updated_order),
+        Some(updated_return),
+        store.stage_order(store, updated_order),
+        next_identity,
+        [],
+      )
+    }
+  }
+}
+
+fn return_status_transition_error(
+  target_status: String,
+  order_return: CapturedJsonValue,
+) -> Option(#(String, String)) {
+  let current_status =
+    captured_string_field(order_return, "status") |> option.unwrap("")
+  case target_status {
+    "CLOSED" ->
+      case
+        current_status == "CLOSED"
+        || current_status == "OPEN"
+        || {
+          current_status == "REQUESTED"
+          && list.is_empty(order_return_line_items(order_return))
+        }
+      {
+        True -> None
+        False ->
+          Some(#("Return status is invalid.", user_error_codes.invalid_state))
+      }
+    "OPEN" ->
+      case current_status == "CLOSED" || current_status == "OPEN" {
+        True -> None
+        False ->
+          Some(#("Return status is invalid.", user_error_codes.invalid_state))
+      }
+    "CANCELED" ->
+      case
+        current_status == "CANCELED"
+        || !return_has_processed_or_refunded_line_items(order_return)
+      {
+        True -> None
+        False ->
+          Some(#("Return is not cancelable.", user_error_codes.invalid_state))
+      }
+    _ -> None
+  }
+}
+
+fn return_has_processed_or_refunded_line_items(
+  order_return: CapturedJsonValue,
+) -> Bool {
+  order_return_line_items(order_return)
+  |> list.any(fn(line_item) {
+    let processed_quantity =
+      captured_int_field(line_item, "processedQuantity") |> option.unwrap(0)
+    let refunded_quantity =
+      captured_int_field(line_item, "refundedQuantity") |> option.unwrap(0)
+    processed_quantity > 0 || refunded_quantity > 0
+  })
 }
 
 @internal

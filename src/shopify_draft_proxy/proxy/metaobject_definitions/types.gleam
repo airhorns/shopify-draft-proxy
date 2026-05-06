@@ -25,7 +25,7 @@ import shopify_draft_proxy/state/store.{
   type Store, find_effective_metaobject_by_handle,
   find_effective_metaobject_definition_by_type,
   list_effective_metaobject_definitions, list_effective_metaobjects_by_type,
-  upsert_staged_metaobject_definition,
+  translation_storage_key, upsert_staged_metaobject_definition,
 }
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -638,6 +638,28 @@ pub fn apply_definition_update(
   reset_field_order: Bool,
   requesting_api_client_id: Option(String),
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
+  case build_unrecoverable_definition_update_user_errors(existing) {
+    [_, ..] as user_errors -> #(existing, identity, user_errors)
+    [] ->
+      apply_mutable_definition_update(
+        store,
+        identity,
+        existing,
+        input,
+        reset_field_order,
+        requesting_api_client_id,
+      )
+  }
+}
+
+fn apply_mutable_definition_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  reset_field_order: Bool,
+  requesting_api_client_id: Option(String),
+) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
   let #(now, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity)
   let #(fields, user_errors, ordered_keys) =
@@ -669,6 +691,13 @@ pub fn apply_definition_update(
     []
     |> append_definition_name_validation_errors(name)
     |> append_definition_description_validation_errors(description)
+  let capability_errors =
+    build_definition_capability_update_user_errors(
+      store,
+      existing,
+      input,
+      next_fields,
+    )
   let updated =
     MetaobjectDefinitionRecord(
       ..existing,
@@ -699,6 +728,7 @@ pub fn apply_definition_update(
       scalar_errors,
       access_errors,
       user_errors,
+      capability_errors,
       append_field_count_user_errors([], list.length(next_fields), type_),
       append_display_name_key_user_errors(
         [],
@@ -706,6 +736,272 @@ pub fn apply_definition_update(
         list.map(next_fields, fn(field) { field.key }),
       ),
     ]),
+  )
+}
+
+fn build_definition_capability_update_user_errors(
+  store: Store,
+  existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  next_fields: List(MetaobjectFieldDefinitionRecord),
+) -> List(UserError) {
+  case read_object(input, "capabilities") {
+    None -> []
+    Some(capabilities) -> {
+      let metaobjects =
+        list_effective_metaobjects_by_type(store, existing.type_)
+      let has_metaobjects = !list.is_empty(metaobjects)
+      let has_draft_metaobject =
+        list.any(metaobjects, metaobject_has_draft_status)
+      let has_translations =
+        list.any(metaobjects, fn(metaobject) {
+          metaobject_has_effective_translations(store, metaobject)
+        })
+
+      []
+      |> append_if(
+        capability_explicitly_disabled(
+          capabilities,
+          "publishable",
+          existing.capabilities.publishable,
+        )
+          && has_draft_metaobject,
+        definition_capability_invalid_user_error(
+          "publishable",
+          "Cannot disable publishable while draft metaobjects exist.",
+          "INVALID",
+        ),
+      )
+      // Shopify can also block this on route and redirect state that the
+      // draft proxy does not model yet, so any local metaobject of this type is
+      // treated as a possible online-store dependency.
+      |> append_if(
+        capability_explicitly_disabled(
+          capabilities,
+          "onlineStore",
+          existing.capabilities.online_store,
+        )
+          && has_metaobjects,
+        definition_capability_invalid_user_error(
+          "onlineStore",
+          "Cannot disable online store while metaobjects exist.",
+          "INVALID",
+        ),
+      )
+      // The current local definition model stores only the renderable enabled
+      // flag, not the SEO field-reference data. Reject when entries exist
+      // rather than silently staging a transition Shopify may reject.
+      |> append_if(
+        capability_explicitly_disabled(
+          capabilities,
+          "renderable",
+          existing.capabilities.renderable,
+        )
+          && has_metaobjects,
+        definition_capability_invalid_user_error(
+          "renderable",
+          "Cannot disable renderable while metaobjects exist.",
+          "INVALID",
+        ),
+      )
+      |> append_if(
+        capability_explicitly_disabled(
+          capabilities,
+          "translatable",
+          existing.capabilities.translatable,
+        )
+          && has_translations,
+        definition_capability_invalid_user_error(
+          "translatable",
+          "Cannot disable translatable while translations exist.",
+          "INVALID",
+        ),
+      )
+      |> list.append(renderable_enable_user_errors(capabilities, next_fields))
+    }
+  }
+}
+
+fn capability_explicitly_disabled(
+  capabilities: Dict(String, root_field.ResolvedValue),
+  key: String,
+  existing: Option(MetaobjectDefinitionCapabilityRecord),
+) -> Bool {
+  definition_capability_enabled(existing)
+  && case read_object(capabilities, key) {
+    Some(capability) ->
+      case read_bool(capability, "enabled") {
+        Some(False) -> True
+        _ -> False
+      }
+    None -> False
+  }
+}
+
+fn metaobject_has_draft_status(metaobject: MetaobjectRecord) -> Bool {
+  case metaobject.capabilities.publishable {
+    Some(MetaobjectPublishableCapabilityRecord(status: Some(status))) ->
+      string.uppercase(status) == "DRAFT"
+    _ -> False
+  }
+}
+
+fn metaobject_has_effective_translations(
+  store: Store,
+  metaobject: MetaobjectRecord,
+) -> Bool {
+  dict.values(store.base_state.translations)
+  |> list.any(fn(translation) {
+    translation.resource_id == metaobject.id
+    && !dict.has_key(
+      store.staged_state.deleted_translations,
+      translation_storage_key(
+        translation.resource_id,
+        translation.locale,
+        translation.key,
+        translation.market_id,
+      ),
+    )
+  })
+  || {
+    dict.values(store.staged_state.translations)
+    |> list.any(fn(translation) { translation.resource_id == metaobject.id })
+  }
+}
+
+fn renderable_enable_user_errors(
+  capabilities: Dict(String, root_field.ResolvedValue),
+  fields: List(MetaobjectFieldDefinitionRecord),
+) -> List(UserError) {
+  case read_object(capabilities, "renderable") {
+    Some(renderable) ->
+      case read_bool(renderable, "enabled") {
+        Some(True) ->
+          case read_object(renderable, "data") {
+            Some(data) ->
+              list.append(
+                renderable_field_user_errors(data, fields, "metaTitleKey"),
+                renderable_field_user_errors(data, fields, "metaDescriptionKey"),
+              )
+            None -> []
+          }
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn renderable_field_user_errors(
+  data: Dict(String, root_field.ResolvedValue),
+  fields: List(MetaobjectFieldDefinitionRecord),
+  key: String,
+) -> List(UserError) {
+  case read_string(data, key) {
+    Some(field_key) ->
+      case find_field_definition(fields, field_key) {
+        None -> [
+          definition_capability_invalid_user_error(
+            "renderable",
+            "Field definition \"" <> field_key <> "\" does not exist",
+            "INVALID",
+          ),
+        ]
+        Some(field) ->
+          case is_renderable_text_field_type(field.type_.name) {
+            True -> []
+            _ -> [
+              definition_capability_invalid_user_error(
+                "renderable",
+                "Renderable Capability \""
+                  <> renderable_data_storage_key(key)
+                  <> "\" cannot reference the field definition \""
+                  <> field_key
+                  <> "\" of type \""
+                  <> field.type_.name
+                  <> "\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed.",
+                "FIELD_TYPE_INVALID",
+              ),
+            ]
+          }
+      }
+    None -> []
+  }
+}
+
+fn is_renderable_text_field_type(type_name: String) -> Bool {
+  case type_name {
+    "single_line_text_field" | "multi_line_text_field" | "rich_text_field" ->
+      True
+    _ -> False
+  }
+}
+
+fn definition_capability_invalid_user_error(
+  capability_key: String,
+  message: String,
+  code: String,
+) -> UserError {
+  UserError(
+    Some(["definition", "capabilities", capability_key]),
+    message,
+    code,
+    None,
+    None,
+  )
+}
+
+fn renderable_data_storage_key(input_key: String) -> String {
+  case input_key {
+    "metaDescriptionKey" -> "meta_description_key"
+    _ -> "meta_title_key"
+  }
+}
+
+@internal
+pub fn build_unrecoverable_definition_update_user_errors(
+  existing: MetaobjectDefinitionRecord,
+) -> List(UserError) {
+  case is_standard_or_shopify_reserved_definition(existing) {
+    True -> [standard_definition_immutable_user_error()]
+    False -> []
+  }
+}
+
+@internal
+pub fn is_standard_or_shopify_reserved_definition(
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  is_standard_template_definition(definition)
+  || is_shopify_reserved_definition_type(definition.type_)
+}
+
+@internal
+pub fn is_standard_template_definition(
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  case definition.standard_template {
+    Some(_) -> True
+    None ->
+      case standard_template(definition.type_) {
+        Some(_) -> True
+        None -> False
+      }
+  }
+}
+
+@internal
+pub fn is_shopify_reserved_definition_type(type_: String) -> Bool {
+  string.starts_with(string.lowercase(type_), "shopify--")
+}
+
+@internal
+pub fn standard_definition_immutable_user_error() -> UserError {
+  UserError(
+    Some(["definition"]),
+    "Standard metaobject definitions can't be updated",
+    "IMMUTABLE",
+    None,
+    None,
   )
 }
 

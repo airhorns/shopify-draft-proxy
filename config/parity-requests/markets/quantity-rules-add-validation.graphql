@@ -1,0 +1,18 @@
+mutation QuantityRulesAddValidation($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+  quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+    quantityRules {
+      minimum
+      maximum
+      increment
+      productVariant {
+        id
+      }
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

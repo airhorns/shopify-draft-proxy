@@ -42,8 +42,16 @@ Local staged mutations:
 - `returnDeclineRequest` transitions a local `REQUESTED` return to `DECLINED` and stores the selected decline reason/note.
   Declining a non-`REQUESTED` return returns the same `INVALID` / `return_request_status_invalid` user error and leaves
   local return state unchanged. Customer notification side effects are not sent.
-- `returnCancel`, `returnClose`, and `returnReopen` update the status of known local returns. `returnClose` records a local
-  `closedAt` timestamp; `returnReopen` clears it.
+- `returnClose` transitions `OPEN` returns to `CLOSED` and records a local `closedAt` timestamp. Already `CLOSED`
+  returns are returned unchanged without re-stamping `closedAt` or order `updatedAt`. Other statuses, except
+  line-item-empty `REQUESTED` returns, return `INVALID_STATE` on `["id"]` with Shopify's captured
+  `Return status is invalid.` message and do not mutate local state.
+- `returnReopen` transitions `CLOSED` returns back to `OPEN` and clears `closedAt`. Already `OPEN` returns are returned
+  unchanged without re-stamping order `updatedAt`; non-`CLOSED` / non-`OPEN` returns produce the same captured
+  `INVALID_STATE` status error without staging changes.
+- `returnCancel` transitions cancelable `OPEN` returns to `CANCELED`; already `CANCELED` returns are returned unchanged.
+  Returns with processed or refunded return-line quantities produce `INVALID_STATE` on `["id"]` with Shopify's captured
+  `Return is not cancelable.` message and do not mutate local state.
 - `removeFromReturn` reduces or removes return line quantities, recomputes `totalQuantity`, and syncs the associated
   reverse fulfillment order line quantities. Return line removal quantities must be positive and no greater than the
   removable quantity for that return line. Exchange-line removal remains explicitly unsupported until exchange fixtures
@@ -81,6 +89,9 @@ Local staged mutations:
   shipping update, `NOT_RESTOCKED` reverse-fulfillment disposal, return processing, and downstream reads. Exchange
   processing, carrier label creation, notification sends, refund transfers, duties, and inventory/location movement remain
   explicit unsupported fidelity gaps.
+- Live recorded parity now covers `returnClose`, `returnReopen`, and `returnCancel` status preconditions, success
+  transitions, idempotent no-op branches, and processed-return cancel rejection in
+  `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
 
 ### Blocked roots
 
@@ -110,6 +121,9 @@ Local staged mutations:
   `reverseDeliveryLineItems` replay and `fileUrl` label input normalization. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
+- Return status precondition parity:
+  `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.

@@ -101,6 +101,17 @@ const file_like_gid_types: List(String) = [
   "GenericFile",
 ]
 
+type FileVersionEvidence {
+  FileVersionEvidence(id: String, file_id: String)
+}
+
+type FileVersionHydration {
+  FileVersionHydration(
+    validation_enabled: Bool,
+    evidence: List(FileVersionEvidence),
+  )
+}
+
 @internal
 pub fn is_media_mutation_root(name: String) -> Bool {
   case name {
@@ -310,6 +321,8 @@ fn handle_file_update(
   // or a missing cassette preserves the current local validation failure.
   let store = maybe_hydrate_referenced_products(store, inputs, upstream)
   let store = maybe_hydrate_file_update_targets(store, inputs, upstream)
+  let version_hydration =
+    maybe_hydrate_file_update_revert_versions(inputs, upstream)
   let errors =
     inputs
     |> enumerate_objects
@@ -317,6 +330,11 @@ fn handle_file_update(
       let #(input, index) = entry
       validate_file_update_input(store, input, index)
     })
+    |> list.append(validate_file_update_revert_versions(
+      inputs,
+      version_hydration,
+    ))
+    |> list.append(validate_file_update_reference_targets(store, inputs))
   case errors {
     [] -> {
       let updated =
@@ -812,33 +830,119 @@ fn validate_file_update_input(
     ]
     _, _ -> []
   }
-  let reference_errors =
-    list.append(
-      read_string_list_field(input, "referencesToAdd"),
-      read_string_list_field(input, "referencesToRemove"),
-    )
-    |> list.flat_map(fn(product_id) {
-      case store.get_effective_product_by_id(store, product_id) {
-        Some(_) -> []
-        None -> [
-          media_types.FilesUserError(
-            ["files", int.to_string(index), "references"],
-            "Product id " <> product_id <> " does not exist.",
-            "INVALID",
-          ),
-        ]
-      }
-    })
   let field_errors =
     id_errors
     |> list.append(alt_errors)
     |> list.append(source_errors)
     |> list.append(conflict_errors)
     |> list.append(source_version_errors)
-    |> list.append(reference_errors)
   case field_errors {
     [] -> validate_file_update_target(store, input, index, id)
     _ -> field_errors
+  }
+}
+
+fn validate_file_update_revert_versions(
+  inputs: List(Dict(String, ResolvedValue)),
+  hydration: FileVersionHydration,
+) -> List(media_types.FilesUserError) {
+  case hydration.validation_enabled {
+    False -> []
+    True -> {
+      let missing_version_ids =
+        inputs
+        |> list.filter_map(fn(input) {
+          case
+            read_string_field(input, "id"),
+            has_source_update(input),
+            read_string_field(input, "revertToVersionId")
+          {
+            Some(file_id), False, Some(version_id)
+              if file_id != "" && version_id != ""
+            ->
+              case
+                file_version_evidence_matches(
+                  hydration.evidence,
+                  version_id,
+                  file_id,
+                )
+              {
+                True -> Error(Nil)
+                False -> Ok(version_id)
+              }
+            _, _, _ -> Error(Nil)
+          }
+        })
+        |> dedupe_strings
+      case missing_version_ids {
+        [] -> []
+        _ -> [
+          media_types.FilesUserError(
+            ["files"],
+            file_version_does_not_exist_message(missing_version_ids),
+            "MEDIA_VERSION_DOES_NOT_EXIST",
+          ),
+        ]
+      }
+    }
+  }
+}
+
+fn file_version_evidence_matches(
+  evidence: List(FileVersionEvidence),
+  version_id: String,
+  file_id: String,
+) -> Bool {
+  list.any(evidence, fn(item) {
+    item.id == version_id && same_shopify_gid_tail(item.file_id, file_id)
+  })
+}
+
+fn file_version_does_not_exist_message(version_ids: List(String)) -> String {
+  let ids = list.map(version_ids, shopify_gid_tail_or_value)
+  case ids {
+    [id] -> "File version id " <> id <> " does not exist"
+    _ -> "File version ids " <> string.join(ids, ", ") <> " do not exist"
+  }
+}
+
+fn validate_file_update_reference_targets(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(media_types.FilesUserError) {
+  let missing_by_file =
+    inputs
+    |> list.filter_map(fn(input) {
+      let missing_product_ids =
+        list.append(
+          read_string_list_field(input, "referencesToAdd"),
+          read_string_list_field(input, "referencesToRemove"),
+        )
+        |> dedupe_strings
+        |> list.filter(fn(product_id) {
+          case store.get_effective_product_by_id(store, product_id) {
+            Some(_) -> False
+            None -> True
+          }
+        })
+      case missing_product_ids {
+        [] -> Error(Nil)
+        _ ->
+          Ok(#(
+            read_string_field(input, "id") |> option.unwrap(""),
+            missing_product_ids,
+          ))
+      }
+    })
+  case missing_by_file {
+    [] -> []
+    _ -> [
+      media_types.FilesUserError(
+        ["files"],
+        "The reference target does not exist",
+        "REFERENCE_TARGET_DOES_NOT_EXIST",
+      ),
+    ]
   }
 }
 
@@ -1496,6 +1600,17 @@ fn shopify_gid_tail(id: String) -> Option(String) {
   }
 }
 
+fn shopify_gid_tail_or_value(id: String) -> String {
+  shopify_gid_tail(id) |> option.unwrap(id)
+}
+
+fn same_shopify_gid_tail(left: String, right: String) -> Bool {
+  case shopify_gid_tail(left), shopify_gid_tail(right) {
+    Some(left_tail), Some(right_tail) -> left_tail == right_tail
+    _, _ -> left == right
+  }
+}
+
 fn unique_strings(values: List(String)) -> List(String) {
   list.fold(values, [], fn(unique, value) {
     case list.contains(unique, value) {
@@ -1653,6 +1768,104 @@ fn maybe_hydrate_file_update_targets(
         Error(_) -> store
       }
     }
+  }
+}
+
+fn maybe_hydrate_file_update_revert_versions(
+  inputs: List(Dict(String, ResolvedValue)),
+  upstream: UpstreamContext,
+) -> FileVersionHydration {
+  let version_ids =
+    inputs
+    |> list.filter_map(fn(input) {
+      case
+        has_source_update(input),
+        read_string_field(input, "revertToVersionId")
+      {
+        False, Some(version_id) if version_id != "" -> Ok(version_id)
+        _, _ -> Error(Nil)
+      }
+    })
+    |> dedupe_strings
+  case upstream.allow_upstream_reads, version_ids {
+    False, _ -> FileVersionHydration(validation_enabled: False, evidence: [])
+    True, [] -> FileVersionHydration(validation_enabled: False, evidence: [])
+    True, _ -> {
+      let query =
+        "query MediaFileVersionHydrate($versionIds: [ID!]!) {
+  nodes(ids: $versionIds) {
+    id
+    __typename
+    ... on MediaVersion {
+      file { id }
+      media { id }
+    }
+  }
+}
+"
+      let variables =
+        json.object([
+          #("versionIds", json.array(version_ids, json.string)),
+        ])
+      let evidence = case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "MediaFileVersionHydrate",
+          query,
+          variables,
+        )
+      {
+        Ok(value) -> file_version_evidence_from_response(value, version_ids)
+        Error(_) -> []
+      }
+      FileVersionHydration(validation_enabled: True, evidence: evidence)
+    }
+  }
+}
+
+fn file_version_evidence_from_response(
+  value: commit.JsonValue,
+  version_ids: List(String),
+) -> List(FileVersionEvidence) {
+  case json_get(value, "data") {
+    Some(data) ->
+      json_array(json_get(data, "nodes"))
+      |> list.filter_map(fn(node) {
+        case json_get_string(node, "id") {
+          Some(version_id) ->
+            case list.contains(version_ids, version_id) {
+              True -> file_version_evidence_from_node(node, version_id)
+              False -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+    None -> []
+  }
+}
+
+fn file_version_evidence_from_node(
+  node: commit.JsonValue,
+  version_id: String,
+) -> Result(FileVersionEvidence, Nil) {
+  case json_get_string(node, "__typename") {
+    Some("MediaVersion") -> {
+      let file_id =
+        json_get(node, "file")
+        |> option.then(fn(file) { json_get_string(file, "id") })
+        |> option.or(
+          json_get(node, "media")
+          |> option.then(fn(media) { json_get_string(media, "id") }),
+        )
+      case file_id {
+        Some(id) if id != "" ->
+          Ok(FileVersionEvidence(id: version_id, file_id: id))
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
   }
 }
 
@@ -1875,7 +2088,7 @@ fn hydrate_product_relations_from_response(
 ) -> Store {
   case json_get(value, "data") {
     Some(data) ->
-      case json_get(data, "product") {
+      case non_null_node(json_get(data, "product")) {
         Some(product_node) ->
           case product_record_from_node(product_node, Some(fallback_id)) {
             Some(product) -> {

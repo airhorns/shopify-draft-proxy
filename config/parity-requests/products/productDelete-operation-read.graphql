@@ -1,0 +1,14 @@
+query ProductDeleteOperationRead($id: ID!) {
+  productOperation(id: $id) {
+    __typename
+    ... on ProductDeleteOperation {
+      id
+      status
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+}

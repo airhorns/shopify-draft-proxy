@@ -744,6 +744,113 @@ pub fn payment_customization_metafields_and_function_handle_readback_test() {
   assert !string.contains(read_json, "\"value\":\"baz\"")
 }
 
+pub fn payment_customization_create_requires_metafields_test() {
+  let create_query =
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Missing metafields\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id } userErrors { field code message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create_query)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"paymentCustomization\":null")
+  assert string.contains(
+    create_json,
+    "\"field\":[\"paymentCustomization\",\"metafields\"]",
+  )
+  assert string.contains(create_json, "\"code\":\"REQUIRED_INPUT_FIELD\"")
+  assert list.is_empty(store.list_effective_payment_customizations(proxy.store))
+}
+
+pub fn payment_customization_create_rejects_multiple_function_identifiers_test() {
+  let create_query =
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Both identifiers\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", functionHandle: \"payment-a\", metafields: [] }) { paymentCustomization { id } userErrors { field code message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create_query)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"paymentCustomization\":null")
+  assert string.contains(
+    create_json,
+    "\"field\":[\"paymentCustomization\",\"base\"]",
+  )
+  assert string.contains(
+    create_json,
+    "\"code\":\"MULTIPLE_FUNCTION_IDENTIFIERS\"",
+  )
+  assert list.is_empty(store.list_effective_payment_customizations(proxy.store))
+}
+
+pub fn payment_customization_create_rejects_missing_function_identifier_test() {
+  let create_query =
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Missing identifier\", enabled: true, metafields: [] }) { paymentCustomization { id } userErrors { field code message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create_query)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"paymentCustomization\":null")
+  assert string.contains(
+    create_json,
+    "\"field\":[\"paymentCustomization\",\"functionHandle\"]",
+  )
+  assert string.contains(
+    create_json,
+    "\"code\":\"MISSING_FUNCTION_IDENTIFIER\"",
+  )
+  assert list.is_empty(store.list_effective_payment_customizations(proxy.store))
+}
+
+pub fn payment_customization_create_allows_empty_metafields_test() {
+  let create_query =
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Empty metafields\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", metafields: [] }) { paymentCustomization { id title } userErrors { field code message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create_query)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(create_json, "\"title\":\"Empty metafields\"")
+  assert list.length(store.list_effective_payment_customizations(proxy.store))
+    == 1
+}
+
+pub fn payment_customization_create_enforces_active_limit_test() {
+  let proxy =
+    ["1", "2", "3", "4", "5"]
+    |> list.fold(draft_proxy.new(), fn(proxy, suffix) {
+      let #(Response(status: create_status, body: create_body, ..), proxy) =
+        graphql(proxy, valid_payment_customization_create_query(suffix))
+      assert create_status == 200
+      assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+      proxy
+    })
+
+  assert list.length(store.list_effective_payment_customizations(proxy.store))
+    == 5
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, valid_payment_customization_create_query("6"))
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"paymentCustomization\":null")
+  assert string.contains(
+    create_json,
+    "\"field\":[\"paymentCustomization\",\"enabled\"]",
+  )
+  assert string.contains(
+    create_json,
+    "\"code\":\"MAXIMUM_ACTIVE_PAYMENT_CUSTOMIZATIONS\"",
+  )
+  assert list.length(store.list_effective_payment_customizations(proxy.store))
+    == 5
+  assert !string.contains(meta_state_json(proxy), "Payment customization 6")
+}
+
+fn valid_payment_customization_create_query(suffix: String) -> String {
+  "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Payment customization "
+  <> suffix
+  <> "\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-"
+  <> suffix
+  <> "\", metafields: [] }) { paymentCustomization { id title enabled } userErrors { field code message } } }"
+}
+
 pub fn payment_customization_update_rejects_different_existing_function_test() {
   let proxy =
     draft_proxy.new()
@@ -751,7 +858,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
     |> seed_shopify_function("payment-b")
 
   let create_query =
-    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", metafields: [] }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     graphql(proxy, create_query)
   assert create_status == 200
@@ -794,7 +901,7 @@ pub fn payment_customization_update_allows_equivalent_function_handle_test() {
   let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
-    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", metafields: [] }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
   let #(Response(status: create_status, ..), proxy) =
     graphql(proxy, create_query)
   assert create_status == 200
@@ -816,7 +923,7 @@ pub fn payment_customization_update_allows_equivalent_function_handle_test() {
 
 pub fn payment_customization_update_allows_equivalent_function_id_gid_test() {
   let create_query =
-    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"raw-payment-function\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"raw-payment-function\", metafields: [] }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     graphql(draft_proxy.new(), create_query)
   assert create_status == 200
@@ -837,7 +944,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
   let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
-    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", metafields: [] }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: create_status, ..), proxy) =
     graphql(proxy, create_query)
   assert create_status == 200
@@ -873,7 +980,7 @@ pub fn payment_customization_update_unknown_function_handle_returns_not_found_te
   let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
-    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\", metafields: [] }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: create_status, ..), proxy) =
     graphql(proxy, create_query)
   assert create_status == 200
@@ -921,7 +1028,7 @@ pub fn payment_customization_invalid_metafield_shape_returns_user_error_test() {
   assert string.contains(create_json, "\"code\":\"INVALID_METAFIELDS\"")
 
   let seed_query =
-    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Seed\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/123\" }) { paymentCustomization { id } userErrors { field code message } } }"
+    "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Seed\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/123\", metafields: [] }) { paymentCustomization { id } userErrors { field code message } } }"
   let #(Response(status: seed_status, ..), proxy) =
     graphql(draft_proxy.new(), seed_query)
   assert seed_status == 200

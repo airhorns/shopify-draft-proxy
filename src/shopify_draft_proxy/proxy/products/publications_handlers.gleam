@@ -14,9 +14,9 @@ import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field.{type ResolvedValue}
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, SrcNull, SrcString, default_selected_field_options,
-  get_field_response_key, get_selected_child_fields, project_graphql_value,
-  src_object,
+  type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
+  default_selected_field_options, get_field_response_key,
+  get_selected_child_fields, project_graphql_value, src_object,
 }
 
 import shopify_draft_proxy/proxy/products/collections_serializers.{
@@ -42,6 +42,7 @@ import shopify_draft_proxy/proxy/products/shared.{
   mutation_rejected_result, mutation_result, read_list_field_length,
   read_object_list_field, read_string_field, user_errors_source,
 }
+import shopify_draft_proxy/proxy/store_properties/serializers.{shop_source}
 
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -50,6 +51,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{type ProductRecord, ProductRecord}
 
 // ===== from publications_l12 =====
+pub type ProductPublicationTarget {
+  ProductPublicationTarget(publication_id: String, publish_date: Option(String))
+}
+
 @internal
 pub fn publishable_product_result(
   store: Store,
@@ -535,23 +540,70 @@ pub fn product_publication_payload(
   typename: String,
   store: Store,
   product: Option(ProductRecord),
+  targets: List(ProductPublicationTarget),
+  is_publish: Bool,
   user_errors: List(ProductUserError),
   field: Selection,
+  variables: Dict(String, ResolvedValue),
   fragments: FragmentMap,
 ) -> Json {
+  let selected_publication =
+    selected_publication_id(
+      get_selected_child_fields(field, default_selected_field_options()),
+      variables,
+    )
   let product_value = case product {
-    Some(record) -> product_source_with_store(store, record)
+    Some(record) ->
+      product_source_with_store_and_publication(
+        store,
+        record,
+        selected_publication,
+      )
+    None -> SrcNull
+  }
+  let shop_value = case store.get_effective_shop(store) {
+    Some(shop) -> shop_source(shop)
     None -> SrcNull
   }
   project_graphql_value(
     src_object([
       #("__typename", SrcString(typename)),
       #("product", product_value),
+      #("shop", shop_value),
+      #(
+        "productPublications",
+        SrcList(
+          list.map(targets, fn(target) {
+            product_publication_source(target, is_publish)
+          }),
+        ),
+      ),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
   )
+}
+
+fn product_publication_source(
+  target: ProductPublicationTarget,
+  is_publish: Bool,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ProductPublication")),
+    #(
+      "publication",
+      src_object([
+        #("__typename", SrcString("Publication")),
+        #("id", SrcString(target.publication_id)),
+      ]),
+    ),
+    #("publishDate", case is_publish {
+      True -> graphql_helpers.option_string_source(target.publish_date)
+      False -> SrcNull
+    }),
+    #("isPublished", SrcBool(is_publish)),
+  ])
 }
 
 // ===== from publications_l13 =====
@@ -560,6 +612,7 @@ pub fn handle_product_publication_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   typename: String,
+  is_publish: Bool,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
@@ -579,10 +632,13 @@ pub fn handle_product_publication_mutation(
           typename,
           store,
           None,
+          [],
+          is_publish,
           [
             ProductUserError(["input", "id"], "Product id is required", None),
           ],
           field,
+          variables,
           fragments,
         ),
         store,
@@ -598,35 +654,231 @@ pub fn handle_product_publication_mutation(
               typename,
               store,
               None,
+              [],
+              is_publish,
               [
                 ProductUserError(["input", "id"], "Product not found", None),
               ],
               field,
+              variables,
               fragments,
             ),
             store,
             identity,
             [],
           )
-        Some(product) -> {
-          let #(_, next_store) = store.upsert_staged_product(store, product)
-          mutation_result(
-            key,
-            product_publication_payload(
-              typename,
-              next_store,
-              Some(product),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            identity,
-            [product.id],
-          )
-        }
+        Some(product) ->
+          case product.status == "SUSPENDED" {
+            True ->
+              mutation_rejected_result(
+                key,
+                product_publication_payload(
+                  typename,
+                  store,
+                  Some(product),
+                  [],
+                  is_publish,
+                  [ProductUserError(["id"], "Product is suspended", None)],
+                  field,
+                  variables,
+                  fragments,
+                ),
+                store,
+                identity,
+              )
+            False -> {
+              let #(targets, target_errors) =
+                read_product_publication_targets(store, input)
+              case target_errors {
+                [] -> {
+                  let publication_ids =
+                    list.map(targets, fn(target) { target.publication_id })
+                  let next_publication_ids = case is_publish {
+                    True ->
+                      merge_publication_targets(
+                        product.publication_ids,
+                        publication_ids,
+                      )
+                    False ->
+                      remove_publication_targets(
+                        product.publication_ids,
+                        publication_ids,
+                      )
+                  }
+                  let next_product =
+                    ProductRecord(
+                      ..product,
+                      publication_ids: next_publication_ids,
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_product(store, next_product)
+                  mutation_result(
+                    key,
+                    product_publication_payload(
+                      typename,
+                      next_store,
+                      Some(next_product),
+                      targets,
+                      is_publish,
+                      [],
+                      field,
+                      variables,
+                      fragments,
+                    ),
+                    next_store,
+                    identity,
+                    [next_product.id],
+                  )
+                }
+                _ ->
+                  mutation_rejected_result(
+                    key,
+                    product_publication_payload(
+                      typename,
+                      store,
+                      Some(product),
+                      [],
+                      is_publish,
+                      target_errors,
+                      field,
+                      variables,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                  )
+              }
+            }
+          }
       }
   }
+}
+
+fn read_product_publication_targets(
+  store: Store,
+  input: Option(Dict(String, ResolvedValue)),
+) -> #(List(ProductPublicationTarget), List(ProductUserError)) {
+  case input {
+    None -> #([], [blank_product_publications_error()])
+    Some(input) ->
+      case read_list_field_length(input, "productPublications") {
+        None -> #([], [blank_product_publications_error()])
+        Some(0) -> #([], [blank_product_publications_error()])
+        Some(_) ->
+          validate_product_publication_inputs(
+            store,
+            read_object_list_field(input, "productPublications"),
+            0,
+            [],
+            [],
+          )
+      }
+  }
+}
+
+fn validate_product_publication_inputs(
+  store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+  index: Int,
+  targets: List(ProductPublicationTarget),
+  errors: List(ProductUserError),
+) -> #(List(ProductPublicationTarget), List(ProductUserError)) {
+  case inputs {
+    [] -> #(list.reverse(targets), list.reverse(errors))
+    [input, ..rest] ->
+      case resolve_product_publication_input(store, input, index) {
+        Ok(target) ->
+          validate_product_publication_inputs(
+            store,
+            rest,
+            index + 1,
+            [target, ..targets],
+            errors,
+          )
+        Error(error) ->
+          validate_product_publication_inputs(store, rest, index + 1, targets, [
+            error,
+            ..errors
+          ])
+      }
+  }
+}
+
+fn resolve_product_publication_input(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> Result(ProductPublicationTarget, ProductUserError) {
+  let publication_id = read_string_field(input, "publicationId")
+  let channel_id = read_string_field(input, "channelId")
+  let publish_date = read_string_field(input, "publishDate")
+  let prefix = ["productPublications", int.to_string(index)]
+  case publication_id, channel_id {
+    Some(_), Some(_) ->
+      Error(ProductUserError(
+        prefix,
+        "Only one of channelId or publicationId can be provided",
+        Some("INVALID"),
+      ))
+    None, None ->
+      Error(ProductUserError(
+        list.append(prefix, ["publicationId"]),
+        "Publication can't be blank",
+        Some("BLANK"),
+      ))
+    Some(id), None ->
+      case publication_exists(store, id) {
+        True -> Ok(ProductPublicationTarget(id, publish_date))
+        False ->
+          Error(ProductUserError(
+            list.append(prefix, ["publicationId"]),
+            "Publication does not exist or is not publishable",
+            Some("NOT_FOUND"),
+          ))
+      }
+    None, Some(id) ->
+      case store.get_effective_channel_by_id(store, id) {
+        Some(channel) ->
+          case channel.publication_id {
+            Some(resolved_publication_id) ->
+              case publication_exists(store, resolved_publication_id) {
+                True ->
+                  Ok(ProductPublicationTarget(
+                    resolved_publication_id,
+                    publish_date,
+                  ))
+                False -> Error(channel_not_found_error(prefix))
+              }
+            None -> Error(channel_not_found_error(prefix))
+          }
+        None -> Error(channel_not_found_error(prefix))
+      }
+  }
+}
+
+fn publication_exists(store: Store, publication_id: String) -> Bool {
+  case store.get_effective_publication_by_id(store, publication_id) {
+    Some(_) -> True
+    None ->
+      store.list_effective_publications(store)
+      |> list.any(fn(publication) { publication.id == publication_id })
+  }
+}
+
+fn blank_product_publications_error() -> ProductUserError {
+  ProductUserError(
+    ["productPublications"],
+    "Product publications can't be blank",
+    Some("BLANK"),
+  )
+}
+
+fn channel_not_found_error(prefix: List(String)) -> ProductUserError {
+  ProductUserError(
+    list.append(prefix, ["publicationId"]),
+    "Channel does not exist or is not publishable",
+    Some("NOT_FOUND"),
+  )
 }
 
 @internal

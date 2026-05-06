@@ -38,11 +38,11 @@ import shopify_draft_proxy/proxy/products/publications_core.{
   missing_variant_relationship_ids, product_feed_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, empty_connection_source, job_source, mutation_rejected_result,
-  mutation_result, nullable_field_user_errors_source, read_arg_object_list,
-  read_int_field, read_object_field, read_object_list_field,
-  read_string_argument, read_string_field, read_string_list_field,
-  user_errors_source,
+  connection_page_info_source, count_source, empty_connection_source, job_source,
+  mutation_rejected_result, mutation_result, nullable_field_user_errors_source,
+  read_arg_object_list, read_int_field, read_object_field,
+  read_object_list_field, read_string_argument, read_string_field,
+  read_string_list_field, user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   optional_product_category_source,
@@ -1725,6 +1725,8 @@ pub fn product_source_with_relationships(
     Some(id), "ACTIVE" -> list.contains(product.publication_ids, id)
     _, _ -> False
   }
+  let resource_publications =
+    product_resource_publications_connection_source(product)
   src_object([
     #("__typename", SrcString("Product")),
     #("id", SrcString(product.id)),
@@ -1781,6 +1783,7 @@ pub fn product_source_with_relationships(
     #("publishedOnCurrentPublication", SrcBool(visible_publication_count > 0)),
     #("publishedOnCurrentChannel", SrcBool(visible_publication_count > 0)),
     #("publishedOnPublication", SrcBool(published_on_publication)),
+    #("resourcePublications", resource_publications),
     #(
       "combinedListingRole",
       graphql_helpers.option_string_source(product.combined_listing_role),
@@ -1796,6 +1799,53 @@ pub fn product_source_with_relationships(
     #("sellingPlanGroups", selling_plan_groups),
     #("sellingPlanGroupsCount", selling_plan_groups_count),
   ])
+}
+
+fn product_resource_publications_connection_source(
+  product: ProductRecord,
+) -> SourceValue {
+  let nodes =
+    list.map(product.publication_ids, fn(id) { resource_publication_source(id) })
+  let edges =
+    product.publication_ids
+    |> enumerate_items()
+    |> list.map(fn(pair) {
+      let #(id, index) = pair
+      src_object([
+        #("cursor", SrcString(product_publication_cursor(id, index))),
+        #("node", resource_publication_source(id)),
+      ])
+    })
+  src_object([
+    #("edges", SrcList(edges)),
+    #("nodes", SrcList(nodes)),
+    #(
+      "pageInfo",
+      connection_page_info_source(
+        product.publication_ids,
+        product_publication_cursor,
+      ),
+    ),
+  ])
+}
+
+fn resource_publication_source(publication_id: String) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ResourcePublication")),
+    #(
+      "publication",
+      src_object([
+        #("__typename", SrcString("Publication")),
+        #("id", SrcString(publication_id)),
+      ]),
+    ),
+    #("publishDate", SrcNull),
+    #("isPublished", SrcBool(True)),
+  ])
+}
+
+fn product_publication_cursor(publication_id: String, _index: Int) -> String {
+  "cursor:" <> publication_id
 }
 
 @internal
