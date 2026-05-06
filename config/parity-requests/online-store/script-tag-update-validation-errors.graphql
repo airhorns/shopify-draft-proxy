@@ -1,5 +1,5 @@
-mutation ScriptTagCreateValidatesSrc {
-  blank: scriptTagCreate(input: { src: "" }) {
+mutation ScriptTagUpdateValidationErrors {
+  blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "" }) {
     scriptTag {
       id
       src
@@ -11,7 +11,8 @@ mutation ScriptTagCreateValidatesSrc {
       message
     }
   }
-  tooLong: scriptTagCreate(
+  tooLong: scriptTagUpdate(
+    id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic"
     input: {
       src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
@@ -27,7 +28,10 @@ mutation ScriptTagCreateValidatesSrc {
       message
     }
   }
-  invalid: scriptTagCreate(input: { src: "not-a-url" }) {
+  invalid: scriptTagUpdate(
+    id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic"
+    input: { src: "ftp://cdn.example.test/app.js" }
+  ) {
     scriptTag {
       id
       src
@@ -39,7 +43,25 @@ mutation ScriptTagCreateValidatesSrc {
       message
     }
   }
-  http: scriptTagCreate(input: { src: "http://example.test/app.js" }) {
+  http: scriptTagUpdate(
+    id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic"
+    input: { src: "http://example.test/app.js" }
+  ) {
+    scriptTag {
+      id
+      src
+      displayScope
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  display: scriptTagUpdate(
+    id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic"
+    input: { displayScope: "STOREFRONT" }
+  ) {
     scriptTag {
       id
       src
