@@ -3296,6 +3296,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'payments',
+    captureId: 'payment-customization-create-validation-gaps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-create-validation-gaps-conformance.ts',
+    purpose:
+      'paymentCustomizationCreate required-metafields probe, Function identifier arbitration, missing identifier, and active customization limit probe.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-create-validation-gaps.json`,
+      'config/parity-specs/payments/payment-customization-create-validation-gaps.json',
+      'config/parity-requests/payments/payment-customization-create-validation-gaps.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes active payment customizations before capture, creates disposable active customizations in one validation request, then deletes every row returned by the request.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'admin-platform',
     captureId: 'admin-platform',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
