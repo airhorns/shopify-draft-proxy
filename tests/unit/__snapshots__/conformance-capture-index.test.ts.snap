@@ -16,8 +16,6 @@ exports[`conformance capture index > profiles checked-in live Shopify fixtures w
   "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json",
   "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-terms-templates-read.json",
   "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/shopify-payments-account-access-denied.json",
-  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-create-validation.json",
-  "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json",
   "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-url-redirects.json",
   "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json",
   "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/delivery-customization-promise-settings-blockers.json",
