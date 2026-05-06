@@ -37,7 +37,7 @@ The definition lifecycle slice stages these roots locally without runtime Shopif
 - `metafieldDefinitionUpdate(definition:)`
 - `metafieldDefinitionDelete(id:|identifier:, deleteAllAssociatedMetafields:)`
 
-Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, selected `constraints`, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, protected or Shopify-reserved namespaces, constrained `pin: true` inputs, and owner-type pin-cap violations before staging any local definition.
+Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, selected `constraints`, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, protected or Shopify-reserved namespaces, constrained `pin: true` inputs, owner-type pin-cap violations, and the captured 256 non-standard-definition resource-type cap before staging any local definition. The resource-type cap is scoped separately for merchant-owned namespaces and app-reserved `app--<api_client_id>--...` namespaces, matching Shopify's app-owned versus merchant-owned count split.
 
 Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, selected `capabilities`, and selected constraint inputs. Public Admin 2026-04 exposes `constraintsUpdates`, which can set the constraint key, create/delete values, and clear all constraints with `key: null, values: []`; the proxy also handles the legacy/internal `constraints` mixed-operation shape and `constraintsSet` replace-all shape for staged update fidelity. The local `validationJob` payload is currently `null`.
 
@@ -79,7 +79,6 @@ Successful local enablement:
 - rejects matching existing unstructured metafields with `UNSTRUCTURED_ALREADY_EXISTS` unless `forceEnable: true` is provided
 - returns `INVALID_CAPABILITY` for ineligible capability input, and returns `TYPE_NOT_ALLOWED_FOR_CONDITIONS` for the deprecated collection-condition argument on an ineligible type
 - returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` when merchant admin access is supplied for non-app-owned standard templates
-- returns `LIMIT_EXCEEDED` when the product owner-type definition cap is already reached
 - when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload

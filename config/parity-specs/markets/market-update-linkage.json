@@ -1,0 +1,179 @@
+{
+  "scenarioId": "market-update-linkage",
+  "operationNames": ["marketCreate", "catalogCreate", "marketUpdate", "market", "catalog"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "local-staging",
+    "market-catalog-linkage",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/market-update-linkage.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-update-linkage-market-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL capture creates two disposable markets and one disposable MarketCatalog, links the catalog to the target market via marketUpdate.catalogsToAdd, verifies market-to-catalog and catalog-to-market readback, captures unknown catalog/web-presence add validation, then deletes the link, catalog, and markets in cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "source-market-create",
+        "capturePath": "$.cases[1].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-market-create.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      },
+      {
+        "name": "catalog-create",
+        "capturePath": "$.cases[2].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[2].variables.input.title" },
+              "status": { "fromCapturePath": "$.cases[2].variables.input.status" },
+              "context": {
+                "marketIds": [{ "fromProxyResponse": "source-market-create", "path": "$.data.marketCreate.market.id" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "market-update-add-catalog",
+        "capturePath": "$.cases[3].response.payload.data.marketUpdate",
+        "proxyPath": "$.data.marketUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.marketCreate.market.id" },
+            "input": {
+              "catalogsToAdd": [{ "fromProxyResponse": "catalog-create", "path": "$.data.catalogCreate.catalog.id" }]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.market.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy creates a deterministic synthetic target Market id while the capture stores Shopify's disposable live id."
+          },
+          {
+            "path": "$.market.catalogs.nodes[0].id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy creates a deterministic synthetic MarketCatalog id while the capture stores Shopify's disposable live id."
+          },
+          {
+            "path": "$.market.catalogs.nodes[0].markets.nodes[0].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy replays the source Market as a deterministic synthetic id."
+          },
+          {
+            "path": "$.market.catalogs.nodes[0].markets.nodes[1].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy replays the target Market as a deterministic synthetic id."
+          }
+        ]
+      },
+      {
+        "name": "market-read-after-add",
+        "capturePath": "$.cases[4].response.payload.data.market",
+        "proxyPath": "$.data.market",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-market-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.marketCreate.market.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy reads the deterministic synthetic target Market id created earlier in the parity replay."
+          },
+          {
+            "path": "$.catalogs.nodes[0].id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads the deterministic synthetic MarketCatalog id created earlier in the parity replay."
+          },
+          {
+            "path": "$.catalogs.nodes[0].markets.nodes[0].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy reads the deterministic synthetic source Market id created earlier in the parity replay."
+          },
+          {
+            "path": "$.catalogs.nodes[0].markets.nodes[1].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy reads the deterministic synthetic target Market id created earlier in the parity replay."
+          }
+        ]
+      },
+      {
+        "name": "catalog-read-after-add",
+        "capturePath": "$.cases[5].response.payload.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-catalog-read.graphql",
+          "variables": {
+            "id": { "fromProxyResponse": "catalog-create", "path": "$.data.catalogCreate.catalog.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads the deterministic synthetic MarketCatalog id created earlier in the parity replay."
+          },
+          {
+            "path": "$.markets.nodes[0].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy reads the deterministic synthetic source Market id created earlier in the parity replay."
+          },
+          {
+            "path": "$.markets.nodes[1].id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The proxy reads the deterministic synthetic target Market id created earlier in the parity replay."
+          }
+        ]
+      },
+      {
+        "name": "unknown-catalog-add-validation",
+        "capturePath": "$.cases[6].response.payload.data.marketUpdate",
+        "proxyPath": "$.data.marketUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.marketCreate.market.id" },
+            "input": {
+              "catalogsToAdd": ["gid://shopify/MarketCatalog/9999999999"]
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-web-presence-add-validation",
+        "capturePath": "$.cases[7].response.payload.data.marketUpdate",
+        "proxyPath": "$.data.marketUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-linkage-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.marketCreate.market.id" },
+            "input": {
+              "webPresencesToAdd": ["gid://shopify/MarketWebPresence/9999999999"]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

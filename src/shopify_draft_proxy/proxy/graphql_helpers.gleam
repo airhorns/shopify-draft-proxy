@@ -998,6 +998,39 @@ pub fn serialize_connection(
   )
 }
 
+/// Serialize a connection whose pagination is fully resolved upstream:
+/// `hasNextPage` / `hasPreviousPage` are always false, cursors are not
+/// surfaced, and inline-fragment flattening is enabled. Bakes in the
+/// boilerplate `SerializeConnectionConfig` that captured-list call sites
+/// previously rebuilt verbatim.
+pub fn serialize_static_connection(
+  field: Selection,
+  items: List(a),
+  cursor_of: fn(a) -> String,
+  serialize_node: fn(a, Selection) -> Json,
+) -> Json {
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: items,
+      has_next_page: False,
+      has_previous_page: False,
+      get_cursor_value: fn(item, _index) { cursor_of(item) },
+      serialize_node: fn(item, selection, _index) {
+        serialize_node(item, selection)
+      },
+      selected_field_options: SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: True,
+        prefix_cursors: False,
+        include_cursors: False,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
 /// Full connection serializer with hooks matching the TS helper's
 /// `serializePageInfo` and `serializeUnknownField` options.
 pub fn serialize_connection_with_field_serializers(
