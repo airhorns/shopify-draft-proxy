@@ -12,6 +12,7 @@ import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/types as state_types
 
 const path = "/admin/api/2026-04/graphql.json"
 
@@ -441,6 +442,105 @@ pub fn definition_and_entry_lifecycle_stages_locally_test() {
     )
   assert read_back
     == "{\"data\":{\"detail\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"byHandle\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"catalog\":{\"nodes\":[{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"}]},\"definition\":{\"metaobjectsCount\":1}}}"
+}
+
+pub fn metaobject_update_missing_id_returns_record_not_found_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/999999999\", metaobject: { fields: [{ key: \"title\", value: \"Nope\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Record not found\",\"code\":\"RECORD_NOT_FOUND\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn metaobject_entry_mutations_reject_duplicate_field_input_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_duplicate_fields"),
+    )
+
+  let duplicate_create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_duplicate_fields\", fields: [{ key: \"title\", value: \"One\" }, { key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(duplicate_create.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"fields\",\"1\"],\"message\":\"Field \\\"title\\\" duplicates other inputs\",\"code\":\"DUPLICATE_FIELD_INPUT\",\"elementKey\":\"title\",\"elementIndex\":null},{\"field\":[\"metaobject\",\"fields\",\"1\"],\"message\":\"Title can't be blank\",\"code\":\"OBJECT_FIELD_REQUIRED\",\"elementKey\":\"title\",\"elementIndex\":null}]}}}"
+
+  let create_one =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_duplicate_fields\", handle: \"one\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { field message code } } }",
+    )
+  let duplicate_update =
+    run_mutation(
+      create_one.store,
+      create_one.identity,
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\", metaobject: { fields: [{ key: \"title\", value: \"One\" }, { key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(duplicate_update.data)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"fields\",\"1\"],\"message\":\"Field \\\"title\\\" duplicates other inputs\",\"code\":\"DUPLICATE_FIELD_INPUT\",\"elementKey\":\"title\",\"elementIndex\":null},{\"field\":[\"metaobject\",\"fields\",\"1\"],\"message\":\"Title can't be blank\",\"code\":\"OBJECT_FIELD_REQUIRED\",\"elementKey\":\"title\",\"elementIndex\":null}]}}}"
+
+  let duplicate_upsert =
+    run_mutation(
+      create_one.store,
+      create_one.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_duplicate_fields\", handle: \"two\" }, metaobject: { fields: [{ key: \"title\", value: \"One\" }, { key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(duplicate_upsert.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"fields\",\"1\"],\"message\":\"Field \\\"title\\\" duplicates other inputs\",\"code\":\"DUPLICATE_FIELD_INPUT\",\"elementKey\":\"title\",\"elementIndex\":null},{\"field\":[\"fields\",\"1\"],\"message\":\"Title can't be blank\",\"code\":\"OBJECT_FIELD_REQUIRED\",\"elementKey\":\"title\",\"elementIndex\":null}]}}}"
+}
+
+pub fn metaobject_update_preserves_display_name_until_display_field_changes_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_display_name_update"),
+    )
+  let create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_display_name_update\", handle: \"one\", fields: [{ key: \"title\", value: \"Original title\" }, { key: \"body\", value: \"Original body\" }] }) { metaobject { id } userErrors { field message code } } }",
+    )
+  let assert Some(existing) =
+    store.get_effective_metaobject_by_id(
+      create.store,
+      "gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic",
+    )
+  let #(_, captured_display_store) =
+    store.upsert_staged_metaobject(
+      create.store,
+      state_types.MetaobjectRecord(
+        ..existing,
+        display_name: Some("Captured display name"),
+      ),
+    )
+
+  let body_update =
+    run_mutation(
+      captured_display_store,
+      create.identity,
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\", metaobject: { fields: [{ key: \"body\", value: \"Changed body\" }] }) { metaobject { id displayName updatedAt fields { key value } } userErrors { field message code } } }",
+    )
+  assert json.to_string(body_update.data)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"displayName\":\"Captured display name\",\"updatedAt\":\"2024-01-01T00:00:03.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Original title\"},{\"key\":\"body\",\"value\":\"Changed body\"}]},\"userErrors\":[]}}}"
+
+  let title_update =
+    run_mutation(
+      body_update.store,
+      body_update.identity,
+      "mutation { metaobjectUpdate(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\", metaobject: { fields: [{ key: \"title\", value: \"Changed title\" }] }) { metaobject { id displayName updatedAt fields { key value } } userErrors { field message code } } }",
+    )
+  assert json.to_string(title_update.data)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"displayName\":\"Changed title\",\"updatedAt\":\"2024-01-01T00:00:04.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Changed title\"},{\"key\":\"body\",\"value\":\"Changed body\"}]},\"userErrors\":[]}}}"
 }
 
 pub fn definition_delete_cascades_associated_entries_locally_test() {
