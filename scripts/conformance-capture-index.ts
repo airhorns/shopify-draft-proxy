@@ -2337,6 +2337,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-delete-unknown-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-delete-unknown-id-conformance.ts',
+    purpose:
+      'discountCodeDelete and discountAutomaticDelete unknown-id INVALID userErrors plus successful delete regression for setup discounts.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-delete-unknown-id.json`,
+      'config/parity-specs/discounts/discount-delete-unknown-id.json',
+      'config/parity-requests/discounts/discount-delete-unknown-id-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable basic code discount and one disposable basic automatic discount, then deletes both during the scenario with finally-block cleanup on failure.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-class-inference',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-class-inference-conformance.ts',
