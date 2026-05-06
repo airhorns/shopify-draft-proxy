@@ -1,0 +1,10 @@
+mutation BlogDeleteCascadesArticlesAndComments($id: ID!) {
+  blogDelete(id: $id) {
+    deletedBlogId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

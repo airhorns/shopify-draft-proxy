@@ -1,0 +1,86 @@
+{
+  "notes": "Captures stagedUploadsCreate userErrors shape in Shopify Admin GraphQL 2026-04: field/message resolves as UserError, while selecting code is rejected by schema validation because UserError does not expose code.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "videoMissingFileSizeUserError",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadUserErrorsShape($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "VIDEO",
+              "filename": "har-795-video.mp4",
+              "mimeType": "video/mp4"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "userErrors": [
+                {
+                  "field": ["input", "0", "fileSize"],
+                  "message": "file size is required for video resources"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "videoMissingFileSizeCodeSelection",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadUserErrorsShapeCode($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "VIDEO",
+              "filename": "har-795-video.mp4",
+              "mimeType": "video/mp4"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'code' doesn't exist on type 'UserError'",
+              "locations": [
+                {
+                  "line": 7,
+                  "column": 9
+                }
+              ],
+              "path": ["mutation StagedUploadUserErrorsShapeCode", "stagedUploadsCreate", "userErrors", "code"],
+              "extensions": {
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

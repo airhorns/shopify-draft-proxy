@@ -818,6 +818,12 @@ fn schema_validation_errors(
               query,
               fragments,
             ))
+            |> list.append(staged_uploads_create_user_error_selection_errors(
+              field,
+              operation_path,
+              query,
+              fragments,
+            ))
             |> list.append(staged_upload_resource_enum_errors(
               name.value,
               variables,
@@ -995,6 +1001,32 @@ fn payment_reminder_payload_field_allowed(field_name: String) -> Bool {
   || field_name == "__typename"
 }
 
+fn staged_uploads_create_user_error_selection_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+  fragments: FragmentMap,
+) -> List(Json) {
+  case field {
+    Field(name: name, ..) if name.value == "stagedUploadsCreate" ->
+      collect_named_child_field_selections(field, fragments, "userErrors")
+      |> list.filter_map(fn(selected) {
+        let #(field_name, loc) = selected
+        case field_name {
+          "code" ->
+            Ok(build_undefined_staged_upload_user_error_field_error(
+              field_name,
+              loc,
+              operation_path,
+              source_body,
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
 fn collect_payload_field_selections(
   field: Selection,
   fragments: FragmentMap,
@@ -1004,6 +1036,56 @@ fn collect_payload_field_selections(
       collect_selection_field_names(selections, fragments)
     _ -> []
   }
+}
+
+fn collect_named_child_field_selections(
+  field: Selection,
+  fragments: FragmentMap,
+  child_name: String,
+) -> List(#(String, Option(Location))) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      collect_named_child_fields_from_selections(
+        selections,
+        fragments,
+        child_name,
+      )
+    _ -> []
+  }
+}
+
+fn collect_named_child_fields_from_selections(
+  selections: List(Selection),
+  fragments: FragmentMap,
+  child_name: String,
+) -> List(#(String, Option(Location))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(
+        name: name,
+        selection_set: Some(SelectionSet(selections: inner, ..)),
+        ..,
+      )
+        if name.value == child_name
+      -> collect_selection_field_names(inner, fragments)
+      Field(..) -> []
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        collect_named_child_fields_from_selections(inner, fragments, child_name)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            collect_named_child_fields_from_selections(
+              inner,
+              fragments,
+              child_name,
+            )
+          _ -> []
+        }
+    }
+  })
 }
 
 fn collect_selection_field_names(
@@ -1061,6 +1143,45 @@ fn build_undefined_payment_reminder_payload_field_error(
         json.object([
           #("code", json.string("undefinedField")),
           #("typeName", json.string("PaymentReminderSendPayload")),
+          #("fieldName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn build_undefined_staged_upload_user_error_field_error(
+  field_name: String,
+  field_loc: Option(Location),
+  operation_path: String,
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '" <> field_name <> "' doesn't exist on type 'UserError'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, "stagedUploadsCreate", "userErrors", field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("undefinedField")),
+          #("typeName", json.string("UserError")),
           #("fieldName", json.string(field_name)),
         ]),
       ),

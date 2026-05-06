@@ -1,0 +1,320 @@
+{
+  "scenarioId": "blog-delete-cascades-articles-and-comments",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T12:27:41.810Z",
+  "setup": {
+    "blogCreate": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreDeleteCascadeBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Blog Delete Cascade Blog 20260506122739",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120985289010",
+              "title": "Blog Delete Cascade Blog 20260506122739",
+              "handle": "blog-delete-cascade-blog-20260506122739"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "articleCreate": [
+      {
+        "request": {
+          "query": "#graphql\n  mutation OnlineStoreDeleteCascadeArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+          "variables": {
+            "article": {
+              "title": "Blog Delete Cascade First 20260506122739",
+              "body": "<p>Blog Delete Cascade First 20260506122739</p>",
+              "blogId": "gid://shopify/Blog/120985289010",
+              "author": {
+                "name": "Delete Cascade Author"
+              },
+              "isPublished": true
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "articleCreate": {
+              "article": {
+                "id": "gid://shopify/Article/683154112818",
+                "title": "Blog Delete Cascade First 20260506122739",
+                "handle": "blog-delete-cascade-first-20260506122739"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "query": "#graphql\n  mutation OnlineStoreDeleteCascadeArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+          "variables": {
+            "article": {
+              "title": "Blog Delete Cascade Second 20260506122739",
+              "body": "<p>Blog Delete Cascade Second 20260506122739</p>",
+              "blogId": "gid://shopify/Blog/120985289010",
+              "author": {
+                "name": "Delete Cascade Author"
+              },
+              "isPublished": true
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "articleCreate": {
+              "article": {
+                "id": "gid://shopify/Article/683154145586",
+                "title": "Blog Delete Cascade Second 20260506122739",
+                "handle": "blog-delete-cascade-second-20260506122739"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "restComments": [
+      {
+        "id": 134990037298,
+        "body": "blog delete cascade comment one 20260506122739",
+        "body_html": "<p>blog delete cascade comment one 20260506122739</p>",
+        "author": "Delete Cascade Fixture",
+        "email": "delete-cascade@example.com",
+        "status": "pending",
+        "article_id": 683154112818,
+        "blog_id": 120985289010,
+        "created_at": "2026-05-06T08:27:41-04:00",
+        "updated_at": "2026-05-06T08:27:41-04:00",
+        "ip": "127.0.0.1",
+        "user_agent": null,
+        "published_at": null
+      },
+      {
+        "id": 134990070066,
+        "body": "blog delete cascade comment two 20260506122739",
+        "body_html": "<p>blog delete cascade comment two 20260506122739</p>",
+        "author": "Delete Cascade Fixture",
+        "email": "delete-cascade@example.com",
+        "status": "pending",
+        "article_id": 683154145586,
+        "blog_id": 120985289010,
+        "created_at": "2026-05-06T08:27:41-04:00",
+        "updated_at": "2026-05-06T08:27:41-04:00",
+        "ip": "127.0.0.1",
+        "user_agent": null,
+        "published_at": null
+      }
+    ]
+  },
+  "blogDelete": {
+    "request": {
+      "query": "#graphql\n  mutation BlogDeleteCascadesArticlesAndComments($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Blog/120985289010"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "blogDelete": {
+          "deletedBlogId": "gid://shopify/Blog/120985289010",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "request": {
+      "query": "#graphql\n  query BlogDeleteCascadesArticlesAndCommentsRead(\n    $blogId: ID!,\n    $articleOneId: ID!,\n    $articleTwoId: ID!,\n    $articleQuery: String!,\n    $commentQuery: String!\n  ) {\n    blog(id: $blogId) { id }\n    articleOne: article(id: $articleOneId) { id }\n    articleTwo: article(id: $articleTwoId) { id }\n    articles(first: 10, query: $articleQuery) { nodes { id } }\n    comments(first: 10, query: $commentQuery) { nodes { id article { id } } }\n  }\n",
+      "variables": {
+        "blogId": "gid://shopify/Blog/120985289010",
+        "articleOneId": "gid://shopify/Article/683154112818",
+        "articleTwoId": "gid://shopify/Article/683154145586",
+        "articleQuery": "\"Blog Delete Cascade\" AND \"20260506122739\"",
+        "commentQuery": "\"blog delete cascade comment\" AND \"20260506122739\""
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "blog": null,
+        "articleOne": null,
+        "articleTwo": null,
+        "articles": {
+          "nodes": []
+        },
+        "comments": {
+          "nodes": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [],
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreBlogDeleteCascadeHydrate",
+      "variables": {
+        "id": "gid://shopify/Blog/120985289010"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": {
+              "__typename": "Blog",
+              "id": "gid://shopify/Blog/120985289010",
+              "title": "Blog Delete Cascade Blog 20260506122739",
+              "handle": "blog-delete-cascade-blog-20260506122739",
+              "createdAt": "2026-05-06T12:27:40Z",
+              "updatedAt": "2026-05-06T12:27:40Z",
+              "commentPolicy": "MODERATED",
+              "articles": {
+                "nodes": [
+                  {
+                    "__typename": "Article",
+                    "id": "gid://shopify/Article/683154112818",
+                    "title": "Blog Delete Cascade First 20260506122739",
+                    "handle": "blog-delete-cascade-first-20260506122739",
+                    "createdAt": "2026-05-06T12:27:40Z",
+                    "updatedAt": "2026-05-06T12:27:40Z",
+                    "blog": {
+                      "id": "gid://shopify/Blog/120985289010"
+                    },
+                    "comments": {
+                      "nodes": [
+                        {
+                          "__typename": "Comment",
+                          "id": "gid://shopify/Comment/134990037298",
+                          "status": "UNAPPROVED",
+                          "body": "blog delete cascade comment one 20260506122739",
+                          "bodyHtml": "<p>blog delete cascade comment one 20260506122739</p>",
+                          "isPublished": false,
+                          "publishedAt": null,
+                          "createdAt": "2026-05-06T12:27:41Z",
+                          "updatedAt": "2026-05-06T12:27:41Z",
+                          "article": {
+                            "id": "gid://shopify/Article/683154112818"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "__typename": "Article",
+                    "id": "gid://shopify/Article/683154145586",
+                    "title": "Blog Delete Cascade Second 20260506122739",
+                    "handle": "blog-delete-cascade-second-20260506122739",
+                    "createdAt": "2026-05-06T12:27:40Z",
+                    "updatedAt": "2026-05-06T12:27:40Z",
+                    "blog": {
+                      "id": "gid://shopify/Blog/120985289010"
+                    },
+                    "comments": {
+                      "nodes": [
+                        {
+                          "__typename": "Comment",
+                          "id": "gid://shopify/Comment/134990070066",
+                          "status": "UNAPPROVED",
+                          "body": "blog delete cascade comment two 20260506122739",
+                          "bodyHtml": "<p>blog delete cascade comment two 20260506122739</p>",
+                          "isPublished": false,
+                          "publishedAt": null,
+                          "createdAt": "2026-05-06T12:27:41Z",
+                          "updatedAt": "2026-05-06T12:27:41Z",
+                          "article": {
+                            "id": "gid://shopify/Article/683154145586"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 129,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

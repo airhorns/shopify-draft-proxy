@@ -1,0 +1,30 @@
+query BlogDeleteCascadesArticlesAndCommentsRead(
+  $blogId: ID!
+  $articleOneId: ID!
+  $articleTwoId: ID!
+  $articleQuery: String!
+  $commentQuery: String!
+) {
+  blog(id: $blogId) {
+    id
+  }
+  articleOne: article(id: $articleOneId) {
+    id
+  }
+  articleTwo: article(id: $articleTwoId) {
+    id
+  }
+  articles(first: 10, query: $articleQuery) {
+    nodes {
+      id
+    }
+  }
+  comments(first: 10, query: $commentQuery) {
+    nodes {
+      id
+      article {
+        id
+      }
+    }
+  }
+}
