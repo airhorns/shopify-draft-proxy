@@ -739,7 +739,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreateMedia-dual-userErrors.json',
+      'config/parity-requests/products/productCreateMedia-dual-userErrors.graphql',
       'config/parity-specs/products/product-media-validation-branches.json',
+      'config/parity-specs/products/productCreateMedia-dual-userErrors.json',
     ],
     cleanupBehavior: 'Creates disposable product/media records and deletes the product during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
