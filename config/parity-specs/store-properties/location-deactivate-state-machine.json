@@ -1,0 +1,74 @@
+{
+  "scenarioId": "location-deactivate-state-machine",
+  "operationNames": ["locationDeactivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "state-machine-parity",
+    "versioned-contract-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-deactivate-state-machine.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine-with-destination.graphql",
+    "variablesCapturePath": "$.workflow.destinationSameId.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "destination-same-id",
+        "capturePath": "$.workflow.destinationSameId.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate"
+      },
+      {
+        "name": "destination-not-found-or-inactive",
+        "capturePath": "$.workflow.destinationInactive.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine-with-destination.graphql",
+          "variablesCapturePath": "$.workflow.destinationInactive.variables"
+        }
+      },
+      {
+        "name": "source-has-active-inventory",
+        "capturePath": "$.workflow.sourceHasActiveInventory.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine.graphql",
+          "variablesCapturePath": "$.workflow.sourceHasActiveInventory.variables"
+        }
+      },
+      {
+        "name": "source-only-online-fulfiller",
+        "capturePath": "$.workflow.sourceOnlyOnlineFulfiller.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine.graphql",
+          "variablesCapturePath": "$.workflow.sourceOnlyOnlineFulfiller.variables"
+        }
+      },
+      {
+        "name": "source-permanently-blocked",
+        "capturePath": "$.workflow.sourcePermanentlyBlocked.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine.graphql",
+          "variablesCapturePath": "$.workflow.sourcePermanentlyBlocked.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Records Shopify Admin API 2026-04 locationDeactivate guard behavior for destination same-id, inactive destination as the not-found-or-inactive branch, active inventory without destination, only-online-fulfiller rejection, and primary-location permanent deactivation block. The capture creates disposable merchant-managed locations, uses a disposable stocked product for active-inventory state, temporarily disables and restores online fulfillment on pre-existing locations for the only-online branch, and hydrates each compared source/destination through the cassette before local proxy replay."
+}

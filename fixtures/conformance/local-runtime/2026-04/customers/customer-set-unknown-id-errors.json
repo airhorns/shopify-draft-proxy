@@ -3,7 +3,7 @@
   "storeDomain": "local-runtime",
   "apiVersion": "2026-04",
   "capturedAt": "2026-05-05T23:05:00.000Z",
-  "notes": "HAR-770 deterministic local-runtime evidence for customerSet identifier.id dispatch. The ticketed Shopify source-level contract routes the presence of identifier.id through the update path; an unknown id returns a payload userError and must not stage a synthetic customer.",
+  "notes": "Deterministic local-runtime evidence for customerSet identifier.id dispatch. The live 2026-04 customerSet fixture routes the presence of identifier.id through the update path; an unknown id returns a payload userError and must not stage a synthetic customer.",
   "cases": {
     "unknownId": {
       "request": {
@@ -22,8 +22,8 @@
             "customer": null,
             "userErrors": [
               {
-                "field": ["input", "id"],
-                "message": "Customer does not exist",
+                "field": ["input"],
+                "message": "Resource matching the identifier was not found.",
                 "code": "INVALID"
               }
             ]

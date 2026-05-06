@@ -1,0 +1,14 @@
+mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      combinedListingRole
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

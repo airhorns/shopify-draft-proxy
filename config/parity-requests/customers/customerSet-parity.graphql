@@ -22,11 +22,21 @@ mutation CustomerSetParity($input: CustomerSetInput!, $identifier: CustomerSetId
       }
       defaultAddress {
         address1
+        city
+        province
+        country
+        zip
+        formattedArea
       }
       addressesV2(first: 5) {
         nodes {
           id
           address1
+          city
+          province
+          country
+          zip
+          formattedArea
         }
         pageInfo {
           hasNextPage

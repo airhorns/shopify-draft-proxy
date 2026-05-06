@@ -1,0 +1,26 @@
+query ReturnStatePreconditionRead($returnId: ID!, $orderId: ID!) {
+  return(id: $returnId) {
+    id
+    status
+    totalQuantity
+    reverseFulfillmentOrders(first: 5) {
+      nodes {
+        id
+        status
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            returnLineItem {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+  order(id: $orderId) {
+    id
+  }
+}

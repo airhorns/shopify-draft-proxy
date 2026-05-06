@@ -246,6 +246,8 @@ pub fn updated_product_record(
         |> option.or(product.template_suffix),
       seo: updated_product_seo(product.seo, input),
       updated_at: Some(updated_at),
+      combined_listing_role: read_string_field(input, "combinedListingRole")
+        |> option.or(product.combined_listing_role),
     ),
     next_identity,
   )
@@ -308,6 +310,9 @@ pub fn created_product_record(
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
+      combined_listing_role: read_string_field(input, "combinedListingRole"),
+      combined_listing_parent_id: None,
+      combined_listing_child_ids: [],
     ),
     next_identity,
   )

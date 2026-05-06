@@ -1,0 +1,26 @@
+#graphql
+fragment LocationDeactivateStateMachineFields on Location {
+  id
+  name
+  isActive
+  activatable
+  deactivatable
+  fulfillsOnlineOrders
+  hasActiveInventory
+  hasUnfulfilledOrders
+  deletable
+  shipsInventory
+}
+
+mutation LocationDeactivateStateMachine($locationId: ID!, $idempotencyKey: String!) {
+  locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+    location {
+      ...LocationDeactivateStateMachineFields
+    }
+    locationDeactivateUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

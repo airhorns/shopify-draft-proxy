@@ -38,7 +38,7 @@ import shopify_draft_proxy/proxy/orders/common.{
   captured_field_or_null, captured_int_field, captured_string_field,
   field_arguments, inferred_user_error, optional_captured_string, read_int,
   read_object, read_object_list, read_string, read_string_argument,
-  replace_captured_object_fields,
+  replace_captured_object_fields, user_error,
 }
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{total_quantity}
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
@@ -789,9 +789,10 @@ pub fn apply_return_decline_request(
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                inferred_user_error(
-                  ["input", "id"],
-                  "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                user_error(
+                  ["id"],
+                  "return_request_status_invalid",
+                  Some(user_error_codes.invalid),
                 ),
               ])
           }
@@ -853,9 +854,10 @@ pub fn apply_return_approve_request(
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                inferred_user_error(
-                  ["input", "id"],
-                  "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                user_error(
+                  ["id"],
+                  "return_request_status_invalid",
+                  Some(user_error_codes.invalid),
                 ),
               ])
           }
