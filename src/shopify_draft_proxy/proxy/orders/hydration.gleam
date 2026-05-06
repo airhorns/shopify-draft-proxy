@@ -40,7 +40,7 @@ import shopify_draft_proxy/proxy/orders/common.{
   json_get_bool, json_get_string, non_null_json, optional_captured_string,
   order_fulfillments, read_object, read_object_list, read_string,
   read_string_arg, replace_captured_object_fields, selection_children,
-  serialize_user_error,
+  serialize_user_error, user_error,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -145,40 +145,107 @@ pub fn handle_fulfillment_mutation(
             }
             Some(match) -> {
               let #(order, fulfillment) = match
-              let #(updated_fulfillment, next_identity) =
-                update_fulfillment_for_root(
+              case
+                fulfillment_mutation_state_precondition_errors(
                   root_name,
                   fulfillment,
-                  args,
-                  identity,
                 )
-              let updated_order =
-                update_order_fulfillment(order, id, updated_fulfillment)
-              let next_store = store.stage_order(store, updated_order)
-              let payload =
-                serialize_fulfillment_mutation_payload(
-                  field,
-                  Some(updated_fulfillment),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  root_name,
-                  [id],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged " <> root_name <> " in shopify-draft-proxy.",
-                  ),
-                )
-              #(key, payload, next_store, next_identity, [order.id], [], [draft])
+              {
+                [] -> {
+                  let #(updated_fulfillment, next_identity) =
+                    update_fulfillment_for_root(
+                      root_name,
+                      fulfillment,
+                      args,
+                      identity,
+                    )
+                  let updated_order =
+                    update_order_fulfillment(order, id, updated_fulfillment)
+                  let next_store = store.stage_order(store, updated_order)
+                  let payload =
+                    serialize_fulfillment_mutation_payload(
+                      field,
+                      Some(updated_fulfillment),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      root_name,
+                      [id],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged "
+                        <> root_name
+                        <> " in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [order.id], [], [
+                    draft,
+                  ])
+                }
+                errors -> {
+                  let payload =
+                    serialize_fulfillment_mutation_payload(
+                      field,
+                      None,
+                      errors,
+                      fragments,
+                    )
+                  #(key, payload, store, identity, [], [], [])
+                }
+              }
             }
           }
         }
       }
     }
+  }
+}
+
+@internal
+pub fn fulfillment_mutation_state_precondition_errors(
+  root_name: String,
+  fulfillment: CapturedJsonValue,
+) -> List(#(List(String), String, Option(String))) {
+  case root_name {
+    "fulfillmentTrackingInfoUpdate" ->
+      case captured_string_field(fulfillment, "status") {
+        Some("CANCELLED") -> [
+          user_error(
+            ["fulfillmentId"],
+            "fulfillment_is_cancelled",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        _ -> []
+      }
+
+    "fulfillmentCancel" ->
+      case
+        captured_string_field(fulfillment, "status"),
+        captured_string_field(fulfillment, "displayStatus")
+      {
+        Some("CANCELLED"), _ -> [
+          user_error(
+            ["id"],
+            "fulfillment_cannot_be_cancelled",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        _, Some("DELIVERED") -> [
+          user_error(
+            ["id"],
+            "fulfillment_already_delivered",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        _, _ -> []
+      }
+
+    _ -> []
   }
 }
 
