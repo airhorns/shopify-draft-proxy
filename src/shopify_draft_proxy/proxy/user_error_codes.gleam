@@ -14,6 +14,8 @@ pub const greater_than_zero = "GREATER_THAN_ZERO"
 
 pub const not_found = "NOT_FOUND"
 
+pub const not_permitted = "NOT_PERMITTED"
+
 pub const processed_at_invalid = "PROCESSED_AT_INVALID"
 
 pub const redundant_customer_fields = "REDUNDANT_CUSTOMER_FIELDS"
