@@ -35,7 +35,7 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   valid_currency, variant_payloads, web_presence_connection_from_ids,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type MutationOutcome, MutationOutcome,
+  type LogDraft, type MutationOutcome, MutationOutcome, combine_error_lists,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/shopify/resource_ids
@@ -375,13 +375,15 @@ fn market_create_input_errors(
   input: Dict(String, root_field.ResolvedValue),
   name: String,
 ) -> List(CapturedJsonValue) {
-  market_create_name_errors(name)
-  |> list.append(market_create_duplicate_name_errors(store, name))
-  |> list.append(market_create_status_enabled_errors(input))
-  |> list.append(market_create_handle_errors(store, input, None))
-  |> list.append(market_create_plan_limit_errors(store))
-  |> list.append(market_create_currency_errors(store, input))
-  |> list.append(market_create_region_errors(store, input))
+  combine_error_lists([
+    market_create_name_errors(name),
+    market_create_duplicate_name_errors(store, name),
+    market_create_status_enabled_errors(input),
+    market_create_handle_errors(store, input, None),
+    market_create_plan_limit_errors(store),
+    market_create_currency_errors(store, input),
+    market_create_region_errors(store, input),
+  ])
 }
 
 fn market_create_name_errors(name: String) -> List(CapturedJsonValue) {
@@ -1505,12 +1507,14 @@ fn handle_price_list_fixed_prices_add(
     option.then(price_list_id, store.get_effective_price_list_by_id(store, _))
   let price_inputs = read_arg_object_array(args, "prices")
   let errors =
-    price_list_fixed_price_target_errors(price_list_id, price_list)
-    |> list.append(case price_list {
-      Some(existing) ->
-        fixed_price_input_errors(store, existing, price_inputs, "prices")
-      None -> []
-    })
+    combine_error_lists([
+      price_list_fixed_price_target_errors(price_list_id, price_list),
+      case price_list {
+        Some(existing) ->
+          fixed_price_input_errors(store, existing, price_inputs, "prices")
+        None -> []
+      },
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -1557,27 +1561,31 @@ fn handle_price_list_fixed_prices_update(
   let delete_variant_ids =
     read_arg_string_array(args, "variantIdsToDelete") |> option.unwrap([])
   let errors =
-    price_list_fixed_price_target_errors(price_list_id, price_list)
-    |> list.append(case price_list {
-      Some(existing) ->
-        fixed_price_input_errors(
-          store,
-          existing,
-          price_inputs,
-          price_input_field,
-        )
-        |> list.append(fixed_price_not_fixed_errors(
-          existing,
-          price_inputs,
-          price_input_field,
-        ))
-        |> list.append(fixed_price_delete_variant_errors(
-          store,
-          delete_variant_ids,
-          "variantIdsToDelete",
-        ))
-      None -> []
-    })
+    combine_error_lists([
+      price_list_fixed_price_target_errors(price_list_id, price_list),
+      case price_list {
+        Some(existing) ->
+          combine_error_lists([
+            fixed_price_input_errors(
+              store,
+              existing,
+              price_inputs,
+              price_input_field,
+            ),
+            fixed_price_not_fixed_errors(
+              existing,
+              price_inputs,
+              price_input_field,
+            ),
+            fixed_price_delete_variant_errors(
+              store,
+              delete_variant_ids,
+              "variantIdsToDelete",
+            ),
+          ])
+        None -> []
+      },
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -1631,12 +1639,14 @@ fn handle_price_list_fixed_prices_delete(
   let variant_ids =
     read_arg_string_array(args, "variantIds") |> option.unwrap([])
   let errors =
-    price_list_fixed_price_target_errors(price_list_id, price_list)
-    |> list.append(case price_list {
-      Some(_) ->
-        fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
-      None -> []
-    })
+    combine_error_lists([
+      price_list_fixed_price_target_errors(price_list_id, price_list),
+      case price_list {
+        Some(_) ->
+          fixed_price_delete_variant_errors(store, variant_ids, "variantIds")
+        None -> []
+      },
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -1686,22 +1696,24 @@ fn handle_price_list_fixed_prices_by_product_update(
     read_arg_string_array(args, "pricesToDeleteByProductIds")
     |> option.unwrap([])
   let errors =
-    case price_list_id, price_list {
-      Some(_), Some(_) -> []
-      _, _ -> [
-        price_list_fixed_prices_by_product_user_error(
-          ["priceListId"],
-          "Price list does not exist.",
-          "PRICE_LIST_DOES_NOT_EXIST",
-        ),
-      ]
-    }
-    |> list.append(product_level_fixed_price_errors(
-      store,
-      price_list,
-      price_inputs,
-      delete_product_ids,
-    ))
+    combine_error_lists([
+      case price_list_id, price_list {
+        Some(_), Some(_) -> []
+        _, _ -> [
+          price_list_fixed_prices_by_product_user_error(
+            ["priceListId"],
+            "Price list does not exist.",
+            "PRICE_LIST_DOES_NOT_EXIST",
+          ),
+        ]
+      },
+      product_level_fixed_price_errors(
+        store,
+        price_list,
+        price_inputs,
+        delete_product_ids,
+      ),
+    ])
 
   case price_list, errors {
     Some(existing), [] -> {
@@ -2479,10 +2491,7 @@ fn market_localization_register_input_errors(
     Some(_), [], [] -> market_localization_value_errors(input, prefix)
     _, _, _ -> []
   }
-  market_errors
-  |> list.append(key_errors)
-  |> list.append(digest_errors)
-  |> list.append(value_errors)
+  combine_error_lists([market_errors, key_errors, digest_errors, value_errors])
 }
 
 fn market_localization_market_errors(
@@ -3096,18 +3105,17 @@ fn web_presence_update_errors(
   }
   let route_and_suffix_errors = case default_locale_errors {
     [] ->
-      list.append(
+      combine_error_lists([
         web_presence_update_route_errors(existing, input),
         web_presence_subfolder_suffix_errors(input),
-      )
+      ])
     _ -> []
   }
-  [
+  combine_error_lists([
     default_locale_errors,
     web_presence_alternate_locale_errors(input),
     route_and_suffix_errors,
-  ]
-  |> list.flatten
+  ])
 }
 
 fn web_presence_input_errors(
