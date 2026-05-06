@@ -1,55 +1,135 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-04-28T03:24:00.000Z",
-  "scope": "HAR-391 priceListFixedPricesByProductUpdate product-level fixed-price parity",
+  "capturedAt": "2026-05-06T18:10:31.185Z",
+  "scope": "priceListFixedPricesByProductUpdate validation parity",
   "setup": {
     "priceListId": "gid://shopify/PriceList/31575376178",
+    "priceListName": "Price List example Buyers",
+    "priceListCurrency": "CAD",
     "productId": "gid://shopify/Product/9801098789170",
-    "variantId": "gid://shopify/ProductVariant/49875425296690",
-    "priceQuery": "product_id:9801098789170",
-    "cleanup": "The success path deletes the product-level fixed price after the add/read capture."
+    "productTitle": "The Inventory Not Tracked Snowboard",
+    "mismatchCurrency": "USD",
+    "cleanup": "All captured mutations are validation failures and do not stage fixed prices in Shopify."
   },
-  "data": {
-    "priceList": {
-      "__typename": "PriceList",
-      "id": "gid://shopify/PriceList/31575376178",
-      "name": "Price List example Buyers",
-      "currency": "CAD",
-      "fixedPricesCount": 0,
-      "prices": {
-        "edges": [],
-        "pageInfo": {
-          "hasNextPage": false,
-          "hasPreviousPage": false,
-          "startCursor": null,
-          "endCursor": null
-        }
-      }
-    }
-  },
-  "schemaEvidence": {
-    "mutationArgs": ["priceListId", "pricesToAdd", "pricesToDeleteByProductIds"],
-    "priceListProductPriceInputFields": ["productId", "price", "compareAtPrice"],
-    "payloadFields": ["priceList", "pricesToAddProducts", "pricesToDeleteProducts", "userErrors"],
-    "downstreamReadTargets": ["PriceList.prices(query: product_id, originType: FIXED)"]
-  },
-  "successPath": [
-    {
-      "name": "add product fixed price",
+  "cases": {
+    "noOp": {
+      "name": "no update operations specified",
       "request": {
         "variables": {
           "priceListId": "gid://shopify/PriceList/31575376178",
-          "priceQuery": "product_id:9801098789170",
+          "pricesToAdd": [],
+          "pricesToDeleteByProductIds": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListFixedPricesByProductUpdate": {
+              "priceList": null,
+              "pricesToAddProducts": null,
+              "pricesToDeleteProducts": null,
+              "userErrors": [
+                {
+                  "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+                  "field": null,
+                  "message": "No update operations are specified. `pricesToAdd` and `pricesToDeleteByProductIds` are empty.",
+                  "code": "NO_UPDATE_OPERATIONS_SPECIFIED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "currencyMismatch": {
+      "name": "pricesToAdd currency mismatch",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575376178",
           "pricesToAdd": [
             {
               "productId": "gid://shopify/Product/9801098789170",
               "price": {
-                "amount": "881.25",
-                "currencyCode": "CAD"
+                "amount": "12.00",
+                "currencyCode": "USD"
               },
               "compareAtPrice": {
-                "amount": "999.99",
+                "amount": "15.00",
+                "currencyCode": "USD"
+              }
+            }
+          ],
+          "pricesToDeleteByProductIds": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListFixedPricesByProductUpdate": {
+              "priceList": null,
+              "pricesToAddProducts": null,
+              "pricesToDeleteProducts": null,
+              "userErrors": [
+                {
+                  "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+                  "field": ["pricesToAdd", "0", "price", "currencyCode"],
+                  "message": "The currency specified in `pricesToAdd` for product ID gid://shopify/Product/9801098789170 does not match the price list's currency of CAD.",
+                  "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"
+                },
+                {
+                  "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+                  "field": ["pricesToAdd", "0", "compareAtPrice", "currencyCode"],
+                  "message": "The currency specified in `pricesToAdd` for product ID gid://shopify/Product/9801098789170 does not match the price list's currency of CAD.",
+                  "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "duplicateAdd": {
+      "name": "duplicate pricesToAdd product id",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575376178",
+          "pricesToAdd": [
+            {
+              "productId": "gid://shopify/Product/9801098789170",
+              "price": {
+                "amount": "12.00",
+                "currencyCode": "CAD"
+              }
+            },
+            {
+              "productId": "gid://shopify/Product/9801098789170",
+              "price": {
+                "amount": "12.00",
                 "currencyCode": "CAD"
               }
             }
@@ -58,297 +138,135 @@
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
-              "priceList": {
-                "id": "gid://shopify/PriceList/31575376178",
-                "name": "Price List example Buyers",
-                "currency": "CAD",
-                "fixedPricesCount": 1,
-                "prices": {
-                  "edges": [
-                    {
-                      "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
-                      "node": {
-                        "price": {
-                          "amount": "881.25",
-                          "currencyCode": "CAD"
-                        },
-                        "compareAtPrice": {
-                          "amount": "999.99",
-                          "currencyCode": "CAD"
-                        },
-                        "originType": "FIXED",
-                        "variant": {
-                          "id": "gid://shopify/ProductVariant/49875425296690",
-                          "sku": "sku-untracked-1",
-                          "product": {
-                            "id": "gid://shopify/Product/9801098789170",
-                            "title": "The Inventory Not Tracked Snowboard"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
-                    "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0="
-                  }
-                }
-              },
-              "pricesToAddProducts": [
+              "priceList": null,
+              "pricesToAddProducts": null,
+              "pricesToDeleteProducts": null,
+              "userErrors": [
                 {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard"
+                  "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+                  "field": ["pricesToAdd"],
+                  "message": "Duplicate ID exists in `pricesToAdd`.",
+                  "code": "DUPLICATE_ID_IN_INPUT"
                 }
-              ],
-              "pricesToDeleteProducts": [],
-              "userErrors": []
+              ]
             }
-          }
-        }
-      }
-    },
-    {
-      "name": "read after add",
-      "request": {
-        "variables": {
-          "priceListId": "gid://shopify/PriceList/31575376178",
-          "priceQuery": "product_id:9801098789170",
-          "originType": "FIXED"
-        }
-      },
-      "response": {
-        "payload": {
-          "data": {
-            "priceList": {
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 1,
-              "prices": {
-                "edges": [
-                  {
-                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
-                    "node": {
-                      "price": {
-                        "amount": "881.25",
-                        "currencyCode": "CAD"
-                      },
-                      "compareAtPrice": {
-                        "amount": "999.99",
-                        "currencyCode": "CAD"
-                      },
-                      "originType": "FIXED",
-                      "variant": {
-                        "id": "gid://shopify/ProductVariant/49875425296690",
-                        "sku": "sku-untracked-1",
-                        "product": {
-                          "id": "gid://shopify/Product/9801098789170",
-                          "title": "The Inventory Not Tracked Snowboard"
-                        }
-                      }
-                    }
-                  }
-                ],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0="
-                }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
               }
             }
           }
         }
       }
     },
-    {
-      "name": "cleanup delete product fixed price",
+    "duplicateDelete": {
+      "name": "duplicate pricesToDeleteByProductIds product id",
       "request": {
         "variables": {
           "priceListId": "gid://shopify/PriceList/31575376178",
-          "priceQuery": "product_id:9801098789170",
           "pricesToAdd": [],
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170", "gid://shopify/Product/9801098789170"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListFixedPricesByProductUpdate": {
+              "priceList": null,
+              "pricesToAddProducts": null,
+              "pricesToDeleteProducts": null,
+              "userErrors": [
+                {
+                  "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+                  "field": ["pricesToDeleteByProductIds"],
+                  "message": "Duplicate ID exists in `pricesToDeleteByProductIds`.",
+                  "code": "DUPLICATE_ID_IN_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "mutuallyExclusive": {
+      "name": "product id appears in add and delete inputs",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575376178",
+          "pricesToAdd": [
+            {
+              "productId": "gid://shopify/Product/9801098789170",
+              "price": {
+                "amount": "12.00",
+                "currencyCode": "CAD"
+              }
+            }
+          ],
           "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
         }
       },
       "response": {
+        "status": 200,
         "payload": {
           "data": {
             "priceListFixedPricesByProductUpdate": {
-              "priceList": {
-                "id": "gid://shopify/PriceList/31575376178",
-                "name": "Price List example Buyers",
-                "currency": "CAD",
-                "fixedPricesCount": 0,
-                "prices": {
-                  "edges": [],
-                  "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                  }
-                }
-              },
-              "pricesToAddProducts": [],
-              "pricesToDeleteProducts": [
+              "priceList": null,
+              "pricesToAddProducts": null,
+              "pricesToDeleteProducts": null,
+              "userErrors": [
                 {
-                  "id": "gid://shopify/Product/9801098789170",
-                  "title": "The Inventory Not Tracked Snowboard"
+                  "__typename": "PriceListFixedPricesByProductBulkUpdateUserError",
+                  "field": null,
+                  "message": "IDs specified in `pricesToAdd` and `pricesToDeleteByProductIds` must be mutually exclusive.",
+                  "code": "ID_MUST_BE_MUTUALLY_EXCLUSIVE"
                 }
-              ],
-              "userErrors": []
+              ]
             }
-          }
-        }
-      }
-    },
-    {
-      "name": "read after cleanup",
-      "request": {
-        "variables": {
-          "priceListId": "gid://shopify/PriceList/31575376178",
-          "priceQuery": "product_id:9801098789170",
-          "originType": "FIXED"
-        }
-      },
-      "response": {
-        "payload": {
-          "data": {
-            "priceList": {
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "prices": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
               }
             }
           }
         }
       }
     }
-  ],
-  "validationBranches": [
-    {
-      "name": "unknown product add",
-      "request": {
-        "variables": {
-          "priceListId": "gid://shopify/PriceList/31575376178",
-          "pricesToAdd": [
-            {
-              "productId": "gid://shopify/Product/0",
-              "price": {
-                "amount": "1.00",
-                "currencyCode": "CAD"
-              }
-            }
-          ],
-          "pricesToDeleteByProductIds": []
-        }
-      },
-      "response": {
-        "payload": {
-          "data": {
-            "priceListFixedPricesByProductUpdate": {
-              "priceList": null,
-              "pricesToAddProducts": null,
-              "pricesToDeleteProducts": null,
-              "userErrors": [
-                {
-                  "field": ["pricesToAdd", "0", "productId"],
-                  "message": "Product gid://shopify/Product/0 in `pricesToAdd` does not exist.",
-                  "code": "PRODUCT_DOES_NOT_EXIST"
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "unknown product delete",
-      "request": {
-        "variables": {
-          "priceListId": "gid://shopify/PriceList/31575376178",
-          "pricesToAdd": [],
-          "pricesToDeleteByProductIds": ["gid://shopify/Product/0"]
-        }
-      },
-      "response": {
-        "payload": {
-          "data": {
-            "priceListFixedPricesByProductUpdate": {
-              "priceList": null,
-              "pricesToAddProducts": null,
-              "pricesToDeleteProducts": null,
-              "userErrors": [
-                {
-                  "field": ["pricesToDeleteByProductIds", "0"],
-                  "message": "Product gid://shopify/Product/0 in `pricesToDeleteByProductIds` does not exist.",
-                  "code": "PRODUCT_DOES_NOT_EXIST"
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "unknown price list",
-      "request": {
-        "variables": {
-          "priceListId": "gid://shopify/PriceList/0",
-          "pricesToAdd": [
-            {
-              "productId": "gid://shopify/Product/9801098789170",
-              "price": {
-                "amount": "1.00",
-                "currencyCode": "CAD"
-              }
-            }
-          ],
-          "pricesToDeleteByProductIds": []
-        }
-      },
-      "response": {
-        "payload": {
-          "data": {
-            "priceListFixedPricesByProductUpdate": {
-              "priceList": null,
-              "pricesToAddProducts": null,
-              "pricesToDeleteProducts": null,
-              "userErrors": [
-                {
-                  "field": ["priceListId"],
-                  "message": "Price list does not exist.",
-                  "code": "PRICE_LIST_DOES_NOT_EXIST"
-                }
-              ]
-            }
-          }
-        }
-      }
-    }
-  ],
+  },
   "upstreamCalls": [
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
         "priceListId": "gid://shopify/PriceList/31575376178",
-        "priceQuery": "product_id:9801098789170",
-        "productIds": ["gid://shopify/Product/9801098789170"]
+        "priceQuery": null,
+        "productIds": []
       },
       "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
       "response": {
@@ -371,34 +289,15 @@
                 }
               }
             },
-            "productNodes": [
-              {
-                "__typename": "Product",
-                "id": "gid://shopify/Product/9801098789170",
-                "title": "The Inventory Not Tracked Snowboard",
-                "handle": "the-inventory-not-tracked-snowboard",
-                "status": "ACTIVE",
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/49875425296690",
-                      "title": "Default Title",
-                      "sku": "sku-untracked-1",
-                      "price": "949.95",
-                      "compareAtPrice": null
-                    }
-                  ]
-                }
-              }
-            ]
+            "productNodes": []
           },
           "extensions": {
             "cost": {
               "requestedQueryCost": 22,
-              "actualQueryCost": 9,
+              "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1991,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -410,7 +309,7 @@
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
         "priceListId": "gid://shopify/PriceList/31575376178",
-        "priceQuery": "product_id:9801098789170",
+        "priceQuery": null,
         "productIds": ["gid://shopify/Product/9801098789170"]
       },
       "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
@@ -474,94 +373,6 @@
       "variables": {
         "priceListId": "gid://shopify/PriceList/31575376178",
         "priceQuery": null,
-        "productIds": ["gid://shopify/Product/0"]
-      },
-      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "priceList": {
-              "__typename": "PriceList",
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "prices": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
-              }
-            },
-            "productNodes": [null]
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 22,
-              "actualQueryCost": 5,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1995,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MarketsMutationPreflightHydrate",
-      "variables": {
-        "priceListId": "gid://shopify/PriceList/31575376178",
-        "priceQuery": null,
-        "productIds": ["gid://shopify/Product/0"]
-      },
-      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "priceList": {
-              "__typename": "PriceList",
-              "id": "gid://shopify/PriceList/31575376178",
-              "name": "Price List example Buyers",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "prices": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
-              }
-            },
-            "productNodes": [null]
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 22,
-              "actualQueryCost": 5,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1995,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "MarketsMutationPreflightHydrate",
-      "variables": {
-        "priceListId": "gid://shopify/PriceList/0",
-        "priceQuery": null,
         "productIds": ["gid://shopify/Product/9801098789170"]
       },
       "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
@@ -569,7 +380,22 @@
         "status": 200,
         "body": {
           "data": {
-            "priceList": null,
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/31575376178",
+              "name": "Price List example Buyers",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "prices": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
             "productNodes": [
               {
                 "__typename": "Product",
@@ -594,10 +420,136 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 22,
-              "actualQueryCost": 6,
+              "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/31575376178",
+        "priceQuery": null,
+        "productIds": ["gid://shopify/Product/9801098789170"]
+      },
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/31575376178",
+              "name": "Price List example Buyers",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "prices": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "productNodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard",
+                "status": "ACTIVE",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "title": "Default Title",
+                      "sku": "sku-untracked-1",
+                      "price": "949.95",
+                      "compareAtPrice": null
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/31575376178",
+        "priceQuery": null,
+        "productIds": ["gid://shopify/Product/9801098789170"]
+      },
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/31575376178",
+              "name": "Price List example Buyers",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "prices": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "productNodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard",
+                "status": "ACTIVE",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "title": "Default Title",
+                      "sku": "sku-untracked-1",
+                      "price": "949.95",
+                      "compareAtPrice": null
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
