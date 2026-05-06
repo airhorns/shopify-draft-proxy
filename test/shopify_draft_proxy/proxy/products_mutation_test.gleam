@@ -1768,6 +1768,76 @@ pub fn product_delete_stages_downstream_no_data_test() {
     == 1
 }
 
+pub fn product_delete_async_stages_operation_without_deleting_product_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let mutation =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }, synchronous: false) { deletedProductId productDeleteOperation { id status deletedProductId userErrors { field message code } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productDelete\":{\"deletedProductId\":null,\"productDeleteOperation\":{\"id\":\"gid://shopify/ProductDeleteOperation/1\",\"status\":\"CREATED\",\"deletedProductId\":null,\"userErrors\":[]},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productDelete")
+  assert entry.status == store_types.Staged
+  assert entry.staged_resource_ids == ["gid://shopify/ProductDeleteOperation/1"]
+
+  let product_read =
+    "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id title } products(first: 10, query: \\\"tag:existing\\\") { nodes { id title } } }"
+  let #(Response(status: product_status, body: product_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(product_read))
+  assert product_status == 200
+  assert json.to_string(product_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\"},\"products\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\"}]}}}"
+}
+
+pub fn product_delete_async_operation_resolves_through_helpers_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let mutation =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }, synchronous: false) { productDeleteOperation { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert status == 200
+
+  let operation_read =
+    "query { productOperation(id: \\\"gid://shopify/ProductDeleteOperation/1\\\") { __typename status product { id title } ... on ProductDeleteOperation { id deletedProductId userErrors { field message code } } } }"
+  let #(Response(status: operation_status, body: operation_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(operation_read))
+  assert operation_status == 200
+  assert json.to_string(operation_body)
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductDeleteOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\"},\"id\":\"gid://shopify/ProductDeleteOperation/1\",\"deletedProductId\":\"gid://shopify/Product/optioned\",\"userErrors\":[]}}}"
+
+  let node_read =
+    "query { node(id: \\\"gid://shopify/ProductDeleteOperation/1\\\") { __typename ... on ProductDeleteOperation { id status product { id } deletedProductId userErrors { field message code } } } }"
+  let #(Response(status: node_status, body: node_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(node_read))
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"node\":{\"__typename\":\"ProductDeleteOperation\",\"id\":\"gid://shopify/ProductDeleteOperation/1\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/optioned\"},\"deletedProductId\":\"gid://shopify/Product/optioned\",\"userErrors\":[]}}}"
+}
+
+pub fn product_delete_async_rejects_duplicate_pending_operation_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let mutation =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }, synchronous: false) { productDeleteOperation { id status } userErrors { field message } } }"
+
+  let #(Response(status: first_status, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert first_status == 200
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(mutation))
+
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productDelete\":{\"productDeleteOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Another operation already in progress. Please wait until current one is finished.\"}]}}}"
+}
+
 pub fn metafield_delete_stages_product_owned_deletion_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())

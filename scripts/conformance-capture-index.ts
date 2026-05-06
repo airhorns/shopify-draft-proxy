@@ -910,6 +910,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-delete-async',
+    scriptPath: 'scripts/capture-product-delete-async-conformance.ts',
+    purpose: 'Asynchronous productDelete operation payload, duplicate pending-operation guard, and helper reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-delete-async-operation.json`,
+      'config/parity-specs/products/productDelete-async-operation.json',
+      'config/parity-requests/products/productDelete-async-*.graphql',
+      'config/parity-requests/products/productDelete-operation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enqueues async deletion, captures immediate reads, then waits for Shopify to delete it or falls back to best-effort synchronous delete.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'product-inventory-reads',
     scriptPath: 'scripts/capture-product-inventory-read-conformance.mts',
