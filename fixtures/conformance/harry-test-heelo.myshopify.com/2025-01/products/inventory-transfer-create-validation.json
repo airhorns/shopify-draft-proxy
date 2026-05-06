@@ -1,0 +1,584 @@
+{
+  "scenario": "inventory-transfer-create-validation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T05:24:56Z",
+  "cases": {
+    "sameLocation": {
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/1",
+          "destinationLocationId": "gid://shopify/Location/1",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryTransferCreate": {
+            "inventoryTransfer": null,
+            "userErrors": [
+              {
+                "field": ["input", "destinationLocationId"],
+                "message": "The origin location cannot be the same as the destination location.",
+                "code": "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "unknownOrigin": {
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/999999999999",
+          "destinationLocationId": "gid://shopify/Location/2",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryTransferCreate": {
+            "inventoryTransfer": null,
+            "userErrors": [
+              {
+                "field": ["input", "originLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "unknownItem": {
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/1",
+          "destinationLocationId": "gid://shopify/Location/2",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/999999999999",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryTransferCreate": {
+            "inventoryTransfer": null,
+            "userErrors": [
+              {
+                "field": ["input", "lineItems", "0", "inventoryItemId"],
+                "message": "The inventory item could not be found.",
+                "code": "ITEM_NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "duplicateItem": {
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/1",
+          "destinationLocationId": "gid://shopify/Location/2",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "quantity": 1
+            },
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "quantity": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryTransferCreate": {
+            "inventoryTransfer": null,
+            "userErrors": [
+              {
+                "field": ["input", "lineItems", "0", "inventoryItemId"],
+                "message": "The inventory item is already present in the list. Each item must be unique.",
+                "code": "DUPLICATE_ITEM"
+              },
+              {
+                "field": ["input", "lineItems", "1", "inventoryItemId"],
+                "message": "The inventory item is already present in the list. Each item must be unique.",
+                "code": "DUPLICATE_ITEM"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "negativeQuantity": {
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/1",
+          "destinationLocationId": "gid://shopify/Location/2",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "quantity": -1
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryTransferCreate": {
+            "inventoryTransfer": null,
+            "userErrors": [
+              {
+                "field": ["input", "lineItems", "0", "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/1", "gid://shopify/InventoryItem/97011"]
+      },
+      "query": "hand-synthesized same-location hydration for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/1",
+                "name": "Shop location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/InventoryItem/97011",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-1?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-origin",
+                      "location": {
+                        "id": "gid://shopify/Location/1",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 5,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-2?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-destination",
+                      "location": {
+                        "id": "gid://shopify/Location/2",
+                        "name": "Overflow location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/97011",
+                  "title": "Default Title",
+                  "inventoryQuantity": 5,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9701",
+                    "title": "Transfer Hoodie",
+                    "handle": "transfer-hoodie",
+                    "status": "ACTIVE",
+                    "totalInventory": 5,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/2", "gid://shopify/Location/999999999999"]
+      },
+      "query": "hand-synthesized unknown-origin location hydration for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              },
+              null
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/2", "gid://shopify/InventoryItem/999999999999"]
+      },
+      "query": "hand-synthesized unknown-item hydration for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              },
+              null
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/2"]
+      },
+      "query": "hand-synthesized destination location hydration for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/2", "gid://shopify/InventoryItem/97011", "gid://shopify/Location/999999999999"]
+      },
+      "query": "hand-synthesized unknown-origin hydration for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/InventoryItem/97011",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-1?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-origin",
+                      "location": {
+                        "id": "gid://shopify/Location/1",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 5,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-2?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-destination",
+                      "location": {
+                        "id": "gid://shopify/Location/2",
+                        "name": "Overflow location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/97011",
+                  "title": "Default Title",
+                  "inventoryQuantity": 5,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9701",
+                    "title": "Transfer Hoodie",
+                    "handle": "transfer-hoodie",
+                    "status": "ACTIVE",
+                    "totalInventory": 5,
+                    "tracksInventory": true
+                  }
+                }
+              },
+              null
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/1", "gid://shopify/Location/2", "gid://shopify/InventoryItem/999999999999"]
+      },
+      "query": "hand-synthesized unknown-item hydration for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/1",
+                "name": "Shop location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              },
+              null
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/1", "gid://shopify/Location/2", "gid://shopify/InventoryItem/97011"]
+      },
+      "query": "hand-synthesized from checked-in inventory transfer conformance evidence for mutation validation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/1",
+                "name": "Shop location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/InventoryItem/97011",
+                "tracked": true,
+                "requiresShipping": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-1?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-origin",
+                      "location": {
+                        "id": "gid://shopify/Location/1",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 5,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/97011-2?inventory_item_id=97011",
+                      "cursor": "opaque-transfer-destination",
+                      "location": {
+                        "id": "gid://shopify/Location/2",
+                        "name": "Overflow location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-04-01T00:00:00.000Z"
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/97011",
+                  "title": "Default Title",
+                  "inventoryQuantity": 5,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "product": {
+                    "id": "gid://shopify/Product/9701",
+                    "title": "Transfer Hoodie",
+                    "handle": "transfer-hoodie",
+                    "status": "ACTIVE",
+                    "totalInventory": 5,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Location/999999999999"]
+      },
+      "query": "hand-synthesized unknown origin lookup for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryItem/999999999999"]
+      },
+      "query": "hand-synthesized unknown inventory item lookup for inventory transfer validation parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          }
+        }
+      }
+    }
+  ]
+}

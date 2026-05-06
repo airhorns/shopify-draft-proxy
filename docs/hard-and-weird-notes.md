@@ -3291,3 +3291,35 @@ Practical rule:
   staged log must retain the original document, variables, and route path so
   `__meta/commit` sends the same `ProductSetInput` declaration Shopify saw at
   staging time
+
+## 79. Draft inventory transfers validate identity/activation but allow zero and over-available quantities
+
+HAR-861 probed `inventoryTransferCreate` validation on Admin GraphQL 2025-01
+and 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Observed behavior:
+
+- equal origin and destination locations returned field
+  `["input", "destinationLocationId"]`, message
+  `The origin location cannot be the same as the destination location.`, and
+  code `TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION`
+- an unknown origin location returned field `["input", "originLocationId"]`,
+  message `The location selected can't be found.`, and code
+  `LOCATION_NOT_FOUND`
+- an unknown inventory item returned field
+  `["input", "lineItems", "0", "inventoryItemId"]`, message
+  `The inventory item could not be found.`, and code `ITEM_NOT_FOUND`
+- duplicate inventory-item rows returned `DUPLICATE_ITEM` on both duplicate row
+  field paths, not `DUPLICATE_INVENTORY_ITEM_ID`
+- a negative quantity returned field `["input", "lineItems", "0", "quantity"]`,
+  message `The quantity can't be negative.`, and code `INVALID_QUANTITY`
+- `quantity: 0` and draft quantities above current origin `available` were
+  accepted and produced draft transfers; the disposable transfers were cleaned
+  up immediately after probing
+
+Practical rule:
+
+- draft transfer validation should reject missing/inactive locations,
+  same-location inputs, unknown or origin-unstocked items, duplicate item rows,
+  and negative quantities, but should not invent zero-quantity or
+  over-available draft-create rejections without newer live evidence

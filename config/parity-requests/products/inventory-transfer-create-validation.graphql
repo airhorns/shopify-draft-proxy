@@ -1,0 +1,15 @@
+mutation InventoryTransferCreateValidationParity($input: InventoryTransferCreateInput!) {
+  inventoryTransferCreate(input: $input) {
+    inventoryTransfer {
+      id
+      name
+      status
+      totalQuantity
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

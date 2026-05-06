@@ -244,7 +244,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryItem/97011"]
+        "ids": ["gid://shopify/Location/1", "gid://shopify/Location/2", "gid://shopify/InventoryItem/97011"]
       },
       "query": "hand-synthesized from checked-in product capture evidence for Pattern 2 mutation hydration",
       "response": {
@@ -252,6 +252,18 @@
         "body": {
           "data": {
             "nodes": [
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/1",
+                "name": "Shop location",
+                "isActive": true
+              },
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/2",
+                "name": "Overflow location",
+                "isActive": true
+              },
               {
                 "id": "gid://shopify/InventoryItem/97011",
                 "tracked": true,

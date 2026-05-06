@@ -596,6 +596,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-user-errors-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-user-errors-shape-conformance.ts',
+    purpose: 'stagedUploadsCreate UserError field/message shape and schema rejection for selecting code.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-user-errors-shape.json`,
+      'config/parity-specs/media/media-staged-uploads-create-user-errors-shape.json',
+    ],
+    cleanupBehavior: 'Requests validation-only staged upload metadata and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-acknowledge-update-failed',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
@@ -1952,6 +1966,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable blog and article setup record; invalid articleUpdate attempts should not mutate, and cleanup deletes the article then blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-delete-cascades',
+    scriptPath: 'scripts/capture-online-store-delete-cascade-conformance.ts',
+    purpose:
+      'blogDelete and articleDelete dependent-destroy behavior for child articles and comments, including downstream null/empty reads.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}article-delete-cascades-comments.json`,
+      `${CAPTURE_ROOT}blog-delete-cascades-articles-and-comments.json`,
+      'config/parity-specs/online-store/article_delete_cascades_comments.json',
+      'config/parity-specs/online-store/blog_delete_cascades_articles_and_comments.json',
+      'config/parity-requests/online-store/article-delete-cascades-comments*.graphql',
+      'config/parity-requests/online-store/blog-delete-cascades-articles-and-comments*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable blogs/articles and REST article comments, then deletes the article or blog during the scenario; failure cleanup deletes any remaining article/blog records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
