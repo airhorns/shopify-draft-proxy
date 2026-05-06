@@ -202,6 +202,8 @@ fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
   || dict.size(store_in.staged_state.product_options) > 0
   || dict.size(store_in.staged_state.product_metafields) > 0
   || dict.size(store_in.staged_state.collections) > 0
+  || dict.size(store_in.base_state.product_operations) > 0
+  || dict.size(store_in.staged_state.product_operations) > 0
   || dict.size(store_in.staged_state.customers) > 0
   || dict.size(store_in.staged_state.store_property_locations) > 0
   || option.is_some(store_in.base_state.shop)
@@ -883,6 +885,15 @@ fn serialize_node_by_id(
         store,
         id,
         selections,
+        fragments,
+      )
+    "ProductBundleOperation"
+    | "ProductDuplicateOperation"
+    | "ProductSetOperation" ->
+      products.serialize_product_operation_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, gid_resource_type(id), fragments),
         fragments,
       )
     "Metafield" ->

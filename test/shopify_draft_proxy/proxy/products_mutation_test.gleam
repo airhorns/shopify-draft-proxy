@@ -3233,7 +3233,7 @@ pub fn product_set_rejects_missing_and_suspended_product_references_test() {
 
 pub fn product_bundle_create_rejects_component_validation_branches_test() {
   let missing_query =
-    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/0\\\", quantity: 1, optionSelections: [] }] }) { productBundleOperation { id status product { id } } userErrors { field message } } }"
+    "mutation { productBundleCreate(input: { title: \\\"Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/0\\\", quantity: 1, optionSelections: [] }] }) { productBundleOperation { id status product { id } userErrors { field message } } userErrors { field message } } }"
   let #(Response(status: missing_status, body: missing_body, ..), missing_proxy) =
     draft_proxy.process_request(
       draft_proxy.new(),
@@ -3356,19 +3356,55 @@ pub fn product_bundle_create_stages_operation_and_operation_read_test() {
     draft_proxy.process_request(proxy, graphql_request(mutation))
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
+    == "{\"data\":{\"productBundleCreate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/2\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.operation_name == Some("productBundleCreate")
   assert entry.status == store_types.Staged
-  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/1"]
+  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/2"]
 
   let operation_read =
-    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/1\\\") { __typename status product { id } ... on ProductBundleOperation { id } } }"
+    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/2\\\") { __typename status product { id title } ... on ProductBundleOperation { id userErrors { field message } } } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     draft_proxy.process_request(next_proxy, graphql_request(operation_read))
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"ACTIVE\",\"product\":null,\"id\":\"gid://shopify/ProductBundleOperation/1\"}}}"
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Bundle\"},\"id\":\"gid://shopify/ProductBundleOperation/2\",\"userErrors\":[]}}}"
+
+  let node_read =
+    "query { node(id: \\\"gid://shopify/ProductBundleOperation/2\\\") { __typename ... on ProductBundleOperation { id status product { id } userErrors { field message } } } }"
+  let #(Response(status: node_status, body: node_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(node_read))
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"node\":{\"__typename\":\"ProductBundleOperation\",\"id\":\"gid://shopify/ProductBundleOperation/2\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_bundle_update_stages_completed_operation_with_product_test() {
+  let option_selections =
+    "{ componentOptionId: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Color\\\", values: [\\\"Red\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/size\\\", name: \\\"Size\\\", values: [\\\"Small\\\"] }, { componentOptionId: \\\"gid://shopify/ProductOption/material\\\", name: \\\"Material\\\", values: [\\\"Cotton\\\"] }"
+  let mutation =
+    "mutation { productBundleUpdate(input: { productId: \\\"gid://shopify/Product/optioned\\\", title: \\\"Updated Bundle\\\", components: [{ productId: \\\"gid://shopify/Product/optioned\\\", quantity: 1, optionSelections: ["
+    <> option_selections
+    <> "] }] }) { productBundleOperation { id status product { id } } userErrors { field message } } }"
+  let proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: three_option_store())
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productBundleUpdate\":{\"productBundleOperation\":{\"id\":\"gid://shopify/ProductBundleOperation/1\",\"status\":\"CREATED\",\"product\":null},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productBundleUpdate")
+  assert entry.status == store_types.Staged
+  assert entry.staged_resource_ids == ["gid://shopify/ProductBundleOperation/1"]
+
+  let operation_read =
+    "query { productOperation(id: \\\"gid://shopify/ProductBundleOperation/1\\\") { __typename status product { id title } ... on ProductBundleOperation { id userErrors { field message } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(operation_read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductBundleOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Updated Bundle\"},\"id\":\"gid://shopify/ProductBundleOperation/1\",\"userErrors\":[]}}}"
 }
 
 pub fn product_set_async_operation_completes_on_product_operation_read_test() {

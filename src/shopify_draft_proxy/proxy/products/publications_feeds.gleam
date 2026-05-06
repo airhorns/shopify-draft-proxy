@@ -27,7 +27,8 @@ import shopify_draft_proxy/proxy/products/product_types.{
 }
 import shopify_draft_proxy/proxy/products/products_core.{
   duplicate_product_metafields, enumerate_items, json_string_array_literal,
-  product_seo_source,
+  product_operation_user_error_source, product_seo_source,
+  slugify_product_handle,
 }
 import shopify_draft_proxy/proxy/products/products_validation.{
   product_price_range_source,
@@ -54,14 +55,16 @@ import shopify_draft_proxy/proxy/products/variants_options_core.{
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
-  type SyntheticIdentityRegistry, make_synthetic_gid,
+  type SyntheticIdentityRegistry, make_proxy_synthetic_gid, make_synthetic_gid,
+  make_synthetic_timestamp,
 }
 import shopify_draft_proxy/state/types.{
   type ChannelRecord, type ProductFeedRecord, type ProductOperationRecord,
   type ProductOptionRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ShopResourceFeedbackRecord,
   ProductCollectionRecord, ProductFeedRecord, ProductOperationRecord,
-  ProductResourceFeedbackRecord, ShopResourceFeedbackRecord,
+  ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
+  ShopResourceFeedbackRecord,
 }
 
 // ===== from publications_l02 =====
@@ -429,6 +432,7 @@ pub fn product_full_sync_payload(
 
 @internal
 pub fn product_bundle_mutation_payload(
+  store: Store,
   root_name: String,
   operation: Option(ProductOperationRecord),
   user_errors: List(NullableFieldUserError),
@@ -443,7 +447,7 @@ pub fn product_bundle_mutation_payload(
     src_object([
       #("__typename", SrcString(typename)),
       #("productBundleOperation", case operation {
-        Some(operation) -> product_bundle_operation_source(operation)
+        Some(operation) -> product_bundle_operation_source(store, operation)
         None -> SrcNull
       }),
       #("userErrors", nullable_field_user_errors_source(user_errors)),
@@ -454,14 +458,43 @@ pub fn product_bundle_mutation_payload(
 }
 
 fn product_bundle_operation_source(
+  store: Store,
   operation: ProductOperationRecord,
 ) -> SourceValue {
   src_object([
     #("__typename", SrcString(operation.type_name)),
     #("id", SrcString(operation.id)),
     #("status", SrcString(operation.status)),
-    #("product", SrcNull),
+    #("product", case operation.status, operation.product_id {
+      "COMPLETE", Some(product_id) ->
+        case store.get_effective_product_by_id(store, product_id) {
+          Some(product) -> bundle_product_source(product)
+          None -> SrcNull
+        }
+      _, _ -> SrcNull
+    }),
+    #(
+      "userErrors",
+      SrcList(list.map(
+        operation.user_errors,
+        product_operation_user_error_source,
+      )),
+    ),
   ])
+}
+
+fn bundle_product_source(product: ProductRecord) -> SourceValue {
+  product_source_with_relationships(
+    product,
+    empty_connection_source(),
+    empty_connection_source(),
+    empty_connection_source(),
+    SrcList([]),
+    empty_connection_source(),
+    count_source(0),
+    "USD",
+    None,
+  )
 }
 
 @internal
@@ -884,24 +917,37 @@ pub fn handle_product_bundle_mutation(
   }
   case user_errors {
     [] -> {
+      let #(next_store, identity_after_product, product_id) =
+        stage_product_bundle_product(
+          store,
+          identity,
+          root_name,
+          input,
+          existing_product,
+        )
       let #(operation_id, next_identity) =
-        make_synthetic_gid(identity, "ProductBundleOperation")
+        make_synthetic_gid(identity_after_product, "ProductBundleOperation")
       let completed_operation =
         ProductOperationRecord(
           id: operation_id,
           type_name: "ProductBundleOperation",
-          product_id: None,
+          product_id: product_id,
           new_product_id: None,
-          status: "ACTIVE",
+          status: "COMPLETE",
           user_errors: [],
         )
       let #(staged_operation, next_store) =
-        store.stage_product_operation(store, completed_operation)
+        store.stage_product_operation(next_store, completed_operation)
       let initial_operation =
-        ProductOperationRecord(..staged_operation, status: "CREATED")
+        ProductOperationRecord(
+          ..staged_operation,
+          product_id: None,
+          status: "CREATED",
+        )
       mutation_result(
         key,
         product_bundle_mutation_payload(
+          next_store,
           root_name,
           Some(initial_operation),
           [],
@@ -917,6 +963,7 @@ pub fn handle_product_bundle_mutation(
       mutation_rejected_result(
         key,
         product_bundle_mutation_payload(
+          store,
           root_name,
           None,
           user_errors,
@@ -926,6 +973,72 @@ pub fn handle_product_bundle_mutation(
         store,
         identity,
       )
+  }
+}
+
+fn stage_product_bundle_product(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  input: Dict(String, ResolvedValue),
+  existing_product: Option(ProductRecord),
+) -> #(Store, SyntheticIdentityRegistry, Option(String)) {
+  case root_name, existing_product {
+    "productBundleUpdate", Some(product) -> {
+      let #(updated_at, next_identity) = make_synthetic_timestamp(identity)
+      let next_product =
+        ProductRecord(
+          ..product,
+          title: read_string_field(input, "title")
+            |> option.unwrap(product.title),
+          updated_at: Some(updated_at),
+        )
+      let #(staged, next_store) =
+        store.upsert_staged_product(store, next_product)
+      #(next_store, next_identity, Some(staged.id))
+    }
+    "productBundleUpdate", None -> #(store, identity, None)
+    _, _ -> {
+      let #(created_at, identity_after_timestamp) =
+        make_synthetic_timestamp(identity)
+      let #(product_id, next_identity) =
+        make_proxy_synthetic_gid(identity_after_timestamp, "Product")
+      let title = read_string_field(input, "title") |> option.unwrap("Bundle")
+      let product =
+        ProductRecord(
+          id: product_id,
+          legacy_resource_id: None,
+          title: title,
+          handle: slugify_product_handle(title),
+          status: "ACTIVE",
+          vendor: None,
+          product_type: None,
+          tags: [],
+          price_range_min: None,
+          price_range_max: None,
+          total_variants: None,
+          has_only_default_variant: None,
+          has_out_of_stock_variants: None,
+          total_inventory: Some(0),
+          tracks_inventory: Some(False),
+          created_at: Some(created_at),
+          updated_at: Some(created_at),
+          published_at: None,
+          description_html: "",
+          online_store_preview_url: None,
+          template_suffix: None,
+          seo: ProductSeoRecord(title: None, description: None),
+          category: None,
+          publication_ids: [],
+          contextual_pricing: None,
+          cursor: None,
+          combined_listing_role: None,
+          combined_listing_parent_id: None,
+          combined_listing_child_ids: [],
+        )
+      let #(staged, next_store) = store.upsert_staged_product(store, product)
+      #(next_store, next_identity, Some(staged.id))
+    }
   }
 }
 
