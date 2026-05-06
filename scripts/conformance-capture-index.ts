@@ -2498,6 +2498,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'store-properties',
+    captureId: 'shop-policy-subscription-blank-body',
+    scriptPath: 'scripts/capture-shop-policy-subscription-blank-body-conformance.ts',
+    purpose:
+      'shopPolicyUpdate SUBSCRIPTION_POLICY blank and whitespace body validation plus downstream shopPolicies non-presence.',
+    requiredAuthScopes: ['read_content', 'write_content or policy-management access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
+      'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body*.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'privacy',
     captureId: 'privacy',
     scriptPath: 'scripts/capture-privacy-conformance.ts',
