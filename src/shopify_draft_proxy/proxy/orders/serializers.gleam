@@ -62,6 +62,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -2043,8 +2044,8 @@ pub fn return_log_draft(
   user_errors: List(#(List(String), String, Option(String))),
 ) -> LogDraft {
   let status = case user_errors {
-    [] -> store.Staged
-    _ -> store.Failed
+    [] -> store_types.Staged
+    _ -> store_types.Failed
   }
   single_root_log_draft(
     root_name,

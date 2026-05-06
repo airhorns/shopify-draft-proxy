@@ -1,0 +1,772 @@
+{
+  "capturedAt": "2026-05-06T00:31:26.867Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, and billing/delivery policy kind compatibility.",
+    "The script creates one disposable selling-plan group so update validation branches can target an existing group and deletes it during cleanup."
+  ],
+  "groupId": "gid://shopify/SellingPlanGroup/2981101874",
+  "planId": "gid://shopify/SellingPlan/7131595058",
+  "scenarios": {
+    "validSeed": {
+      "label": "validSeed",
+      "variables": {
+        "input": {
+          "name": "Input validation seed 1778027484926",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "cutoff": 0
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/2981101874",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7131595058"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "groupOptionsTooLong": {
+      "label": "groupOptionsTooLong",
+      "variables": {
+        "input": {
+          "name": "Too many group options",
+          "options": ["a", "b", "c", "d"]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "options"],
+                "message": "Too many selling plan group options (maximum 3 options)",
+                "code": "TOO_LONG"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "groupPositionInvalid": {
+      "label": "groupPositionInvalid",
+      "variables": {
+        "input": {
+          "name": "Bad group position",
+          "position": 9999999999
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "position"],
+                "message": "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planCreateOptionsTooLong": {
+      "label": "planCreateOptionsTooLong",
+      "variables": {
+        "input": {
+          "name": "Too many plan options",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["a", "b", "c", "d"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "cutoff": 0
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "options"],
+                "message": "Too many selling plan options (maximum 3 options)",
+                "code": "TOO_LONG"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planCreatePricingPoliciesTooLong": {
+      "label": "planCreatePricingPoliciesTooLong",
+      "variables": {
+        "input": {
+          "name": "Too many pricing policies",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "cutoff": 0
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                },
+                {
+                  "recurring": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 5
+                    },
+                    "afterCycle": 2
+                  }
+                },
+                {
+                  "recurring": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 5
+                    },
+                    "afterCycle": 3
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "pricingPolicies"],
+                "message": "Selling plans to create pricing policies can't have more than 2 pricing policies",
+                "code": "SELLING_PLAN_PRICING_POLICIES_LIMIT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planCreatePositionInvalid": {
+      "label": "planCreatePositionInvalid",
+      "variables": {
+        "input": {
+          "name": "Bad plan position",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "position": 9999999999,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "cutoff": 0
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0", "position"],
+                "message": "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planCreatePolicyMismatch": {
+      "label": "planCreatePolicyMismatch",
+      "variables": {
+        "input": {
+          "name": "Policy mismatch",
+          "options": ["Delivery frequency"],
+          "sellingPlansToCreate": [
+            {
+              "name": "Monthly delivery",
+              "options": ["Monthly"],
+              "position": 1,
+              "category": "SUBSCRIPTION",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "fixed": {
+                  "fulfillmentTrigger": "ASAP"
+                }
+              },
+              "inventoryPolicy": {
+                "reserve": "ON_FULFILLMENT"
+              },
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "resources": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToCreate", "0"],
+                "message": "billing and delivery policy types must be the same.",
+                "code": "BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "groupUpdateOptionsTooLong": {
+      "label": "groupUpdateOptionsTooLong",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "input": {
+          "options": ["a", "b", "c", "d"]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "options"],
+                "message": "Too many selling plan group options (maximum 3 options)",
+                "code": "TOO_LONG"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planUpdateMissingId": {
+      "label": "planUpdateMissingId",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "name": "Missing id"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0", "id"],
+                "message": "Id must be specificed to update a Selling Plan.",
+                "code": "PLAN_ID_MUST_BE_SPECIFIED_TO_UPDATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planUpdateOptionsTooLong": {
+      "label": "planUpdateOptionsTooLong",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "id": "gid://shopify/SellingPlan/7131595058",
+              "options": ["a", "b", "c", "d"]
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0", "options"],
+                "message": "Too many selling plan options (maximum 3 options)",
+                "code": "TOO_LONG"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planUpdatePricingPoliciesTooLong": {
+      "label": "planUpdatePricingPoliciesTooLong",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "id": "gid://shopify/SellingPlan/7131595058",
+              "pricingPolicies": [
+                {
+                  "fixed": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 10
+                    }
+                  }
+                },
+                {
+                  "recurring": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 5
+                    },
+                    "afterCycle": 2
+                  }
+                },
+                {
+                  "recurring": {
+                    "adjustmentType": "PERCENTAGE",
+                    "adjustmentValue": {
+                      "percentage": 5
+                    },
+                    "afterCycle": 3
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0", "pricingPolicies"],
+                "message": "Selling plans to update pricing policies can't have more than 2 pricing policies",
+                "code": "SELLING_PLAN_PRICING_POLICIES_LIMIT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planUpdatePositionInvalid": {
+      "label": "planUpdatePositionInvalid",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "id": "gid://shopify/SellingPlan/7131595058",
+              "position": 9999999999
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0", "position"],
+                "message": "Position must be within the range of -2,147,483,648 to 2,147,483,647",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "planUpdatePolicyMismatch": {
+      "label": "planUpdatePolicyMismatch",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874",
+        "input": {
+          "sellingPlansToUpdate": [
+            {
+              "id": "gid://shopify/SellingPlan/7131595058",
+              "billingPolicy": {
+                "recurring": {
+                  "interval": "MONTH",
+                  "intervalCount": 1,
+                  "minCycles": 1,
+                  "maxCycles": 12
+                }
+              },
+              "deliveryPolicy": {
+                "fixed": {
+                  "fulfillmentTrigger": "ASAP"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToUpdate", "0"],
+                "message": "Only one of fixed or recurring delivery policy is allowed",
+                "code": "ONLY_ONE_OF_FIXED_OR_RECURRING_DELIVERY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup sellingPlanGroupDelete",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/2981101874"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/2981101874",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

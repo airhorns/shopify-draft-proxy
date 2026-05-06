@@ -30,6 +30,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -298,7 +299,7 @@ fn handle_mutation_fields(
             mutation_helpers.single_root_log_draft(
               name.value,
               result.staged_resource_ids,
-              store.Staged,
+              store_types.Staged,
               "media",
               "stage-locally",
               Some(

@@ -43,6 +43,7 @@ import shopify_draft_proxy/search_query_parser.{
 import shopify_draft_proxy/state/store.{
   type Store, list_effective_saved_searches,
 }
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
@@ -895,8 +896,8 @@ fn handle_create(
       "savedSearchCreate",
       staged_ids,
       case errors {
-        [] -> store.Staged
-        _ -> store.Failed
+        [] -> store_types.Staged
+        _ -> store_types.Failed
       },
       "saved-searches",
       "stage-locally",
@@ -997,8 +998,8 @@ fn handle_update(
       "savedSearchUpdate",
       staged_ids,
       case errors {
-        [] -> store.Staged
-        _ -> store.Failed
+        [] -> store_types.Staged
+        _ -> store_types.Failed
       },
       "saved-searches",
       "stage-locally",
@@ -1062,8 +1063,8 @@ fn handle_delete(
       "savedSearchDelete",
       [],
       case errors {
-        [] -> store.Staged
-        _ -> store.Failed
+        [] -> store_types.Staged
+        _ -> store_types.Failed
       },
       "saved-searches",
       "stage-locally",

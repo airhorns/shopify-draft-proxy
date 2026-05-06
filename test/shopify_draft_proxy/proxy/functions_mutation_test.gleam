@@ -14,6 +14,7 @@ import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppRecord, type CartTransformRecord,
@@ -214,7 +215,7 @@ pub fn process_mutation_records_staged_log_test() {
   let assert [entry] = store.get_log(outcome.store)
   assert entry.operation_name == Some("taxAppConfigure")
   assert entry.path == "/admin/api/2025-01/graphql.json"
-  assert entry.status == store.Staged
+  assert entry.status == store_types.Staged
   assert entry.staged_resource_ids
     == [
       "gid://shopify/TaxAppConfiguration/local",
@@ -471,7 +472,7 @@ pub fn validation_update_omitted_enable_and_block_reset_defaults_test() {
   assert updated.block_on_failure == Some(False)
 
   let assert [entry] = store.get_log(outcome.store)
-  assert entry.status == store.Staged
+  assert entry.status == store_types.Staged
   assert entry.operation_name == Some("validationUpdate")
   assert entry.query == document
   assert entry.staged_resource_ids == ["gid://shopify/Validation/defaults"]
