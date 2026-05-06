@@ -263,8 +263,34 @@
           }
         },
         "excludedPaths": ["$[*].locations"]
+      },
+      {
+        "name": "unknown-group-add-product",
+        "capturePath": "$.captures[13].response.data.sellingPlanGroupAddProducts",
+        "proxyPath": "$.data.sellingPlanGroupAddProducts",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-add-products.graphql",
+          "documentCapturePath": "$.captures[13].request.query",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.unknownGroupId"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.memberProduct.id"
+              }
+            ],
+            "productId": {
+              "fromCapturePath": "$.memberProduct.id"
+            },
+            "variantId": {
+              "fromCapturePath": "$.memberProduct.variantId"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Captures Admin GraphQL 2026-04 selling-plan group add/remove validation for duplicate memberships, unknown add resources, valid non-member remove no-ops, unknown remove no-ops, and malformed remove variable errors. The harry-test-heelo capture showed known and unknown valid remove IDs return empty successful removals, while malformed IDs are rejected at the GraphQL variable layer."
+  "notes": "Captures Admin GraphQL 2026-04 selling-plan group add/remove validation for duplicate memberships, unknown add resources, unknown group add, valid non-member remove no-ops, unknown remove no-ops, and malformed remove variable errors. The harry-test-heelo capture showed known and unknown valid remove IDs return empty successful removals, while malformed IDs are rejected at the GraphQL variable layer."
 }

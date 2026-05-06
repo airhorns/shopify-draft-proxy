@@ -1,0 +1,9 @@
+query PaymentTermsOwnerCascadeOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    paymentTerms {
+      id
+      paymentTermsName
+    }
+  }
+}

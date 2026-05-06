@@ -53,6 +53,8 @@ const domain_name = "metaobjects"
 
 const execution_name = "stage-locally"
 
+const definition_column_size_limit = 255
+
 @internal
 pub type UserError {
   UserError(
@@ -180,6 +182,7 @@ pub fn build_create_definition_validation_errors(
 ) -> List(UserError) {
   let type_ = read_string(input, "type")
   let name = read_string(input, "name")
+  let description = read_string(input, "description")
   let access = read_object(input, "access")
   []
   |> append_if(
@@ -192,16 +195,8 @@ pub fn build_create_definition_validation_errors(
       None,
     ),
   )
-  |> append_if(
-    option.is_none(name),
-    UserError(
-      Some(["definition", "name"]),
-      "Name can't be blank",
-      "BLANK",
-      None,
-      None,
-    ),
-  )
+  |> append_definition_name_validation_errors(name)
+  |> append_definition_description_validation_errors(description)
   |> append_if(
     case type_, access {
       Some(t), Some(a) ->
@@ -252,10 +247,72 @@ pub fn build_create_definition_uniqueness_errors(
 }
 
 @internal
+pub fn append_definition_name_validation_errors(
+  errors: List(UserError),
+  name: Option(String),
+) -> List(UserError) {
+  errors
+  |> append_if(
+    is_missing_definition_name(name),
+    UserError(
+      Some(["definition", "name"]),
+      "Name can't be blank",
+      "BLANK",
+      None,
+      None,
+    ),
+  )
+  |> append_if(
+    string_option_length(name) > definition_column_size_limit,
+    UserError(
+      Some(["definition", "name"]),
+      "Name is too long (maximum is 255 characters)",
+      "TOO_LONG",
+      None,
+      None,
+    ),
+  )
+}
+
+@internal
+pub fn append_definition_description_validation_errors(
+  errors: List(UserError),
+  description: Option(String),
+) -> List(UserError) {
+  errors
+  |> append_if(
+    string_option_length(description) > definition_column_size_limit,
+    UserError(
+      Some(["definition", "description"]),
+      "Description is too long (maximum is 255 characters)",
+      "TOO_LONG",
+      None,
+      None,
+    ),
+  )
+}
+
+@internal
+pub fn is_missing_definition_name(name: Option(String)) -> Bool {
+  case name {
+    None -> True
+    Some(value) -> string.trim(value) == ""
+  }
+}
+
+@internal
 pub fn is_missing_definition_type(type_: Option(String)) -> Bool {
   case type_ {
     None -> True
     Some(value) -> string.trim(value) == ""
+  }
+}
+
+@internal
+pub fn string_option_length(value: Option(String)) -> Int {
+  case value {
+    Some(value) -> string.length(value)
+    None -> 0
   }
 }
 
@@ -470,16 +527,19 @@ pub fn apply_definition_update(
       requesting_api_client_id,
     )
   let access_errors = build_update_definition_access_user_errors(input, type_)
+  let name = read_string_if_present(input, "name", existing.name)
+  let description =
+    read_string_if_present(input, "description", existing.description)
+  let scalar_errors =
+    []
+    |> append_definition_name_validation_errors(name)
+    |> append_definition_description_validation_errors(description)
   let updated =
     MetaobjectDefinitionRecord(
       ..existing,
       type_: type_,
-      name: read_string_if_present(input, "name", existing.name),
-      description: read_string_if_present(
-        input,
-        "description",
-        existing.description,
-      ),
+      name: name,
+      description: description,
       display_name_key: read_string_if_present(
         input,
         "displayNameKey",
@@ -505,6 +565,7 @@ pub fn apply_definition_update(
     next_identity,
     list.flatten([
       type_errors,
+      scalar_errors,
       access_errors,
       user_errors,
     ]),
@@ -1060,6 +1121,18 @@ pub fn apply_metaobject_update_input(
                 Ok(_) -> fields_from_input
                 Error(_) -> existing.fields
               }
+              let display_name = case
+                should_recompute_metaobject_display_name(
+                  definition,
+                  existing.fields,
+                  fields,
+                  input,
+                )
+              {
+                True ->
+                  metaobject_display_name(definition, fields, Some(handle))
+                False -> existing.display_name
+              }
               let #(now, next_identity) =
                 synthetic_identity.make_synthetic_timestamp(identity)
               #(
@@ -1067,11 +1140,7 @@ pub fn apply_metaobject_update_input(
                   MetaobjectRecord(
                     ..existing,
                     handle: handle,
-                    display_name: metaobject_display_name(
-                      definition,
-                      fields,
-                      Some(handle),
-                    ),
+                    display_name: display_name,
                     fields: fields,
                     capabilities: build_metaobject_capabilities(
                       input,
@@ -1110,12 +1179,12 @@ pub fn build_metaobject_fields_from_input(
     list.fold(definition.field_definitions, dict.new(), fn(acc, field) {
       dict.insert(acc, field.key, field)
     })
-  let #(fields_by_key, errors, provided_keys) =
+  let #(fields_by_key, errors, provided_keys, duplicate_indices_by_key) =
     list.fold(
       enumerate_values(read_list(input, "fields")),
-      #(existing_by_key, [], []),
+      #(existing_by_key, [], [], dict.new()),
       fn(acc, pair) {
-        let #(by_key, errs, provided) = acc
+        let #(by_key, errs, provided, duplicate_indices) = acc
         let #(index, value) = pair
         case value {
           root_field.ObjectVal(raw_field) ->
@@ -1132,54 +1201,75 @@ pub fn build_metaobject_fields_from_input(
                   ),
                 ]),
                 provided,
+                duplicate_indices,
               )
               Some(key) ->
-                case dict.get(definitions_by_key, key) {
-                  Error(_) -> #(
-                    by_key,
+                case list.contains(provided, key) {
+                  True -> #(
+                    dict.delete(by_key, key),
                     list.append(errs, [
                       UserError(
                         Some(["metaobject", "fields", int.to_string(index)]),
-                        "Field definition \"" <> key <> "\" does not exist",
-                        "UNDEFINED_OBJECT_FIELD",
+                        "Field \"" <> key <> "\" duplicates other inputs",
+                        "DUPLICATE_FIELD_INPUT",
                         Some(key),
                         None,
                       ),
                     ]),
-                    provided,
+                    list.append(provided, [key]),
+                    dict.insert(duplicate_indices, key, index),
                   )
-                  Ok(field_definition) -> {
-                    let value_errors =
-                      validate_metaobject_field_input_value(
-                        store,
-                        raw_field,
-                        field_definition,
-                        index,
-                        allow_scalar_boolean_coercion,
-                      )
-                    case value_errors {
-                      [_, ..] -> #(
+                  False ->
+                    case dict.get(definitions_by_key, key) {
+                      Error(_) -> #(
                         by_key,
-                        list.append(errs, value_errors),
+                        list.append(errs, [
+                          UserError(
+                            Some(["metaobject", "fields", int.to_string(index)]),
+                            "Field definition \"" <> key <> "\" does not exist",
+                            "UNDEFINED_OBJECT_FIELD",
+                            Some(key),
+                            None,
+                          ),
+                        ]),
                         list.append(provided, [key]),
+                        duplicate_indices,
                       )
-                      [] -> #(
-                        dict.insert(
-                          by_key,
-                          key,
-                          build_metaobject_field_from_input(
+                      Ok(field_definition) -> {
+                        let value_errors =
+                          validate_metaobject_field_input_value(
+                            store,
                             raw_field,
                             field_definition,
-                          ),
-                        ),
-                        errs,
-                        list.append(provided, [key]),
-                      )
+                            index,
+                            allow_scalar_boolean_coercion,
+                          )
+                        case value_errors {
+                          [_, ..] -> #(
+                            by_key,
+                            list.append(errs, value_errors),
+                            list.append(provided, [key]),
+                            duplicate_indices,
+                          )
+                          [] -> #(
+                            dict.insert(
+                              by_key,
+                              key,
+                              build_metaobject_field_from_input(
+                                raw_field,
+                                field_definition,
+                              ),
+                            ),
+                            errs,
+                            list.append(provided, [key]),
+                            duplicate_indices,
+                          )
+                        }
+                      }
                     }
-                  }
                 }
             }
-          _ -> #(by_key, errs, provided)
+          _ -> #(by_key, errs, provided, duplicate_indices)
         }
       },
     )
@@ -1189,18 +1279,27 @@ pub fn build_metaobject_fields_from_input(
       list.filter_map(definition.field_definitions, fn(field_definition) {
         let has_field = dict.has_key(fields_by_key, field_definition.key)
         let provided = list.contains(provided_keys, field_definition.key)
+        let duplicate_index =
+          dict.get(duplicate_indices_by_key, field_definition.key)
         case
-          field_definition.required == Some(True) && !has_field && !provided
+          field_definition.required == Some(True)
+          && !has_field
+          && { !provided || result.is_ok(duplicate_index) }
         {
-          True ->
+          True -> {
+            let field_path = case duplicate_index {
+              Ok(index) -> ["metaobject", "fields", int.to_string(index)]
+              Error(_) -> ["metaobject"]
+            }
             Ok(UserError(
-              Some(["metaobject"]),
+              Some(field_path),
               option.unwrap(field_definition.name, field_definition.key)
                 <> " can't be blank",
               "OBJECT_FIELD_REQUIRED",
               Some(field_definition.key),
               None,
             ))
+          }
           False -> Error(Nil)
         }
       })
@@ -1218,6 +1317,53 @@ pub fn build_metaobject_fields_from_input(
       }
     })
   #(fields, all_errors)
+}
+
+fn should_recompute_metaobject_display_name(
+  definition: MetaobjectDefinitionRecord,
+  existing_fields: List(MetaobjectFieldRecord),
+  updated_fields: List(MetaobjectFieldRecord),
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case definition.display_name_key {
+    None -> False
+    Some(display_key) ->
+      case input_has_field_key(input, display_key) {
+        False -> False
+        True ->
+          case
+            find_metaobject_field(existing_fields, display_key),
+            find_metaobject_field(updated_fields, display_key)
+          {
+            Some(existing), Some(updated) ->
+              existing.value != updated.value
+              || existing.json_value != updated.json_value
+            None, Some(_) -> True
+            _, _ -> False
+          }
+      }
+  }
+}
+
+fn input_has_field_key(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  read_list(input, "fields")
+  |> list.any(fn(value) {
+    case value {
+      root_field.ObjectVal(raw_field) ->
+        read_string(raw_field, "key") == Some(key)
+      _ -> False
+    }
+  })
+}
+
+fn find_metaobject_field(
+  fields: List(MetaobjectFieldRecord),
+  key: String,
+) -> Option(MetaobjectFieldRecord) {
+  list.find(fields, fn(field) { field.key == key }) |> option.from_result
 }
 
 @internal

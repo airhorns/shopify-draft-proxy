@@ -1,0 +1,74 @@
+{
+  "scenarioId": "online-store/article-update-invalid-publish-date",
+  "operationNames": ["blogCreate", "articleCreate", "articleUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-invalid-publish-date.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify's articleUpdate validation when an unpublished scheduled article is flipped to isPublished true while retaining a future publishDate. The setup articleCreate proves that isPublished false plus a future publishDate is accepted.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable article blog reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate accepts scheduled future publishDate while unpublished",
+        "capturePath": "$.interactions[5].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[5].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[5].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[5].request.variables.article.author.name"
+                }
+              },
+              "isPublished": false,
+              "publishDate": {
+                "fromCapturePath": "$.interactions[5].request.variables.article.publishDate"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article.title", "$.article.isPublished", "$.article.publishedAt", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate rejects publishing with a future publishDate",
+        "capturePath": "$.interactions[6].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-article-update.graphql",
+          "variables": {
+            "id": { "fromPreviousProxyPath": "$.data.articleCreate.article.id" },
+            "article": {
+              "isPublished": true,
+              "publishDate": {
+                "fromCapturePath": "$.interactions[6].request.variables.article.publishDate"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      }
+    ]
+  }
+}

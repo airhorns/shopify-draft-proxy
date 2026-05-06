@@ -1,0 +1,63 @@
+mutation OrderPaymentMandate(
+  $id: ID!
+  $mandateId: ID!
+  $idempotencyKey: String!
+  $amount: MoneyInput
+  $autoCapture: Boolean
+) {
+  orderCreateMandatePayment(
+    id: $id
+    mandateId: $mandateId
+    idempotencyKey: $idempotencyKey
+    amount: $amount
+    autoCapture: $autoCapture
+  ) {
+    job {
+      id
+      done
+    }
+    paymentReferenceId
+    order {
+      id
+      displayFinancialStatus
+      capturable
+      totalCapturable
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalReceivedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      netPaymentSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      paymentGatewayNames
+      transactions {
+        id
+        kind
+        status
+        gateway
+        paymentReferenceId
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

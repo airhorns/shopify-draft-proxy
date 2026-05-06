@@ -29,15 +29,17 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/orders/common.{
   captured_array_values, captured_field_or_null, captured_int_field,
   captured_json_source, captured_money_amount, captured_money_value,
-  captured_object_field, captured_string_field, draft_order_gid_tail,
-  field_arguments, format_decimal_amount, max_float, money_set, money_set_string,
-  optional_captured_string, order_line_items, parse_amount, read_int,
-  read_number, read_object, read_string, replace_captured_object_fields,
-  selection_children, serialize_captured_selection,
+  captured_number_field, captured_object_field, captured_string_field,
+  draft_order_gid_tail, field_arguments, format_decimal_amount,
+  fulfillment_order_line_items, max_float, money_set, money_set_string,
+  optional_captured_string, order_fulfillment_orders, order_line_items,
+  parse_amount, read_bool, read_int, read_number, read_object, read_string,
+  replace_captured_object_fields, selection_children,
+  serialize_captured_selection,
 }
 
 import shopify_draft_proxy/proxy/orders/draft_orders.{
-  captured_field_or_int, captured_field_or_money,
+  captured_field_or_int, captured_field_or_money, captured_money_currency,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_order_by_id, maybe_hydrate_product_variant_by_id,
@@ -57,8 +59,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type OrderRecord, type ProductRecord,
-  type ProductVariantRecord, CapturedArray, CapturedBool, CapturedInt,
-  CapturedNull, CapturedObject, CapturedString, OrderRecord,
+  type ProductVariantRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, OrderRecord,
 }
 
 @internal
@@ -422,10 +424,20 @@ pub fn handle_order_edit_commit_mutation(
         }
         Some(match) -> {
           let #(order, session) = match
+          let args = field_arguments(field, variables)
+          let notify_customer = read_bool(args, "notifyCustomer", False)
+          let staff_note = read_string(args, "staffNote")
           let #(timestamp, next_identity) =
             synthetic_identity.make_synthetic_timestamp(identity)
-          let committed_order =
-            commit_order_edit_session(order, session, timestamp)
+          let #(committed_order, identity_after_commit) =
+            commit_order_edit_session(
+              order,
+              session,
+              timestamp,
+              notify_customer,
+              staff_note,
+              next_identity,
+            )
           let next_store =
             store.stage_order(
               store,
@@ -446,7 +458,9 @@ pub fn handle_order_edit_commit_mutation(
               "stage-locally",
               Some("Locally staged orderEditCommit in shopify-draft-proxy."),
             )
-          #(key, payload, next_store, next_identity, [order.id], [], [draft])
+          #(key, payload, next_store, identity_after_commit, [order.id], [], [
+            draft,
+          ])
         }
       }
     }
@@ -1357,9 +1371,13 @@ pub fn commit_order_edit_session(
   order: OrderRecord,
   session: CapturedJsonValue,
   updated_at: String,
-) -> OrderRecord {
+  notify_customer: Bool,
+  staff_note: Option(String),
+  identity: SyntheticIdentityRegistry,
+) -> #(OrderRecord, SyntheticIdentityRegistry) {
+  let session_line_items = order_edit_session_line_items(session)
   let committed_line_items =
-    order_edit_session_line_items(session)
+    session_line_items
     |> list.map(fn(line_item) { commit_order_edit_line_item(order, line_item) })
   let current_quantity =
     committed_line_items
@@ -1368,16 +1386,63 @@ pub fn commit_order_edit_session(
         captured_int_field(line_item, "currentQuantity") |> option.unwrap(0)
       sum + quantity
     })
-  OrderRecord(
-    ..order,
-    data: replace_captured_object_fields(order.data, [
-      #("updatedAt", CapturedString(updated_at)),
-      #("currentSubtotalLineItemsQuantity", CapturedInt(current_quantity)),
-      #(
-        "lineItems",
-        CapturedObject([#("nodes", CapturedArray(committed_line_items))]),
-      ),
-    ]),
+  let currency_code = order_edit_currency_code(order.data, session_line_items)
+  let subtotal = order_edit_line_items_total(session_line_items)
+  let current_tax_lines =
+    recalculated_order_edit_current_tax_lines(
+      order.data,
+      subtotal,
+      currency_code,
+    )
+  let current_tax_total =
+    order_edit_current_tax_total(order.data, subtotal, current_tax_lines)
+  let current_total = subtotal +. current_tax_total
+  let #(order_edit, identity_after_edit) =
+    build_order_edit_history_record(
+      order,
+      committed_line_items,
+      updated_at,
+      notify_customer,
+      staff_note,
+      identity,
+    )
+  let #(fulfillment_orders, identity_after_fulfillment_orders) =
+    order_edit_fulfillment_orders_after_commit(
+      order,
+      committed_line_items,
+      identity_after_edit,
+    )
+  let edit_history =
+    append_captured_connection_node(order.data, "editHistory", order_edit)
+  let events =
+    append_captured_connection_node(
+      order.data,
+      "events",
+      order_edit_event(order, order_edit),
+    )
+  #(
+    OrderRecord(
+      ..order,
+      data: replace_captured_object_fields(order.data, [
+        #("updatedAt", CapturedString(updated_at)),
+        #("currentSubtotalLineItemsQuantity", CapturedInt(current_quantity)),
+        #("currentSubtotalPriceSet", money_set(subtotal, currency_code)),
+        #("currentTotalPriceSet", money_set(current_total, currency_code)),
+        #("currentTotalTaxSet", money_set(current_tax_total, currency_code)),
+        #("currentTaxLines", CapturedArray(current_tax_lines)),
+        #(
+          "lineItems",
+          CapturedObject([#("nodes", CapturedArray(committed_line_items))]),
+        ),
+        #(
+          "fulfillmentOrders",
+          CapturedObject([#("nodes", CapturedArray(fulfillment_orders))]),
+        ),
+        #("editHistory", edit_history),
+        #("events", events),
+      ]),
+    ),
+    identity_after_fulfillment_orders,
   )
 }
 
@@ -1424,6 +1489,443 @@ pub fn commit_order_edit_line_item(
         ),
       ])
   }
+}
+
+@internal
+pub fn build_order_edit_history_record(
+  order: OrderRecord,
+  committed_line_items: List(CapturedJsonValue),
+  committed_at: String,
+  notify_customer: Bool,
+  staff_note: Option(String),
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let #(id, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(identity, "OrderEdit")
+  let #(changes, next_identity) =
+    build_order_edit_change_nodes(
+      order,
+      committed_line_items,
+      identity_after_id,
+    )
+  let staff_member_id =
+    captured_string_field(order.data, "staffMemberId")
+    |> option.unwrap("gid://shopify/StaffMember/1")
+  #(
+    CapturedObject([
+      #("id", CapturedString(id)),
+      #("committedAt", CapturedString(committed_at)),
+      #("staffMemberId", CapturedString(staff_member_id)),
+      #(
+        "staffMember",
+        CapturedObject([#("id", CapturedString(staff_member_id))]),
+      ),
+      #("notifyCustomer", CapturedBool(notify_customer)),
+      #("staffNote", optional_captured_string(staff_note)),
+      #("changes", CapturedObject([#("nodes", CapturedArray(changes))])),
+    ]),
+    next_identity,
+  )
+}
+
+@internal
+pub fn build_order_edit_change_nodes(
+  order: OrderRecord,
+  committed_line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  committed_line_items
+  |> list.fold(#([], identity), fn(acc, line_item) {
+    let #(changes, current_identity) = acc
+    let line_item_id = captured_string_field(line_item, "id")
+    let original_line_item =
+      line_item_id
+      |> option.then(fn(id) { find_order_line_item_by_id(order, id) })
+    case original_line_item {
+      Some(original) -> {
+        let original_quantity = order_line_item_current_quantity(original)
+        let new_quantity = order_line_item_current_quantity(line_item)
+        case original_quantity == new_quantity {
+          True -> #(changes, current_identity)
+          False -> {
+            let #(change_id, next_identity) =
+              synthetic_identity.make_synthetic_gid(
+                current_identity,
+                "OrderEditChange",
+              )
+            #(
+              list.append(changes, [
+                CapturedObject([
+                  #("id", CapturedString(change_id)),
+                  #("__typename", CapturedString("OrderEditChangeSetQuantity")),
+                  #("lineItem", line_item),
+                  #("originalQuantity", CapturedInt(original_quantity)),
+                  #("newQuantity", CapturedInt(new_quantity)),
+                ]),
+              ]),
+              next_identity,
+            )
+          }
+        }
+      }
+      None -> {
+        let #(change_id, next_identity) =
+          synthetic_identity.make_synthetic_gid(
+            current_identity,
+            "OrderEditChange",
+          )
+        #(
+          list.append(changes, [
+            CapturedObject([
+              #("id", CapturedString(change_id)),
+              #("__typename", CapturedString("OrderEditChangeAddLineItem")),
+              #("lineItem", line_item),
+              #("originalQuantity", CapturedNull),
+              #(
+                "newQuantity",
+                CapturedInt(order_line_item_current_quantity(line_item)),
+              ),
+            ]),
+          ]),
+          next_identity,
+        )
+      }
+    }
+  })
+}
+
+@internal
+pub fn order_edit_fulfillment_orders_after_commit(
+  order: OrderRecord,
+  committed_line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  let original_line_items = order_line_items(order.data)
+  let added_line_items =
+    committed_line_items
+    |> list.filter(fn(line_item) {
+      line_item_id(line_item)
+      |> option.then(fn(id) { find_line_item_by_id(original_line_items, id) })
+      == None
+    })
+  let updated_fulfillment_orders =
+    order_fulfillment_orders(order.data)
+    |> list.map(fn(fulfillment_order) {
+      update_fulfillment_order_line_item_quantities(
+        fulfillment_order,
+        original_line_items,
+        committed_line_items,
+      )
+    })
+  append_added_line_items_to_first_open_fulfillment_order(
+    updated_fulfillment_orders,
+    added_line_items,
+    identity,
+  )
+}
+
+@internal
+pub fn update_fulfillment_order_line_item_quantities(
+  fulfillment_order: CapturedJsonValue,
+  original_line_items: List(CapturedJsonValue),
+  committed_line_items: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let updated_line_items =
+    fulfillment_order_line_items(fulfillment_order)
+    |> list.map(fn(fulfillment_line_item) {
+      let source_id = fulfillment_line_item_source_id(fulfillment_line_item)
+      let original_line_item =
+        source_id
+        |> option.then(fn(id) { find_line_item_by_id(original_line_items, id) })
+      let committed_line_item =
+        source_id
+        |> option.then(fn(id) { find_line_item_by_id(committed_line_items, id) })
+      case original_line_item, committed_line_item {
+        Some(original), Some(committed) -> {
+          let original_quantity = order_line_item_current_quantity(original)
+          let new_quantity = order_line_item_current_quantity(committed)
+          let current_remaining =
+            captured_int_field(fulfillment_line_item, "remainingQuantity")
+            |> option.unwrap(original_quantity)
+          let fulfilled_quantity =
+            int.max(0, original_quantity - current_remaining)
+          let remaining_quantity = int.max(0, new_quantity - fulfilled_quantity)
+          replace_captured_object_fields(fulfillment_line_item, [
+            #("totalQuantity", CapturedInt(new_quantity)),
+            #("remainingQuantity", CapturedInt(remaining_quantity)),
+            #("lineItemFulfillableQuantity", CapturedInt(remaining_quantity)),
+            #(
+              "lineItem",
+              fulfillment_order_source_line_item(committed, remaining_quantity),
+            ),
+          ])
+        }
+        _, _ -> fulfillment_line_item
+      }
+    })
+  replace_captured_object_fields(fulfillment_order, [
+    #(
+      "lineItems",
+      CapturedObject([#("nodes", CapturedArray(updated_line_items))]),
+    ),
+  ])
+}
+
+@internal
+pub fn append_added_line_items_to_first_open_fulfillment_order(
+  fulfillment_orders: List(CapturedJsonValue),
+  added_line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  case added_line_items {
+    [] -> #(fulfillment_orders, identity)
+    _ -> {
+      let #(fulfillment_order_id, identity_after_order) =
+        synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
+      let #(new_line_items, next_identity) =
+        build_fulfillment_order_line_items_for_added_order_lines(
+          added_line_items,
+          identity_after_order,
+        )
+      let added_fulfillment_order =
+        CapturedObject([
+          #("id", CapturedString(fulfillment_order_id)),
+          #("status", CapturedString("OPEN")),
+          #("requestStatus", CapturedString("UNSUBMITTED")),
+          #(
+            "lineItems",
+            CapturedObject([
+              #("nodes", CapturedArray(new_line_items)),
+            ]),
+          ),
+        ])
+      #(
+        list.append(fulfillment_orders, [added_fulfillment_order]),
+        next_identity,
+      )
+    }
+  }
+}
+
+@internal
+pub fn build_fulfillment_order_line_items_for_added_order_lines(
+  line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
+  line_items
+  |> list.fold(#([], identity), fn(acc, line_item) {
+    let #(fulfillment_line_items, current_identity) = acc
+    let #(id, next_identity) =
+      synthetic_identity.make_synthetic_gid(
+        current_identity,
+        "FulfillmentOrderLineItem",
+      )
+    let quantity = order_line_item_current_quantity(line_item)
+    #(
+      list.append(fulfillment_line_items, [
+        CapturedObject([
+          #("id", CapturedString(id)),
+          #("totalQuantity", CapturedInt(quantity)),
+          #("remainingQuantity", CapturedInt(quantity)),
+          #("lineItemFulfillableQuantity", CapturedInt(quantity)),
+          #("lineItem", fulfillment_order_source_line_item(line_item, quantity)),
+        ]),
+      ]),
+      next_identity,
+    )
+  })
+}
+
+@internal
+pub fn fulfillment_order_source_line_item(
+  line_item: CapturedJsonValue,
+  fulfillable_quantity: Int,
+) -> CapturedJsonValue {
+  let quantity =
+    captured_int_field(line_item, "quantity")
+    |> option.unwrap(order_line_item_current_quantity(line_item))
+  CapturedObject([
+    #("id", optional_captured_string(line_item_id(line_item))),
+    #("title", captured_field_or_null(line_item, "title")),
+    #("quantity", CapturedInt(quantity)),
+    #(
+      "currentQuantity",
+      CapturedInt(order_line_item_current_quantity(line_item)),
+    ),
+    #("fulfillableQuantity", CapturedInt(fulfillable_quantity)),
+  ])
+}
+
+@internal
+pub fn fulfillment_line_item_source_id(
+  fulfillment_line_item: CapturedJsonValue,
+) -> Option(String) {
+  case captured_object_field(fulfillment_line_item, "lineItem") {
+    Some(line_item) -> captured_string_field(line_item, "id")
+    None -> captured_string_field(fulfillment_line_item, "lineItemId")
+  }
+}
+
+@internal
+pub fn order_line_item_current_quantity(line_item: CapturedJsonValue) -> Int {
+  captured_int_field(line_item, "currentQuantity")
+  |> option.or(captured_int_field(line_item, "quantity"))
+  |> option.unwrap(0)
+}
+
+@internal
+pub fn line_item_id(line_item: CapturedJsonValue) -> Option(String) {
+  captured_string_field(line_item, "id")
+}
+
+@internal
+pub fn find_order_line_item_by_id(
+  order: OrderRecord,
+  id: String,
+) -> Option(CapturedJsonValue) {
+  find_line_item_by_id(order_line_items(order.data), id)
+}
+
+@internal
+pub fn find_line_item_by_id(
+  line_items: List(CapturedJsonValue),
+  id: String,
+) -> Option(CapturedJsonValue) {
+  line_items
+  |> list.find(fn(line_item) { line_item_id(line_item) == Some(id) })
+  |> option.from_result
+}
+
+@internal
+pub fn order_edit_currency_code(
+  order_data: CapturedJsonValue,
+  line_items: List(CapturedJsonValue),
+) -> String {
+  captured_money_currency(order_data, "currentSubtotalPriceSet")
+  |> option.or(captured_money_currency(order_data, "currentTotalPriceSet"))
+  |> option.or(captured_money_currency(order_data, "totalPriceSet"))
+  |> option.or({
+    case line_items {
+      [first, ..] -> captured_money_currency(first, "originalUnitPriceSet")
+      [] -> None
+    }
+  })
+  |> option.unwrap("CAD")
+}
+
+@internal
+pub fn recalculated_order_edit_current_tax_lines(
+  order_data: CapturedJsonValue,
+  subtotal: Float,
+  currency_code: String,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_data, "currentTaxLines") {
+    Some(CapturedArray(tax_lines)) ->
+      tax_lines
+      |> list.map(fn(tax_line) {
+        let rate = captured_number_field(tax_line, "rate") |> option.unwrap(0.0)
+        let tax_currency =
+          captured_money_currency(tax_line, "priceSet")
+          |> option.unwrap(currency_code)
+        replace_captured_object_fields(tax_line, [
+          #("rate", CapturedFloat(rate)),
+          #("priceSet", money_set(subtotal *. rate, tax_currency)),
+        ])
+      })
+    _ -> []
+  }
+}
+
+@internal
+pub fn order_edit_tax_lines_total(tax_lines: List(CapturedJsonValue)) -> Float {
+  tax_lines
+  |> list.fold(0.0, fn(sum, tax_line) {
+    sum +. captured_money_amount(tax_line, "priceSet")
+  })
+}
+
+@internal
+pub fn order_edit_current_tax_total(
+  order_data: CapturedJsonValue,
+  subtotal: Float,
+  current_tax_lines: List(CapturedJsonValue),
+) -> Float {
+  case current_tax_lines {
+    [] -> proportional_order_edit_tax_total(order_data, subtotal)
+    _ -> order_edit_tax_lines_total(current_tax_lines)
+  }
+}
+
+@internal
+pub fn proportional_order_edit_tax_total(
+  order_data: CapturedJsonValue,
+  subtotal: Float,
+) -> Float {
+  let previous_subtotal =
+    captured_money_amount(order_data, "currentSubtotalPriceSet")
+  let previous_tax_total = order_edit_captured_tax_total(order_data)
+  case previous_subtotal >. 0.0 {
+    True -> subtotal *. previous_tax_total /. previous_subtotal
+    False -> previous_tax_total
+  }
+}
+
+@internal
+pub fn order_edit_captured_tax_total(order_data: CapturedJsonValue) -> Float {
+  let current_tax = captured_money_amount(order_data, "currentTotalTaxSet")
+  case current_tax >. 0.0 {
+    True -> current_tax
+    False -> {
+      let total_tax = captured_money_amount(order_data, "totalTaxSet")
+      case total_tax >. 0.0 {
+        True -> total_tax
+        False -> {
+          let current_total =
+            captured_money_amount(order_data, "currentTotalPriceSet")
+          let current_subtotal =
+            captured_money_amount(order_data, "currentSubtotalPriceSet")
+          max_float(0.0, current_total -. current_subtotal)
+        }
+      }
+    }
+  }
+}
+
+@internal
+pub fn append_captured_connection_node(
+  owner: CapturedJsonValue,
+  field_name: String,
+  node: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let nodes = case captured_object_field(owner, field_name) {
+    Some(CapturedArray(values)) -> values
+    Some(CapturedObject(fields)) ->
+      dict.from_list(fields)
+      |> dict.get("nodes")
+      |> result.unwrap(CapturedArray([]))
+      |> captured_array_values
+    _ -> []
+  }
+  CapturedObject([#("nodes", CapturedArray(list.append(nodes, [node])))])
+}
+
+@internal
+pub fn order_edit_event(
+  order: OrderRecord,
+  order_edit: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let order_edit_id = captured_string_field(order_edit, "id")
+  let committed_at =
+    captured_string_field(order_edit, "committedAt") |> option.unwrap("")
+  CapturedObject([
+    #("id", optional_captured_string(order_edit_id)),
+    #("action", CapturedString("edited")),
+    #("message", CapturedString("example.com edited this order.")),
+    #("createdAt", CapturedString(committed_at)),
+    #("subjectId", CapturedString(order.id)),
+    #("subject", CapturedObject([#("id", CapturedString(order.id))])),
+    #("orderEdit", order_edit),
+  ])
 }
 
 @internal

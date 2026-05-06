@@ -1,0 +1,18 @@
+mutation TransactionVoidCodesOrderCapture($input: OrderCaptureInput!) {
+  orderCapture(input: $input) {
+    transaction {
+      id
+      kind
+      status
+      parentTransaction {
+        id
+        kind
+        status
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
