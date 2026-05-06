@@ -47,6 +47,9 @@ import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_draft_order_variant_catalog_from_input,
   maybe_hydrate_order_by_id,
 }
+import shopify_draft_proxy/proxy/orders/order_transactions.{
+  build_payment_transaction,
+}
 
 import shopify_draft_proxy/proxy/orders/serializers.{serialize_draft_order_node}
 
@@ -59,8 +62,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DraftOrderRecord, CapturedArray, CapturedBool,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, DraftOrderRecord,
+  type CapturedJsonValue, type DraftOrderRecord, type PaymentGatewayRecord,
+  CapturedArray, CapturedBool, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, DraftOrderRecord,
 }
 
 @internal
@@ -1005,6 +1009,7 @@ pub fn complete_draft_order(
   draft_order: DraftOrderRecord,
   source_name: Option(String),
   payment_pending: Bool,
+  payment_gateway: Option(PaymentGatewayRecord),
 ) -> #(DraftOrderRecord, SyntheticIdentityRegistry) {
   let #(completed_at, identity_after_time) =
     synthetic_identity.make_synthetic_timestamp(identity)
@@ -1016,6 +1021,7 @@ pub fn complete_draft_order(
       completed_at,
       source_name,
       payment_pending,
+      payment_gateway,
     )
   let order_id = captured_string_field(order, "id")
   let data =
@@ -1039,6 +1045,7 @@ pub fn build_order_from_completed_draft_order(
   completed_at: String,
   source_name: Option(String),
   payment_pending: Bool,
+  payment_gateway: Option(PaymentGatewayRecord),
 ) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
   let #(order_id, identity_after_order) =
     synthetic_identity.make_synthetic_gid(identity, "Order")
@@ -1048,13 +1055,48 @@ pub fn build_order_from_completed_draft_order(
       draft_order_line_items(draft_order.data),
     )
   let currency_code = captured_order_currency(draft_order.data)
-  let payment_gateway_names = case payment_pending {
-    True -> []
-    False -> [CapturedString("manual")]
+  let payment_gateway_names = case payment_gateway {
+    Some(gateway) -> [CapturedString(gateway.name)]
+    None ->
+      case payment_pending {
+        True -> []
+        False -> [CapturedString("manual")]
+      }
   }
-  let financial_status = case payment_pending {
-    True -> "PENDING"
-    False -> "PAID"
+  let financial_status = case payment_gateway {
+    Some(_) ->
+      case payment_pending {
+        True -> "AUTHORIZED"
+        False -> "PAID"
+      }
+    None ->
+      case payment_pending {
+        True -> "PENDING"
+        False -> "PAID"
+      }
+  }
+  let #(transactions, identity_after_transactions) = case payment_gateway {
+    Some(gateway) -> {
+      let kind = case payment_pending {
+        True -> "AUTHORIZATION"
+        False -> "SALE"
+      }
+      let #(transaction, next_identity) =
+        build_payment_transaction(
+          next_identity,
+          kind,
+          captured_field_or_money(
+            draft_order.data,
+            "totalPriceSet",
+            currency_code,
+          ),
+          Some(gateway.name),
+          None,
+          None,
+        )
+      #([transaction], next_identity)
+    }
+    None -> #([], next_identity)
   }
   #(
     CapturedObject([
@@ -1143,11 +1185,11 @@ pub fn build_order_from_completed_draft_order(
         "paymentTerms",
         captured_field_or_null(draft_order.data, "paymentTerms"),
       ),
-      #("transactions", CapturedArray([])),
+      #("transactions", CapturedArray(transactions)),
       #("refunds", CapturedArray([])),
       #("returns", CapturedArray([])),
     ]),
-    next_identity,
+    identity_after_transactions,
   )
 }
 

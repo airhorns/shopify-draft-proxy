@@ -1579,7 +1579,10 @@ fn payment_guard_shop() -> ShopRecord {
       storefront: True,
       unified_markets: True,
     ),
-    payment_settings: PaymentSettingsRecord(supported_digital_wallets: []),
+    payment_settings: PaymentSettingsRecord(
+      supported_digital_wallets: [],
+      payment_gateways: [],
+    ),
     shop_policies: [],
   )
 }

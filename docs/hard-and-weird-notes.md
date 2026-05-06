@@ -360,7 +360,7 @@ Current and historical live findings on this host:
   - default completion stages the regular order as `displayFinancialStatus: PAID`
   - deprecated `paymentPending: true` stages it as `displayFinancialStatus: PENDING`
   - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
-  - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
+  - non-null `paymentGatewayId` now consults the opt-in synthetic shop payment gateway catalog. Active fixture gateways produce a synthetic `SALE` or `AUTHORIZATION` transaction depending on `paymentPending`; missing/disabled fixture gateways return `payment_gateway_not_found` / `payment_gateway_disabled` on `["paymentGatewayId"]`.
 - superseded consequence: this was the right warning before the draft-to-order
   bridge had current evidence. Do not reintroduce speculative completion code,
   but do not treat this as a current blocker either; `docs/endpoints/orders.md`
