@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-04-25T16:19:30.000Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
     {
       "name": "marketLocalizationsRegisterUnknownResource",
-      "query": "#graphql\nmutation InvalidMarketLocalization($resourceId: ID!, $marketLocalizations: [MarketLocalizationRegisterInput!]!) {\n  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n    marketLocalizations { key value updatedAt outdated market { id name } }\n    userErrors { field message code }\n  }\n}",
+      "query": "#graphql\nmutation MarketLocalizationsRegisterUnknownResource(\n  $resourceId: ID!\n  $marketLocalizations: [MarketLocalizationRegisterInput!]!\n) {\n  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n    marketLocalizations {\n      key\n      value\n      updatedAt\n      outdated\n      market {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "resourceId": "gid://shopify/Metafield/999999999999",
         "marketLocalizations": [
@@ -31,13 +31,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1879,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "marketLocalizationsRemoveUnknownResource",
-      "query": "#graphql\nmutation InvalidMarketLocalizationRemove($resourceId: ID!, $marketLocalizationKeys: [String!]!, $marketIds: [ID!]!) {\n  marketLocalizationsRemove(resourceId: $resourceId, marketLocalizationKeys: $marketLocalizationKeys, marketIds: $marketIds) {\n    marketLocalizations { key value updatedAt outdated market { id name } }\n    userErrors { field message code }\n  }\n}",
+      "query": "#graphql\nmutation MarketLocalizationsRemoveUnknownResource(\n  $resourceId: ID!\n  $marketLocalizationKeys: [String!]!\n  $marketIds: [ID!]!\n) {\n  marketLocalizationsRemove(\n    resourceId: $resourceId\n    marketLocalizationKeys: $marketLocalizationKeys\n    marketIds: $marketIds\n  ) {\n    marketLocalizations {\n      key\n      value\n      updatedAt\n      outdated\n      market {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "resourceId": "gid://shopify/Metafield/999999999999",
         "marketLocalizationKeys": ["value"],
@@ -56,6 +67,17 @@
                   "code": "RESOURCE_NOT_FOUND"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1880,
+                "restoreRate": 100
+              }
             }
           }
         }

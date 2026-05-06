@@ -130,6 +130,46 @@ fn assert_product_variant_media_user_error(
   assert entry.status == store_types.Failed
 }
 
+pub fn product_create_media_populates_deprecated_user_errors_test() {
+  let query =
+    "mutation { productCreateMedia(productId: \\\"gid://shopify/Product/optioned\\\", media: [{ originalSource: \\\"not-a-url\\\", mediaContentType: IMAGE }]) { userErrors { field message } mediaUserErrors { field message } } }"
+  let #(status, body, _) = run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert body
+    == "{\"data\":{\"productCreateMedia\":{\"userErrors\":[{\"field\":[\"media\",\"0\",\"originalSource\"],\"message\":\"Image URL is invalid\"}],\"mediaUserErrors\":[{\"field\":[\"media\",\"0\",\"originalSource\"],\"message\":\"Image URL is invalid\"}]}}}"
+}
+
+pub fn product_update_media_populates_deprecated_user_errors_test() {
+  let query =
+    "mutation { productUpdateMedia(productId: \\\"gid://shopify/Product/optioned\\\", media: [{ id: \\\"gid://shopify/MediaImage/missing\\\", alt: \\\"Missing\\\" }]) { userErrors { field message } mediaUserErrors { field message } } }"
+  let #(status, body, _) = run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert body
+    == "{\"data\":{\"productUpdateMedia\":{\"userErrors\":[{\"field\":[\"media\"],\"message\":\"Media id gid://shopify/MediaImage/missing does not exist\"}],\"mediaUserErrors\":[{\"field\":[\"media\"],\"message\":\"Media id gid://shopify/MediaImage/missing does not exist\"}]}}}"
+}
+
+pub fn product_delete_media_populates_deprecated_user_errors_test() {
+  let query =
+    "mutation { productDeleteMedia(productId: \\\"gid://shopify/Product/optioned\\\", mediaIds: [\\\"gid://shopify/MediaImage/missing\\\"]) { userErrors { field message } mediaUserErrors { field message } } }"
+  let #(status, body, _) = run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert body
+    == "{\"data\":{\"productDeleteMedia\":{\"userErrors\":[{\"field\":[\"mediaIds\"],\"message\":\"Media id gid://shopify/MediaImage/missing does not exist\"}],\"mediaUserErrors\":[{\"field\":[\"mediaIds\"],\"message\":\"Media id gid://shopify/MediaImage/missing does not exist\"}]}}}"
+}
+
+pub fn product_reorder_media_populates_deprecated_user_errors_test() {
+  let query =
+    "mutation { productReorderMedia(id: \\\"gid://shopify/Product/optioned\\\", moves: [{ id: \\\"gid://shopify/MediaImage/missing\\\", newPosition: \\\"0\\\" }]) { userErrors { field message } mediaUserErrors { field message } } }"
+  let #(status, body, _) = run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert body
+    == "{\"data\":{\"productReorderMedia\":{\"userErrors\":[{\"field\":[\"moves\",\"0\",\"id\"],\"message\":\"Media does not exist\"}],\"mediaUserErrors\":[{\"field\":[\"moves\",\"0\",\"id\"],\"message\":\"Media does not exist\"}]}}}"
+}
+
 pub fn product_variant_append_media_rejects_variant_from_other_product_test() {
   assert_product_variant_media_user_error(
     variant_media_validation_store(),
