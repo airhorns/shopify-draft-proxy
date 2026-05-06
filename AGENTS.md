@@ -124,6 +124,12 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   scripts without adding an explicit conformance spec and executable test path
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
+- Do not manually author, synthesize, or hand-fill conformance/parity fixture
+  payloads and present them as evidence of Shopify behavior. Fixtures under
+  `fixtures/conformance/<store>/<version>/` must come from real Shopify
+  interactions recorded by a checked-in capture script or central recorder. If
+  a local-runtime fixture is used only to prove proxy mechanics, label it as
+  local-runtime-backed and do not cite it as Shopify conformance evidence.
 - Conformance parity scenarios are discovered by convention from
   `config/parity-specs/*.json` and executed by the Gleam parity runner
   (`test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
