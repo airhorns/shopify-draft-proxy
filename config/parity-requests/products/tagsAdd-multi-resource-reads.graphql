@@ -1,0 +1,28 @@
+query TagsMultiResourceRead($productId: ID!, $orderId: ID!, $customerId: ID!, $draftOrderId: ID!, $articleId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    tags
+  }
+  order(id: $orderId) {
+    id
+    name
+    tags
+  }
+  customer(id: $customerId) {
+    id
+    email
+    displayName
+    tags
+  }
+  draftOrder(id: $draftOrderId) {
+    id
+    name
+    tags
+  }
+  article(id: $articleId) {
+    id
+    title
+    tags
+  }
+}

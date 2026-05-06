@@ -1,0 +1,487 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T18:10:18.474Z",
+  "cases": {
+    "productAdd": {
+      "query": "mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      __typename\n      ... on Product {\n        id\n        title\n        tags\n      }\n      ... on Order {\n        id\n        name\n        tags\n      }\n      ... on Customer {\n        id\n        email\n        displayName\n        tags\n      }\n      ... on Article {\n        id\n        title\n        tags\n      }\n      ... on DraftOrder {\n        id\n        name\n        tags\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10178790424882",
+        "tags": ["hermes-tags-added-1778091014318"]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "tagsAdd": {
+            "node": {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10178790424882",
+              "title": "Hermes Tags Product 1778091014318",
+              "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderAdd": {
+      "query": "mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      __typename\n      ... on Product {\n        id\n        title\n        tags\n      }\n      ... on Order {\n        id\n        name\n        tags\n      }\n      ... on Customer {\n        id\n        email\n        displayName\n        tags\n      }\n      ... on Article {\n        id\n        title\n        tags\n      }\n      ... on DraftOrder {\n        id\n        name\n        tags\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Order/8732761915698",
+        "tags": ["hermes-tags-added-1778091014318"]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "tagsAdd": {
+            "node": {
+              "__typename": "Order",
+              "id": "gid://shopify/Order/8732761915698",
+              "name": "#1240",
+              "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customerAdd": {
+      "query": "mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      __typename\n      ... on Product {\n        id\n        title\n        tags\n      }\n      ... on Order {\n        id\n        name\n        tags\n      }\n      ... on Customer {\n        id\n        email\n        displayName\n        tags\n      }\n      ... on Article {\n        id\n        title\n        tags\n      }\n      ... on DraftOrder {\n        id\n        name\n        tags\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10585677627698",
+        "tags": ["hermes-tags-added-1778091014318"]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "tagsAdd": {
+            "node": {
+              "__typename": "Customer",
+              "id": "gid://shopify/Customer/10585677627698",
+              "email": "hermes-tags-1778091014318@example.com",
+              "displayName": "Hermes Tags 1778091014318",
+              "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1966,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "articleAdd": {
+      "query": "mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      __typename\n      ... on Product {\n        id\n        title\n        tags\n      }\n      ... on Order {\n        id\n        name\n        tags\n      }\n      ... on Customer {\n        id\n        email\n        displayName\n        tags\n      }\n      ... on Article {\n        id\n        title\n        tags\n      }\n      ... on DraftOrder {\n        id\n        name\n        tags\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Article/683155194162",
+        "tags": ["hermes-tags-added-1778091014318"]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "tagsAdd": {
+            "node": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/683155194162",
+              "title": "Hermes Tags Article 1778091014318",
+              "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1963,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "draftOrderRemove": {
+      "query": "mutation TagsRemoveMultiResource($id: ID!, $tags: [String!]!) {\n  tagsRemove(id: $id, tags: $tags) {\n    node {\n      __typename\n      ... on Product {\n        id\n        title\n        tags\n      }\n      ... on Order {\n        id\n        name\n        tags\n      }\n      ... on Customer {\n        id\n        email\n        displayName\n        tags\n      }\n      ... on Article {\n        id\n        title\n        tags\n      }\n      ... on DraftOrder {\n        id\n        name\n        tags\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1250856141106",
+        "tags": ["hermes-tags-remove-1778091014318"]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "tagsRemove": {
+            "node": {
+              "__typename": "DraftOrder",
+              "id": "gid://shopify/DraftOrder/1250856141106",
+              "name": "#D142",
+              "tags": ["hermes-tags-base-1778091014318"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unsupportedAdd": {
+      "query": "mutation TagsAddMultiResource($id: ID!, $tags: [String!]!) {\n  tagsAdd(id: $id, tags: $tags) {\n    node {\n      __typename\n      ... on Product {\n        id\n        title\n        tags\n      }\n      ... on Order {\n        id\n        name\n        tags\n      }\n      ... on Customer {\n        id\n        email\n        displayName\n        tags\n      }\n      ... on Article {\n        id\n        title\n        tags\n      }\n      ... on DraftOrder {\n        id\n        name\n        tags\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/SomethingUnsupported/1",
+        "tags": ["hermes-tags-added-1778091014318"]
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "invalid id",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": ["tagsAdd"]
+          }
+        ],
+        "data": {
+          "tagsAdd": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query TagsMultiResourceRead($productId: ID!, $orderId: ID!, $customerId: ID!, $draftOrderId: ID!, $articleId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    tags\n  }\n  order(id: $orderId) {\n    id\n    name\n    tags\n  }\n  customer(id: $customerId) {\n    id\n    email\n    displayName\n    tags\n  }\n  draftOrder(id: $draftOrderId) {\n    id\n    name\n    tags\n  }\n  article(id: $articleId) {\n    id\n    title\n    tags\n  }\n}\n",
+    "variables": {
+      "productId": "gid://shopify/Product/10178790424882",
+      "orderId": "gid://shopify/Order/8732761915698",
+      "customerId": "gid://shopify/Customer/10585677627698",
+      "draftOrderId": "gid://shopify/DraftOrder/1250856141106",
+      "articleId": "gid://shopify/Article/683155194162"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10178790424882",
+          "title": "Hermes Tags Product 1778091014318",
+          "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+        },
+        "order": {
+          "id": "gid://shopify/Order/8732761915698",
+          "name": "#1240",
+          "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+        },
+        "customer": {
+          "id": "gid://shopify/Customer/10585677627698",
+          "email": "hermes-tags-1778091014318@example.com",
+          "displayName": "Hermes Tags 1778091014318",
+          "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+        },
+        "draftOrder": {
+          "id": "gid://shopify/DraftOrder/1250856141106",
+          "name": "#D142",
+          "tags": ["hermes-tags-base-1778091014318"]
+        },
+        "article": {
+          "id": "gid://shopify/Article/683155194162",
+          "title": "Hermes Tags Article 1778091014318",
+          "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10178790424882"]
+      },
+      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178790424882",
+                "legacyResourceId": "10178790424882",
+                "title": "Hermes Tags Product 1778091014318",
+                "handle": "hermes-tags-product-1778091014318",
+                "status": "ACTIVE",
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": ["hermes-tags-base-1778091014318"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-05-06T18:10:14Z",
+                "updatedAt": "2026-05-06T18:10:15Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://330fqsdqqvpcam4w-92891250994.shopifypreview.com/products_preview?preview_key=cb280dd2ed4627b8b020154d6ebf7b23&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNS0wNlQxOToxMDoxNi43MjBaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--2889b8ccc889bfac2e9595536845ac63b1737714",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8732761915698"
+      },
+      "query": "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8732761915698",
+              "name": "#1240",
+              "tags": ["hermes-tags-base-1778091014318"]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10585677627698"
+      },
+      "query": "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10585677627698",
+              "firstName": "Hermes",
+              "lastName": "Tags 1778091014318",
+              "displayName": "Hermes Tags 1778091014318",
+              "email": "hermes-tags-1778091014318@example.com",
+              "legacyResourceId": "10585677627698",
+              "locale": "en",
+              "note": null,
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "state": "DISABLED",
+              "tags": ["hermes-tags-base-1778091014318"],
+              "numberOfOrders": "0",
+              "createdAt": "2026-05-06T18:10:15Z",
+              "updatedAt": "2026-05-06T18:10:15Z",
+              "amountSpent": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-tags-1778091014318@example.com",
+                "marketingState": "NOT_SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "marketingUpdatedAt": null
+              },
+              "defaultPhoneNumber": null,
+              "emailMarketingConsent": {
+                "marketingState": "NOT_SUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "consentUpdatedAt": null
+              },
+              "smsMarketingConsent": null,
+              "defaultAddress": null,
+              "addressesV2": {
+                "nodes": []
+              },
+              "metafields": {
+                "nodes": []
+              },
+              "orders": {
+                "nodes": [],
+                "pageInfo": {
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "storeCreditAccounts": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 79,
+              "actualQueryCost": 44,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1956,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "TagsArticleHydrate",
+      "variables": {
+        "id": "gid://shopify/Article/683155194162"
+      },
+      "query": "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/683155194162",
+              "title": "Hermes Tags Article 1778091014318",
+              "handle": "hermes-tags-article-1778091014318",
+              "tags": ["hermes-tags-base-1778091014318"],
+              "createdAt": "2026-05-06T18:10:16Z",
+              "updatedAt": "2026-05-06T18:10:16Z",
+              "blog": {
+                "id": "gid://shopify/Blog/120989647154"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1250856141106"
+      },
+      "query": "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1250856141106",
+              "name": "#D142",
+              "tags": ["hermes-tags-base-1778091014318", "hermes-tags-remove-1778091014318"]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

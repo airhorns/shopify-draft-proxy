@@ -497,6 +497,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'tags-add-multi-resource',
+    scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
+    purpose:
+      'tagsAdd/tagsRemove polymorphic Product, Order, Customer, Article, DraftOrder, and unsupported-GID behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_customers',
+      'write_customers',
+      'read_content',
+      'write_content',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}tags-add-multi-resource.json`,
+      'config/parity-specs/products/tagsAdd-multi-resource.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable product, customer, order, draft order, blog, and article records, tags them, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-publications',
     scriptPath: 'scripts/capture-product-publication-conformance.mts',
     purpose: 'Publication aggregate reads plus productPublish/productUnpublish probes.',
@@ -1306,6 +1330,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Create validation branches create no records; the setup definition used for update validation is deleted during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-definition-update-immutable',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-update-immutable-conformance.ts',
+    purpose:
+      'metaobjectDefinitionUpdate IMMUTABLE guardrails for standard definitions, reserved Shopify prefixes, and definitions linked to product options.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinitionUpdate-immutable.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-immutable.json',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Enables a standard definition, probes reserved-prefix creation, creates disposable linked product-option setup records, captures immutable update responses, then deletes disposable setup records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The linked-product-options branch is captured as live evidence while local runtime support remains limited until product option state tracks linked metafield metadata.',
   },
   {
     domain: 'metaobjects',
