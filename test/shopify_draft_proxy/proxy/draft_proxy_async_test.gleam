@@ -22,6 +22,11 @@
 ////       console.log(resp);
 ////     '
 
+@target(erlang)
+pub fn javascript_only_module() -> Nil {
+  Nil
+}
+
 @target(javascript)
 import gleam/dict
 @target(javascript)
