@@ -19,6 +19,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/online_store/serializers
 import shopify_draft_proxy/proxy/online_store/types as online_store_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -330,16 +331,8 @@ fn create_content(
         error,
       )
     None ->
-      case
-        serializers.resolve_content_handle(
-          outcome.store,
-          kind,
-          input,
-          None,
-          None,
-        )
-      {
-        Error(error) ->
+      case future_publish_date_error(payload_key, input, None) {
+        Some(error) ->
           serializers.content_validation_error_payload(
             outcome,
             field,
@@ -348,40 +341,61 @@ fn create_content(
             payload_key,
             error,
           )
-        Ok(handle) -> {
-          let #(record, identity) =
-            serializers.make_content(
-              outcome.identity,
+        None -> {
+          case
+            serializers.resolve_content_handle(
+              outcome.store,
               kind,
               input,
               None,
               None,
-              handle,
             )
-          let #(_, store) =
-            store.upsert_staged_online_store_content(outcome.store, record)
-          let payload =
-            serializers.mutation_payload(
-              field,
-              fragments,
-              payload_key,
-              serializers.project_content_payload(
-                store,
-                record,
+          {
+            Error(error) ->
+              serializers.content_validation_error_payload(
+                outcome,
                 field,
                 fragments,
-                variables,
+                root,
                 payload_key,
-              ),
-              [],
-            )
-          #(
-            key,
-            payload,
-            serializers.mutation_outcome(outcome, store, identity, root, [
-              record.id,
-            ]),
-          )
+                error,
+              )
+            Ok(handle) -> {
+              let #(record, identity) =
+                serializers.make_content(
+                  outcome.identity,
+                  kind,
+                  input,
+                  None,
+                  None,
+                  handle,
+                )
+              let #(_, store) =
+                store.upsert_staged_online_store_content(outcome.store, record)
+              let payload =
+                serializers.mutation_payload(
+                  field,
+                  fragments,
+                  payload_key,
+                  serializers.project_content_payload(
+                    store,
+                    record,
+                    field,
+                    fragments,
+                    variables,
+                    payload_key,
+                  ),
+                  [],
+                )
+              #(
+                key,
+                payload,
+                serializers.mutation_outcome(outcome, store, identity, root, [
+                  record.id,
+                ]),
+              )
+            }
+          }
         }
       }
   }
@@ -586,7 +600,11 @@ fn article_create_validation_error(
             "Must reference or create a blog when creating an article.",
             "BLOG_REFERENCE_REQUIRED",
           ))
-        _, _ -> article_author_validation_error(article_input)
+        _, _ ->
+          case article_author_validation_error(article_input) {
+            Some(error) -> Some(error)
+            None -> future_publish_date_error("article", article_input, None)
+          }
       }
   }
 }
@@ -622,6 +640,59 @@ fn article_author_validation_error(
   }
 }
 
+const invalid_publish_date_message: String = "Can’t set isPublished to true and also set a future publish date."
+
+fn future_publish_date_error(
+  payload_key: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(OnlineStoreContentRecord),
+) -> Option(graphql_helpers.SourceValue) {
+  case payload_key {
+    "page" | "article" ->
+      case effective_is_published(input, existing) {
+        False -> None
+        True ->
+          case serializers.input_string(input, "publishDate") {
+            Some(publish_date) ->
+              case iso_timestamp_after(publish_date, iso_timestamp.now_iso()) {
+                True ->
+                  Some(serializers.user_error_with_code(
+                    [payload_key],
+                    invalid_publish_date_message,
+                    "INVALID_PUBLISH_DATE",
+                  ))
+                False -> None
+              }
+            None -> None
+          }
+      }
+    _ -> None
+  }
+}
+
+fn effective_is_published(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(OnlineStoreContentRecord),
+) -> Bool {
+  let default = case existing {
+    Some(record) ->
+      serializers.source_bool_field(
+        serializers.captured_to_source(record.data),
+        "isPublished",
+        True,
+      )
+    None -> True
+  }
+  serializers.option_bool(serializers.input_bool(input, "isPublished"), default)
+}
+
+fn iso_timestamp_after(value: String, timestamp: String) -> Bool {
+  case iso_timestamp.parse_iso(value), iso_timestamp.parse_iso(timestamp) {
+    Ok(value_ms), Ok(timestamp_ms) -> value_ms > timestamp_ms
+    _, _ -> False
+  }
+}
+
 fn update_content(
   outcome: MutationOutcome,
   field: Selection,
@@ -653,15 +724,9 @@ fn update_content(
               )
             Ok(input) -> {
               case
-                serializers.resolve_content_handle(
-                  outcome.store,
-                  kind,
-                  input,
-                  existing.parent_id,
-                  Some(existing),
-                )
+                future_publish_date_error(payload_key, input, Some(existing))
               {
-                Error(error) ->
+                Some(error) ->
                   serializers.content_validation_error_payload(
                     outcome,
                     field,
@@ -670,49 +735,68 @@ fn update_content(
                     payload_key,
                     error,
                   )
-                Ok(handle) -> {
-                  let #(record, identity) =
-                    serializers.make_content(
-                      outcome.identity,
+                None -> {
+                  case
+                    serializers.resolve_content_handle(
+                      outcome.store,
                       kind,
                       input,
                       existing.parent_id,
                       Some(existing),
-                      handle,
                     )
-                  let #(_, store) =
-                    store.upsert_staged_online_store_content(
-                      outcome.store,
-                      record,
-                    )
-                  let payload =
-                    serializers.mutation_payload(
-                      field,
-                      fragments,
-                      payload_key,
-                      serializers.project_content_payload(
-                        store,
-                        record,
+                  {
+                    Error(error) ->
+                      serializers.content_validation_error_payload(
+                        outcome,
                         field,
                         fragments,
-                        variables,
+                        root,
                         payload_key,
-                      ),
-                      [],
-                    )
-                  #(
-                    key,
-                    payload,
-                    serializers.mutation_outcome(
-                      outcome,
-                      store,
-                      identity,
-                      root,
-                      [
-                        id,
-                      ],
-                    ),
-                  )
+                        error,
+                      )
+                    Ok(handle) -> {
+                      let #(record, identity) =
+                        serializers.make_content(
+                          outcome.identity,
+                          kind,
+                          input,
+                          existing.parent_id,
+                          Some(existing),
+                          handle,
+                        )
+                      let #(_, store) =
+                        store.upsert_staged_online_store_content(
+                          outcome.store,
+                          record,
+                        )
+                      let payload =
+                        serializers.mutation_payload(
+                          field,
+                          fragments,
+                          payload_key,
+                          serializers.project_content_payload(
+                            store,
+                            record,
+                            field,
+                            fragments,
+                            variables,
+                            payload_key,
+                          ),
+                          [],
+                        )
+                      #(
+                        key,
+                        payload,
+                        serializers.mutation_outcome(
+                          outcome,
+                          store,
+                          identity,
+                          root,
+                          [id],
+                        ),
+                      )
+                    }
+                  }
                 }
               }
             }
@@ -1554,7 +1638,7 @@ fn create_script_tag(
       "input",
     )
     |> option.unwrap(dict.new())
-  let errors = script_tag_input_errors(input, True)
+  let errors = script_tag_input_errors(input, True, ["input"])
   case errors {
     [] -> {
       let display_scope =
@@ -1573,6 +1657,7 @@ fn create_script_tag(
             ),
           ),
           #("displayScope", SrcString(display_scope)),
+          #("event", SrcString("onload")),
           #(
             "cache",
             serializers.bool_source(
@@ -1621,7 +1706,7 @@ fn update_script_tag(
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case serializers.lookup_integration_by_id(outcome.store, "scriptTag", id) {
     serializers.IntegrationFound(existing) -> {
-      let errors = script_tag_input_errors(input, False)
+      let errors = script_tag_input_errors(input, False, [])
       case errors {
         [] -> {
           let display_scope =
@@ -1635,6 +1720,10 @@ fn update_script_tag(
               serializers.input_string(input, "src"),
             )
             |> serializers.maybe_insert_string("displayScope", display_scope)
+            |> serializers.captured_object_insert(
+              "event",
+              CapturedString("onload"),
+            )
             |> serializers.maybe_insert_bool(
               "cache",
               serializers.input_bool(input, "cache"),
@@ -1701,56 +1790,67 @@ fn update_script_tag(
 fn script_tag_input_errors(
   input: Dict(String, root_field.ResolvedValue),
   require_src: Bool,
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   list.append(
-    script_tag_src_errors(serializers.input_string(input, "src"), require_src),
-    script_tag_display_scope_errors(serializers.input_string(
-      input,
-      "displayScope",
-    )),
+    script_tag_src_errors(
+      serializers.input_string(input, "src"),
+      require_src,
+      field_prefix,
+    ),
+    script_tag_display_scope_errors(
+      serializers.input_string(input, "displayScope"),
+      field_prefix,
+    ),
   )
 }
 
 fn script_tag_src_errors(
   src: Option(String),
   require_src: Bool,
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   case src {
     None if require_src -> [
-      script_tag_user_error(["input", "src"], "Source can't be blank", "BLANK"),
+      script_tag_user_error(
+        script_tag_field_path(field_prefix, "src"),
+        "Source can't be blank",
+        "BLANK",
+      ),
     ]
     None -> []
     Some(value) ->
       case string.trim(value) {
         "" -> [
           script_tag_user_error(
-            ["input", "src"],
+            script_tag_field_path(field_prefix, "src"),
             "Source can't be blank",
             "BLANK",
           ),
         ]
-        _ -> validate_non_blank_script_tag_src(value)
+        _ -> validate_non_blank_script_tag_src(value, field_prefix)
       }
   }
 }
 
 fn validate_non_blank_script_tag_src(
   value: String,
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   case string.length(value) > 255 {
     True -> [
       script_tag_user_error(
-        ["input", "src"],
+        script_tag_field_path(field_prefix, "src"),
         "Source is too long (maximum is 255 characters)",
         "TOO_LONG",
       ),
     ]
     False ->
-      case script_tag_src_is_http_url(value) {
+      case script_tag_src_is_https_url(value) {
         True -> []
         False -> [
           script_tag_user_error(
-            ["input", "src"],
+            script_tag_field_path(field_prefix, "src"),
             "Source is invalid",
             "INVALID",
           ),
@@ -1759,16 +1859,17 @@ fn validate_non_blank_script_tag_src(
   }
 }
 
-fn script_tag_src_is_http_url(value: String) -> Bool {
+fn script_tag_src_is_https_url(value: String) -> Bool {
   case uri.parse(value) {
     Ok(uri.Uri(scheme: Some(scheme), host: Some(host), ..)) ->
-      { scheme == "http" || scheme == "https" } && string.trim(host) != ""
+      scheme == "https" && string.trim(host) != ""
     _ -> False
   }
 }
 
 fn script_tag_display_scope_errors(
   display_scope: Option(String),
+  field_prefix: List(String),
 ) -> List(graphql_helpers.SourceValue) {
   case display_scope {
     None -> []
@@ -1777,13 +1878,20 @@ fn script_tag_display_scope_errors(
         Some(_) -> []
         None -> [
           script_tag_user_error(
-            ["input", "displayScope"],
+            script_tag_field_path(field_prefix, "displayScope"),
             "Display scope is not included in the list",
             "INCLUSION",
           ),
         ]
       }
   }
+}
+
+fn script_tag_field_path(
+  field_prefix: List(String),
+  field: String,
+) -> List(String) {
+  list.append(field_prefix, [field])
 }
 
 fn normalized_script_tag_display_scope(

@@ -166,23 +166,25 @@ function recurringPricingPolicy(afterCycle: number): JsonRecord {
   };
 }
 
-function recurringBillingPolicy(): JsonRecord {
+function recurringBillingPolicy(overrides: JsonRecord = {}): JsonRecord {
   return {
     recurring: {
       interval: 'MONTH',
       intervalCount: 1,
       minCycles: 1,
       maxCycles: 12,
+      ...overrides,
     },
   };
 }
 
-function recurringDeliveryPolicy(): JsonRecord {
+function recurringDeliveryPolicy(overrides: JsonRecord = {}): JsonRecord {
   return {
     recurring: {
       interval: 'MONTH',
       intervalCount: 1,
       cutoff: 0,
+      ...overrides,
     },
   };
 }
@@ -311,6 +313,44 @@ try {
     },
     true,
   );
+  scenarios['planCreateZeroRecurringInterval'] = await capture(
+    'planCreateZeroRecurringInterval',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Zero recurring interval',
+        sellingPlansToCreate: [
+          validSellingPlanInput({
+            billingPolicy: recurringBillingPolicy({ intervalCount: 0 }),
+            deliveryPolicy: recurringDeliveryPolicy({ intervalCount: 0 }),
+          }),
+        ],
+      }),
+      resources: {},
+    },
+    true,
+  );
+  scenarios['planCreateAnchorMismatch'] = await capture(
+    'planCreateAnchorMismatch',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Anchor mismatch',
+        sellingPlansToCreate: [
+          validSellingPlanInput({
+            billingPolicy: recurringBillingPolicy({
+              anchors: [{ type: 'MONTHDAY', day: 1 }],
+            }),
+            deliveryPolicy: recurringDeliveryPolicy({
+              anchors: [{ type: 'MONTHDAY', day: 2 }],
+            }),
+          }),
+        ],
+      }),
+      resources: {},
+    },
+    true,
+  );
   scenarios['groupUpdateOptionsTooLong'] = await capture(
     'groupUpdateOptionsTooLong',
     updateMutation,
@@ -381,6 +421,44 @@ try {
     },
     true,
   );
+  scenarios['planUpdateZeroRecurringInterval'] = await capture(
+    'planUpdateZeroRecurringInterval',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [
+          {
+            id: planId,
+            billingPolicy: recurringBillingPolicy({ intervalCount: 0 }),
+            deliveryPolicy: recurringDeliveryPolicy({ intervalCount: 0 }),
+          },
+        ],
+      },
+    },
+    true,
+  );
+  scenarios['planUpdateAnchorMismatch'] = await capture(
+    'planUpdateAnchorMismatch',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [
+          {
+            id: planId,
+            billingPolicy: recurringBillingPolicy({
+              anchors: [{ type: 'MONTHDAY', day: 1 }],
+            }),
+            deliveryPolicy: recurringDeliveryPolicy({
+              anchors: [{ type: 'MONTHDAY', day: 2 }],
+            }),
+          },
+        ],
+      },
+    },
+    true,
+  );
 } finally {
   if (groupId) {
     const result = await runGraphqlRaw(deleteMutation, { id: groupId });
@@ -402,7 +480,7 @@ await writeFile(
       apiVersion,
       storeDomain,
       notes: [
-        'Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, and billing/delivery policy kind compatibility.',
+        'Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, policy kind compatibility, recurring interval counts, and recurring anchor schedule compatibility.',
         'The script creates one disposable selling-plan group so update validation branches can target an existing group and deletes it during cleanup.',
       ],
       groupId,

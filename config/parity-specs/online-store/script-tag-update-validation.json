@@ -1,0 +1,59 @@
+{
+  "scenarioId": "online-store/script-tag-update-validation",
+  "operationNames": ["scriptTagCreate", "scriptTagUpdate", "scriptTag"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "read-after-write",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/online-store/script-tag-update-validation.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/script-tag-update-validation-create.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "script-tag-update-create-setup",
+        "capturePath": "$.expected.create.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "script-tag-update-validation-user-errors",
+        "capturePath": "$.expected.validation.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/script-tag-update-validation-errors.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "script-tag-update-event-onload",
+        "capturePath": "$.expected.eventUpdate.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/script-tag-update-event-force-onload.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "script-tag-update-readback",
+        "capturePath": "$.expected.readback.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/script-tag-update-readback.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Local-runtime executable coverage for ScriptTag update validation: changed src/displayScope fields rerun model-style validators with update field paths, secure-src-enforced HTTP input is rejected, and event is forced to onload on update and downstream reads. The scenario earns state by replaying scriptTagCreate before the update/read targets and uses an empty cassette because supported mutations are local-only."
+}
