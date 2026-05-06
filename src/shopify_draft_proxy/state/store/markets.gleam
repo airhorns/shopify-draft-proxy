@@ -16,7 +16,9 @@ import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CatalogRecord, type LocaleRecord,
   type MarketLocalizationRecord, type MarketRecord, type PriceListRecord,
   type ShopLocaleRecord, type TranslationRecord, type WebPresenceRecord,
-} as _
+  CapturedArray, CapturedBool, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString,
+} as state_types
 
 // ---------------------------------------------------------------------------
 // Markets slice
@@ -149,7 +151,10 @@ pub fn list_effective_market_localizations(
     store.staged_state.market_localizations,
   )
   |> dict.values
-  |> list.filter(fn(record) { record.resource_id == resource_id })
+  |> list.filter(fn(record) {
+    record.resource_id == resource_id
+    && !dict_has(store.staged_state.deleted_market_ids, record.market_id)
+  })
   |> sort_market_localization_records
 }
 
@@ -197,6 +202,7 @@ pub fn delete_staged_market(store: Store, id: String) -> Store {
       deleted_market_ids: dict.insert(staged.deleted_market_ids, id, True),
     )
   Store(..store, staged_state: new_staged)
+  |> cascade_market_delete(id)
 }
 
 pub fn upsert_base_catalogs(
@@ -281,6 +287,7 @@ pub fn delete_staged_catalog(store: Store, id: String) -> Store {
       deleted_catalog_ids: dict.insert(staged.deleted_catalog_ids, id, True),
     )
   Store(..store, staged_state: new_staged)
+  |> detach_catalog_from_price_lists(id)
 }
 
 pub fn upsert_base_price_lists(
@@ -381,6 +388,7 @@ pub fn delete_staged_price_list(store: Store, id: String) -> Store {
       ),
     )
   Store(..store, staged_state: new_staged)
+  |> detach_price_list_from_catalogs(id)
 }
 
 pub fn upsert_base_web_presences(
@@ -513,6 +521,324 @@ pub fn get_effective_markets_root_payload(
         Ok(payload) -> Some(payload)
         Error(_) -> None
       }
+  }
+}
+
+fn cascade_market_delete(store: Store, market_id: String) -> Store {
+  store
+  |> delete_web_presences_for_market(market_id)
+  |> remove_market_localizations_for_market(market_id)
+  |> remove_market_from_catalog_contexts(market_id)
+}
+
+fn delete_web_presences_for_market(store: Store, market_id: String) -> Store {
+  store
+  |> list_effective_web_presences
+  |> list.filter(fn(record) {
+    web_presence_references_market(record, market_id)
+  })
+  |> list.fold(store, fn(acc, record) {
+    delete_staged_web_presence(acc, record.id)
+  })
+}
+
+fn remove_market_localizations_for_market(
+  store: Store,
+  market_id: String,
+) -> Store {
+  let staged = store.staged_state
+  let next_localizations =
+    staged.market_localizations
+    |> dict.filter(fn(_key, record) { record.market_id != market_id })
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      market_localizations: next_localizations,
+    ),
+  )
+}
+
+fn remove_market_from_catalog_contexts(
+  store: Store,
+  market_id: String,
+) -> Store {
+  store
+  |> list_effective_catalogs
+  |> list.fold(store, fn(acc, record) {
+    let next_record = remove_market_from_catalog(record, market_id)
+    case next_record.data == record.data {
+      True -> acc
+      False -> {
+        let #(_, next_store) = upsert_staged_catalog(acc, next_record)
+        next_store
+      }
+    }
+  })
+}
+
+fn remove_market_from_catalog(
+  record: CatalogRecord,
+  market_id: String,
+) -> CatalogRecord {
+  case captured_field(record.data, "markets") {
+    Some(markets) -> {
+      let next_markets = filter_connection_by_node_id(markets, market_id)
+      state_types.CatalogRecord(
+        ..record,
+        data: captured_object_upsert(record.data, [
+          #("markets", next_markets),
+        ]),
+      )
+    }
+    None -> record
+  }
+}
+
+fn detach_catalog_from_price_lists(store: Store, catalog_id: String) -> Store {
+  store
+  |> list_effective_price_lists
+  |> list.fold(store, fn(acc, record) {
+    case price_list_catalog_id(record) == Some(catalog_id) {
+      True -> {
+        let #(_, next_store) =
+          upsert_staged_price_list(
+            acc,
+            state_types.PriceListRecord(
+              ..record,
+              data: captured_object_upsert(record.data, [
+                #("catalog", CapturedNull),
+              ]),
+            ),
+          )
+        next_store
+      }
+      False -> acc
+    }
+  })
+}
+
+fn detach_price_list_from_catalogs(
+  store: Store,
+  price_list_id: String,
+) -> Store {
+  store
+  |> list_effective_catalogs
+  |> list.fold(store, fn(acc, record) {
+    case catalog_price_list_id(record) == Some(price_list_id) {
+      True -> {
+        let #(_, next_store) =
+          upsert_staged_catalog(
+            acc,
+            state_types.CatalogRecord(
+              ..record,
+              data: captured_object_upsert(record.data, [
+                #("priceList", CapturedNull),
+              ]),
+            ),
+          )
+        next_store
+      }
+      False -> acc
+    }
+  })
+}
+
+pub fn clear_price_list_fixed_prices(
+  record: PriceListRecord,
+) -> PriceListRecord {
+  state_types.PriceListRecord(
+    ..record,
+    data: captured_object_upsert(record.data, [
+      #("fixedPricesCount", CapturedInt(0)),
+      #("prices", empty_connection()),
+    ]),
+  )
+}
+
+fn web_presence_references_market(
+  record: WebPresenceRecord,
+  market_id: String,
+) -> Bool {
+  captured_string_field(record.data, "marketId") == Some(market_id)
+  || {
+    case captured_field(record.data, "market") {
+      Some(market) -> captured_string_field(market, "id") == Some(market_id)
+      None -> False
+    }
+  }
+  || connection_contains_node_id(record.data, "markets", market_id)
+}
+
+fn price_list_catalog_id(record: PriceListRecord) -> Option(String) {
+  captured_field(record.data, "catalog")
+  |> option.then(captured_string_field(_, "id"))
+}
+
+fn catalog_price_list_id(record: CatalogRecord) -> Option(String) {
+  captured_field(record.data, "priceList")
+  |> option.then(captured_string_field(_, "id"))
+}
+
+fn connection_contains_node_id(
+  data: CapturedJsonValue,
+  field_name: String,
+  id: String,
+) -> Bool {
+  case captured_field(data, field_name) {
+    Some(connection) ->
+      connection_nodes(connection)
+      |> list.any(fn(node) { captured_string_field(node, "id") == Some(id) })
+    None -> False
+  }
+}
+
+fn filter_connection_by_node_id(
+  connection: CapturedJsonValue,
+  removed_id: String,
+) -> CapturedJsonValue {
+  let nodes =
+    connection_nodes(connection)
+    |> list.filter(fn(node) {
+      captured_string_field(node, "id") != Some(removed_id)
+    })
+  let edges =
+    connection_edges(connection)
+    |> list.filter(fn(edge) {
+      captured_field(edge, "node")
+      |> option.then(captured_string_field(_, "id"))
+      != Some(removed_id)
+    })
+  connection_from_nodes_edges(nodes, edges)
+}
+
+fn connection_nodes(connection: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_field(connection, "nodes") {
+    Some(CapturedArray(nodes)) -> nodes
+    _ ->
+      connection_edges(connection)
+      |> list.filter_map(fn(edge) {
+        captured_field(edge, "node") |> option_to_result
+      })
+  }
+}
+
+fn connection_edges(connection: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_field(connection, "edges") {
+    Some(CapturedArray(edges)) -> edges
+    _ -> []
+  }
+}
+
+fn connection_from_nodes_edges(
+  nodes: List(CapturedJsonValue),
+  edges: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  let cursors = case edges {
+    [] ->
+      nodes
+      |> list.filter_map(fn(node) {
+        captured_string_field(node, "id") |> option_to_result
+      })
+    _ ->
+      edges
+      |> list.filter_map(fn(edge) {
+        captured_string_field(edge, "cursor") |> option_to_result
+      })
+  }
+  CapturedObject([
+    #("nodes", CapturedArray(nodes)),
+    #("edges", CapturedArray(edges)),
+    #("pageInfo", page_info_for_cursors(cursors)),
+  ])
+}
+
+fn empty_connection() -> CapturedJsonValue {
+  connection_from_nodes_edges([], [])
+}
+
+fn page_info_for_cursors(cursors: List(String)) -> CapturedJsonValue {
+  CapturedObject([
+    #("hasNextPage", CapturedBool(False)),
+    #("hasPreviousPage", CapturedBool(False)),
+    #(
+      "startCursor",
+      optional_captured_string(list.first(cursors) |> result_to_option),
+    ),
+    #(
+      "endCursor",
+      optional_captured_string(list.last(cursors) |> result_to_option),
+    ),
+  ])
+}
+
+fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
+  case value {
+    Some(value) -> CapturedString(value)
+    None -> CapturedNull
+  }
+}
+
+fn result_to_option(value: Result(a, b)) -> Option(a) {
+  case value {
+    Ok(item) -> Some(item)
+    Error(_) -> None
+  }
+}
+
+fn captured_object_upsert(
+  value: CapturedJsonValue,
+  updates: List(#(String, CapturedJsonValue)),
+) -> CapturedJsonValue {
+  let base = case value {
+    CapturedObject(fields) -> fields
+    _ -> []
+  }
+  let retained =
+    base
+    |> list.filter(fn(pair) {
+      let #(key, _) = pair
+      !list.any(updates, fn(update) {
+        let #(update_key, _) = update
+        update_key == key
+      })
+    })
+  CapturedObject(list.append(retained, updates))
+}
+
+fn captured_field(
+  value: CapturedJsonValue,
+  key: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) -> captured_field_from_pairs(fields, key)
+    _ -> None
+  }
+}
+
+fn captured_field_from_pairs(
+  fields: List(#(String, CapturedJsonValue)),
+  key: String,
+) -> Option(CapturedJsonValue) {
+  case fields {
+    [] -> None
+    [first, ..rest] -> {
+      let #(field_key, field_value) = first
+      case field_key == key {
+        True -> Some(field_value)
+        False -> captured_field_from_pairs(rest, key)
+      }
+    }
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  key: String,
+) -> Option(String) {
+  case captured_field(value, key) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
   }
 }
 
