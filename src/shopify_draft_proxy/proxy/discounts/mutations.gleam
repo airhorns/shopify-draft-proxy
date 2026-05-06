@@ -1038,7 +1038,7 @@ pub fn app_discount_activation_errors(
 pub fn activation_failed_user_errors() -> List(SourceValue) {
   [
     discount_types.user_error(
-      ["id"],
+      ["base"],
       "Discount could not be activated.",
       "INTERNAL_ERROR",
     ),
