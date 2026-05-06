@@ -2133,6 +2133,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-update-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-input-validation-conformance.ts',
+    purpose:
+      'orderUpdate empty-input, malformed phone, malformed shipping address, and happy-path note update validation parity.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-input-validation.json`,
+      'config/parity-specs/orders/orderUpdate-input-validation.json',
+      'config/parity-requests/orders/orderUpdate-input-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-invoice-send-email-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-invoice-send-email-validation-conformance.ts',
