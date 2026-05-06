@@ -141,6 +141,99 @@ fn valid_selling_plan_input() -> String {
   "name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 1, minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 1, cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }]"
 }
 
+pub fn product_feedback_invalid_state_uses_resource_feedback_enum_coercion_test() {
+  let query =
+    "mutation { bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: BANANAS, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }]) { feedback { productId } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+  )
+  assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn shop_feedback_invalid_state_uses_resource_feedback_enum_coercion_test() {
+  let query =
+    "mutation { shopResourceFeedbackCreate(input: { state: BANANAS, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }) { feedback { state } userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "Expected \\\"BANANAS\\\" to be one of: ACCEPTED, REQUIRES_ACTION",
+  )
+  assert string.contains(body, "\"code\":\"argumentLiteralsIncompatible\"")
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn product_feedback_create_rejects_validation_errors_without_staging_test() {
+  let too_long_message = string.repeat("x", times: 101)
+  let batch_input =
+    string.repeat(
+      "{ productId: \\\"gid://shopify/Product/optioned\\\", state: ACCEPTED, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] },",
+      times: 51,
+    )
+  let query =
+    "mutation { blankMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }]) { feedback { productId } userErrors { field message code } } futureGeneratedAt: bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: ACCEPTED, feedbackGeneratedAt: \\\"2099-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }]) { feedback { productId } userErrors { field message code } } tooLongMessage: bulkProductResourceFeedbackCreate(feedbackInput: [{ productId: \\\"gid://shopify/Product/optioned\\\", state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", productUpdatedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [\\\""
+    <> too_long_message
+    <> "\\\"] }]) { feedback { productId } userErrors { field message code } } batchTooLong: bulkProductResourceFeedbackCreate(feedbackInput: ["
+    <> batch_input
+    <> "]) { feedback { productId } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(default_option_store(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"blankMessages\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\",\"0\",\"messages\"],\"message\":\"Messages can't be blank\",\"code\":\"BLANK\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"futureGeneratedAt\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\",\"0\",\"feedbackGeneratedAt\"],\"message\":\"Feedback generated at must not be in the future\",\"code\":\"INVALID\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"tooLongMessage\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\",\"0\",\"messages\",\"0\"],\"message\":\"Message is too long (maximum is 100 characters)\",\"code\":\"TOO_LONG\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"batchTooLong\":{\"feedback\":[],\"userErrors\":[{\"field\":[\"feedback\"],\"message\":\"Feedback cannot contain more than 50 entries\",\"code\":\"TOO_LONG\"}]}",
+  )
+  assert store.get_effective_product_resource_feedback(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+    == None
+}
+
+pub fn shop_feedback_create_rejects_validation_errors_without_staging_test() {
+  let too_long_message = string.repeat("x", times: 101)
+  let query =
+    "mutation { blankMessages: shopResourceFeedbackCreate(input: { state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [] }) { feedback { state } userErrors { field message code } } futureGeneratedAt: shopResourceFeedbackCreate(input: { state: ACCEPTED, feedbackGeneratedAt: \\\"2099-01-01T00:00:00Z\\\", messages: [] }) { feedback { state } userErrors { field message code } } tooLongMessage: shopResourceFeedbackCreate(input: { state: REQUIRES_ACTION, feedbackGeneratedAt: \\\"2024-01-01T00:00:00Z\\\", messages: [\\\""
+    <> too_long_message
+    <> "\\\"] }) { feedback { state } userErrors { field message code } } }"
+  let #(status, body, next_proxy) = run_product_mutation(store.new(), query)
+
+  assert status == 200
+  assert string.contains(
+    body,
+    "\"blankMessages\":{\"feedback\":null,\"userErrors\":[{\"field\":[\"feedback\",\"messages\"],\"message\":\"Messages can't be blank\",\"code\":\"BLANK\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"futureGeneratedAt\":{\"feedback\":null,\"userErrors\":[{\"field\":[\"feedback\",\"feedbackGeneratedAt\"],\"message\":\"Feedback generated at must not be in the future\",\"code\":\"INVALID\"}]}",
+  )
+  assert string.contains(
+    body,
+    "\"tooLongMessage\":{\"feedback\":null,\"userErrors\":[{\"field\":[\"feedback\",\"messages\",\"0\"],\"message\":\"Message is too long (maximum is 100 characters)\",\"code\":\"TOO_LONG\"}]}",
+  )
+  assert store.get_log(next_proxy.store) != []
+}
+
 pub fn selling_plan_group_create_rejects_group_input_validation_errors_test() {
   assert_selling_plan_group_create_user_error(
     "mutation { sellingPlanGroupCreate(input: { name: \\\"Too many\\\", options: [\\\"a\\\", \\\"b\\\", \\\"c\\\", \\\"d\\\"] }, resources: {}) { sellingPlanGroup { id options } userErrors { field message code } } }",
