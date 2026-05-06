@@ -41,20 +41,10 @@
   "runtimeTestFiles": ["tests/integration/online-store-content-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/online-store-content-create.graphql",
-    "variables": {
-      "blog": {
-        "title": "HAR 303 Blog 20260426015107",
-        "commentPolicy": "MODERATED"
-      },
-      "page": {
-        "title": "HAR 303 Page 20260426015107",
-        "body": "<p>HAR 303 page body</p>",
-        "isPublished": true
-      }
-    }
+    "variablesCapturePath": "$.interactions[1].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-352 promotes the HAR-303 online-store content fixture from captured-fixture evidence to generic captured-vs-proxy-request parity. The runner seeds the baseline catalog/detail/empty read from the checked-in Shopify capture, then executes local blog/page create, article create, blog/page/article update, downstream read-after-write, delete, and unknown-comment moderation/delete guardrail requests with strict selected-path comparison. No live recapture was needed; volatile IDs, timestamps, and opaque cursors are excluded or matcher-scoped while stable payload, count, null/empty, pagination boolean, userErrors, and downstream read behavior are compared.",
+  "notes": "Live Shopify capture records online-store content catalog/detail/empty reads, blog/page/article lifecycle writes, downstream read-after-write behavior, delete behavior, and unknown-comment moderation/delete guardrail requests. The standard parity runner replays local blog/page create, article create, blog/page/article update, downstream read-after-write, delete, and unknown-comment requests with strict selected-path comparison. Volatile IDs, timestamps, and opaque cursors are excluded or matcher-scoped while stable payload, count, null/empty, pagination boolean, userErrors, and downstream read behavior are compared.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -75,7 +65,7 @@
       },
       {
         "name": "pageCreate payload matches captured stable fields",
-        "capturePath": "$.interactions[3].response.data.pageCreate",
+        "capturePath": "$.interactions[1].response.data.pageCreate",
         "proxyPath": "$.data.pageCreate",
         "selectedPaths": [
           "$.page.title",
@@ -89,7 +79,7 @@
       },
       {
         "name": "articleCreate payload matches captured stable fields",
-        "capturePath": "$.interactions[5].response.data.articleCreate",
+        "capturePath": "$.interactions[2].response.data.articleCreate",
         "proxyPath": "$.data.articleCreate",
         "selectedPaths": [
           "$.article.title",
@@ -108,19 +98,19 @@
           "variables": {
             "article": {
               "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
-              "title": "HAR 303 Article 20260426015107",
-              "body": "<p>HAR 303 article body</p>",
-              "summary": "<p>Summary</p>",
-              "isPublished": true,
-              "tags": ["har-303", "online-store"],
-              "author": { "name": "HAR 303 Author" }
+              "title": { "fromCapturePath": "$.interactions[2].request.variables.article.title" },
+              "body": { "fromCapturePath": "$.interactions[2].request.variables.article.body" },
+              "summary": { "fromCapturePath": "$.interactions[2].request.variables.article.summary" },
+              "isPublished": { "fromCapturePath": "$.interactions[2].request.variables.article.isPublished" },
+              "tags": { "fromCapturePath": "$.interactions[2].request.variables.article.tags" },
+              "author": { "fromCapturePath": "$.interactions[2].request.variables.article.author" }
             }
           }
         }
       },
       {
         "name": "articleUpdate payload matches captured stable fields after local blog/page/article updates",
-        "capturePath": "$.interactions[6].response.data.articleUpdate",
+        "capturePath": "$.interactions[3].response.data.articleUpdate",
         "proxyPath": "$.data.articleUpdate",
         "selectedPaths": [
           "$.article.title",
@@ -137,28 +127,17 @@
           "documentPath": "config/parity-requests/online-store/online-store-content-update.graphql",
           "variables": {
             "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
-            "blog": {
-              "title": "HAR 303 Blog Updated 20260426015107",
-              "commentPolicy": "CLOSED"
-            },
+            "blog": { "fromCapturePath": "$.interactions[3].request.variables.blog" },
             "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
-            "page": {
-              "title": "HAR 303 Page Updated 20260426015107",
-              "body": "<p>Updated page body</p>",
-              "isPublished": false
-            },
+            "page": { "fromCapturePath": "$.interactions[3].request.variables.page" },
             "articleId": { "fromPreviousProxyPath": "$.data.articleCreate.article.id" },
-            "article": {
-              "title": "HAR 303 Article Updated 20260426015107",
-              "isPublished": false,
-              "author": { "name": "HAR 303 Updated Author" }
-            }
+            "article": { "fromCapturePath": "$.interactions[3].request.variables.article" }
           }
         }
       },
       {
         "name": "downstream read-after-write matches captured stable fields",
-        "capturePath": "$.interactions[7].response.data",
+        "capturePath": "$.interactions[4].response.data",
         "proxyPath": "$.data",
         "selectedPaths": [
           "$.blog.title",
@@ -187,13 +166,14 @@
           "variables": {
             "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
             "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
-            "articleId": { "fromPreviousProxyPath": "$.data.articleUpdate.article.id" }
+            "articleId": { "fromPreviousProxyPath": "$.data.articleUpdate.article.id" },
+            "articleQuery": { "fromCapturePath": "$.interactions[4].request.variables.articleQuery" }
           }
         }
       },
       {
         "name": "delete payloads match captured userErrors and ID shape",
-        "capturePath": "$.interactions[9].response.data.articleDelete",
+        "capturePath": "$.interactions[6].response.data.articleDelete",
         "proxyPath": "$.data.articleDelete",
         "expectedDifferences": [
           {
@@ -205,7 +185,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/online-store/online-store-content-delete.graphql",
           "variables": {
-            "articleId": { "fromPreviousProxyPath": "$.data.article.id" },
+            "articleId": {
+              "fromProxyResponse": "downstream read-after-write matches captured stable fields",
+              "path": "$.data.article.id"
+            },
             "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
             "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" }
           }
@@ -213,13 +196,11 @@
       },
       {
         "name": "unknown comment moderation and delete guardrails match captured userErrors",
-        "capturePath": "$.interactions[8].response.data",
+        "capturePath": "$.interactions[5].response.data",
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/online-store/online-store-content-comment-unknown.graphql",
-          "variables": {
-            "id": "gid://shopify/Comment/999999999999"
-          }
+          "variablesCapturePath": "$.interactions[5].request.variables"
         }
       }
     ]

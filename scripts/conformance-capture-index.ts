@@ -2533,6 +2533,50 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-content-lifecycle',
+    scriptPath: 'scripts/capture-online-store-content-lifecycle-conformance.ts',
+    purpose:
+      'Online store blog, page, and article lifecycle success paths, downstream read-after-write behavior, empty reads, counts, and unknown-comment guardrails.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-lifecycle.json`,
+      'config/parity-specs/online-store/online-store-content-lifecycle.json',
+      'config/parity-requests/online-store/online-store-content-article-create.graphql',
+      'config/parity-requests/online-store/online-store-content-comment-unknown.graphql',
+      'config/parity-requests/online-store/online-store-content-create.graphql',
+      'config/parity-requests/online-store/online-store-content-delete.graphql',
+      'config/parity-requests/online-store/online-store-content-read-after-update.graphql',
+      'config/parity-requests/online-store/online-store-content-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog, page, and article; records lifecycle reads/writes; deletes all created content during the scenario and retries cleanup for any remaining record.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-article-media-navigation-follow-through',
+    scriptPath: 'scripts/capture-online-store-article-media-navigation-follow-through-conformance.ts',
+    purpose:
+      'Article image/metafield create/update/read behavior, Page/Article schema boundaries, and page-backed menu navigation follow-through evidence.',
+    requiredAuthScopes: [
+      'read_content',
+      'write_content',
+      'read_online_store_navigation',
+      'write_online_store_navigation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-media-navigation-follow-through.json`,
+      'config/parity-specs/online-store/online-store-article-media-navigation-follow-through.json',
+      'config/parity-requests/online-store/online-store-article-media.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable blog, article, page, and menu records; deletes the menu during the scenario, then deletes remaining article/page/blog records in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Menu evidence is captured for future navigation modeling; the executable parity target covers the locally supported article image/metafield create payload.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-content-search',
     scriptPath: 'scripts/capture-online-store-content-search-conformance.ts',
     purpose: 'Online store article, blog, and page search filter behavior.',
