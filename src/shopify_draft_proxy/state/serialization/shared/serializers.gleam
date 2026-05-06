@@ -243,6 +243,19 @@ pub fn payment_settings_json(record: types.PaymentSettingsRecord) -> Json {
       "supportedDigitalWallets",
       json.array(record.supported_digital_wallets, json.string),
     ),
+    #(
+      "paymentGateways",
+      json.array(record.payment_gateways, payment_gateway_json),
+    ),
+  ])
+}
+
+@internal
+pub fn payment_gateway_json(record: types.PaymentGatewayRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("name", json.string(record.name)),
+    #("active", json.bool(record.active)),
   ])
 }
 
@@ -1392,6 +1405,7 @@ pub fn marketing_record_json(record: types.MarketingRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
     #("cursor", optional_string(record.cursor)),
+    #("apiClientId", optional_string(record.api_client_id)),
     #("data", marketing_object_json(record.data)),
   ])
 }
@@ -1412,6 +1426,7 @@ pub fn marketing_engagement_json(
 ) -> Json {
   json.object([
     #("id", json.string(record.id)),
+    #("apiClientId", optional_string(record.api_client_id)),
     #("marketingActivityId", optional_string(record.marketing_activity_id)),
     #("remoteId", optional_string(record.remote_id)),
     #("channelHandle", optional_string(record.channel_handle)),

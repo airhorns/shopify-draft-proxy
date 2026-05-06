@@ -1,0 +1,128 @@
+{
+  "scenarioId": "payment-terms-delete-owner-cascade",
+  "operationNames": ["orderCreate", "paymentTermsCreate", "paymentTermsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+    "variables": {
+      "referenceId": { "fromCapturePath": "$.draft.owner.id" },
+      "attrs": {
+        "fromCapturePath": "$.draft.paymentTermsCreate.variables.attrs"
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "draft-create",
+        "capturePath": "$.draft.expected.create",
+        "proxyPath": "$"
+      },
+      {
+        "name": "draft-delete",
+        "capturePath": "$.draft.expected.delete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromPrimaryProxyPath": "$.data.paymentTermsCreate.paymentTerms.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "draft-read-after-delete",
+        "capturePath": "$.draft.expected.readAfterDelete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.draft.owner.id" }
+          }
+        }
+      },
+      {
+        "name": "order-create",
+        "capturePath": "$.order.expected.orderCreate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
+          "variablesCapturePath": "$.order.orderCreate.variables"
+        }
+      },
+      {
+        "name": "order-create-terms",
+        "capturePath": "$.order.expected.create",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromProxyResponse": "order-create",
+              "path": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.order.paymentTermsCreate.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "order-delete",
+        "capturePath": "$.order.expected.delete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromProxyResponse": "order-create-terms",
+                "path": "$.data.paymentTermsCreate.paymentTerms.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "order-read-after-delete",
+        "capturePath": "$.order.expected.readAfterDelete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "order-create",
+              "path": "$.data.orderCreate.order.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-delete-error-code",
+        "capturePath": "$.order.expected.missingDelete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.order.missingDelete.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for paymentTermsDelete owner cleanup. DraftOrder owner state is cassette-hydrated before local staging; Order owner state is created locally. Both owner reads assert paymentTerms null after delete, and the missing-id branch asserts Shopify's lowercase deletion failure code."
+}

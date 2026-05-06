@@ -1,0 +1,512 @@
+{
+  "fixtureKind": "local-runtime-product-feedback-validation",
+  "apiVersion": "2026-04",
+  "productInvalidState": {
+    "response": {
+      "errors": [
+        {
+          "message": "Expected \"BANANAS\" to be one of: ACCEPTED, REQUIRES_ACTION",
+          "extensions": {
+            "code": "argumentLiteralsIncompatible"
+          }
+        }
+      ]
+    }
+  },
+  "productBlankMessages": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7001",
+          "state": "REQUIRES_ACTION",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [],
+          "userErrors": [
+            {
+              "field": ["feedback", "0", "messages"],
+              "message": "Messages can't be blank",
+              "code": "BLANK"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "productFutureGeneratedAt": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7001",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2099-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [],
+          "userErrors": [
+            {
+              "field": ["feedback", "0", "feedbackGeneratedAt"],
+              "message": "Feedback generated at must not be in the future",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "productTooLongMessage": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7001",
+          "state": "REQUIRES_ACTION",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": [
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [],
+          "userErrors": [
+            {
+              "field": ["feedback", "0", "messages", "0"],
+              "message": "Message is too long (maximum is 100 characters)",
+              "code": "TOO_LONG"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "productBatchTooLong": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7001",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7002",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7003",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7004",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7005",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7006",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7007",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7008",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7009",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7010",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7011",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7012",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7013",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7014",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7015",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7016",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7017",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7018",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7019",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7020",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7021",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7022",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7023",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7024",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7025",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7026",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7027",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7028",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7029",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7030",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7031",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7032",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7033",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7034",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7035",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7036",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7037",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7038",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7039",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7040",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7041",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7042",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7043",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7044",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7045",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7046",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7047",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7048",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7049",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7050",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        },
+        {
+          "productId": "gid://shopify/Product/7051",
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-01T00:00:00Z",
+          "messages": []
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [],
+          "userErrors": [
+            {
+              "field": ["feedback"],
+              "message": "Feedback cannot contain more than 50 entries",
+              "code": "TOO_LONG"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "shopInvalidState": {
+    "response": {
+      "errors": [
+        {
+          "message": "Expected \"BANANAS\" to be one of: ACCEPTED, REQUIRES_ACTION",
+          "extensions": {
+            "code": "argumentLiteralsIncompatible"
+          }
+        }
+      ]
+    }
+  },
+  "shopBlankMessages": {
+    "variables": {
+      "input": {
+        "state": "REQUIRES_ACTION",
+        "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+        "messages": []
+      }
+    },
+    "response": {
+      "data": {
+        "shopResourceFeedbackCreate": {
+          "feedback": null,
+          "userErrors": [
+            {
+              "field": ["feedback", "messages"],
+              "message": "Messages can't be blank",
+              "code": "BLANK"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

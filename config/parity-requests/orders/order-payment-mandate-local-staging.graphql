@@ -1,5 +1,17 @@
-mutation OrderPaymentMandate($id: ID!, $mandateId: ID!, $idempotencyKey: String, $amount: MoneyInput) {
-  orderCreateMandatePayment(id: $id, mandateId: $mandateId, idempotencyKey: $idempotencyKey, amount: $amount) {
+mutation OrderPaymentMandate(
+  $id: ID!
+  $mandateId: ID!
+  $idempotencyKey: String
+  $amount: MoneyInput
+  $autoCapture: Boolean
+) {
+  orderCreateMandatePayment(
+    id: $id
+    mandateId: $mandateId
+    idempotencyKey: $idempotencyKey
+    amount: $amount
+    autoCapture: $autoCapture
+  ) {
     job {
       id
       done

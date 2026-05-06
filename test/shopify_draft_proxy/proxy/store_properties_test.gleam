@@ -129,7 +129,10 @@ fn make_shop(policies: List(ShopPolicyRecord)) -> ShopRecord {
       storefront: True,
       unified_markets: True,
     ),
-    payment_settings: PaymentSettingsRecord(supported_digital_wallets: []),
+    payment_settings: PaymentSettingsRecord(
+      supported_digital_wallets: [],
+      payment_gateways: [],
+    ),
     shop_policies: policies,
   )
 }
