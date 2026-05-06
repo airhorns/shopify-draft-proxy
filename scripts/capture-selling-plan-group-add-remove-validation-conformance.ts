@@ -292,28 +292,15 @@ const cleanup: Array<{ label: string; status: number; response: unknown }> = [];
 
 const unknownProductId = 'gid://shopify/Product/999999999999';
 const unknownVariantId = 'gid://shopify/ProductVariant/999999999999';
+const unknownGroupId = 'gid://shopify/SellingPlanGroup/999999999999';
 const malformedProductId = 'not-a-product-gid';
 const malformedVariantId = 'not-a-product-variant-gid';
 
-try {
-  captures.push(
-    await capture('member productCreate setup', productCreateMutation, {
-      product: { title: `Selling plan validation member ${suffix}` },
-    }),
-  );
-  memberProduct = productSnapshotFromCreate(captures.at(-1)!);
-
-  captures.push(
-    await capture('non-member productCreate setup', productCreateMutation, {
-      product: { title: `Selling plan validation non-member ${suffix}` },
-    }),
-  );
-  nonMemberProduct = productSnapshotFromCreate(captures.at(-1)!);
-
-  const createInput = {
-    name: `Selling plan validation ${suffix}`,
-    merchantCode: `selling-plan-validation-${suffix}`,
-    description: 'Temporary selling plan group for add/remove validation capture',
+function sellingPlanGroupInput(label: string): Record<string, unknown> {
+  return {
+    name: `Selling plan ${label} ${suffix}`,
+    merchantCode: `selling-plan-${label}-${suffix}`,
+    description: `Temporary selling plan group for ${label} capture`,
     options: ['Delivery frequency'],
     position: 1,
     sellingPlansToCreate: [
@@ -330,10 +317,26 @@ try {
       },
     ],
   };
+}
+
+try {
+  captures.push(
+    await capture('member productCreate setup', productCreateMutation, {
+      product: { title: `Selling plan validation member ${suffix}` },
+    }),
+  );
+  memberProduct = productSnapshotFromCreate(captures.at(-1)!);
+
+  captures.push(
+    await capture('non-member productCreate setup', productCreateMutation, {
+      product: { title: `Selling plan validation non-member ${suffix}` },
+    }),
+  );
+  nonMemberProduct = productSnapshotFromCreate(captures.at(-1)!);
 
   captures.push(
     await capture('sellingPlanGroupCreate validation setup', createGroupMutation, {
-      input: createInput,
+      input: sellingPlanGroupInput('validation'),
       resources: { productIds: [memberProduct.id], productVariantIds: [memberProduct.variantId] },
       productId: memberProduct.id,
       variantId: memberProduct.variantId,
@@ -412,10 +415,22 @@ try {
       productVariantIds: [malformedVariantId],
     }),
   );
+  captures.push(
+    await capture('sellingPlanGroupAddProducts unknown group', addProductsMutation, {
+      id: unknownGroupId,
+      productIds: [memberProduct.id],
+      productId: memberProduct.id,
+      variantId: memberProduct.variantId,
+    }),
+  );
 } finally {
   if (groupId) {
     const result = await runGraphqlRaw(deleteGroupMutation, { id: groupId });
-    cleanup.push({ label: 'cleanup sellingPlanGroupDelete', status: result.status, response: result.payload });
+    cleanup.push({
+      label: `cleanup sellingPlanGroupDelete ${groupId}`,
+      status: result.status,
+      response: result.payload,
+    });
   }
   for (const product of [memberProduct, nonMemberProduct]) {
     if (product) {
@@ -457,6 +472,7 @@ await writeFile(
       groupId,
       unknownProductId,
       unknownVariantId,
+      unknownGroupId,
       malformedProductId,
       malformedVariantId,
       captures,

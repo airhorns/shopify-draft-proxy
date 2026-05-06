@@ -1,0 +1,31 @@
+mutation MobilePlatformApplicationUpdateApple($id: ID!) {
+  mobilePlatformApplicationUpdate(
+    id: $id
+    input: {
+      apple: {
+        appId: "com.example.apple.new"
+        universalLinksEnabled: true
+        sharedWebCredentialsEnabled: false
+        appClipsEnabled: true
+        appClipApplicationId: "com.example.apple.new.Clip"
+      }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+      ... on AppleApplication {
+        id
+        appId
+        universalLinksEnabled
+        sharedWebCredentialsEnabled
+        appClipsEnabled
+        appClipApplicationId
+      }
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

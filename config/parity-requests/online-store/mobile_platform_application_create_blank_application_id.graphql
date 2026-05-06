@@ -1,0 +1,22 @@
+mutation MobilePlatformApplicationCreateBlankApplicationId {
+  blankAndroid: mobilePlatformApplicationCreate(input: { android: { applicationId: "" } }) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  blankApple: mobilePlatformApplicationCreate(input: { apple: { appId: "   " } }) {
+    mobilePlatformApplication {
+      __typename
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

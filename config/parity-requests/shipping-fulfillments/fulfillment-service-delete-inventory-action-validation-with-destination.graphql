@@ -1,0 +1,13 @@
+mutation FulfillmentServiceDeleteInventoryActionValidationWithDestination(
+  $id: ID!
+  $destinationLocationId: ID!
+  $inventoryAction: FulfillmentServiceDeleteInventoryAction!
+) {
+  fulfillmentServiceDelete(id: $id, destinationLocationId: $destinationLocationId, inventoryAction: $inventoryAction) {
+    deletedId
+    userErrors {
+      field
+      message
+    }
+  }
+}

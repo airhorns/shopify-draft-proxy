@@ -1,0 +1,32 @@
+{
+  "scenarioId": "web-pixel-update-validation-local-runtime",
+  "operationNames": ["webPixelCreate", "webPixelUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "input-validation", "user-errors-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/web-pixel-update-validation-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/web-pixel-update-validation-local-runtime.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "webPixelUpdate invalid settings JSON",
+        "capturePath": "$.expected.data.invalidJson",
+        "proxyPath": "$.data.invalidJson"
+      },
+      {
+        "name": "webPixelUpdate parsed settings status",
+        "capturePath": "$.expected.data.validUpdate",
+        "proxyPath": "$.data.validUpdate"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for webPixelUpdate settings JSON parsing, INVALID_CONFIGURATION_JSON userError shape, and status derivation after a locally staged create. App-extension declaration checks for runtimeContext and settingsDefinition are covered by focused Gleam runtime tests because the generic parity runner cannot pre-seed declaration metadata."
+}

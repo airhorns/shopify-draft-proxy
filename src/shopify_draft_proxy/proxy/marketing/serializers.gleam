@@ -168,15 +168,30 @@ pub fn find_marketing_activity_by_utm(
   store: Store,
   utm: Option(Dict(String, MarketingValue)),
 ) -> Option(MarketingRecord) {
+  find_marketing_activity_by_utm_for_app(store, utm, None)
+}
+
+@internal
+pub fn find_marketing_activity_by_utm_for_app(
+  store: Store,
+  utm: Option(Dict(String, MarketingValue)),
+  requesting_api_client_id: Option(String),
+) -> Option(MarketingRecord) {
   case utm {
     None -> None
     Some(utm) ->
-      list.find(store.list_effective_marketing_activities(store), fn(activity) {
-        same_utm(
-          read_marketing_object(activity.data, "utmParameters"),
-          Some(utm),
-        )
-      })
+      list.find(
+        store.list_effective_marketing_activities_for_app(
+          store,
+          requesting_api_client_id,
+        ),
+        fn(activity) {
+          same_utm(
+            read_marketing_object(activity.data, "utmParameters"),
+            Some(utm),
+          )
+        },
+      )
       |> option.from_result
   }
 }
@@ -232,7 +247,16 @@ pub fn find_marketing_event_by_remote_id(
   store: Store,
   remote_id: String,
 ) -> Option(MarketingRecord) {
-  store.list_effective_marketing_events(store)
+  find_marketing_event_by_remote_id_for_app(store, remote_id, None)
+}
+
+@internal
+pub fn find_marketing_event_by_remote_id_for_app(
+  store: Store,
+  remote_id: String,
+  requesting_api_client_id: Option(String),
+) -> Option(MarketingRecord) {
+  store.list_effective_marketing_events_for_app(store, requesting_api_client_id)
   |> list.find(fn(event) {
     read_marketing_string(event.data, "remoteId") == Some(remote_id)
   })

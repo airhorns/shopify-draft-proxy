@@ -1,0 +1,14 @@
+mutation OnlineStoreBlogCommentableCreate($blog: BlogCreateInput!) {
+  blogCreate(blog: $blog) {
+    blog {
+      id
+      title
+      commentPolicy
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

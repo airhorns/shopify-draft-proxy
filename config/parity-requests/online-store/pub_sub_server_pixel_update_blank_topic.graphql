@@ -1,0 +1,14 @@
+mutation {
+  pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "") {
+    serverPixel {
+      id
+      webhookEndpointAddress
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,10 @@
+query PaymentTermsOwnerCascadeDraftRead($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    name
+    paymentTerms {
+      id
+      paymentTermsName
+    }
+  }
+}

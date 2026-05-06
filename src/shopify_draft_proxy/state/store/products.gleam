@@ -20,7 +20,7 @@ import shopify_draft_proxy/state/types.{
   type ProductCollectionRecord, type ProductMediaRecord,
   type ProductOperationRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
-  type SellingPlanGroupRecord,
+  type SellingPlanGroupRecord, ProductVariantRecord,
 } as _
 
 // ---------------------------------------------------------------------------
@@ -225,17 +225,53 @@ pub fn delete_staged_files(store: Store, file_ids: List(String)) -> Store {
       )
     })
 
-  product_ids_with_media_ids(store, file_ids)
+  let product_ids = product_ids_with_media_ids(store, file_ids)
+  let store =
+    product_ids
+    |> list.fold(store, fn(current, product_id) {
+      let next_media =
+        get_effective_media_by_product_id(current, product_id)
+        |> list.filter(fn(media) {
+          case media.id {
+            Some(id) -> !list.contains(file_ids, id)
+            None -> True
+          }
+        })
+      replace_staged_media_for_product(current, product_id, next_media)
+    })
+
+  product_ids
   |> list.fold(store, fn(current, product_id) {
-    let next_media =
-      get_effective_media_by_product_id(current, product_id)
-      |> list.filter(fn(media) {
-        case media.id {
-          Some(id) -> !list.contains(file_ids, id)
-          None -> True
-        }
-      })
-    replace_staged_media_for_product(current, product_id, next_media)
+    remove_media_ids_from_product_variants(current, product_id, file_ids)
+  })
+}
+
+pub fn remove_media_ids_from_product_variants(
+  store: Store,
+  product_id: String,
+  media_ids: List(String),
+) -> Store {
+  let variants =
+    get_effective_variants_by_product_id(store, product_id)
+    |> list.map(fn(variant) {
+      ProductVariantRecord(
+        ..variant,
+        media_ids: list.filter(variant.media_ids, fn(media_id) {
+          !list.contains(media_ids, media_id)
+        }),
+      )
+    })
+  replace_staged_variants_for_product(store, product_id, variants)
+}
+
+pub fn remove_media_ids_from_variants_for_products(
+  store: Store,
+  product_ids: List(String),
+  media_ids: List(String),
+) -> Store {
+  product_ids
+  |> list.fold(store, fn(current, product_id) {
+    remove_media_ids_from_product_variants(current, product_id, media_ids)
   })
 }
 

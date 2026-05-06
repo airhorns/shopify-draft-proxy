@@ -1,0 +1,12 @@
+mutation {
+  pubSubServerPixelUpdate(pubSubTopic: "topic") {
+    serverPixel {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

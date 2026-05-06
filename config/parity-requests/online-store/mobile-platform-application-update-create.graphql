@@ -1,0 +1,50 @@
+mutation MobilePlatformApplicationUpdateCreate {
+  appleCreate: mobilePlatformApplicationCreate(
+    input: {
+      apple: {
+        appId: "com.example.apple.old"
+        universalLinksEnabled: false
+        sharedWebCredentialsEnabled: true
+        appClipsEnabled: false
+        appClipApplicationId: "com.example.apple.old.Clip"
+      }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+      ... on AppleApplication {
+        id
+        appId
+        universalLinksEnabled
+        sharedWebCredentialsEnabled
+        appClipsEnabled
+        appClipApplicationId
+      }
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  androidCreate: mobilePlatformApplicationCreate(
+    input: {
+      android: { applicationId: "com.example.android.old", appLinksEnabled: false, sha256CertFingerprints: ["AA:BB"] }
+    }
+  ) {
+    mobilePlatformApplication {
+      __typename
+      ... on AndroidApplication {
+        id
+        applicationId
+        appLinksEnabled
+        sha256CertFingerprints
+      }
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

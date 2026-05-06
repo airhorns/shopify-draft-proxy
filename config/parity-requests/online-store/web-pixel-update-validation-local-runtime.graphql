@@ -1,0 +1,47 @@
+mutation WebPixelUpdateValidationLocalRuntime {
+  create: webPixelCreate(webPixel: {}) {
+    webPixel {
+      id
+      status
+      settings
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  invalidJson: webPixelUpdate(
+    id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic"
+    webPixel: { settings: "not json" }
+  ) {
+    webPixel {
+      id
+      settings
+      status
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  validUpdate: webPixelUpdate(
+    id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic"
+    webPixel: { settings: "{\"accountID\":\"abc\"}" }
+  ) {
+    webPixel {
+      id
+      settings
+      status
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}

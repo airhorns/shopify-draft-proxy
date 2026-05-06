@@ -1,0 +1,144 @@
+{
+  "scenarioId": "definition-name-type-description-length",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectDefinitionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/definition-name-type-description-length.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-create.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-valid-definition",
+        "capturePath": "$.setup.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          },
+          {
+            "path": "$.metaobjectDefinition.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          },
+          {
+            "path": "$.metaobjectDefinition.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          }
+        ]
+      },
+      {
+        "name": "blank-name-create",
+        "capturePath": "$.blankNameCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-create.graphql",
+          "variablesCapturePath": "$.blankNameCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "long-name-create",
+        "capturePath": "$.longNameCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-create.graphql",
+          "variablesCapturePath": "$.longNameCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "long-description-create",
+        "capturePath": "$.longDescriptionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-create.graphql",
+          "variablesCapturePath": "$.longDescriptionCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "short-type-create",
+        "capturePath": "$.shortTypeCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-create.graphql",
+          "variablesCapturePath": "$.shortTypeCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "blank-name-update",
+        "capturePath": "$.blankNameUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.blankNameUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "long-name-update",
+        "capturePath": "$.longNameUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.longNameUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "long-description-update",
+        "capturePath": "$.longDescriptionUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-name-type-description-length-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.longDescriptionUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobject definition name presence, name/description length, and create type minimum-length validation. Public 2026-04 MetaobjectDefinitionUpdateInput does not expose `type`, so update type validation remains covered by focused local runtime tests rather than a live update parity target."
+}
