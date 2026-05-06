@@ -16,15 +16,15 @@ import shopify_draft_proxy/state/types.{
   type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductRecord,
-  type ProductVariantRecord, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryQuantityRecord,
+  type ProductVariantRecord, type SellingPlanGroupRecord, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
   MetafieldDefinitionValidationRecord, ProductCollectionRecord,
   ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
   ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord,
+  ProductVariantSelectedOptionRecord, SellingPlanGroupRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -292,6 +292,208 @@ pub fn product_variant_relationship_bulk_update_rejects_parent_child_validation_
     "[\"input\",\"0\",\"productVariantRelationshipsToRemove\",\"0\"]",
     "not_a_child",
   )
+}
+
+pub fn product_join_selling_plan_groups_rejects_empty_ids_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productJoinSellingPlanGroups(id: \\\"gid://shopify/Product/optioned\\\", sellingPlanGroupIds: []) { product { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
+  assert string.contains(serialized, "\"code\":\"BLANK\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Selling plan group IDs can't be blank\"",
+  )
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_join_selling_plan_groups_rejects_duplicate_ids_without_staging_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+        selling_plan_group("gid://shopify/SellingPlanGroup/one", [], []),
+      ]),
+    )
+  let query =
+    "mutation { productJoinSellingPlanGroups(id: \\\"gid://shopify/Product/optioned\\\", sellingPlanGroupIds: [\\\"gid://shopify/SellingPlanGroup/one\\\", \\\"gid://shopify/SellingPlanGroup/one\\\"]) { product { id sellingPlanGroups(first: 10) { nodes { id } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
+  assert string.contains(serialized, "\"code\":\"DUPLICATE\"")
+  assert string.contains(serialized, "\"nodes\":[]")
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/one",
+    )
+  assert group.product_ids == []
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_variant_join_selling_plan_groups_rejects_duplicate_ids_without_staging_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+        selling_plan_group("gid://shopify/SellingPlanGroup/one", [], []),
+      ]),
+    )
+  let query =
+    "mutation { productVariantJoinSellingPlanGroups(id: \\\"gid://shopify/ProductVariant/default\\\", sellingPlanGroupIds: [\\\"gid://shopify/SellingPlanGroup/one\\\", \\\"gid://shopify/SellingPlanGroup/one\\\"]) { productVariant { id sellingPlanGroups(first: 10) { nodes { id } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
+  assert string.contains(serialized, "\"code\":\"DUPLICATE\"")
+  assert string.contains(serialized, "\"nodes\":[]")
+  let assert Some(group) =
+    store.get_effective_selling_plan_group_by_id(
+      next_proxy.store,
+      "gid://shopify/SellingPlanGroup/one",
+    )
+  assert group.product_variant_ids == []
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_join_selling_plan_groups_enforces_31_group_cap_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store(numbered_selling_plan_groups(32)),
+    )
+  let ids =
+    numbered_selling_plan_group_ids(32)
+    |> list.map(fn(id) { "\\\"" <> id <> "\\\"" })
+    |> string.join(", ")
+  let query =
+    "mutation { productJoinSellingPlanGroups(id: \\\"gid://shopify/Product/optioned\\\", sellingPlanGroupIds: ["
+    <> ids
+    <> "]) { product { id sellingPlanGroupsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"code\":\"TOO_MANY_SELLING_PLAN_GROUPS\"",
+  )
+  assert store.list_effective_selling_plan_groups_for_product(
+      next_proxy.store,
+      "gid://shopify/Product/optioned",
+    )
+    == []
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_leave_selling_plan_groups_rejects_non_member_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+        selling_plan_group("gid://shopify/SellingPlanGroup/one", [], []),
+      ]),
+    )
+  let query =
+    "mutation { productLeaveSellingPlanGroups(id: \\\"gid://shopify/Product/optioned\\\", sellingPlanGroupIds: [\\\"gid://shopify/SellingPlanGroup/one\\\"]) { product { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
+  assert string.contains(serialized, "\"code\":\"NOT_A_MEMBER\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_variant_join_selling_plan_groups_enforces_31_group_cap_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store(numbered_selling_plan_groups(32)),
+    )
+  let ids =
+    numbered_selling_plan_group_ids(32)
+    |> list.map(fn(id) { "\\\"" <> id <> "\\\"" })
+    |> string.join(", ")
+  let query =
+    "mutation { productVariantJoinSellingPlanGroups(id: \\\"gid://shopify/ProductVariant/default\\\", sellingPlanGroupIds: ["
+    <> ids
+    <> "]) { productVariant { id sellingPlanGroupsCount { count precision } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"code\":\"TOO_MANY_SELLING_PLAN_GROUPS\"",
+  )
+  assert store.list_effective_selling_plan_groups_for_product_variant(
+      next_proxy.store,
+      "gid://shopify/ProductVariant/default",
+    )
+    == []
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_variant_leave_selling_plan_groups_rejects_non_member_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: selling_plan_membership_store([
+        selling_plan_group("gid://shopify/SellingPlanGroup/one", [], []),
+      ]),
+    )
+  let query =
+    "mutation { productVariantLeaveSellingPlanGroups(id: \\\"gid://shopify/ProductVariant/default\\\", sellingPlanGroupIds: [\\\"gid://shopify/SellingPlanGroup/one\\\"]) { productVariant { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"field\":[\"sellingPlanGroupIds\"]")
+  assert string.contains(serialized, "\"code\":\"NOT_A_MEMBER\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
 }
 
 pub fn selling_plan_group_add_products_rejects_unknown_and_duplicate_ids_test() {
@@ -3173,6 +3375,59 @@ fn variant_relationship_store() -> store.Store {
   default_option_store()
   |> store.upsert_base_products([child_product()])
   |> store.upsert_base_product_variants([child_variant()])
+}
+
+fn selling_plan_membership_store(
+  groups: List(SellingPlanGroupRecord),
+) -> store.Store {
+  default_option_store()
+  |> store.upsert_base_selling_plan_groups(groups)
+}
+
+fn selling_plan_group(
+  id: String,
+  product_ids: List(String),
+  product_variant_ids: List(String),
+) -> SellingPlanGroupRecord {
+  SellingPlanGroupRecord(
+    id: id,
+    app_id: None,
+    name: "Membership group " <> id,
+    merchant_code: "membership-group",
+    description: None,
+    options: ["Delivery"],
+    position: None,
+    summary: None,
+    created_at: None,
+    product_ids: product_ids,
+    product_variant_ids: product_variant_ids,
+    selling_plans: [],
+    cursor: None,
+  )
+}
+
+fn numbered_selling_plan_group_ids(count: Int) -> List(String) {
+  do_numbered_selling_plan_group_ids(1, count, [])
+}
+
+fn do_numbered_selling_plan_group_ids(
+  current: Int,
+  max: Int,
+  acc: List(String),
+) -> List(String) {
+  case current > max {
+    True -> list.reverse(acc)
+    False ->
+      do_numbered_selling_plan_group_ids(current + 1, max, [
+        "gid://shopify/SellingPlanGroup/" <> int.to_string(current),
+        ..acc
+      ])
+  }
+}
+
+fn numbered_selling_plan_groups(count: Int) -> List(SellingPlanGroupRecord) {
+  numbered_selling_plan_group_ids(count)
+  |> list.map(fn(id) { selling_plan_group(id, [], []) })
 }
 
 fn tagged_product_store() -> store.Store {

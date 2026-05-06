@@ -1,0 +1,16 @@
+mutation ProductJoinLeaveSellingPlanGroupsValidationSetupProduct($input: ProductInput!) {
+  productCreate(input: $input) {
+    product {
+      id
+      variants(first: 1) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

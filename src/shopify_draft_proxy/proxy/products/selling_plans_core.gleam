@@ -378,9 +378,72 @@ pub fn selling_plan_group_does_not_exist_error() -> ProductUserError {
   )
 }
 
+const max_selling_plan_group_memberships = 31
+
+@internal
+pub fn selling_plan_group_ids_blank_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Selling plan group IDs can't be blank",
+    Some("BLANK"),
+  )
+}
+
+@internal
+pub fn duplicate_selling_plan_group_ids_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Selling plan group IDs contains duplicate values.",
+    Some("DUPLICATE"),
+  )
+}
+
+@internal
+pub fn too_many_selling_plan_groups_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Cannot join more than 31 selling plan groups.",
+    Some("TOO_MANY_SELLING_PLAN_GROUPS"),
+  )
+}
+
+@internal
+pub fn selling_plan_group_not_member_error() -> ProductUserError {
+  ProductUserError(
+    ["sellingPlanGroupIds"],
+    "Selling plan group is not a member.",
+    Some("NOT_A_MEMBER"),
+  )
+}
+
 // ===== from selling_plans_l02 =====
 @internal
 pub fn update_product_selling_plan_group_membership(
+  store: Store,
+  product_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> #(Store, List(ProductUserError), List(String)) {
+  case
+    validate_product_selling_plan_group_membership(
+      store,
+      product_id,
+      group_ids,
+      join,
+    )
+  {
+    [_, ..] as errors -> #(store, errors, [])
+    [] ->
+      apply_product_selling_plan_group_membership(
+        store,
+        product_id,
+        group_ids,
+        join,
+      )
+  }
+}
+
+fn apply_product_selling_plan_group_membership(
   store: Store,
   product_id: String,
   group_ids: List(String),
@@ -429,6 +492,31 @@ pub fn update_variant_selling_plan_group_membership(
   group_ids: List(String),
   join: Bool,
 ) -> #(Store, List(ProductUserError), List(String)) {
+  case
+    validate_variant_selling_plan_group_membership(
+      store,
+      variant_id,
+      group_ids,
+      join,
+    )
+  {
+    [_, ..] as errors -> #(store, errors, [])
+    [] ->
+      apply_variant_selling_plan_group_membership(
+        store,
+        variant_id,
+        group_ids,
+        join,
+      )
+  }
+}
+
+fn apply_variant_selling_plan_group_membership(
+  store: Store,
+  variant_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> #(Store, List(ProductUserError), List(String)) {
   let #(next_store, errors, staged_ids) =
     list.fold(group_ids, #(store, [], []), fn(acc, group_id) {
       let #(current_store, current_errors, current_ids) = acc
@@ -466,6 +554,102 @@ pub fn update_variant_selling_plan_group_membership(
       }
     })
   #(next_store, errors, staged_ids)
+}
+
+fn validate_product_selling_plan_group_membership(
+  store: Store,
+  product_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> List(ProductUserError) {
+  validate_selling_plan_group_membership(store, group_ids, join, fn(group) {
+    list.contains(group.product_ids, product_id)
+  })
+}
+
+fn validate_variant_selling_plan_group_membership(
+  store: Store,
+  variant_id: String,
+  group_ids: List(String),
+  join: Bool,
+) -> List(ProductUserError) {
+  validate_selling_plan_group_membership(store, group_ids, join, fn(group) {
+    list.contains(group.product_variant_ids, variant_id)
+  })
+}
+
+fn validate_selling_plan_group_membership(
+  store: Store,
+  group_ids: List(String),
+  join: Bool,
+  is_member: fn(SellingPlanGroupRecord) -> Bool,
+) -> List(ProductUserError) {
+  case group_ids {
+    [] -> [selling_plan_group_ids_blank_error()]
+    _ ->
+      case has_duplicate_strings(group_ids) {
+        True -> [duplicate_selling_plan_group_ids_error()]
+        False -> {
+          let groups =
+            list.map(group_ids, fn(group_id) {
+              store.get_effective_selling_plan_group_by_id(store, group_id)
+            })
+          case list.any(groups, option.is_none) {
+            True -> [selling_plan_group_does_not_exist_error()]
+            False -> {
+              let known_groups =
+                list.filter_map(groups, fn(group) { group |> option_to_result })
+              case join {
+                True ->
+                  validate_join_selling_plan_group_memberships(
+                    store,
+                    known_groups,
+                    is_member,
+                  )
+                False ->
+                  validate_leave_selling_plan_group_memberships(
+                    known_groups,
+                    is_member,
+                  )
+              }
+            }
+          }
+        }
+      }
+  }
+}
+
+fn validate_join_selling_plan_group_memberships(
+  store: Store,
+  groups_to_join: List(SellingPlanGroupRecord),
+  is_member: fn(SellingPlanGroupRecord) -> Bool,
+) -> List(ProductUserError) {
+  let current_count =
+    store.list_effective_selling_plan_groups(store)
+    |> list.filter(is_member)
+    |> list.length
+  let new_count =
+    groups_to_join
+    |> list.filter(fn(group) { !is_member(group) })
+    |> list.length
+  case current_count + new_count > max_selling_plan_group_memberships {
+    True -> [too_many_selling_plan_groups_error()]
+    False -> []
+  }
+}
+
+fn validate_leave_selling_plan_group_memberships(
+  groups_to_leave: List(SellingPlanGroupRecord),
+  is_member: fn(SellingPlanGroupRecord) -> Bool,
+) -> List(ProductUserError) {
+  case list.any(groups_to_leave, fn(group) { !is_member(group) }) {
+    True -> [selling_plan_group_not_member_error()]
+    False -> []
+  }
+}
+
+fn has_duplicate_strings(values: List(String)) -> Bool {
+  list.length(values) != list.length(dedupe_preserving_order(values))
 }
 
 @internal
