@@ -3,15 +3,15 @@
   "apiVersion": "2026-04",
   "capturedAt": "2026-05-05T00:00:00.000Z",
   "storeDomain": "local-runtime.myshopify.com",
-  "summary": "Executable local-runtime fixture for HAR-587 comment moderation status enum transitions. The fixture starts from a cassette-hydrated unapproved comment, runs spam/not-spam/approve/delete, then proves removed comments reject approve/spam with INVALID while delete remains idempotent.",
+  "summary": "Executable local-runtime fixture for comment moderation status enum transitions. The fixture starts from a cassette-hydrated unapproved comment, runs spam/not-spam/approve/delete, then proves removed comments reject approve/spam with INVALID while delete remains idempotent.",
   "variables": {
-    "id": "gid://shopify/Comment/har-587"
+    "id": "gid://shopify/Comment/moderation-fixture"
   },
   "upstreamCalls": [
     {
       "operationName": "OnlineStoreCommentHydrate",
       "variables": {
-        "id": "gid://shopify/Comment/har-587"
+        "id": "gid://shopify/Comment/moderation-fixture"
       },
       "response": {
         "status": 200,
@@ -19,16 +19,58 @@
           "data": {
             "comment": {
               "__typename": "Comment",
-              "id": "gid://shopify/Comment/har-587",
+              "id": "gid://shopify/Comment/moderation-fixture",
               "status": "UNAPPROVED",
-              "body": "HAR-587 moderation fixture",
-              "bodyHtml": "<p>HAR-587 moderation fixture</p>",
+              "body": "Comment moderation fixture",
+              "bodyHtml": "<p>Comment moderation fixture</p>",
               "isPublished": false,
               "publishedAt": null,
               "createdAt": "2026-05-05T00:00:00.000Z",
               "updatedAt": "2026-05-05T00:00:00.000Z",
               "article": {
-                "id": "gid://shopify/Article/har-587"
+                "id": "gid://shopify/Article/moderation-fixture"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreArticleDeleteCascadeHydrate",
+      "variables": {
+        "id": "gid://shopify/Article/moderation-fixture"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/moderation-fixture",
+              "title": "Comment Moderation Article",
+              "handle": "moderation-fixture-article",
+              "createdAt": "2026-05-05T00:00:00.000Z",
+              "updatedAt": "2026-05-05T00:00:00.000Z",
+              "blog": {
+                "id": "gid://shopify/Blog/moderation-fixture"
+              },
+              "comments": {
+                "nodes": [
+                  {
+                    "__typename": "Comment",
+                    "id": "gid://shopify/Comment/moderation-fixture",
+                    "status": "PUBLISHED",
+                    "body": "Comment moderation fixture",
+                    "bodyHtml": "<p>Comment moderation fixture</p>",
+                    "isPublished": true,
+                    "publishedAt": "2026-05-05T00:00:00.000Z",
+                    "createdAt": "2026-05-05T00:00:00.000Z",
+                    "updatedAt": "2026-05-05T00:00:00.000Z",
+                    "article": {
+                      "id": "gid://shopify/Article/moderation-fixture"
+                    }
+                  }
+                ]
               }
             }
           }
@@ -41,7 +83,7 @@
       "data": {
         "commentSpam": {
           "comment": {
-            "id": "gid://shopify/Comment/har-587",
+            "id": "gid://shopify/Comment/moderation-fixture",
             "status": "SPAM"
           },
           "userErrors": []
@@ -54,7 +96,7 @@
       "data": {
         "commentNotSpam": {
           "comment": {
-            "id": "gid://shopify/Comment/har-587",
+            "id": "gid://shopify/Comment/moderation-fixture",
             "status": "UNAPPROVED"
           },
           "userErrors": []
@@ -67,7 +109,7 @@
       "data": {
         "commentApprove": {
           "comment": {
-            "id": "gid://shopify/Comment/har-587",
+            "id": "gid://shopify/Comment/moderation-fixture",
             "status": "PUBLISHED"
           },
           "userErrors": []
@@ -79,7 +121,7 @@
     "response": {
       "data": {
         "commentDelete": {
-          "deletedCommentId": "gid://shopify/Comment/har-587",
+          "deletedCommentId": "gid://shopify/Comment/moderation-fixture",
           "userErrors": []
         }
       }
@@ -88,10 +130,7 @@
   "readAfterDelete": {
     "response": {
       "data": {
-        "comment": {
-          "id": "gid://shopify/Comment/har-587",
-          "status": "REMOVED"
-        }
+        "comment": null
       }
     }
   },
@@ -131,7 +170,7 @@
     "response": {
       "data": {
         "commentDelete": {
-          "deletedCommentId": "gid://shopify/Comment/har-587",
+          "deletedCommentId": "gid://shopify/Comment/moderation-fixture",
           "userErrors": []
         }
       }

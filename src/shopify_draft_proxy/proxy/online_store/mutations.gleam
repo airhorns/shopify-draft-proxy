@@ -1324,41 +1324,54 @@ fn moderate_comment(
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
   let target_status = comment_target_status(root)
   let #(comment, errors, store, identity) = case id {
-    Some(id) ->
-      case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
-        #(Some(existing), hydrated_store) -> {
-          case comment_status(existing) == "REMOVED" {
-            True -> #(
+    Some(id) -> {
+      case online_store_content_id_deleted(outcome.store, id) {
+        True -> #(
+          SrcNull,
+          [comment_removed_user_error()],
+          outcome.store,
+          outcome.identity,
+        )
+        False ->
+          case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
+            #(Some(existing), hydrated_store) -> {
+              case comment_status(existing) == "REMOVED" {
+                True -> #(
+                  SrcNull,
+                  [comment_removed_user_error()],
+                  hydrated_store,
+                  outcome.identity,
+                )
+                False -> {
+                  let #(record, identity) =
+                    comment_record_with_status(
+                      existing,
+                      target_status,
+                      outcome.identity,
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_online_store_content(
+                      hydrated_store,
+                      record,
+                    )
+                  #(
+                    serializers.content_payload_source(next_store, record),
+                    [],
+                    next_store,
+                    identity,
+                  )
+                }
+              }
+            }
+            #(None, hydrated_store) -> #(
               SrcNull,
-              [comment_removed_user_error()],
+              [comment_not_found_user_error()],
               hydrated_store,
               outcome.identity,
             )
-            False -> {
-              let #(record, identity) =
-                comment_record_with_status(
-                  existing,
-                  target_status,
-                  outcome.identity,
-                )
-              let #(_, next_store) =
-                store.upsert_staged_online_store_content(hydrated_store, record)
-              #(
-                serializers.content_payload_source(next_store, record),
-                [],
-                next_store,
-                identity,
-              )
-            }
           }
-        }
-        #(None, hydrated_store) -> #(
-          SrcNull,
-          [comment_not_found_user_error()],
-          hydrated_store,
-          outcome.identity,
-        )
       }
+    }
     None -> #(
       SrcNull,
       [comment_not_found_user_error()],
@@ -1392,30 +1405,29 @@ fn delete_comment(
   let id =
     serializers.input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store) = case id {
-    Some(id) ->
-      case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
-        #(Some(existing), hydrated_store) -> {
-          case comment_status(existing) == "REMOVED" {
-            True -> #(SrcString(id), [], hydrated_store)
-            False -> {
-              let #(record, _) =
-                comment_record_with_status(
+    Some(id) -> {
+      case online_store_content_id_deleted(outcome.store, id) {
+        True -> #(SrcString(id), [], outcome.store)
+        False ->
+          case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
+            #(Some(existing), hydrated_store) -> {
+              let next_store =
+                hydrate_comment_parent_article_if_needed(
+                  hydrated_store,
                   existing,
-                  "REMOVED",
-                  outcome.identity,
+                  upstream,
                 )
-              let #(_, next_store) =
-                store.upsert_staged_online_store_content(hydrated_store, record)
+                |> store.delete_staged_online_store_content(id)
               #(SrcString(id), [], next_store)
             }
+            #(None, hydrated_store) -> #(
+              SrcNull,
+              [comment_not_found_user_error()],
+              hydrated_store,
+            )
           }
-        }
-        #(None, hydrated_store) -> #(
-          SrcNull,
-          [comment_not_found_user_error()],
-          hydrated_store,
-        )
       }
+    }
     None -> #(SrcNull, [comment_not_found_user_error()], outcome.store)
   }
   let payload =
@@ -1441,6 +1453,32 @@ fn delete_comment(
       },
     ),
   )
+}
+
+fn online_store_content_id_deleted(store_in: Store, id: String) -> Bool {
+  dict.has_key(store_in.staged_state.deleted_online_store_content_ids, id)
+  || dict.has_key(store_in.base_state.deleted_online_store_content_ids, id)
+}
+
+fn hydrate_comment_parent_article_if_needed(
+  store_in: Store,
+  comment: OnlineStoreContentRecord,
+  upstream: UpstreamContext,
+) -> Store {
+  case comment.parent_id {
+    Some(article_id) ->
+      case online_store_content_id_deleted(store_in, article_id) {
+        True -> store_in
+        False ->
+          case
+            store.get_effective_online_store_content_by_id(store_in, article_id)
+          {
+            Some(article) if article.kind == "article" -> store_in
+            _ -> hydrate_article_delete_cascade(store_in, upstream, article_id)
+          }
+      }
+    None -> store_in
+  }
 }
 
 fn get_effective_or_hydrated_comment(
