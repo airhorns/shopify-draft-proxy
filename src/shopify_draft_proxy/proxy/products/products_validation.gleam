@@ -14,7 +14,9 @@ import shopify_draft_proxy/graphql/ast.{
   type Selection, Field, NullValue, ObjectField, ObjectValue, VariableValue,
 }
 
-import shopify_draft_proxy/graphql/root_field.{type ResolvedValue, StringVal}
+import shopify_draft_proxy/graphql/root_field.{
+  type ResolvedValue, BoolVal, StringVal,
+}
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcNull, get_field_response_key,
@@ -32,16 +34,17 @@ import shopify_draft_proxy/proxy/products/inventory_validation.{
 }
 import shopify_draft_proxy/proxy/products/product_types.{
   type MutationFieldResult, type ProductDerivedSummary, type ProductUserError,
-  ProductDerivedSummary, ProductUserError, blank_product_user_error,
+  NullableFieldUserError, ProductDerivedSummary, ProductUserError,
+  blank_product_user_error,
 }
 import shopify_draft_proxy/proxy/products/products_core.{
   build_product_delete_invalid_variable_error,
   build_product_delete_missing_input_id_error,
   build_product_delete_null_input_id_error, dedup_base_and_next_suffix,
   ensure_unique_handle, matches_nullable_product_timestamp,
-  product_by_identifier, product_delete_payload,
-  product_description_html_validation_errors, product_handle_in_use,
-  product_handle_in_use_by_other, product_id_matches,
+  product_by_identifier, product_delete_nullable_user_error_payload,
+  product_delete_payload, product_description_html_validation_errors,
+  product_handle_in_use, product_handle_in_use_by_other, product_id_matches,
   product_matches_search_text, product_searchable_status,
   product_searchable_tags, product_set_file_limit_errors,
   product_set_identifier_has_reference, product_set_identifier_reference_field,
@@ -78,8 +81,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductOperationUserErrorRecord, type ProductRecord,
-  type ProductVariantRecord, ProductRecord,
+  type ProductOperationRecord, type ProductOperationUserErrorRecord,
+  type ProductRecord, type ProductVariantRecord, ProductOperationRecord,
+  ProductRecord,
 }
 
 // ===== from products_l03 =====
@@ -433,6 +437,10 @@ pub fn handle_product_delete(
     Some(error) -> mutation_error_result(key, store, identity, [error])
     None -> {
       let args = graphql_helpers.field_args(field, variables)
+      let synchronous = case dict.get(args, "synchronous") {
+        Ok(BoolVal(False)) -> False
+        _ -> True
+      }
       let input = graphql_helpers.read_arg_object(args, "input")
       let id = case input {
         Some(input) -> graphql_helpers.read_arg_string(input, "id")
@@ -455,6 +463,7 @@ pub fn handle_product_delete(
                 key,
                 product_delete_payload(
                   None,
+                  None,
                   [ProductUserError(["id"], "Product does not exist", None)],
                   field,
                   fragments,
@@ -464,18 +473,102 @@ pub fn handle_product_delete(
                 [],
               )
             Some(_) -> {
-              let next_store = store.delete_staged_product(store, product_id)
-              mutation_result(
-                key,
-                product_delete_payload(Some(product_id), [], field, fragments),
-                next_store,
-                identity,
-                [product_id],
-              )
+              case synchronous {
+                True -> {
+                  let next_store =
+                    store.delete_staged_product(store, product_id)
+                  mutation_result(
+                    key,
+                    product_delete_payload(
+                      Some(product_id),
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    identity,
+                    [product_id],
+                  )
+                }
+                False ->
+                  case pending_product_operation(store, product_id) {
+                    Some(_) ->
+                      mutation_result(
+                        key,
+                        product_delete_nullable_user_error_payload(
+                          None,
+                          None,
+                          [
+                            NullableFieldUserError(
+                              None,
+                              "Another operation already in progress. Please wait until current one is finished.",
+                            ),
+                          ],
+                          field,
+                          fragments,
+                        ),
+                        store,
+                        identity,
+                        [],
+                      )
+                    None -> {
+                      let #(operation_id, next_identity) =
+                        synthetic_identity.make_synthetic_gid(
+                          identity,
+                          "ProductDeleteOperation",
+                        )
+                      let operation =
+                        ProductOperationRecord(
+                          id: operation_id,
+                          type_name: "ProductDeleteOperation",
+                          product_id: Some(product_id),
+                          new_product_id: None,
+                          status: "CREATED",
+                          user_errors: [],
+                        )
+                      let #(staged_operation, next_store) =
+                        store.stage_product_operation(store, operation)
+                      mutation_result(
+                        key,
+                        product_delete_payload(
+                          None,
+                          Some(staged_operation),
+                          [],
+                          field,
+                          fragments,
+                        ),
+                        next_store,
+                        next_identity,
+                        [operation_id],
+                      )
+                    }
+                  }
+              }
             }
           }
       }
     }
+  }
+}
+
+fn pending_product_operation(
+  store: Store,
+  product_id: String,
+) -> Option(ProductOperationRecord) {
+  let operations =
+    list.append(
+      dict.values(store.staged_state.product_operations),
+      dict.values(store.base_state.product_operations),
+    )
+  case
+    list.find(operations, fn(operation) {
+      operation.product_id == Some(product_id)
+      && { operation.status == "CREATED" || operation.status == "RUNNING" }
+    })
+  {
+    Ok(operation) -> Some(operation)
+    Error(_) -> None
   }
 }
 

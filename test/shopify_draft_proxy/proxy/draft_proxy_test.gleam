@@ -524,6 +524,32 @@ pub fn graphql_order_create_mandate_payment_missing_mandate_id_errors_test() {
     == "{\"errors\":[{\"message\":\"Field 'orderCreateMandatePayment' is missing required arguments: mandateId\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderCreateMandatePayment\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderCreateMandatePayment\",\"arguments\":\"mandateId\"}}]}"
 }
 
+pub fn graphql_order_edit_add_custom_item_missing_required_title_errors_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderEditAddCustomItem(id: \\\"gid://shopify/CalculatedOrder/1\\\", quantity: 1, price: { amount: \\\"1.00\\\", currencyCode: CAD }) { calculatedLineItem { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'orderEditAddCustomItem' is missing required arguments: title\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderEditAddCustomItem\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderEditAddCustomItem\",\"arguments\":\"title\"}}]}"
+}
+
+pub fn graphql_order_edit_add_custom_item_inline_price_requires_currency_code_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderEditAddCustomItem(id: \\\"gid://shopify/CalculatedOrder/1\\\", title: \\\"Missing currency\\\", quantity: 1, price: { amount: \\\"1.00\\\" }) { calculatedLineItem { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Argument 'currencyCode' on InputObject 'MoneyInput' is required. Expected type CurrencyCode!\",\"locations\":[{\"line\":1,\"column\":121}],\"path\":[\"mutation\",\"orderEditAddCustomItem\",\"price\",\"currencyCode\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"currencyCode\",\"argumentType\":\"CurrencyCode!\",\"inputObjectType\":\"MoneyInput\"}}]}"
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =

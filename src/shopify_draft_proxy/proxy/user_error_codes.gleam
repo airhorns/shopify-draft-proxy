@@ -1,5 +1,7 @@
 pub const invalid = "INVALID"
 
+pub const invalid_state = "INVALID_STATE"
+
 pub const order_invoice_send_unsuccessful = "ORDER_INVOICE_SEND_UNSUCCESSFUL"
 
 pub const duplicate_fulfillment_hold_handle = "DUPLICATE_FULFILLMENT_HOLD_HANDLE"

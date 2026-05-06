@@ -1,0 +1,195 @@
+{
+  "scenarioId": "orderEditAddCustomItem-validation",
+  "operationNames": ["orderEditBegin", "orderEditAddCustomItem"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderEditAddCustomItem-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-begin.graphql",
+    "variablesCapturePath": "$.begin.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin API 2026-04 orderEditAddCustomItem validation against a disposable CAD order-edit session. The scenario proves missing/blank/oversized title handling, zero and negative quantity, negative price, missing inline MoneyInput.currencyCode, currency mismatch, and a happy-path custom item payload without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-session",
+        "capturePath": "$.begin.response.payload.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.lineItems.nodes[*].id", "$.orderEditSession.id"]
+      },
+      {
+        "name": "missing-title-top-level-error",
+        "capturePath": "$.cases.missingTitle.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-missing-title.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "quantity": 1,
+            "price": {
+              "amount": "1.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$"
+      },
+      {
+        "name": "blank-title-user-error",
+        "capturePath": "$.cases.blankTitle.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": "",
+            "quantity": 1,
+            "price": {
+              "amount": "1.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem"
+      },
+      {
+        "name": "oversized-title-user-error",
+        "capturePath": "$.cases.oversizedTitle.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": {
+              "fromCapturePath": "$.cases.oversizedTitle.variables.title"
+            },
+            "quantity": 1,
+            "price": {
+              "amount": "1.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem"
+      },
+      {
+        "name": "zero-quantity-user-error",
+        "capturePath": "$.cases.zeroQuantity.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": "Quantity zero",
+            "quantity": 0,
+            "price": {
+              "amount": "1.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem"
+      },
+      {
+        "name": "negative-quantity-user-error",
+        "capturePath": "$.cases.negativeQuantity.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": "Quantity negative",
+            "quantity": -1,
+            "price": {
+              "amount": "1.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem"
+      },
+      {
+        "name": "negative-price-user-error",
+        "capturePath": "$.cases.negativePrice.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": "Negative price",
+            "quantity": 1,
+            "price": {
+              "amount": "-5.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem"
+      },
+      {
+        "name": "inline-missing-currency-top-level-error",
+        "capturePath": "$.cases.inlineMissingCurrency.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-inline-missing-currency.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$"
+      },
+      {
+        "name": "currency-mismatch-user-error",
+        "capturePath": "$.cases.currencyMismatch.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": "Currency mismatch",
+            "quantity": 1,
+            "price": {
+              "amount": "1.00",
+              "currencyCode": "USD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem"
+      },
+      {
+        "name": "happy-path-baseline",
+        "capturePath": "$.cases.happyPath.response.payload.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditAddCustomItem-validation-case.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "title": "Happy custom item",
+            "quantity": 2,
+            "price": {
+              "amount": "3.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedLineItem.id", "$.orderEditSession.id"]
+      }
+    ]
+  }
+}
