@@ -10,7 +10,7 @@ import gleam/option.{type Option, None, Some}
 
 import shopify_draft_proxy/graphql/ast.{type Selection}
 
-import shopify_draft_proxy/graphql/root_field.{type ResolvedValue}
+import shopify_draft_proxy/graphql/root_field.{type ResolvedValue, ObjectVal}
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SerializeConnectionConfig, SrcList,
@@ -33,6 +33,7 @@ import shopify_draft_proxy/proxy/products/shared.{
   captured_string_field, dedupe_preserving_order, read_int_field,
   read_number_captured_field, read_object_field, read_object_list_field,
   read_string_argument, read_string_field, read_string_list_field,
+  resolved_value_to_captured,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   existing_group_options, option_to_result, optional_captured_int,
@@ -216,6 +217,7 @@ pub fn selling_plan_delivery_policy(
           "intervalCount",
           optional_captured_int(read_int_field(recurring, "intervalCount")),
         ),
+        #("anchors", captured_anchor_inputs(recurring)),
         #("cutoff", optional_captured_int(read_int_field(recurring, "cutoff"))),
         #(
           "intent",
@@ -597,6 +599,15 @@ fn has_duplicate_strings(values: List(String)) -> Bool {
   list.length(values) != list.length(dedupe_preserving_order(values))
 }
 
+fn captured_anchor_inputs(
+  input: Dict(String, ResolvedValue),
+) -> CapturedJsonValue {
+  CapturedArray(
+    read_object_list_field(input, "anchors")
+    |> list.map(fn(anchor) { resolved_value_to_captured(ObjectVal(anchor)) }),
+  )
+}
+
 @internal
 pub fn selling_plan_billing_policy(
   input: Dict(String, ResolvedValue),
@@ -614,6 +625,7 @@ pub fn selling_plan_billing_policy(
           "intervalCount",
           optional_captured_int(read_int_field(recurring, "intervalCount")),
         ),
+        #("anchors", captured_anchor_inputs(recurring)),
         #(
           "minCycles",
           optional_captured_int(read_int_field(recurring, "minCycles")),
