@@ -1,0 +1,29 @@
+{
+  "scenarioId": "b2b-staff-remove-unknown-assignment",
+  "operationNames": ["companyLocationRemoveStaffMembers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-staff-assignment-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-staff-assignment-validation-remove-unknown.graphql",
+    "variablesCapturePath": "$.removeUnknownAssignment.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "HAR-761 executable parity coverage for companyLocationRemoveStaffMembers unknown assignment validation. Shopify returns per-index RESOURCE_NOT_FOUND and a null deletedCompanyLocationStaffMemberAssignmentIds payload when no requested assignment ID exists; the proxy now mirrors that shape.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "remove-unknown-assignment-payload",
+        "capturePath": "$.removeUnknownAssignment.response.data.companyLocationRemoveStaffMembers",
+        "proxyPath": "$.data.companyLocationRemoveStaffMembers",
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

@@ -30,9 +30,9 @@ import parity/diff.{type Mismatch}
 import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type Spec, type Target, NoVariables, OverrideRequest, ProxyLog, ProxyResponse,
-  ProxyState, ReusePrimary, VariablesFromCapture, VariablesFromFile,
-  VariablesInline,
+  type ProxyRequest, type Spec, type Target, NoVariables, OverrideRequest,
+  ProxyLog, ProxyResponse, ProxyState, ReusePrimary, VariablesFromCapture,
+  VariablesFromFile, VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -147,9 +147,11 @@ pub fn run_with_config(
     capture,
     config.debug,
   ))
-  use primary_doc <- result.try(
-    read_file(resolve(config, parsed.proxy_request.document_path)),
-  )
+  use primary_doc <- result.try(read_proxy_document(
+    config,
+    parsed.proxy_request,
+    capture,
+  ))
   use primary_vars <- result.try(resolve_variables(
     config,
     parsed.proxy_request.variables,
@@ -525,9 +527,11 @@ fn actual_response_for(
             None -> Error(CaptureUnresolved(target: target.name, path: path))
           }
         _, _ -> {
-          use document <- result.try(
-            read_file(resolve(config, request.document_path)),
-          )
+          use document <- result.try(read_proxy_document(
+            config,
+            request,
+            capture,
+          ))
           use variables <- result.try(resolve_variables(
             config,
             request.variables,
@@ -556,6 +560,21 @@ fn actual_response_for(
         }
       }
     }
+  }
+}
+
+fn read_proxy_document(
+  config: RunnerConfig,
+  request: ProxyRequest,
+  capture: JsonValue,
+) -> Result(String, RunError) {
+  case request.document_capture_path {
+    Some(path) ->
+      case jsonpath.lookup(capture, path) {
+        Some(JString(document)) -> Ok(document)
+        _ -> Error(CaptureRefUnresolved(path: path))
+      }
+    None -> read_file(resolve(config, request.document_path))
   }
 }
 

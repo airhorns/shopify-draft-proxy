@@ -1,0 +1,373 @@
+{
+  "capturedAt": "2026-05-05T20:31:53.511Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationCreatedStatus",
+    "query": "mutation BulkOperationRunMutationCreatedStatus($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "setup": {
+    "stagedUpload": {
+      "operationName": "BulkOperationRunMutationCreatedStatusStagedUpload",
+      "query": "mutation BulkOperationRunMutationCreatedStatusStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": [
+          {
+            "filename": "har-750-product-create-1778013109918.jsonl",
+            "mimeType": "text/jsonl",
+            "resource": "BULK_MUTATION_VARIABLES",
+            "httpMethod": "POST"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "stagedUploadsCreate": {
+            "stagedTargets": [
+              {
+                "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/",
+                "parameters": [
+                  {
+                    "name": "Content-Type",
+                    "value": "text/jsonl"
+                  },
+                  {
+                    "name": "success_action_status",
+                    "value": "201"
+                  },
+                  {
+                    "name": "acl",
+                    "value": "private"
+                  },
+                  {
+                    "name": "key",
+                    "value": "tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl"
+                  },
+                  {
+                    "name": "x-goog-date",
+                    "value": "20260505T203149Z"
+                  },
+                  {
+                    "name": "x-goog-credential",
+                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                  },
+                  {
+                    "name": "x-goog-algorithm",
+                    "value": "GOOG4-RSA-SHA256"
+                  },
+                  {
+                    "name": "x-goog-signature",
+                    "value": "6a9056cec50a3cd0c955c124d68fe4e6fe13a13fbfae0315842309b3bff75f60c4238c9406dbaa5969ef37d5a33d4b38eed3eb701e939d6e5617b9d9bfa103dbd9e523ef00bf40c10ac2737993cb3d80d90e9e800c1cdbc248b4c344d5a2a81e85aceec5383358a0c50fb0f1101088b32c9b277294f9a2697cead20ec09cd64ce9674e54f17b87a538adfe8d47f11bcf7cf1b3a86f3dfdc56b127158a28cb1fac05a436f45db8968407eef9bb8f0735f49284801ed41a56cf5f760183dce3c528b0bbfa2a082fab3a7f2a841ab7d248d1911f3d08ac891f66c0bac4501d7078e52bc0e900fcfea9afb808e712a0d461e55720e8d983b755627805cfab244c99c"
+                  },
+                  {
+                    "name": "policy",
+                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvNTJjYjYzOTAtNWNjZS00ODQ3LWEzOTgtYmE0YWMwNDM1ZGFkXC9oYXItNzUwLXByb2R1Y3QtY3JlYXRlLTE3NzgwMTMxMDk5MTguanNvbmwifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA1MDVUMjAzMTQ5WiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA1MDVcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNlQyMDozMTo0OVoifQ=="
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "upload": {
+      "status": 201,
+      "body": "<?xml version='1.0' encoding='UTF-8'?><PostResponse><Location>https://storage.googleapis.com/shopify-staged-uploads/tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl</Location><Bucket>shopify-staged-uploads</Bucket><Key>tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl</Key><ETag>\"5774399e7ca22765723ab02cf09ebb4f\"</ETag></PostResponse>"
+    },
+    "productTitle": "HAR-750 Bulk Created 2026-05-05T20:31:49.918Z"
+  },
+  "success": {
+    "run": {
+      "operationName": "BulkOperationRunMutationCreatedStatus",
+      "query": "mutation BulkOperationRunMutationCreatedStatus($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/52cb6390-5cce-4847-a398-ba4ac0435dad/har-750-product-create-1778013109918.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7749086445874",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-05-05T20:31:50Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "currentAfterRun": {
+      "operationName": "BulkOperationRunMutationCreatedStatusCurrent",
+      "query": "query BulkOperationRunMutationCreatedStatusCurrent {\n  currentBulkOperation(type: MUTATION) {\n    id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "currentBulkOperation": {
+            "id": "gid://shopify/BulkOperation/7749086445874",
+            "status": "CREATED",
+            "type": "MUTATION",
+            "errorCode": null,
+            "createdAt": "2026-05-05T20:31:50Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "statusPolls": [
+      {
+        "operationName": "BulkOperationRunMutationCreatedStatusById",
+        "query": "query BulkOperationRunMutationCreatedStatusById($id: ID!) {\n  bulkOperation(id: $id) {\n    id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7749086445874"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7749086445874",
+              "status": "COMPLETED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-05-05T20:31:50Z",
+              "completedAt": "2026-05-05T20:31:52Z",
+              "objectCount": "1",
+              "rootObjectCount": "1",
+              "fileSize": "178",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/sp7qun13pvjap08wxol43rqqed0z-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1778617912&Signature=l5ebnOa3E2mxy3zgFTMpR6g7aUjcwMZ9P9kiH78VetkDYJCRLDj%2BDi63a3S6ge80hmb74dEY59imqEN9yaeiVcwReV6drX6C1OCN0fZeMeumVVzXCYUe7eewZoGKuYI4cosNviph4AFwQOkOSDUPxH4kvryTDRMejP%2BZgDHl94Emdkcaw9h7x6zgVKs8sLdJvSIv3GrnOD5G7OLq%2FLF1K%2F0IvB3wJbLiX4VBXTLBCyyP%2BSEV55oBHwxAy6AgCitN8m%2BO87xDMjS8zo0PysuRsA8YMAr68d73rG6o%2BYQBIW%2BhriWTbduIrQHVhTrgdd5vdOpXUZ8Yyjodq0ekOW%2Fu1g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7749086445874.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7749086445874.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "terminalOperation": {
+      "id": "gid://shopify/BulkOperation/7749086445874",
+      "status": "COMPLETED",
+      "type": "MUTATION",
+      "errorCode": null,
+      "createdAt": "2026-05-05T20:31:50Z",
+      "completedAt": "2026-05-05T20:31:52Z",
+      "objectCount": "1",
+      "rootObjectCount": "1",
+      "fileSize": "178",
+      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/sp7qun13pvjap08wxol43rqqed0z-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1778617912&Signature=l5ebnOa3E2mxy3zgFTMpR6g7aUjcwMZ9P9kiH78VetkDYJCRLDj%2BDi63a3S6ge80hmb74dEY59imqEN9yaeiVcwReV6drX6C1OCN0fZeMeumVVzXCYUe7eewZoGKuYI4cosNviph4AFwQOkOSDUPxH4kvryTDRMejP%2BZgDHl94Emdkcaw9h7x6zgVKs8sLdJvSIv3GrnOD5G7OLq%2FLF1K%2F0IvB3wJbLiX4VBXTLBCyyP%2BSEV55oBHwxAy6AgCitN8m%2BO87xDMjS8zo0PysuRsA8YMAr68d73rG6o%2BYQBIW%2BhriWTbduIrQHVhTrgdd5vdOpXUZ8Yyjodq0ekOW%2Fu1g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7749086445874.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7749086445874.jsonl&response-content-type=application%2Fjsonl",
+      "partialDataUrl": null,
+      "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+    },
+    "result": {
+      "status": 200,
+      "body": "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid:\\/\\/shopify\\/Product\\/10177677820210\",\"title\":\"HAR-750 Bulk Created 2026-05-05T20:31:49.918Z\"},\"userErrors\":[]}},\"__lineNumber\":0}\n"
+    }
+  },
+  "missingUpload": {
+    "stagedUpload": {
+      "operationName": "BulkOperationRunMutationCreatedStatusStagedUpload",
+      "query": "mutation BulkOperationRunMutationCreatedStatusStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": [
+          {
+            "filename": "har-750-missing-1778013113284.jsonl",
+            "mimeType": "text/jsonl",
+            "resource": "BULK_MUTATION_VARIABLES",
+            "httpMethod": "POST"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "stagedUploadsCreate": {
+            "stagedTargets": [
+              {
+                "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/",
+                "parameters": [
+                  {
+                    "name": "Content-Type",
+                    "value": "text/jsonl"
+                  },
+                  {
+                    "name": "success_action_status",
+                    "value": "201"
+                  },
+                  {
+                    "name": "acl",
+                    "value": "private"
+                  },
+                  {
+                    "name": "key",
+                    "value": "tmp/92891250994/bulk/4628f141-046e-4b34-b4da-f7fd90b80e35/har-750-missing-1778013113284.jsonl"
+                  },
+                  {
+                    "name": "x-goog-date",
+                    "value": "20260505T203153Z"
+                  },
+                  {
+                    "name": "x-goog-credential",
+                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                  },
+                  {
+                    "name": "x-goog-algorithm",
+                    "value": "GOOG4-RSA-SHA256"
+                  },
+                  {
+                    "name": "x-goog-signature",
+                    "value": "42ce98e13d1204e69fec015427cd4c08e972a9d3fcb5603c5ccc2ddf14f52ed3edd16561f3d243f67a67c792e2a735de8238fcff0564899e0f1e989965cc701aa489783b728965bb78628c2710b0f10b27b9e3795fa9bda2ec310b3fabfc5b893d8515fccaca807d129a64ac649cc200ffa6cdadd54b5fa568cd31964b8e4366a04f41d37d09cf3d1ce9a0958641ef59fb8ca3c95933cbc2fdc2dd372d0f04d0df2726d68d756cf5e5af1c8b4cb2df86717833df60498718a33c990b2f25e5f9ed4c72ab459e42ae4435a337611e05f3f77cdaf8743ba35dda7fbc0fcafec96a50dee257ab0b1865c32a1a368198fd268e563a7f3e6c9f722e6d085f2729709d"
+                  },
+                  {
+                    "name": "policy",
+                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvNDYyOGYxNDEtMDQ2ZS00YjM0LWI0ZGEtZjdmZDkwYjgwZTM1XC9oYXItNzUwLW1pc3NpbmctMTc3ODAxMzExMzI4NC5qc29ubCJ9LHsieC1nb29nLWRhdGUiOiIyMDI2MDUwNVQyMDMxNTNaIn0seyJ4LWdvb2ctY3JlZGVudGlhbCI6Im1lcmNoYW50LWFzc2V0c0BzaG9waWZ5LXRpZXJzLmlhbS5nc2VydmljZWFjY291bnQuY29tXC8yMDI2MDUwNVwvYXV0b1wvc3RvcmFnZVwvZ29vZzRfcmVxdWVzdCJ9LHsieC1nb29nLWFsZ29yaXRobSI6IkdPT0c0LVJTQS1TSEEyNTYifV0sImV4cGlyYXRpb24iOiIyMDI2LTA1LTA2VDIwOjMxOjUzWiJ9"
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "run": {
+      "operationName": "BulkOperationRunMutationCreatedStatus",
+      "query": "mutation BulkOperationRunMutationCreatedStatus($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/4628f141-046e-4b34-b4da-f7fd90b80e35/har-750-missing-1778013113284.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+                "code": "NO_SUCH_FILE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "operationName": "BulkOperationRunMutationCreatedStatusCleanupProductDelete",
+      "query": "mutation BulkOperationRunMutationCreatedStatusCleanupProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10177677820210"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177677820210",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

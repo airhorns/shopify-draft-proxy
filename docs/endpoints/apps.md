@@ -63,9 +63,22 @@ Current modeled behavior:
   context is surfaced as `MISSING_SOURCE_APP`, a current installation whose app
   record cannot be resolved as `APPLICATION_CANNOT_BE_FOUND`, and an app record
   without an installed current installation as `APP_NOT_INSTALLED`.
-- `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
-- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores the owning app id plus parent access-token hash alongside the token hash/preview. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, and active delegate-token parents return Shopify-like user errors without staging a new token. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
-- `delegateAccessTokenDestroy` matches the raw token against the stored hash, checks the caller app id and parent/delegate token hierarchy, marks allowed delegate tokens destroyed locally, and returns a non-null `shop` payload. Unknown or repeated tokens return `ACCESS_TOKEN_NOT_FOUND` with `field: null` and `Access token does not exist.` Parent access-token self-destroy returns `CAN_ONLY_DELETE_DELEGATE_TOKENS` with `Can only delete delegate tokens.` Cross-app and non-parent delegate hierarchy attempts return `ACCESS_DENIED`; all error paths leave token state unchanged and emit a failed log draft.
+- `appUninstall` resolves `input.id` to a known app when provided, otherwise
+  falls back to the current app installation. Unknown app IDs return
+  `APP_NOT_FOUND` on `field: ["id"]`; known apps without a visible local
+  installation return `APP_NOT_INSTALLED` on `field: ["id"]`, while omitted
+  input uses `field: ["base"]`. Input IDs for an app other than the current
+  installation require the current installation to hold the `apps` access
+  scope; otherwise the mutation returns `INSUFFICIENT_PERMISSIONS` without
+  staging. Successful uninstall marks the targeted installation uninstalled,
+  clears its active access grant, cancels locally staged
+  `PENDING`/`ACCEPTED`/`ACTIVE` subscriptions attached to the installation, and
+  destroys stored delegated access tokens so later token-destroy calls return
+  `ACCESS_TOKEN_NOT_FOUND`. Downstream `currentAppInstallation` reads return
+  `null` when the current installation is targeted, and app-subscription Node
+  reads show cancelled status.
+- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores the owning app id plus parent access-token hash alongside the token hash/preview. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, and active delegate-token parents return Shopify-like user errors without staging a new token. The payload's non-null `shop` field is projected through the Apps current-shop helper: hydrated `store.get_effective_shop(store)` data wins, and otherwise the proxy returns a stable synthetic Shop with `id`, `myshopifyDomain`, and `currencyCode`. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
+- `delegateAccessTokenDestroy` matches the raw token against the stored hash, checks the caller app id and parent/delegate token hierarchy, marks allowed delegate tokens destroyed locally, and returns a non-null `shop` payload through the Apps current-shop helper on both success and user-error branches. Unknown or repeated tokens return `ACCESS_TOKEN_NOT_FOUND` with `field: null` and `Access token does not exist.` Parent access-token self-destroy returns `CAN_ONLY_DELETE_DELEGATE_TOKENS` with `Can only delete delegate tokens.` Cross-app and non-parent delegate hierarchy attempts return `ACCESS_DENIED`; all error paths leave token state unchanged and emit a failed log draft.
 
 The implementation does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
 
@@ -78,6 +91,13 @@ Delegate access token docs use the `delegateAccessScope` create input as a list 
 Delegate destroy uses `X-Shopify-Access-Token` or `Authorization: Bearer ...` as the active caller token. Test and parity harnesses can set `x-shopify-draft-proxy-api-client-id` to model the caller app id; otherwise the proxy falls back to the current local app installation, then to the synthetic local app id for legacy local-runtime fixtures.
 
 `appRevokeAccessScopes` and `appUninstall` are locally staged only as downstream app-installation state changes. Real app grant revocation and app uninstall side effects remain external Shopify/app-installation events that can only happen later through explicit commit replay or intentional live conformance work on a disposable shop.
+
+HAR-747 tightened `appUninstall` error and cascade fidelity with
+`config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`. The
+scenario is executable local-runtime evidence because the current custom app
+credential cannot exercise billing-backed subscription setup live; it earns
+setup state through replayed `appSubscriptionCreate`, `delegateAccessTokenCreate`,
+and `appUninstall` requests rather than pre-seeding parity runner state.
 
 ### Safety notes
 
@@ -142,6 +162,7 @@ The capture records:
   app-domain generic Node read targets
 - `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
 - `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
+- `config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`
 - `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `config/parity-specs/apps/app-subscription-trial-extend-validation.json`

@@ -19,8 +19,8 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CustomerRecord, type GiftCardRecord, type Money, type ShopRecord,
   CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
-  CustomerRecord, GiftCardRecord, Money, PaymentSettingsRecord,
-  ShopAddressRecord, ShopBundlesFeatureRecord,
+  CustomerRecord, GiftCardConfigurationRecord, GiftCardRecord, Money,
+  PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
   ShopResourceLimitsRecord,
@@ -74,6 +74,19 @@ fn money(amount: String, currency: String) -> Money {
 fn seed_card(store_in: store.Store, record: GiftCardRecord) -> store.Store {
   let #(_, s) = store.stage_create_gift_card(store_in, record)
   s
+}
+
+fn seed_gift_card_configuration(
+  store_in: store.Store,
+  issue_limit: Money,
+) -> store.Store {
+  store.upsert_base_gift_card_configuration(
+    store_in,
+    GiftCardConfigurationRecord(
+      issue_limit: issue_limit,
+      purchase_limit: issue_limit,
+    ),
+  )
 }
 
 fn notification_card(
@@ -382,6 +395,61 @@ pub fn gift_card_create_rejects_missing_customer_test() {
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
 }
 
+pub fn gift_card_create_rejects_initial_value_over_issue_limit_test() {
+  let configured_store =
+    store.new()
+    |> seed_gift_card_configuration(money("1000.0", "CAD"))
+  let outcome =
+    run_mutation_outcome(
+      configured_store,
+      "mutation { giftCardCreate(input: { initialValue: \"999999\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"initialValue\"],\"code\":\"GIFT_CARD_LIMIT_EXCEEDED\",\"message\":\"can't exceed $1,000.00 CAD\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
+}
+
+pub fn gift_card_create_allows_initial_value_equal_to_issue_limit_test() {
+  let configured_store =
+    store.new()
+    |> seed_gift_card_configuration(money("1000.0", "CAD"))
+  let body =
+    run_mutation(
+      configured_store,
+      "mutation { giftCardCreate(input: { initialValue: \"1000\" }) { giftCard { id initialValue { amount currencyCode } balance { amount currencyCode } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\",\"initialValue\":{\"amount\":\"1000.0\",\"currencyCode\":\"CAD\"},\"balance\":{\"amount\":\"1000.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_create_skips_zero_cad_placeholder_issue_limit_test() {
+  let placeholder_store =
+    store.new()
+    |> seed_gift_card_configuration(money("0.0", "CAD"))
+  let body =
+    run_mutation(
+      placeholder_store,
+      "mutation { giftCardCreate(input: { initialValue: \"999999\" }) { giftCard { id balance { amount currencyCode } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\",\"balance\":{\"amount\":\"999999.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_create_runs_code_validation_before_issue_limit_test() {
+  let configured_store =
+    store.new()
+    |> seed_gift_card_configuration(money("1000.0", "CAD"))
+  let body =
+    run_mutation(
+      configured_store,
+      "mutation { giftCardCreate(input: { initialValue: \"999999\", code: \"abc\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":\"TOO_SHORT\",\"message\":\"Code must be at least 8 characters long\"}]}}}"
+}
+
 // ----------- giftCardUpdate -----------
 
 pub fn gift_card_update_changes_note_test() {
@@ -423,6 +491,63 @@ pub fn gift_card_update_changes_note_test() {
     )
   assert body
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/100?shopify-draft-proxy=synthetic\",\"note\":\"new note\"},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_update_accepts_noop_note_and_logs_raw_mutation_test() {
+  let id = "gid://shopify/GiftCard/noop-note"
+  let existing =
+    GiftCardRecord(
+      ..transaction_card(id, True, None, "50.0", "CAD"),
+      note: Some("current note"),
+      updated_at: "2023-12-31T23:59:59.000Z",
+    )
+  let document =
+    "mutation { giftCardUpdate(id: \""
+    <> id
+    <> "\", input: { note: \"current note\" }) { giftCard { id note updatedAt } userErrors { field code message } } }"
+  let outcome =
+    run_mutation_outcome(store.new() |> seed_card(existing), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-note\",\"note\":\"current note\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [id]
+  let assert Some(updated) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert updated.note == Some("current note")
+  assert updated.updated_at == "2024-01-01T00:00:00.000Z"
+
+  let #(logged_store, _) =
+    mutation_helpers.record_log_drafts(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      outcome.log_drafts,
+    )
+  let assert [entry] = store.get_log(logged_store)
+  assert entry.query == document
+  assert entry.staged_resource_ids == [id]
+}
+
+pub fn gift_card_update_accepts_noop_expiry_and_template_suffix_test() {
+  let id = "gid://shopify/GiftCard/noop-date-template"
+  let existing =
+    GiftCardRecord(
+      ..transaction_card(id, True, Some("2030-01-01"), "50.0", "CAD"),
+      template_suffix: Some("birthday"),
+      updated_at: "2023-12-31T23:59:59.000Z",
+    )
+  let body =
+    run_mutation(
+      store.new() |> seed_card(existing),
+      "mutation { noopExpires: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: \"2030-01-01\" }) { giftCard { id expiresOn updatedAt } userErrors { field code message } } noopTemplate: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { templateSuffix: \"birthday\" }) { giftCard { id templateSuffix updatedAt } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"noopExpires\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-date-template\",\"expiresOn\":\"2030-01-01\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]},\"noopTemplate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-date-template\",\"templateSuffix\":\"birthday\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"},\"userErrors\":[]}}}"
 }
 
 pub fn gift_card_update_missing_card_uses_typed_not_found_error_test() {

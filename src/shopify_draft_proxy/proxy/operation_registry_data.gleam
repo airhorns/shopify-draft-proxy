@@ -3585,7 +3585,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["bulkOperationRunQuery", "BulkOperationRunQuery"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, and unsupported nested connection shapes without runtime Shopify passthrough. HAR-721 accepts explicit true/false and omitted groupObjects arguments without changing local export semantics.",
+        "HAR-264/HAR-750: stages supported products/productVariants query exports locally, returns Shopify's immediate CREATED BulkOperation shape from the mutation response, writes terminal BulkOperation jobs plus JSONL result records for subsequent reads, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, and unsupported nested connection shapes without runtime Shopify passthrough. HAR-721 accepts explicit true/false and omitted groupObjects arguments without changing local export semantics.",
       ),
     ),
     RegistryEntry(
@@ -3597,7 +3597,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["bulkOperationRunMutation", "BulkOperationRunMutation"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-265: stages mutation imports locally only for single-root product inner mutations that are already locally implemented. Uploaded JSONL variables must come from the proxy's staged upload handoff; unsupported inner roots create an explicit failed local BulkOperation and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata.",
+        "HAR-265/HAR-750: stages mutation imports locally only for single-root product inner mutations that are already locally implemented, returns Shopify's immediate CREATED BulkOperation shape for valid submissions, and materializes terminal local BulkOperation/result JSONL state for subsequent reads. Uploaded JSONL variables must come from the proxy's staged upload handoff; missing uploads and unsupported inner roots return userErrors with bulkOperation: null and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata.",
       ),
     ),
     RegistryEntry(
@@ -6754,6 +6754,21 @@ pub fn default_registry() -> List(RegistryEntry) {
       support_notes: None,
     ),
     RegistryEntry(
+      name: "discountRedeemCodeBulkCreation",
+      type_: Query,
+      domain: Discounts,
+      execution: OverlayRead,
+      implemented: True,
+      match_names: [
+        "discountRedeemCodeBulkCreation",
+        "DiscountRedeemCodeBulkCreation",
+      ],
+      runtime_tests: ["test/parity_test.gleam"],
+      support_notes: Some(
+        "HAR-784 resolves staged DiscountRedeemCodeBulkCreation records locally, including asynchronous per-code validation results from discountRedeemCodeBulkAdd.",
+      ),
+    ),
+    RegistryEntry(
       name: "automaticDiscountNodes",
       type_: Query,
       domain: Discounts,
@@ -6922,7 +6937,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-366 supports explicit-code redeem-code bulk add locally with a completed DiscountRedeemCodeBulkCreation payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering.",
+        "HAR-784 supports explicit-code redeem-code bulk add locally with unknown/empty/oversized validation, schema-shaped async per-code validation through discountRedeemCodeBulkCreation(id:), durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. Legacy string-code inputs keep the completed local-runtime payload shape.",
       ),
     ),
     RegistryEntry(
@@ -6939,7 +6954,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. Search and saved-search redeem-code selectors remain locally refused to avoid broad code deletion without captured redeem-code matching semantics.",
+        "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. HAR-785 adds live-captured selector validation for missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, with local code matching for search and saved-search selectors.",
       ),
     ),
     RegistryEntry(

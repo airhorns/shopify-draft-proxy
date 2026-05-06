@@ -19,7 +19,7 @@
     "variablesCapturePath": "$.unknownFulfillmentEventCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-582 captured Admin GraphQL 2026-04 fulfillmentEventCreate validation and success behavior against a disposable fulfilled order. Public Admin GraphQL does not expose a code field on this mutation's UserError, so the parity target compares public field/message shape while runtime tests assert the ticket's source-backed local code values. The fixture also records that public 2026-04 accepted an event after fulfillmentCancel on the sampled fulfillment; the proxy retains the HAR-582 internal-source cancellation guard and HAR-744 tracks the public/API-version discrepancy.",
+  "notes": "HAR-582/HAR-744 captured Admin GraphQL 2026-04 fulfillmentEventCreate validation and success behavior against a disposable fulfilled order. Public Admin GraphQL does not expose a code field on this mutation's UserError; selecting userErrors.code returns top-level undefinedField, so executable parity compares public field/message shape while runtime tests assert the ticket's source-backed local code values. Invalid FulfillmentEventStatus variables fail top-level INVALID_VARIABLE coercion and the captured enum includes DELAYED and CARRIER_PICKED_UP; invalid-enum parity compares that GraphQL validation envelope. The fixture also records that public 2026-04 accepted an event after fulfillmentCancel on the sampled fulfillment; the proxy retains the HAR-582 internal-source cancellation guard as the documented public-vs-internal boundary.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -51,6 +51,17 @@
             "reason": "The proxy emits a deterministic local createdAt timestamp for staged fulfillment events."
           }
         ]
+      },
+      {
+        "name": "invalid-enum-variable-errors",
+        "capturePath": "$.invalidStatusVariable.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-event-create-validation.graphql",
+          "documentCapturePath": "$.invalidStatusVariable.query",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.invalidStatusVariable.variables"
+        }
       },
       {
         "name": "event-detail-read-after-create",

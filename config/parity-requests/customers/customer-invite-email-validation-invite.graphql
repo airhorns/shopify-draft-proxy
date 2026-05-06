@@ -1,0 +1,13 @@
+mutation CustomerInviteEmailValidationInvite($customerId: ID!, $email: EmailInput) {
+  customerSendAccountInviteEmail(customerId: $customerId, email: $email) {
+    customer {
+      id
+      state
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

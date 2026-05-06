@@ -1,0 +1,13 @@
+mutation CustomerSetUnknownIdErrors($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+      email
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

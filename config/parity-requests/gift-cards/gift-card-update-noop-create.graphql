@@ -1,0 +1,16 @@
+mutation GiftCardUpdateNoopCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      note
+      expiresOn
+      templateSuffix
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

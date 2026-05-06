@@ -38,5 +38,5 @@
       }
     ]
   },
-  "notes": "HAR-698 executable parity coverage for validationCreate defaults, active-validation cap, Function API-type rejection, and validation-owned metafield persistence. The mutation aliases preserve the ticket-required legs ValidationCreateMinimal, ValidationCreateMaxActive, ValidationCreateApiMismatch, and ValidationCreateWithMetafields, while operationNames uses registry root names required by conformance discovery. The local-runtime cassette hydrates a VALIDATION Function and a CART_TRANSFORM Function without runtime Shopify writes; strict comparison covers the mutation payloads and a downstream validations connection read."
+  "notes": "HAR-698/HAR-777 executable parity coverage for validationCreate defaults, active-validation cap, Function API-type rejection, and validation-owned metafield persistence. The mutation aliases preserve the ticket-required legs ValidationCreateMinimal, ValidationCreateMaxActive, ValidationCreateApiMismatch, and ValidationCreateWithMetafields, while operationNames uses registry root names required by conformance discovery. The local-runtime cassette hydrates a VALIDATION Function and a CART_TRANSFORM Function without runtime Shopify writes; strict comparison covers the mutation payloads and a downstream validations connection read."
 }

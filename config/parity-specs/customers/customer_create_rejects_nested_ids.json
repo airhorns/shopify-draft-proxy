@@ -1,0 +1,78 @@
+{
+  "scenarioId": "customer-create-rejects-nested-ids",
+  "operationNames": ["customerCreate", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-create-rejects-nested-ids.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-create-rejects-nested-ids.graphql",
+    "variablesCapturePath": "$.both.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for HAR-768: customerCreate rejects client-supplied ids on nested addresses and metafields, returns no customer for validation branches, and leaves downstream customer search empty. Public CustomerCreatePayload.userErrors does not expose a selectable code field on this API version; the proxy still carries the internal INVALID code for local callers that request it. When address and metafield ids are both present, Shopify reports the address id validation error first.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerCreate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages the happy-path customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.customerCreate.customer.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerCreate.customer.metafields.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer metafields locally and returns stable synthetic Metafield IDs instead of Shopify live IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "combined-nested-id-rejection",
+        "capturePath": "$.both.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "address-id-rejection",
+        "capturePath": "$.address.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-create-rejects-nested-ids.graphql",
+          "variablesCapturePath": "$.address.variables"
+        }
+      },
+      {
+        "name": "metafield-id-rejection",
+        "capturePath": "$.metafield.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-create-rejects-nested-ids.graphql",
+          "variablesCapturePath": "$.metafield.variables"
+        }
+      },
+      {
+        "name": "invalid-inputs-downstream-read",
+        "capturePath": "$.invalidRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-create-nested-ids-read.graphql",
+          "variablesCapturePath": "$.invalidRead.variables"
+        }
+      },
+      {
+        "name": "happy-path-control",
+        "capturePath": "$.happy.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-create-rejects-nested-ids.graphql",
+          "variablesCapturePath": "$.happy.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
@@ -75,6 +76,101 @@ fn assert_missing_customer_error(body: json.Json) {
   )
 }
 
+pub fn customer_delete_blocks_when_customer_has_staged_order_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"blocked-delete@example.test\", firstName: \"Blocked\", lastName: \"Delete\" }) { customer { id email } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: order_status, body: order_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { orderCreate(order: { email: \"blocked-order@example.test\", customerId: \"gid://shopify/Customer/1\", currency: \"CAD\", lineItems: [{ title: \"Blocking line\", quantity: 1, priceSet: { shopMoney: { amount: \"9.99\", currencyCode: \"CAD\" } } }] }) { order { id customer { id email displayName } } userErrors { field message code } } }",
+    )
+  assert order_status == 200
+  assert string.contains(
+    json.to_string(order_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\"",
+  )
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerDelete(input: { id: \"gid://shopify/Customer/1\" }) { deletedCustomerId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"customerDelete\":{\"deletedCustomerId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Customer can’t be deleted because they have associated orders\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"id\":\"gid://shopify/Customer/1\"",
+  )
+}
+
+pub fn customer_delete_succeeds_when_customer_has_no_orders_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"delete-no-orders@example.test\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerDelete(input: { id: \"gid://shopify/Customer/1\" }) { deletedCustomerId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"customerDelete\":{\"deletedCustomerId\":\"gid://shopify/Customer/1\",\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email } }",
+    )
+  assert read_status == 200
+  assert json.to_string(read_body) == "{\"data\":{\"customer\":null}}"
+}
+
+pub fn customer_delete_ignores_staged_draft_orders_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"draft-only-delete@example.test\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: draft_status, body: draft_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { draftOrderCreate(input: { purchasingEntity: { customerId: \"gid://shopify/Customer/1\" }, email: \"draft-only-delete@example.test\", lineItems: [{ title: \"Draft-only line\", quantity: 1, originalUnitPrice: \"5.00\" }] }) { draftOrder { id customer { id } } userErrors { field message } } }",
+    )
+  assert draft_status == 200
+  assert string.contains(json.to_string(draft_body), "\"userErrors\":[]")
+
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerDelete(input: { id: \"gid://shopify/Customer/1\" }) { deletedCustomerId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"customerDelete\":{\"deletedCustomerId\":\"gid://shopify/Customer/1\",\"userErrors\":[]}}}"
+}
+
 fn customer_with_state(id: String, state: String) -> CustomerRecord {
   CustomerRecord(
     id: id,
@@ -112,6 +208,24 @@ fn customer_state_proxy(id: String, state: String) -> draft_proxy.DraftProxy {
     store: store_mod.upsert_base_customers(proxy.store, [
       customer_with_state(id, state),
     ]),
+  )
+}
+
+fn no_contact_customer_proxy() -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  let customer =
+    CustomerRecord(
+      ..customer_with_state("gid://shopify/Customer/1", "Enabled"),
+      display_name: Some("No Contact Customer"),
+      email: None,
+      default_email_address: None,
+      default_phone_number: None,
+      email_marketing_consent: None,
+      sms_marketing_consent: None,
+    )
+  proxy_state.DraftProxy(
+    ..proxy,
+    store: store_mod.upsert_base_customers(proxy.store, [customer]),
   )
 }
 
@@ -306,6 +420,115 @@ pub fn customer_create_readback_and_log_test() {
   )
 }
 
+pub fn customer_update_rejects_clearing_last_email_identity_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"identity-only@example.com\" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", email: null }) { customer { id email firstName lastName displayName defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"customer\":null")
+  assert_required_identity_user_error(update_json)
+  assert_log_omits_root(proxy, "customerUpdate")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email defaultEmailAddress { emailAddress } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"email\":\"identity-only@example.com\"")
+  assert string.contains(
+    read_json,
+    "\"defaultEmailAddress\":{\"emailAddress\":\"identity-only@example.com\"}",
+  )
+}
+
+pub fn customer_update_rejects_clearing_last_phone_identity_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+14155550123\" }) { customer { id defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", phone: null }) { customer { id defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"customer\":null")
+  assert_required_identity_user_error(update_json)
+  assert_log_omits_root(proxy, "customerUpdate")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email defaultPhoneNumber { phoneNumber } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"defaultPhoneNumber\":{\"phoneNumber\":\"+14155550123\"}",
+  )
+}
+
+pub fn customer_update_rejects_clearing_last_name_identity_after_control_update_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"name-control@example.com\", firstName: \"Hermes\", lastName: \"Identity\" }) { customer { id firstName lastName email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: control_status, body: control_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", email: null }) { customer { id firstName lastName email defaultEmailAddress { emailAddress } } userErrors { field message code } } }",
+    )
+  assert control_status == 200
+  let control_json = json.to_string(control_body)
+  assert string.contains(control_json, "\"userErrors\":[]")
+  assert string.contains(control_json, "\"email\":null")
+  assert_log_contains_root(proxy, "customerUpdate")
+
+  let #(Response(status: reject_status, body: reject_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", firstName: null, lastName: null }) { customer { id firstName lastName email } userErrors { field message code } } }",
+    )
+  assert reject_status == 200
+  let reject_json = json.to_string(reject_body)
+  assert string.contains(reject_json, "\"customer\":null")
+  assert_required_identity_user_error(reject_json)
+  assert_log_occurrences(proxy, "customerUpdate", 1)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id firstName lastName email defaultEmailAddress { emailAddress } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"firstName\":\"Hermes\"")
+  assert string.contains(read_json, "\"lastName\":\"Identity\"")
+  assert string.contains(read_json, "\"email\":null")
+}
+
 pub fn customer_account_invite_stages_only_invitable_customers_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
@@ -356,6 +579,123 @@ pub fn customer_account_invite_stages_only_invitable_customers_test() {
   )
 }
 
+pub fn customer_account_invite_validates_email_overrides_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invite-validation@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: invite_status, body: invite_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\", email: { subject: \"\", to: \"not-an-email\", from: \"\", bcc: [\"bad\", \"ok@example.com\"], customMessage: \"<script>bad</script>\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  let invite_json = json.to_string(invite_body)
+  assert string.contains(invite_json, "\"customer\":null,\"userErrors\":[")
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"subject\"],\"message\":\"Subject can't be blank\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"to\"],\"message\":\"To must be blank when the customer has an email address\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"from\"],\"message\":\"From Sender is invalid\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"bcc\"],\"message\":\"Bcc bad is not a valid bcc address and ok@example.com is not a valid bcc address\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"customerId\"],\"message\":\"Error sending account invite to customer.\",\"code\":\"INVALID\"}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id state } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"DISABLED\"}",
+  )
+
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  let log_json = json.to_string(log_body)
+  assert string.contains(log_json, "\"primaryRootField\":\"customerCreate\"")
+  assert !string.contains(log_json, "customerSendAccountInviteEmail")
+}
+
+pub fn customer_account_invite_accepts_valid_to_override_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+14155550123\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: invite_status, body: invite_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\", email: { subject: \"Account invite\", to: \"valid@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  let invite_json = json.to_string(invite_body)
+  assert string.contains(
+    invite_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"INVITED\"}",
+  )
+  assert string.contains(invite_json, "\"userErrors\":[]")
+}
+
+pub fn customer_account_invite_rejects_oversized_subject_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invite-long-subject@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let long_subject = string.repeat("s", 1001)
+  let #(Response(status: invite_status, body: invite_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\", email: { subject: \""
+        <> long_subject
+        <> "\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  assert string.contains(
+    json.to_string(invite_body),
+    "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Error sending account invite to customer.\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id state } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"DISABLED\"}",
+  )
+}
+
 pub fn customer_create_rejects_client_supplied_id_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, body: create_body, ..), proxy) =
@@ -378,6 +718,131 @@ pub fn customer_create_rejects_client_supplied_id_test() {
     json.to_string(read_body),
     "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
   )
+}
+
+pub fn customer_set_unknown_identifier_id_errors_without_staging_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/999999999\" }, input: { email: \"buyer@example.com\" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"customer\":null")
+  assert string.contains(
+    set_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Customer does not exist\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customers(first: 5) { nodes { id email } } }")
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+  assert_log_omits_root(proxy, "customerSet")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_set_mixed_identifier_unknown_id_wins_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/999999999\", email: \"mixed@example.com\" }, input: { email: \"mixed@example.com\", firstName: \"Mixed\" }) { customer { id email firstName } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"customer\":null")
+  assert string.contains(
+    set_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Customer does not exist\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customers(first: 5) { nodes { id email } } }")
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
+pub fn customer_set_email_and_phone_identifiers_create_without_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: email_status, body: email_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { email: \"set-email@example.com\" }, input: { email: \"set-email@example.com\", firstName: \"Email\" }) { customer { id email firstName } userErrors { field message code } } }",
+    )
+  assert email_status == 200
+  let email_json = json.to_string(email_body)
+  assert string.contains(
+    email_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"set-email@example.com\",\"firstName\":\"Email\"}",
+  )
+  assert string.contains(email_json, "\"userErrors\":[]")
+
+  let #(Response(status: phone_status, body: phone_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { phone: \"+14155550123\" }, input: { phone: \"+14155550123\", firstName: \"Phone\" }) { customer { id defaultPhoneNumber { phoneNumber } firstName } userErrors { field message code } } }",
+    )
+  assert phone_status == 200
+  let phone_json = json.to_string(phone_body)
+  assert string.contains(
+    phone_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/3\",\"defaultPhoneNumber\":{\"phoneNumber\":\"+14155550123\"},\"firstName\":\"Phone\"}",
+  )
+  assert string.contains(phone_json, "\"userErrors\":[]")
+}
+
+pub fn customer_create_rejects_nested_client_supplied_ids_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"nested-client-id@example.com\", addresses: [{ id: \"gid://shopify/MailingAddress/999\", address1: \"1 Spear St\" }], metafields: [{ id: \"gid://shopify/Metafield/999\", namespace: \"ns\", key: \"k\", value: \"v\", type: \"single_line_text_field\" }] }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"addresses\",\"0\",\"id\"],\"message\":\"Cannot specify address ID on creation\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customersCount { count precision } }")
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_rejects_nested_metafield_client_supplied_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"nested-metafield-client-id@example.com\", metafields: [{ id: \"gid://shopify/Metafield/999\", namespace: \"ns\", key: \"k\", value: \"v\", type: \"single_line_text_field\" }] }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"id\"],\"message\":\"Cannot specify metafield ID on creation\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customersCount { count precision } }")
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
 }
 
 pub fn customer_address_lifecycle_test() {
@@ -418,6 +883,168 @@ pub fn customer_address_lifecycle_test() {
     read_json,
     "\"addressesV2\":{\"nodes\":[{\"id\":\"gid://shopify/MailingAddress/3\"",
   )
+}
+
+pub fn customer_address_update_rejects_mismatched_nested_address_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-id-mismatch@example.com\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: first_address_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"1 Main St\", city: \"Ottawa\", countryCode: CA, provinceCode: ON, zip: \"K1A 0B1\" }) { address { id address1 } userErrors { field message } } }",
+    )
+  assert first_address_status == 200
+
+  let #(Response(status: second_address_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"2 Side St\", city: \"Toronto\", countryCode: CA, provinceCode: ON, zip: \"M5H 2N2\" }) { address { id address1 } userErrors { field message } } }",
+    )
+  assert second_address_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/1\", addressId: \"gid://shopify/MailingAddress/3\", address: { id: \"gid://shopify/MailingAddress/5\", address1: \"999 Bryant\" }) { address { id address1 } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  assert string.contains(json.to_string(update_body), "\"address\":null")
+  assert string.contains(
+    json.to_string(update_body),
+    "\"userErrors\":[{\"field\":[\"addressId\"],\"message\":\"The id of the address does not match the id in the input\",\"code\":null}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { addressesV2(first: 5) { nodes { id address1 city } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"address1\":\"1 Main St\"")
+  assert string.contains(read_json, "\"address1\":\"2 Side St\"")
+  assert !string.contains(read_json, "999 Bryant")
+}
+
+pub fn customer_address_country_province_validation_test() {
+  let proxy = draft_proxy.new()
+
+  let #(
+    Response(status: invalid_create_status, body: invalid_create_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invalid-address@example.com\", addresses: [{ address1: \"1 Spear\", country: \"Atlantis\" }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert invalid_create_status == 200
+  let invalid_create_json = json.to_string(invalid_create_body)
+  assert string.contains(invalid_create_json, "\"customer\":null")
+  assert string.contains(
+    invalid_create_json,
+    "\"userErrors\":[{\"field\":[\"addresses\",\"0\",\"country\"],\"message\":\"Country is invalid\",\"code\":\"INVALID\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"valid-address@example.com\", addresses: [{ address1: \"1 Valid St\", city: \"San Francisco\", countryCode: US, country: \"Canada\", provinceCode: CA, zip: \"94105\" }] }) { customer { id defaultAddress { country countryCodeV2 province provinceCode formattedArea } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(create_json, "\"country\":\"United States\"")
+  assert string.contains(create_json, "\"countryCodeV2\":\"US\"")
+  assert string.contains(create_json, "\"province\":\"California\"")
+
+  let #(
+    Response(status: create_address_status, body: create_address_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"2 Bad Country\", countryCode: ZZ, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert create_address_status == 200
+  let create_address_json = json.to_string(create_address_body)
+  assert string.contains(create_address_json, "\"address\":null")
+  assert string.contains(
+    create_address_json,
+    "\"userErrors\":[{\"field\":[\"address\",\"country\"],\"message\":\"Country is invalid\",\"code\":\"INVALID\"}]",
+  )
+  assert_log_omits_root(proxy, "customerAddressCreate")
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", addresses: [{ address1: \"3 Bad Province\", city: \"Chicago\", countryCode: US, provinceCode: ON }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"customer\":null")
+  assert string.contains(
+    update_json,
+    "\"userErrors\":[{\"field\":[\"addresses\",\"0\",\"province\"],\"message\":\"Province is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/1\" }, input: { email: \"valid-address@example.com\", addresses: [{ address1: \"4 Bad Province\", city: \"Chicago\", countryCode: US, provinceCode: ON }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"customer\":null")
+  assert string.contains(
+    set_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"addresses\",\"0\",\"province\"],\"message\":\"Province is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(
+    Response(status: second_address_status, body: second_address_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"5 Valid St\", city: \"New York\", countryCode: US, provinceCode: NY }) { address { id province provinceCode } userErrors { field message code } } }",
+    )
+  assert second_address_status == 200
+  let second_address_json = json.to_string(second_address_body)
+  assert string.contains(second_address_json, "\"province\":\"New York\"")
+
+  let #(
+    Response(status: address_update_status, body: address_update_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/1\", addressId: \"gid://shopify/MailingAddress/3\", address: { countryCode: US, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert address_update_status == 200
+  let address_update_json = json.to_string(address_update_body)
+  assert string.contains(address_update_json, "\"address\":null")
+  assert string.contains(
+    address_update_json,
+    "\"userErrors\":[{\"field\":[\"address\",\"province\"],\"message\":\"Province is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { defaultAddress { country countryCodeV2 province provinceCode } addressesV2(first: 5) { nodes { address1 province provinceCode } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"province\":\"California\"")
+  assert !string.contains(read_json, "Bad Province")
+  assert !string.contains(read_json, "Bad Country")
 }
 
 pub fn customer_address_update_requires_address_owner_test() {
@@ -777,6 +1404,39 @@ pub fn marketing_consent_update_allowed_states_still_stage_test() {
   assert_sms_consent_state_stages("PENDING")
 }
 
+pub fn email_marketing_consent_update_without_email_noops_test() {
+  let proxy = no_contact_customer_proxy()
+  let mutation =
+    "mutation { customerEmailMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", emailMarketingConsent: { marketingState: SUBSCRIBED, marketingOptInLevel: SINGLE_OPT_IN } }) { customer { id email defaultEmailAddress { emailAddress marketingState } emailMarketingConsent { marketingState } defaultPhoneNumber { phoneNumber marketingState } smsMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert string.contains(body_json, "\"email\":null")
+  assert string.contains(body_json, "\"defaultEmailAddress\":null")
+  assert string.contains(body_json, "\"emailMarketingConsent\":null")
+  assert string.contains(body_json, "\"defaultPhoneNumber\":null")
+  assert string.contains(body_json, "\"smsMarketingConsent\":null")
+  assert_no_contact_consent_readback(proxy)
+}
+
+pub fn sms_marketing_consent_update_without_phone_errors_test() {
+  let proxy = no_contact_customer_proxy()
+  let mutation =
+    "mutation { customerSmsMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", smsMarketingConsent: { marketingState: SUBSCRIBED, marketingOptInLevel: SINGLE_OPT_IN } }) { customer { id defaultPhoneNumber { phoneNumber marketingState } smsMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"smsMarketingConsent\"],\"message\":\"A phone number is required to set the SMS consent state.\",\"code\":\"INVALID\"}]",
+  )
+  assert_no_contact_consent_readback(proxy)
+}
+
 pub fn customer_create_requires_email_for_inline_email_consent_test() {
   let proxy = draft_proxy.new()
   let mutation =
@@ -1006,6 +1666,22 @@ fn assert_sms_consent_readback(proxy: draft_proxy.DraftProxy, state: String) {
   )
 }
 
+fn assert_no_contact_consent_readback(proxy: draft_proxy.DraftProxy) {
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { email defaultEmailAddress { emailAddress marketingState } emailMarketingConsent { marketingState } defaultPhoneNumber { phoneNumber marketingState } smsMarketingConsent { marketingState } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"email\":null")
+  assert string.contains(read_json, "\"defaultEmailAddress\":null")
+  assert string.contains(read_json, "\"emailMarketingConsent\":null")
+  assert string.contains(read_json, "\"defaultPhoneNumber\":null")
+  assert string.contains(read_json, "\"smsMarketingConsent\":null")
+  assert !string.contains(read_json, "\"marketingState\":\"SUBSCRIBED\"")
+}
+
 fn assert_log_omits_root(proxy: draft_proxy.DraftProxy, root_name: String) {
   let log_request =
     Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
@@ -1022,6 +1698,37 @@ fn assert_log_contains_root(proxy: draft_proxy.DraftProxy, root_name: String) {
     draft_proxy.process_request(proxy, log_request)
   assert log_status == 200
   assert string.contains(json.to_string(log_body), root_name)
+}
+
+fn assert_log_occurrences(
+  proxy: draft_proxy.DraftProxy,
+  root_name: String,
+  expected: Int,
+) {
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  assert substring_occurrences(
+      json.to_string(log_body),
+      "\"primaryRootField\":\"" <> root_name <> "\"",
+    )
+    == expected
+}
+
+fn substring_occurrences(haystack: String, needle: String) -> Int {
+  case needle {
+    "" -> 0
+    _ -> list.length(string.split(haystack, needle)) - 1
+  }
+}
+
+fn assert_required_identity_user_error(body_json: String) {
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":null,\"message\":\"A name, phone number, or email address must be present\",\"code\":\"INVALID\"}]",
+  )
 }
 
 fn assert_next_customer_create_uses_first_customer_id(

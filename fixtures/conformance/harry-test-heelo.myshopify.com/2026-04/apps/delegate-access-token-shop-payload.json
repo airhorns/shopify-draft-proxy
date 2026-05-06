@@ -1,0 +1,110 @@
+{
+  "capturedAt": "2026-05-05T21:28:05.531Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenario": "delegate-access-token-shop-payload",
+  "notes": [
+    "HAR-753 live capture for DelegateAccessTokenCreatePayload.shop and DelegateAccessTokenDestroyPayload.shop.",
+    "The create branch selected shop { id myshopifyDomain currencyCode } and destroyed the returned delegate token immediately.",
+    "The destroy success and unknown-token userError branches both selected shop { id }; Shopify returned a non-null shop in both payloads.",
+    "The raw live delegate token is redacted in the checked-in fixture and is not needed for proxy replay."
+  ],
+  "operationNames": ["delegateAccessTokenCreate", "delegateAccessTokenDestroy"],
+  "upstreamCalls": [],
+  "evidence": {
+    "live": {
+      "cleanup": {
+        "destroyCaptured": true
+      }
+    },
+    "parity": {
+      "expected": {
+        "delegateCreate": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-shop-payload.graphql",
+          "payload": {
+            "data": {
+              "delegateAccessTokenCreate": {
+                "delegateAccessToken": {
+                  "accessToken": "[redacted-live-delegate-token]"
+                },
+                "shop": {
+                  "id": "gid://shopify/Shop/92891250994",
+                  "myshopifyDomain": "harry-test-heelo.myshopify.com",
+                  "currencyCode": "CAD"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "delegateDestroy": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload.graphql",
+          "payload": {
+            "data": {
+              "delegateAccessTokenDestroy": {
+                "shop": {
+                  "id": "gid://shopify/Shop/92891250994"
+                },
+                "status": true,
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "delegateDestroyUnknown": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload-unknown.graphql",
+          "payload": {
+            "data": {
+              "delegateAccessTokenDestroy": {
+                "shop": {
+                  "id": "gid://shopify/Shop/92891250994"
+                },
+                "status": false,
+                "userErrors": [
+                  {
+                    "field": null,
+                    "message": "Access token does not exist.",
+                    "code": "ACCESS_TOKEN_NOT_FOUND"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

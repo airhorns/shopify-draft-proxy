@@ -1,9 +1,12 @@
 {
-  "capturedAt": "2026-05-05T19:58:37.136Z",
+  "capturedAt": "2026-05-05T20:20:05.321Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
     "Public Admin GraphQL 2026-04 UserError for fulfillmentEventCreate exposes field/message but not code.",
+    "Selecting userErrors.code returns a top-level undefinedField error before resolver execution.",
+    "Invalid FulfillmentEventStatus variables fail GraphQL coercion with INVALID_VARIABLE before resolver execution.",
+    "FulfillmentEventStatus introspection includes DELAYED and CARRIER_PICKED_UP in Admin GraphQL 2026-04.",
     "The cancelledFulfillmentEventCreateProbe records public API behavior after fulfillmentCancel; HAR-582 local runtime keeps the source-backed cancellation guard."
   ],
   "setup": {
@@ -11,13 +14,13 @@
       "query": "#graphql\n  mutation FulfillmentEventCreateValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            id\n            status\n            requestStatus\n            lineItems(first: 5) {\n              nodes {\n                id\n                totalQuantity\n                remainingQuantity\n                lineItem { id title }\n              }\n            }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
         "order": {
-          "email": "hermes-fulfillment-event-validation-1778011114123@example.com",
-          "note": "HAR-582 fulfillmentEventCreate validation capture 1778011114123",
+          "email": "hermes-fulfillment-event-validation-1778012401782@example.com",
+          "note": "HAR-582 fulfillmentEventCreate validation capture 1778012401782",
           "tags": ["parity-probe", "har-582", "fulfillment-event-create"],
           "test": true,
           "lineItems": [
             {
-              "title": "HAR-582 fulfillment event item 1778011114123",
+              "title": "HAR-582 fulfillment event item 1778012401782",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -27,7 +30,7 @@
               },
               "requiresShipping": true,
               "taxable": false,
-              "sku": "HAR-582-1778011114123"
+              "sku": "HAR-582-1778012401782"
             }
           ],
           "transactions": [
@@ -52,24 +55,24 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8731047231794",
-              "name": "#1142",
+              "id": "gid://shopify/Order/8731073872178",
+              "name": "#1143",
               "displayFulfillmentStatus": "UNFULFILLED",
               "fulfillmentOrders": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrder/9654420111666",
+                    "id": "gid://shopify/FulfillmentOrder/9654447833394",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19453565042994",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19453618585906",
                           "totalQuantity": 1,
                           "remainingQuantity": 1,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19304280850738",
-                            "title": "HAR-582 fulfillment event item 1778011114123"
+                            "id": "gid://shopify/LineItem/19304334459186",
+                            "title": "HAR-582 fulfillment event item 1778012401782"
                           }
                         }
                       ]
@@ -100,13 +103,13 @@
         "fulfillment": {
           "notifyCustomer": false,
           "trackingInfo": {
-            "number": "HAR582-CREATE-1778011114123",
-            "url": "https://example.com/track/HAR582-CREATE-1778011114123",
+            "number": "HAR582-CREATE-1778012401782",
+            "url": "https://example.com/track/HAR582-CREATE-1778012401782",
             "company": "Hermes"
           },
           "lineItemsByFulfillmentOrder": [
             {
-              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9654420111666"
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9654447833394"
             }
           ]
         },
@@ -117,13 +120,13 @@
         "data": {
           "fulfillmentCreate": {
             "fulfillment": {
-              "id": "gid://shopify/Fulfillment/7878976274738",
+              "id": "gid://shopify/Fulfillment/7878997410098",
               "status": "SUCCESS",
               "displayStatus": "FULFILLED",
               "trackingInfo": [
                 {
-                  "number": "HAR582-CREATE-1778011114123",
-                  "url": "https://example.com/track/HAR582-CREATE-1778011114123",
+                  "number": "HAR582-CREATE-1778012401782",
+                  "url": "https://example.com/track/HAR582-CREATE-1778012401782",
                   "company": "Hermes"
                 }
               ],
@@ -150,7 +153,7 @@
     "unknownFulfillmentHydrate": {
       "query": "#graphql\n  query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {\n    fulfillment(id: $id) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      deliveredAt\n      estimatedDeliveryAt\n      inTransitAt\n      trackingInfo(first: 1) { number url company }\n      events(first: 5) {\n        nodes {\n          id\n          status\n          message\n          happenedAt\n          createdAt\n          estimatedDeliveryAt\n          city\n          province\n          country\n          zip\n          address1\n          latitude\n          longitude\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      service {\n        id\n        handle\n        serviceName\n        trackingSupport\n        type\n        location { id name }\n      }\n      location { id name }\n      originAddress { address1 address2 city countryCode provinceCode zip }\n      fulfillmentLineItems(first: 5) {\n        nodes { id quantity lineItem { id title } }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      order { id name displayFulfillmentStatus }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Fulfillment/9999999991778011114123"
+        "id": "gid://shopify/Fulfillment/9999999991778012401782"
       },
       "status": 200,
       "response": {
@@ -173,24 +176,24 @@
     "fulfillmentHydrate": {
       "query": "#graphql\n  query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {\n    fulfillment(id: $id) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      deliveredAt\n      estimatedDeliveryAt\n      inTransitAt\n      trackingInfo(first: 1) { number url company }\n      events(first: 5) {\n        nodes {\n          id\n          status\n          message\n          happenedAt\n          createdAt\n          estimatedDeliveryAt\n          city\n          province\n          country\n          zip\n          address1\n          latitude\n          longitude\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      service {\n        id\n        handle\n        serviceName\n        trackingSupport\n        type\n        location { id name }\n      }\n      location { id name }\n      originAddress { address1 address2 city countryCode provinceCode zip }\n      fulfillmentLineItems(first: 5) {\n        nodes { id quantity lineItem { id title } }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      order { id name displayFulfillmentStatus }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Fulfillment/7878976274738"
+        "id": "gid://shopify/Fulfillment/7878997410098"
       },
       "status": 200,
       "response": {
         "data": {
           "fulfillment": {
-            "id": "gid://shopify/Fulfillment/7878976274738",
+            "id": "gid://shopify/Fulfillment/7878997410098",
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
-            "createdAt": "2026-05-05T19:58:35Z",
-            "updatedAt": "2026-05-05T19:58:35Z",
+            "createdAt": "2026-05-05T20:20:02Z",
+            "updatedAt": "2026-05-05T20:20:02Z",
             "deliveredAt": null,
             "estimatedDeliveryAt": null,
             "inTransitAt": null,
             "trackingInfo": [
               {
-                "number": "HAR582-CREATE-1778011114123",
-                "url": "https://example.com/track/HAR582-CREATE-1778011114123",
+                "number": "HAR582-CREATE-1778012401782",
+                "url": "https://example.com/track/HAR582-CREATE-1778012401782",
                 "company": "Hermes"
               }
             ],
@@ -222,24 +225,24 @@
             "fulfillmentLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentLineItem/17084145598770",
+                  "id": "gid://shopify/FulfillmentLineItem/17084187246898",
                   "quantity": 1,
                   "lineItem": {
-                    "id": "gid://shopify/LineItem/19304280850738",
-                    "title": "HAR-582 fulfillment event item 1778011114123"
+                    "id": "gid://shopify/LineItem/19304334459186",
+                    "title": "HAR-582 fulfillment event item 1778012401782"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNzA4NDE0NTU5ODc3MCwibGFzdF92YWx1ZSI6MTcwODQxNDU1OTg3NzB9",
-                "endCursor": "eyJsYXN0X2lkIjoxNzA4NDE0NTU5ODc3MCwibGFzdF92YWx1ZSI6MTcwODQxNDU1OTg3NzB9"
+                "startCursor": "eyJsYXN0X2lkIjoxNzA4NDE4NzI0Njg5OCwibGFzdF92YWx1ZSI6MTcwODQxODcyNDY4OTh9",
+                "endCursor": "eyJsYXN0X2lkIjoxNzA4NDE4NzI0Njg5OCwibGFzdF92YWx1ZSI6MTcwODQxODcyNDY4OTh9"
               }
             },
             "order": {
-              "id": "gid://shopify/Order/8731047231794",
-              "name": "#1142",
+              "id": "gid://shopify/Order/8731073872178",
+              "name": "#1143",
               "displayFulfillmentStatus": "FULFILLED"
             }
           }
@@ -258,11 +261,98 @@
       }
     }
   },
+  "fulfillmentEventStatusEnum": {
+    "query": "#graphql\n  query FulfillmentEventStatusEnumIntrospection {\n    __type(name: \"FulfillmentEventStatus\") {\n      kind\n      enumValues {\n        name\n      }\n    }\n  }\n",
+    "variables": {},
+    "status": 200,
+    "response": {
+      "data": {
+        "__type": {
+          "kind": "ENUM",
+          "enumValues": [
+            {
+              "name": "LABEL_PURCHASED"
+            },
+            {
+              "name": "LABEL_PRINTED"
+            },
+            {
+              "name": "READY_FOR_PICKUP"
+            },
+            {
+              "name": "CONFIRMED"
+            },
+            {
+              "name": "IN_TRANSIT"
+            },
+            {
+              "name": "OUT_FOR_DELIVERY"
+            },
+            {
+              "name": "ATTEMPTED_DELIVERY"
+            },
+            {
+              "name": "DELAYED"
+            },
+            {
+              "name": "DELIVERED"
+            },
+            {
+              "name": "FAILURE"
+            },
+            {
+              "name": "CARRIER_PICKED_UP"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "userErrorCodeSelection": {
+    "query": "#graphql\n  mutation FulfillmentEventCreateCodeSelection($fulfillmentEvent: FulfillmentEventInput!) {\n    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {\n      fulfillmentEvent {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "fulfillmentEvent": {
+        "fulfillmentId": "gid://shopify/Fulfillment/9999999991778012401782",
+        "status": "IN_TRANSIT"
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'code' doesn't exist on type 'UserError'",
+          "locations": [
+            {
+              "line": 10,
+              "column": 9
+            }
+          ],
+          "path": ["mutation FulfillmentEventCreateCodeSelection", "fulfillmentEventCreate", "userErrors", "code"],
+          "extensions": {
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+          }
+        }
+      ]
+    }
+  },
   "unknownFulfillmentEventCreate": {
     "query": "#graphql\n  mutation FulfillmentEventCreateValidation($fulfillmentEvent: FulfillmentEventInput!) {\n    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {\n      fulfillmentEvent {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
     "variables": {
       "fulfillmentEvent": {
-        "fulfillmentId": "gid://shopify/Fulfillment/9999999991778011114123",
+        "fulfillmentId": "gid://shopify/Fulfillment/9999999991778012401782",
         "status": "IN_TRANSIT"
       }
     },
@@ -285,7 +375,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -296,11 +386,11 @@
     "query": "#graphql\n  mutation FulfillmentEventCreateValidation($fulfillmentEvent: FulfillmentEventInput!) {\n    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {\n      fulfillmentEvent {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
     "variables": {
       "fulfillmentEvent": {
-        "fulfillmentId": "gid://shopify/Fulfillment/7878976274738",
+        "fulfillmentId": "gid://shopify/Fulfillment/7878997410098",
         "status": "IN_TRANSIT",
         "message": "HAR-582 package scanned in transit",
-        "happenedAt": "2026-05-05T19:59:34Z",
-        "estimatedDeliveryAt": "2026-05-07T19:58:34Z",
+        "happenedAt": "2026-05-05T20:21:01Z",
+        "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
         "city": "Toronto",
         "province": "Ontario",
         "country": "Canada",
@@ -315,12 +405,12 @@
       "data": {
         "fulfillmentEventCreate": {
           "fulfillmentEvent": {
-            "id": "gid://shopify/FulfillmentEvent/35358729863474",
+            "id": "gid://shopify/FulfillmentEvent/35358878302514",
             "status": "IN_TRANSIT",
             "message": "HAR-582 package scanned in transit",
-            "happenedAt": "2026-05-05T19:59:34Z",
-            "createdAt": "2026-05-05T19:58:36Z",
-            "estimatedDeliveryAt": "2026-05-07T19:58:34Z",
+            "happenedAt": "2026-05-05T20:21:01Z",
+            "createdAt": "2026-05-05T20:20:04Z",
+            "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
             "city": "Toronto",
             "province": "Ontario",
             "country": "Canada",
@@ -338,7 +428,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -348,26 +438,26 @@
   "detailRead": {
     "query": "#graphql\n  #graphql\n  fragment FulfillmentEventCreateValidationFulfillmentFields on Fulfillment {\n    id\n    status\n    displayStatus\n    estimatedDeliveryAt\n    inTransitAt\n    events(first: 5) {\n      nodes {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n\n  query FulfillmentEventCreateValidationDetailRead($fulfillmentId: ID!) {\n    fulfillment(id: $fulfillmentId) {\n      ...FulfillmentEventCreateValidationFulfillmentFields\n    }\n  }\n",
     "variables": {
-      "fulfillmentId": "gid://shopify/Fulfillment/7878976274738"
+      "fulfillmentId": "gid://shopify/Fulfillment/7878997410098"
     },
     "status": 200,
     "response": {
       "data": {
         "fulfillment": {
-          "id": "gid://shopify/Fulfillment/7878976274738",
+          "id": "gid://shopify/Fulfillment/7878997410098",
           "status": "SUCCESS",
           "displayStatus": "IN_TRANSIT",
-          "estimatedDeliveryAt": "2026-05-07T19:58:34Z",
-          "inTransitAt": "2026-05-05T19:59:34Z",
+          "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
+          "inTransitAt": "2026-05-05T20:21:01Z",
           "events": {
             "nodes": [
               {
-                "id": "gid://shopify/FulfillmentEvent/35358729863474",
+                "id": "gid://shopify/FulfillmentEvent/35358878302514",
                 "status": "IN_TRANSIT",
                 "message": "HAR-582 package scanned in transit",
-                "happenedAt": "2026-05-05T19:59:34Z",
-                "createdAt": "2026-05-05T19:58:36Z",
-                "estimatedDeliveryAt": "2026-05-07T19:58:34Z",
+                "happenedAt": "2026-05-05T20:21:01Z",
+                "createdAt": "2026-05-05T20:20:04Z",
+                "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
                 "city": "Toronto",
                 "province": "Ontario",
                 "country": "Canada",
@@ -380,8 +470,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjozNTM1ODcyOTg2MzQ3NCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMTk6NTk6MzQuMDAwMDAwIn0=",
-              "endCursor": "eyJsYXN0X2lkIjozNTM1ODcyOTg2MzQ3NCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMTk6NTk6MzQuMDAwMDAwIn0="
+              "startCursor": "eyJsYXN0X2lkIjozNTM1ODg3ODMwMjUxNCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMjA6MjE6MDEuMDAwMDAwIn0=",
+              "endCursor": "eyJsYXN0X2lkIjozNTM1ODg3ODMwMjUxNCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMjA6MjE6MDEuMDAwMDAwIn0="
             }
           }
         }
@@ -399,17 +489,53 @@
       }
     }
   },
+  "invalidStatusVariable": {
+    "query": "#graphql\n  mutation FulfillmentEventCreateValidation($fulfillmentEvent: FulfillmentEventInput!) {\n    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {\n      fulfillmentEvent {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "variables": {
+      "fulfillmentEvent": {
+        "fulfillmentId": "gid://shopify/Fulfillment/7878997410098",
+        "status": "NOT_A_FULFILLMENT_EVENT_STATUS"
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $fulfillmentEvent of type FulfillmentEventInput! was provided invalid value for status (Expected \"NOT_A_FULFILLMENT_EVENT_STATUS\" to be one of: LABEL_PURCHASED, LABEL_PRINTED, READY_FOR_PICKUP, CONFIRMED, IN_TRANSIT, OUT_FOR_DELIVERY, ATTEMPTED_DELIVERY, DELAYED, DELIVERED, FAILURE, CARRIER_PICKED_UP)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 45
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "fulfillmentId": "gid://shopify/Fulfillment/7878997410098",
+              "status": "NOT_A_FULFILLMENT_EVENT_STATUS"
+            },
+            "problems": [
+              {
+                "path": ["status"],
+                "explanation": "Expected \"NOT_A_FULFILLMENT_EVENT_STATUS\" to be one of: LABEL_PURCHASED, LABEL_PRINTED, READY_FOR_PICKUP, CONFIRMED, IN_TRANSIT, OUT_FOR_DELIVERY, ATTEMPTED_DELIVERY, DELAYED, DELIVERED, FAILURE, CARRIER_PICKED_UP"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
   "fulfillmentCancel": {
     "query": "#graphql\n  mutation FulfillmentEventCreateValidationCancel($id: ID!) {\n    fulfillmentCancel(id: $id) {\n      fulfillment {\n        id\n        status\n        displayStatus\n      }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/Fulfillment/7878976274738"
+      "id": "gid://shopify/Fulfillment/7878997410098"
     },
     "status": 200,
     "response": {
       "data": {
         "fulfillmentCancel": {
           "fulfillment": {
-            "id": "gid://shopify/Fulfillment/7878976274738",
+            "id": "gid://shopify/Fulfillment/7878997410098",
             "status": "CANCELLED",
             "displayStatus": "CANCELED"
           },
@@ -433,10 +559,10 @@
     "query": "#graphql\n  mutation FulfillmentEventCreateValidation($fulfillmentEvent: FulfillmentEventInput!) {\n    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {\n      fulfillmentEvent {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
     "variables": {
       "fulfillmentEvent": {
-        "fulfillmentId": "gid://shopify/Fulfillment/7878976274738",
+        "fulfillmentId": "gid://shopify/Fulfillment/7878997410098",
         "status": "DELIVERED",
         "message": "HAR-582 cancelled fulfillment public API probe",
-        "happenedAt": "2026-05-05T20:00:34Z"
+        "happenedAt": "2026-05-05T20:22:01Z"
       }
     },
     "status": 200,
@@ -444,11 +570,11 @@
       "data": {
         "fulfillmentEventCreate": {
           "fulfillmentEvent": {
-            "id": "gid://shopify/FulfillmentEvent/35358729994546",
+            "id": "gid://shopify/FulfillmentEvent/35358878400818",
             "status": "DELIVERED",
             "message": "HAR-582 cancelled fulfillment public API probe",
-            "happenedAt": "2026-05-05T20:00:34Z",
-            "createdAt": "2026-05-05T19:58:36Z",
+            "happenedAt": "2026-05-05T20:22:01Z",
+            "createdAt": "2026-05-05T20:20:05Z",
             "estimatedDeliveryAt": null,
             "city": null,
             "province": null,
@@ -477,7 +603,7 @@
   "cleanup": {
     "query": "#graphql\n  mutation FulfillmentEventCreateValidationCleanup(\n    $orderId: ID!\n    $notifyCustomer: Boolean\n    $reason: OrderCancelReason!\n    $refund: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(\n      orderId: $orderId\n      notifyCustomer: $notifyCustomer\n      reason: $reason\n      refund: $refund\n      restock: $restock\n    ) {\n      job { id done }\n      orderCancelUserErrors { field message code }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
-      "orderId": "gid://shopify/Order/8731047231794",
+      "orderId": "gid://shopify/Order/8731073872178",
       "notifyCustomer": false,
       "reason": "OTHER",
       "refund": true,
@@ -488,7 +614,7 @@
       "data": {
         "orderCancel": {
           "job": {
-            "id": "gid://shopify/Job/8a4e8635-c2ec-4545-8239-e9e56081f5ba",
+            "id": "gid://shopify/Job/bfd70e92-f247-4e5b-87bd-20b51326dbc7",
             "done": false
           },
           "orderCancelUserErrors": [],
@@ -511,20 +637,20 @@
   "response": {
     "data": {
       "fulfillment": {
-        "id": "gid://shopify/Fulfillment/7878976274738",
+        "id": "gid://shopify/Fulfillment/7878997410098",
         "status": "SUCCESS",
         "displayStatus": "IN_TRANSIT",
-        "estimatedDeliveryAt": "2026-05-07T19:58:34Z",
-        "inTransitAt": "2026-05-05T19:59:34Z",
+        "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
+        "inTransitAt": "2026-05-05T20:21:01Z",
         "events": {
           "nodes": [
             {
-              "id": "gid://shopify/FulfillmentEvent/35358729863474",
+              "id": "gid://shopify/FulfillmentEvent/35358878302514",
               "status": "IN_TRANSIT",
               "message": "HAR-582 package scanned in transit",
-              "happenedAt": "2026-05-05T19:59:34Z",
-              "createdAt": "2026-05-05T19:58:36Z",
-              "estimatedDeliveryAt": "2026-05-07T19:58:34Z",
+              "happenedAt": "2026-05-05T20:21:01Z",
+              "createdAt": "2026-05-05T20:20:04Z",
+              "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
               "city": "Toronto",
               "province": "Ontario",
               "country": "Canada",
@@ -537,8 +663,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjozNTM1ODcyOTg2MzQ3NCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMTk6NTk6MzQuMDAwMDAwIn0=",
-            "endCursor": "eyJsYXN0X2lkIjozNTM1ODcyOTg2MzQ3NCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMTk6NTk6MzQuMDAwMDAwIn0="
+            "startCursor": "eyJsYXN0X2lkIjozNTM1ODg3ODMwMjUxNCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMjA6MjE6MDEuMDAwMDAwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjozNTM1ODg3ODMwMjUxNCwibGFzdF92YWx1ZSI6IjIwMjYtMDUtMDUgMjA6MjE6MDEuMDAwMDAwIn0="
           }
         }
       }
@@ -559,7 +685,7 @@
     {
       "operationName": "ShippingFulfillmentEventCreateFulfillmentHydrate",
       "variables": {
-        "id": "gid://shopify/Fulfillment/9999999991778011114123"
+        "id": "gid://shopify/Fulfillment/9999999991778012401782"
       },
       "query": "#graphql\n  query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {\n    fulfillment(id: $id) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      deliveredAt\n      estimatedDeliveryAt\n      inTransitAt\n      trackingInfo(first: 1) { number url company }\n      events(first: 5) {\n        nodes {\n          id\n          status\n          message\n          happenedAt\n          createdAt\n          estimatedDeliveryAt\n          city\n          province\n          country\n          zip\n          address1\n          latitude\n          longitude\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      service {\n        id\n        handle\n        serviceName\n        trackingSupport\n        type\n        location { id name }\n      }\n      location { id name }\n      originAddress { address1 address2 city countryCode provinceCode zip }\n      fulfillmentLineItems(first: 5) {\n        nodes { id quantity lineItem { id title } }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      order { id name displayFulfillmentStatus }\n    }\n  }\n",
       "response": {
@@ -585,7 +711,7 @@
     {
       "operationName": "ShippingFulfillmentEventCreateFulfillmentHydrate",
       "variables": {
-        "id": "gid://shopify/Fulfillment/7878976274738"
+        "id": "gid://shopify/Fulfillment/7878997410098"
       },
       "query": "#graphql\n  query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {\n    fulfillment(id: $id) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      deliveredAt\n      estimatedDeliveryAt\n      inTransitAt\n      trackingInfo(first: 1) { number url company }\n      events(first: 5) {\n        nodes {\n          id\n          status\n          message\n          happenedAt\n          createdAt\n          estimatedDeliveryAt\n          city\n          province\n          country\n          zip\n          address1\n          latitude\n          longitude\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      service {\n        id\n        handle\n        serviceName\n        trackingSupport\n        type\n        location { id name }\n      }\n      location { id name }\n      originAddress { address1 address2 city countryCode provinceCode zip }\n      fulfillmentLineItems(first: 5) {\n        nodes { id quantity lineItem { id title } }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      order { id name displayFulfillmentStatus }\n    }\n  }\n",
       "response": {
@@ -593,18 +719,18 @@
         "body": {
           "data": {
             "fulfillment": {
-              "id": "gid://shopify/Fulfillment/7878976274738",
+              "id": "gid://shopify/Fulfillment/7878997410098",
               "status": "SUCCESS",
               "displayStatus": "FULFILLED",
-              "createdAt": "2026-05-05T19:58:35Z",
-              "updatedAt": "2026-05-05T19:58:35Z",
+              "createdAt": "2026-05-05T20:20:02Z",
+              "updatedAt": "2026-05-05T20:20:02Z",
               "deliveredAt": null,
               "estimatedDeliveryAt": null,
               "inTransitAt": null,
               "trackingInfo": [
                 {
-                  "number": "HAR582-CREATE-1778011114123",
-                  "url": "https://example.com/track/HAR582-CREATE-1778011114123",
+                  "number": "HAR582-CREATE-1778012401782",
+                  "url": "https://example.com/track/HAR582-CREATE-1778012401782",
                   "company": "Hermes"
                 }
               ],
@@ -636,24 +762,24 @@
               "fulfillmentLineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentLineItem/17084145598770",
+                    "id": "gid://shopify/FulfillmentLineItem/17084187246898",
                     "quantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19304280850738",
-                      "title": "HAR-582 fulfillment event item 1778011114123"
+                      "id": "gid://shopify/LineItem/19304334459186",
+                      "title": "HAR-582 fulfillment event item 1778012401782"
                     }
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxNzA4NDE0NTU5ODc3MCwibGFzdF92YWx1ZSI6MTcwODQxNDU1OTg3NzB9",
-                  "endCursor": "eyJsYXN0X2lkIjoxNzA4NDE0NTU5ODc3MCwibGFzdF92YWx1ZSI6MTcwODQxNDU1OTg3NzB9"
+                  "startCursor": "eyJsYXN0X2lkIjoxNzA4NDE4NzI0Njg5OCwibGFzdF92YWx1ZSI6MTcwODQxODcyNDY4OTh9",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzA4NDE4NzI0Njg5OCwibGFzdF92YWx1ZSI6MTcwODQxODcyNDY4OTh9"
                 }
               },
               "order": {
-                "id": "gid://shopify/Order/8731047231794",
-                "name": "#1142",
+                "id": "gid://shopify/Order/8731073872178",
+                "name": "#1143",
                 "displayFulfillmentStatus": "FULFILLED"
               }
             }

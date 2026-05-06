@@ -1,0 +1,35 @@
+{
+  "scenarioId": "customer-set-email-upsert-when-id-absent",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T23:05:00.000Z",
+  "notes": "HAR-770 deterministic local-runtime control proving customerSet without identifier.id still follows the email upsert/create path and stages locally without upstream calls.",
+  "cases": {
+    "emailCreate": {
+      "request": {
+        "variables": {
+          "identifier": {
+            "email": "set-email@example.com"
+          },
+          "input": {
+            "email": "set-email@example.com",
+            "firstName": "Email"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/1",
+              "email": "set-email@example.com",
+              "firstName": "Email"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

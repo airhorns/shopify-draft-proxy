@@ -3,7 +3,7 @@
   "capturedAt": "2026-05-05T06:40:00.000Z",
   "source": "local-runtime",
   "apiVersion": "2026-04",
-  "summary": "Executable local parity fixture for HAR-703 validationUpdate input shape, active cap, and metafield persistence.",
+  "summary": "Executable local parity fixture for HAR-703/HAR-777 validationUpdate input shape, active cap, and metafield persistence.",
   "primary": {
     "response": {
       "data": {
@@ -27,7 +27,7 @@
         },
         "inactiveCapSubject": {
           "validation": {
-            "id": "gid://shopify/Validation/13",
+            "id": "gid://shopify/Validation/28",
             "enable": false,
             "blockOnFailure": false,
             "functionId": "gid://shopify/ShopifyFunction/validation-alpha"
@@ -65,8 +65,8 @@
           "validation": null,
           "userErrors": [
             {
-              "field": ["enable"],
-              "message": "Cannot have more than 10 active validation functions.",
+              "field": [],
+              "message": "Cannot have more than 25 active validation functions.",
               "code": "MAX_VALIDATIONS_ACTIVATED"
             }
           ]
@@ -177,6 +177,96 @@
             },
             {
               "id": "gid://shopify/Validation/13",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/14",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/15",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/16",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/17",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/18",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/19",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/20",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/21",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/22",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/23",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/24",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/25",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/26",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/27",
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/28",
               "metafields": {
                 "nodes": []
               }

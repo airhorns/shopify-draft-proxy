@@ -13,8 +13,9 @@
 //// `confirmation_url`, `token_hash`, `token_preview`).
 ////
 //// Note: the read path is pure of the store. Mutations thread
-//// `(store, identity)` forward and may auto-create a default app
-//// installation when one isn't registered yet.
+//// `(store, identity)` forward. Billing/token create helpers may
+//// auto-create a default app installation when one isn't registered yet;
+//// uninstall must only operate on an existing staged/hydrated install.
 
 import gleam/dict.{type Dict}
 import gleam/float
@@ -985,6 +986,7 @@ fn handle_mutation_fields(
                 document,
                 field,
                 fragments,
+                variables,
               ))
             "appRevokeAccessScopes" ->
               Some(handle_revoke_access_scopes(
@@ -1115,34 +1117,281 @@ fn handle_uninstall(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,
-  origin: String,
+  _origin: String,
   _document: String,
   field: Selection,
   fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let #(installation, store_after_ensure, identity_after_ensure) =
-    ensure_current_installation(store, identity, origin)
-  let #(timestamp, identity_after_ts) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_ensure)
-  let app =
-    store.get_effective_app_by_id(store_after_ensure, installation.app_id)
-  let updated =
-    AppInstallationRecord(..installation, uninstalled_at: Some(timestamp))
-  let #(_, store_staged) =
-    store.stage_app_installation(store_after_ensure, updated)
-  let payload = project_uninstall_payload(app, [], field, fragments)
-  let draft = make_log_draft("appUninstall", [installation.id], store.Staged)
+  let args = graphql_helpers.field_args(field, variables)
+  let input_id = uninstall_input_id(args)
+
+  case resolve_uninstall_target(store, input_id) {
+    Error(user_errors) ->
+      failed_uninstall_result(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        user_errors,
+      )
+    Ok(#(app, installation)) -> {
+      let #(timestamp, identity_after_ts) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let #(store_after_cascade, cascaded_ids) =
+        cascade_app_uninstall(store, installation, timestamp)
+      let updated =
+        AppInstallationRecord(
+          ..installation,
+          access_scopes: [],
+          active_subscription_ids: [],
+          uninstalled_at: Some(timestamp),
+        )
+      let #(_, store_staged) =
+        store.stage_app_installation(store_after_cascade, updated)
+      let staged_ids = [installation.id, ..cascaded_ids]
+      let payload = project_uninstall_payload(Some(app), [], field, fragments)
+      let draft = make_log_draft("appUninstall", staged_ids, store.Staged)
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: staged_ids,
+          log_drafts: [draft],
+        ),
+        store_staged,
+        identity_after_ts,
+      )
+    }
+  }
+}
+
+fn uninstall_input_id(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case graphql_helpers.read_arg_object(args, "input") {
+    Some(input) -> graphql_helpers.read_arg_string(input, "id")
+    None -> None
+  }
+}
+
+fn resolve_uninstall_target(
+  store: Store,
+  input_id: Option(String),
+) -> Result(#(AppRecord, AppInstallationRecord), List(UserError)) {
+  case input_id {
+    Some(app_id) ->
+      case store.get_effective_app_by_id(store, app_id) {
+        None -> Error([app_uninstall_app_not_found_error(["id"])])
+        Some(app) ->
+          case find_effective_app_installation_by_app_id(store, app.id) {
+            Some(installation) ->
+              case authorize_uninstall_target(store, app.id, ["id"]) {
+                Ok(Nil) -> Ok(#(app, installation))
+                Error(errors) -> Error(errors)
+              }
+            None -> Error([app_uninstall_not_installed_error(["id"])])
+          }
+      }
+    None ->
+      case store.get_current_app_installation(store) {
+        None -> Error([app_uninstall_not_installed_error(["base"])])
+        Some(installation) ->
+          case store.get_effective_app_by_id(store, installation.app_id) {
+            None -> Error([app_uninstall_app_not_found_error(["base"])])
+            Some(app) -> Ok(#(app, installation))
+          }
+      }
+  }
+}
+
+fn authorize_uninstall_target(
+  store: Store,
+  target_app_id: String,
+  field: List(String),
+) -> Result(Nil, List(UserError)) {
+  case store.get_current_app_installation(store) {
+    Some(current) if current.app_id == target_app_id -> Ok(Nil)
+    Some(current) ->
+      case installation_has_access_scope(current, "apps") {
+        True -> Ok(Nil)
+        False -> Error([app_uninstall_insufficient_permissions_error(field)])
+      }
+    None -> Error([app_uninstall_insufficient_permissions_error(field)])
+  }
+}
+
+fn installation_has_access_scope(
+  installation: AppInstallationRecord,
+  handle: String,
+) -> Bool {
+  installation.access_scopes
+  |> list.any(fn(scope) { scope.handle == handle })
+}
+
+fn find_effective_app_installation_by_app_id(
+  store: Store,
+  app_id: String,
+) -> Option(AppInstallationRecord) {
+  list.append(
+    store.base_state.app_installation_order,
+    store.staged_state.app_installation_order,
+  )
+  |> list.filter_map(fn(id) {
+    case store.get_effective_app_installation_by_id(store, id) {
+      Some(installation) -> Ok(installation)
+      None -> Error(Nil)
+    }
+  })
+  |> list.find(fn(installation) { installation.app_id == app_id })
+  |> result_option
+}
+
+fn result_option(value: Result(a, b)) -> Option(a) {
+  case value {
+    Ok(item) -> Some(item)
+    Error(_) -> None
+  }
+}
+
+fn app_uninstall_app_not_found_error(field: List(String)) -> UserError {
+  UserError(
+    field: field,
+    message: "The app cannot be found.",
+    code: Some("APP_NOT_FOUND"),
+  )
+}
+
+fn app_uninstall_not_installed_error(field: List(String)) -> UserError {
+  UserError(
+    field: field,
+    message: "App is not installed on this shop.",
+    code: Some("APP_NOT_INSTALLED"),
+  )
+}
+
+fn app_uninstall_insufficient_permissions_error(
+  field: List(String),
+) -> UserError {
+  UserError(
+    field: field,
+    message: "You do not have permission to uninstall this app.",
+    code: Some("INSUFFICIENT_PERMISSIONS"),
+  )
+}
+
+fn failed_uninstall_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(UserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload = project_uninstall_payload(None, errors, field, fragments)
+  let draft = make_log_draft("appUninstall", [], store.Failed)
   #(
     MutationFieldResult(
       key: key,
       payload: payload,
-      staged_resource_ids: [installation.id],
+      staged_resource_ids: [],
       log_drafts: [draft],
     ),
-    store_staged,
-    identity_after_ts,
+    store,
+    identity,
   )
+}
+
+fn cascade_app_uninstall(
+  store: Store,
+  installation: AppInstallationRecord,
+  timestamp: String,
+) -> #(Store, List(String)) {
+  let subscription_ids =
+    list.append(
+      installation.active_subscription_ids,
+      installation.all_subscription_ids,
+    )
+    |> unique_strings
+  let #(store_after_subscriptions, subscription_staged_ids) =
+    subscription_ids
+    |> list.fold(#(store, []), fn(acc, id) {
+      let #(current_store, staged_ids) = acc
+      case store.get_effective_app_subscription_by_id(current_store, id) {
+        Some(subscription) ->
+          case is_cancellable_subscription_status(subscription.status) {
+            True -> {
+              let cancelled =
+                AppSubscriptionRecord(..subscription, status: "CANCELLED")
+              let #(_, next_store) =
+                store.stage_app_subscription(current_store, cancelled)
+              #(next_store, [cancelled.id, ..staged_ids])
+            }
+            False -> #(current_store, staged_ids)
+          }
+        _ -> #(current_store, staged_ids)
+      }
+    })
+  let #(store_after_tokens, token_staged_ids) =
+    list_effective_delegated_access_tokens(store_after_subscriptions)
+    |> list.fold(#(store_after_subscriptions, []), fn(acc, token) {
+      let #(current_store, staged_ids) = acc
+      case token.destroyed_at {
+        Some(_) -> #(current_store, staged_ids)
+        None -> {
+          let next_store =
+            store.destroy_delegated_access_token(
+              current_store,
+              token.id,
+              timestamp,
+            )
+          #(next_store, [token.id, ..staged_ids])
+        }
+      }
+    })
+  #(store_after_tokens, list.append(subscription_staged_ids, token_staged_ids))
+}
+
+fn unique_strings(values: List(String)) -> List(String) {
+  values
+  |> list.fold([], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
+fn list_effective_delegated_access_tokens(
+  store: Store,
+) -> List(DelegatedAccessTokenRecord) {
+  list.append(
+    store.base_state.delegated_access_token_order,
+    store.staged_state.delegated_access_token_order,
+  )
+  |> unique_strings
+  |> list.filter_map(fn(id) {
+    case get_effective_delegated_access_token_by_id(store, id) {
+      Some(token) -> Ok(token)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn get_effective_delegated_access_token_by_id(
+  store: Store,
+  id: String,
+) -> Option(DelegatedAccessTokenRecord) {
+  case dict.get(store.staged_state.delegated_access_tokens, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.delegated_access_tokens, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
 }
 
 fn handle_revoke_access_scopes(
@@ -1700,25 +1949,25 @@ fn find_delegated_token_by_hash_any_state(
   }
 }
 
-fn access_token_not_found_user_error() -> UserError {
-  UserError(
-    field: [null_user_error_field_marker],
+fn access_token_not_found_user_error() -> DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: None,
     message: "Access token does not exist.",
     code: Some("ACCESS_TOKEN_NOT_FOUND"),
   )
 }
 
-fn access_denied_user_error() -> UserError {
-  UserError(
-    field: [null_user_error_field_marker],
+fn access_denied_user_error() -> DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: None,
     message: "Access denied.",
     code: Some("ACCESS_DENIED"),
   )
 }
 
-fn can_only_delete_delegate_tokens_user_error() -> UserError {
-  UserError(
-    field: [null_user_error_field_marker],
+fn can_only_delete_delegate_tokens_user_error() -> DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: None,
     message: "Can only delete delegate tokens.",
     code: Some("CAN_ONLY_DELETE_DELEGATE_TOKENS"),
   )
@@ -1729,7 +1978,7 @@ fn delegate_destroy_user_errors(
   request_headers: Dict(String, String),
   record: DelegatedAccessTokenRecord,
   active_token_hash: Option(String),
-) -> List(UserError) {
+) -> List(DelegateAccessTokenUserError) {
   case record.api_client_id == caller_api_client_id(store, request_headers) {
     False -> [access_denied_user_error()]
     True ->
@@ -1759,7 +2008,7 @@ fn failed_delegate_destroy_result(
   identity: SyntheticIdentityRegistry,
   field: Selection,
   fragments: FragmentMap,
-  errors: List(UserError),
+  errors: List(DelegateAccessTokenUserError),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let payload =
     project_delegate_destroy_payload(store, False, errors, field, fragments)
@@ -3690,6 +3939,8 @@ fn project_delegate_create_payload(
   project_payload(payload, field, fragments)
 }
 
+/// Return the Apps payload `Shop` source from hydrated store state when it is
+/// available, otherwise use a stable local fallback for non-null payload fields.
 fn current_shop_source(store: Store) -> SourceValue {
   case store.get_effective_shop(store) {
     Some(shop) -> store_properties.shop_source(shop)
@@ -3703,6 +3954,7 @@ fn synthetic_shop_source() -> SourceValue {
     #("id", SrcString(synthetic_shop_id)),
     #("name", SrcString("Shopify Draft Proxy")),
     #("myshopifyDomain", SrcString("shopify-draft-proxy.myshopify.com")),
+    #("currencyCode", SrcString(default_billing_currency)),
   ])
 }
 
@@ -3736,7 +3988,7 @@ fn delegate_user_error_to_source(
 fn project_delegate_destroy_payload(
   store: Store,
   status: Bool,
-  user_errors: List(UserError),
+  user_errors: List(DelegateAccessTokenUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
@@ -3744,7 +3996,7 @@ fn project_delegate_destroy_payload(
     src_object([
       #("status", SrcBool(status)),
       #("shop", current_shop_source(store)),
-      #("userErrors", user_errors_source(user_errors)),
+      #("userErrors", delegate_user_errors_source(user_errors)),
     ])
   project_payload(payload, field, fragments)
 }

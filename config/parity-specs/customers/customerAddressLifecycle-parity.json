@@ -228,9 +228,11 @@
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             },
             "identifier": {
-              "emailAddress": "hermes-address-1777157408181@example.com"
+              "fromCapturePath": "$.downstreamRead.variables.identifier"
             },
-            "query": "email:hermes-address-1777157408181@example.com"
+            "query": {
+              "fromCapturePath": "$.downstreamRead.variables.query"
+            }
           }
         }
       },
@@ -286,9 +288,11 @@
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             },
             "identifier": {
-              "emailAddress": "hermes-address-1777157408181@example.com"
+              "fromCapturePath": "$.orderingRead.variables.identifier"
             },
-            "query": "email:hermes-address-1777157408181@example.com"
+            "query": {
+              "fromCapturePath": "$.orderingRead.variables.query"
+            }
           }
         }
       },
@@ -327,9 +331,11 @@
               "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
             },
             "identifier": {
-              "emailAddress": "hermes-address-1777157408181@example.com"
+              "fromCapturePath": "$.deleteDefaultRead.variables.identifier"
             },
-            "query": "email:hermes-address-1777157408181@example.com"
+            "query": {
+              "fromCapturePath": "$.deleteDefaultRead.variables.query"
+            }
           }
         }
       },

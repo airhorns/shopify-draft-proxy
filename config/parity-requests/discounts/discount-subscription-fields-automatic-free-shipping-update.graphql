@@ -1,0 +1,23 @@
+mutation DiscountSubscriptionFieldsAutomaticFreeShippingUpdate($id: ID!) {
+  automaticFreeShippingUpdate: discountAutomaticFreeShippingUpdate(
+    id: $id
+    freeShippingAutomaticDiscount: {
+      title: "Automatic shipping skip"
+      startsAt: "2026-04-25T00:00:00Z"
+      destination: { all: true }
+      appliesOnSubscription: true
+      appliesOnOneTimePurchase: false
+      recurringCycleLimit: 3
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

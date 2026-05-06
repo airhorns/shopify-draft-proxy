@@ -1,0 +1,331 @@
+{
+  "scenarioId": "b2b-contact-delete-cleans-role-assignments",
+  "capturedAt": "2026-05-05T23:06:28.849Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-758",
+    "plan": "Record companyContactDelete removing location-side role assignments for the deleted contact."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation ContactCascadeCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              role { id name }\n              companyLocation { id name }\n            }\n          }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-758 contact-delete-cleans-role-assignments 1778022386792",
+            "note": "HAR-758 contact-removal role-assignment cascade contact-delete-cleans-role-assignments",
+            "externalId": "har-758-1778022386792-contactDelete"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Cascade contact-delete-cleans-role-assignments",
+            "email": "har-758-1778022386792-contact-delete-cleans-role-assignments@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "HAR-758 contact-delete-cleans-role-assignments 1778022386792 HQ",
+            "phone": "+16135550758",
+            "billingAddress": {
+              "address1": "758 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5439422770",
+            "name": "HAR-758 contact-delete-cleans-role-assignments 1778022386792",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10150084914",
+              "title": "Buyer",
+              "isMainContact": true,
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44650856754",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/10670309682",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8251310386",
+                      "name": "HAR-758 contact-delete-cleans-role-assignments 1778022386792 HQ"
+                    }
+                  }
+                ]
+              }
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8251310386",
+                  "name": "HAR-758 contact-delete-cleans-role-assignments 1778022386792 HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10670276914",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10670309682",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 32,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "extraLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5439422770",
+        "input": {
+          "name": "HAR-758 contact-delete-cleans-role-assignments Branch 1778022386792",
+          "phone": "+16135550759"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8251343154",
+            "name": "HAR-758 contact-delete-cleans-role-assignments Branch 1778022386792",
+            "company": {
+              "id": "gid://shopify/Company/5439422770"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignExtraLocationRole": {
+    "request": {
+      "query": "#graphql\n  mutation ContactCascadeAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact { id title }\n        role { id name }\n        companyLocation { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10150084914",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/10670276914",
+        "companyLocationId": "gid://shopify/CompanyLocation/8251343154"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRole": {
+          "companyContactRoleAssignment": {
+            "id": "gid://shopify/CompanyContactRoleAssignment/44650889522",
+            "companyContact": {
+              "id": "gid://shopify/CompanyContact/10150084914",
+              "title": "Buyer"
+            },
+            "role": {
+              "id": "gid://shopify/CompanyContactRole/10670276914",
+              "name": "Location admin"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8251343154",
+              "name": "HAR-758 contact-delete-cleans-role-assignments Branch 1778022386792"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRemoval": {
+    "request": {
+      "query": "#graphql\n  mutation ContactDeleteCleansRoleAssignments($companyContactId: ID!) {\n    companyContactDelete(companyContactId: $companyContactId) {\n      deletedCompanyContactId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10150084914"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactDelete": {
+          "deletedCompanyContactId": "gid://shopify/CompanyContact/10150084914",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterRemoval": {
+    "request": {
+      "query": "#graphql\n  query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {\n    mainLocation: companyLocation(id: $mainLocationId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    extraLocation: companyLocation(id: $extraLocationId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "mainLocationId": "gid://shopify/CompanyLocation/8251310386",
+        "extraLocationId": "gid://shopify/CompanyLocation/8251343154"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "mainLocation": {
+          "id": "gid://shopify/CompanyLocation/8251310386",
+          "roleAssignments": {
+            "nodes": []
+          }
+        },
+        "extraLocation": {
+          "id": "gid://shopify/CompanyLocation/8251343154",
+          "roleAssignments": {
+            "nodes": []
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation ContactCascadeCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5439422770"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5439422770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ContactCascadeLocationsRead",
+      "variables": {},
+      "query": "query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {\n  mainLocation: companyLocation(id: $mainLocationId) {\n    id\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  extraLocation: companyLocation(id: $extraLocationId) {\n    id\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $mainLocationId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 35
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            },
+            {
+              "message": "Variable $extraLocationId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 57
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
