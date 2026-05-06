@@ -22,8 +22,11 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Selection, Argument, Field, SelectionSet, StringValue, VariableValue,
+}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -36,8 +39,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection_with_field_serializers, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
-  MutationOutcome, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -1262,6 +1264,15 @@ type SegmentMutationPayload {
   )
 }
 
+type SegmentMutationFieldResult {
+  SegmentMutationFieldResult(
+    key: String,
+    payload: Option(Json),
+    top_level_errors: List(Json),
+    staged_resource_ids: List(String),
+  )
+}
+
 type SupportedSegmentQuery {
   NumberOfOrders(comparator: String, value: Int)
   CustomerTagsContains(value: String, negated: Bool)
@@ -1292,10 +1303,24 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [], [])
-  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
+  let initial = #([], [], store, identity, [], [])
+  let #(
+    data_entries,
+    all_errors,
+    final_store,
+    final_identity,
+    all_staged,
+    all_drafts,
+  ) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
+      let #(
+        entries,
+        errors,
+        current_store,
+        current_identity,
+        staged_ids,
+        drafts,
+      ) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -1345,12 +1370,26 @@ fn handle_mutation_fields(
                   "stage-locally",
                   Some(segments_notes_for(name.value)),
                 )
+              let next_entries = case result.payload {
+                Some(payload) -> list.append(entries, [#(result.key, payload)])
+                None -> entries
+              }
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_staged_ids = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
+                next_entries,
+                next_errors,
                 next_store,
                 next_identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged_ids,
+                next_drafts,
               )
             }
           }
@@ -1358,13 +1397,176 @@ fn handle_mutation_fields(
         _ -> acc
       }
     })
+  let envelope = mutation_envelope(data_entries, all_errors)
   MutationOutcome(
-    data: json.object([#("data", json.object(data_entries))]),
+    data: envelope,
     store: final_store,
     identity: final_identity,
-    staged_resource_ids: all_staged,
+    staged_resource_ids: case all_errors {
+      [] -> all_staged
+      _ -> []
+    },
     log_drafts: all_drafts,
   )
+}
+
+fn mutation_envelope(
+  entries: List(#(String, Json)),
+  errors: List(Json),
+) -> Json {
+  case errors, entries {
+    [], _ -> json.object([#("data", json.object(entries))])
+    _, [] -> json.object([#("errors", json.preprocessed_array(errors))])
+    _, _ ->
+      json.object([
+        #("errors", json.preprocessed_array(errors)),
+        #("data", json.object(entries)),
+      ])
+  }
+}
+
+type SegmentIdRead {
+  SegmentIdRead(value: String, source: SegmentIdSource)
+  SegmentIdMissing
+}
+
+type SegmentIdSource {
+  SegmentIdVariable(name: String)
+  SegmentIdLiteral
+}
+
+type SegmentIdValidation {
+  SegmentIdValid(value: String)
+  SegmentIdInvalidGlobalId(error: Json)
+  SegmentIdWrongResourceType(error: Json)
+}
+
+fn validate_segment_id_argument(
+  field: Selection,
+  args: Dict(String, root_field.ResolvedValue),
+  root_name: String,
+) -> SegmentIdValidation {
+  case read_segment_id(field, args) {
+    SegmentIdRead(value, source) -> {
+      case valid_segment_gid(value) {
+        True -> SegmentIdValid(value)
+        False ->
+          case string.starts_with(value, "gid://shopify/") {
+            True ->
+              SegmentIdWrongResourceType(segment_invalid_id_error(root_name))
+            False ->
+              SegmentIdInvalidGlobalId(invalid_global_id_error(
+                source,
+                root_name,
+                value,
+              ))
+          }
+      }
+    }
+    SegmentIdMissing ->
+      SegmentIdInvalidGlobalId(invalid_global_id_error(
+        SegmentIdLiteral,
+        root_name,
+        "",
+      ))
+  }
+}
+
+fn read_segment_id(
+  field: Selection,
+  args: Dict(String, root_field.ResolvedValue),
+) -> SegmentIdRead {
+  case graphql_helpers.read_arg_string(args, "id") {
+    Some(value) -> SegmentIdRead(value, segment_id_source(field))
+    None -> SegmentIdMissing
+  }
+}
+
+fn segment_id_source(field: Selection) -> SegmentIdSource {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: name, value: VariableValue(variable), ..)
+            if name.value == "id"
+          -> {
+            Ok(SegmentIdVariable(variable.name.value))
+          }
+          Argument(name: name, value: StringValue(..), ..)
+            if name.value == "id"
+          -> Ok(SegmentIdLiteral)
+          _ -> Error(Nil)
+        }
+      })
+      |> result.unwrap(SegmentIdLiteral)
+    _ -> SegmentIdLiteral
+  }
+}
+
+fn valid_segment_gid(value: String) -> Bool {
+  case string.split(value, "/") {
+    ["gid:", "", "shopify", "Segment", tail] -> tail != ""
+    _ -> False
+  }
+}
+
+fn invalid_global_id_error(
+  source: SegmentIdSource,
+  root_name: String,
+  value: String,
+) -> Json {
+  let message = "Invalid global id '" <> value <> "'"
+  case source {
+    SegmentIdVariable(variable_name) ->
+      json.object([
+        #(
+          "message",
+          json.string(
+            "Variable $"
+            <> variable_name
+            <> " of type ID! was provided invalid value",
+          ),
+        ),
+        #(
+          "extensions",
+          json.object([
+            #("code", json.string("INVALID_VARIABLE")),
+            #("value", json.string(value)),
+            #(
+              "problems",
+              json.preprocessed_array([
+                json.object([
+                  #("path", json.preprocessed_array([])),
+                  #("explanation", json.string(message)),
+                  #("message", json.string(message)),
+                ]),
+              ]),
+            ),
+          ]),
+        ),
+      ])
+    SegmentIdLiteral ->
+      json.object([
+        #("message", json.string(message)),
+        #("path", json.array(["mutation", root_name, "id"], json.string)),
+        #(
+          "extensions",
+          json.object([
+            #("code", json.string("argumentLiteralsIncompatible")),
+            #("typeName", json.string("CoercionError")),
+          ]),
+        ),
+      ])
+  }
+}
+
+fn segment_invalid_id_error(root_name: String) -> Json {
+  json.object([
+    #("message", json.string("invalid id")),
+    #("path", json.array([root_name], json.string)),
+    #("extensions", json.object([#("code", json.string("RESOURCE_NOT_FOUND"))])),
+  ])
 }
 
 /// Per-root-field log status for segments mutations. Default rule:
@@ -1395,7 +1597,7 @@ fn handle_segment_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+) -> #(SegmentMutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
@@ -1440,9 +1642,10 @@ fn handle_segment_create(
       let json_payload =
         segment_payload_json(payload, "SegmentCreatePayload", field, fragments)
       #(
-        MutationFieldResult(
+        SegmentMutationFieldResult(
           key: key,
-          payload: json_payload,
+          payload: Some(json_payload),
+          top_level_errors: [],
           staged_resource_ids: [record.id],
         ),
         store_after,
@@ -1459,9 +1662,10 @@ fn handle_segment_create(
       let json_payload =
         segment_payload_json(payload, "SegmentCreatePayload", field, fragments)
       #(
-        MutationFieldResult(
+        SegmentMutationFieldResult(
           key: key,
-          payload: json_payload,
+          payload: Some(json_payload),
+          top_level_errors: [],
           staged_resource_ids: [],
         ),
         store,
@@ -1477,108 +1681,140 @@ fn handle_segment_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+) -> #(SegmentMutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let id = graphql_helpers.read_arg_string_nonempty(args, "id")
-  let existing = case id {
-    Some(value) -> store.get_effective_segment_by_id(store, value)
-    None -> None
-  }
-  let id_errors = case id, existing {
-    Some(_), Some(_) -> []
-    _, _ -> [
-      user_error(["id"], "Segment does not exist", None),
-    ]
-  }
-  let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
-  let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
-  let name_present = arg_present(args, "name")
-  let query_present = arg_present(args, "query")
-  let name_errors =
-    validate_segment_name_optional(raw_name, name_present, [
-      "name",
-    ])
-  let query_errors = case query_present {
-    False -> []
-    True -> validate_segment_query(raw_query, ["query"])
-  }
-  let change_errors = case id_errors, name_present, query_present {
-    [], False, False -> [
-      null_field_user_error(
-        "At least one attribute to change must be present",
-        None,
+  case validate_segment_id_argument(field, args, key) {
+    SegmentIdInvalidGlobalId(error) -> #(
+      SegmentMutationFieldResult(
+        key: key,
+        payload: None,
+        top_level_errors: [error],
+        staged_resource_ids: [],
       ),
-    ]
-    _, _, _ -> []
-  }
-  let errors =
-    id_errors
-    |> list.append(name_errors)
-    |> list.append(query_errors)
-    |> list.append(change_errors)
-  case errors, id, existing {
-    [], Some(id_value), Some(current) -> {
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let new_name = case raw_name {
-        None -> current.name
-        Some(s) ->
-          Some(resolve_unique_segment_name(
+      store,
+      identity,
+    )
+    SegmentIdWrongResourceType(error) -> #(
+      SegmentMutationFieldResult(
+        key: key,
+        payload: Some(json.null()),
+        top_level_errors: [error],
+        staged_resource_ids: [],
+      ),
+      store,
+      identity,
+    )
+    SegmentIdValid(id_value) -> {
+      let existing = store.get_effective_segment_by_id(store, id_value)
+      let id_errors = case existing {
+        Some(_) -> []
+        None -> [
+          user_error(["id"], "Segment does not exist", None),
+        ]
+      }
+      let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
+      let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
+      let name_present = arg_present(args, "name")
+      let query_present = arg_present(args, "query")
+      let name_errors =
+        validate_segment_name_optional(raw_name, name_present, [
+          "name",
+        ])
+      let query_errors = case query_present {
+        False -> []
+        True -> validate_segment_query(raw_query, ["query"])
+      }
+      let change_errors = case id_errors, name_present, query_present {
+        [], False, False -> [
+          null_field_user_error(
+            "At least one attribute to change must be present",
+            None,
+          ),
+        ]
+        _, _, _ -> []
+      }
+      let errors =
+        id_errors
+        |> list.append(name_errors)
+        |> list.append(query_errors)
+        |> list.append(change_errors)
+      case errors, existing {
+        [], Some(current) -> {
+          let #(timestamp, identity_after_ts) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let new_name = case raw_name {
+            None -> current.name
+            Some(s) ->
+              Some(resolve_unique_segment_name(
+                store,
+                normalize_segment_name(s),
+                Some(current.id),
+              ))
+          }
+          let new_query = case raw_query {
+            None -> current.query
+            Some(s) -> Some(string.trim(s))
+          }
+          let updated =
+            SegmentRecord(
+              id: id_value,
+              name: new_name,
+              query: new_query,
+              creation_date: current.creation_date,
+              last_edit_date: Some(timestamp),
+            )
+          let #(_, store_after) = store.upsert_staged_segment(store, updated)
+          let payload =
+            SegmentMutationPayload(
+              segment: Some(updated),
+              deleted_segment_id: None,
+              user_errors: [],
+            )
+          let json_payload =
+            segment_payload_json(
+              payload,
+              "SegmentUpdatePayload",
+              field,
+              fragments,
+            )
+          #(
+            SegmentMutationFieldResult(
+              key: key,
+              payload: Some(json_payload),
+              top_level_errors: [],
+              staged_resource_ids: [updated.id],
+            ),
+            store_after,
+            identity_after_ts,
+          )
+        }
+        _, _ -> {
+          let payload =
+            SegmentMutationPayload(
+              segment: None,
+              deleted_segment_id: None,
+              user_errors: errors,
+            )
+          let json_payload =
+            segment_payload_json(
+              payload,
+              "SegmentUpdatePayload",
+              field,
+              fragments,
+            )
+          #(
+            SegmentMutationFieldResult(
+              key: key,
+              payload: Some(json_payload),
+              top_level_errors: [],
+              staged_resource_ids: [],
+            ),
             store,
-            normalize_segment_name(s),
-            Some(current.id),
-          ))
+            identity,
+          )
+        }
       }
-      let new_query = case raw_query {
-        None -> current.query
-        Some(s) -> Some(string.trim(s))
-      }
-      let updated =
-        SegmentRecord(
-          id: id_value,
-          name: new_name,
-          query: new_query,
-          creation_date: current.creation_date,
-          last_edit_date: Some(timestamp),
-        )
-      let #(_, store_after) = store.upsert_staged_segment(store, updated)
-      let payload =
-        SegmentMutationPayload(
-          segment: Some(updated),
-          deleted_segment_id: None,
-          user_errors: [],
-        )
-      let json_payload =
-        segment_payload_json(payload, "SegmentUpdatePayload", field, fragments)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [updated.id],
-        ),
-        store_after,
-        identity_after_ts,
-      )
-    }
-    _, _, _ -> {
-      let payload =
-        SegmentMutationPayload(
-          segment: None,
-          deleted_segment_id: None,
-          user_errors: errors,
-        )
-      let json_payload =
-        segment_payload_json(payload, "SegmentUpdatePayload", field, fragments)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [],
-        ),
-        store,
-        identity,
-      )
     }
   }
 }
@@ -1589,59 +1825,91 @@ fn handle_segment_delete(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+) -> #(SegmentMutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let id = graphql_helpers.read_arg_string_nonempty(args, "id")
-  let existing = case id {
-    Some(value) -> store.get_effective_segment_by_id(store, value)
-    None -> None
-  }
-  let errors = case id, existing {
-    Some(_), Some(_) -> []
-    _, _ -> [
-      user_error(["id"], "Segment does not exist", None),
-    ]
-  }
-  case errors, id {
-    [], Some(id_value) -> {
-      let store_after = store.delete_staged_segment(store, id_value)
-      let payload =
-        SegmentMutationPayload(
-          segment: None,
-          deleted_segment_id: Some(id_value),
-          user_errors: [],
-        )
-      let json_payload =
-        segment_payload_json(payload, "SegmentDeletePayload", field, fragments)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [],
-        ),
-        store_after,
-        identity,
-      )
-    }
-    _, _ -> {
-      let payload =
-        SegmentMutationPayload(
-          segment: None,
-          deleted_segment_id: None,
-          user_errors: errors,
-        )
-      let json_payload =
-        segment_payload_json(payload, "SegmentDeletePayload", field, fragments)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [],
-        ),
-        store,
-        identity,
-      )
+  case validate_segment_id_argument(field, args, key) {
+    SegmentIdInvalidGlobalId(error) -> #(
+      SegmentMutationFieldResult(
+        key: key,
+        payload: None,
+        top_level_errors: [error],
+        staged_resource_ids: [],
+      ),
+      store,
+      identity,
+    )
+    SegmentIdWrongResourceType(error) -> #(
+      SegmentMutationFieldResult(
+        key: key,
+        payload: Some(json.null()),
+        top_level_errors: [error],
+        staged_resource_ids: [],
+      ),
+      store,
+      identity,
+    )
+    SegmentIdValid(id_value) -> {
+      let existing = store.get_effective_segment_by_id(store, id_value)
+      let errors = case existing {
+        Some(_) -> []
+        None -> [
+          user_error(["id"], "Segment does not exist", None),
+        ]
+      }
+      case errors {
+        [] -> {
+          let store_after = store.delete_staged_segment(store, id_value)
+          let payload =
+            SegmentMutationPayload(
+              segment: None,
+              deleted_segment_id: Some(id_value),
+              user_errors: [],
+            )
+          let json_payload =
+            segment_payload_json(
+              payload,
+              "SegmentDeletePayload",
+              field,
+              fragments,
+            )
+          #(
+            SegmentMutationFieldResult(
+              key: key,
+              payload: Some(json_payload),
+              top_level_errors: [],
+              staged_resource_ids: [],
+            ),
+            store_after,
+            identity,
+          )
+        }
+        _ -> {
+          let payload =
+            SegmentMutationPayload(
+              segment: None,
+              deleted_segment_id: None,
+              user_errors: errors,
+            )
+          let json_payload =
+            segment_payload_json(
+              payload,
+              "SegmentDeletePayload",
+              field,
+              fragments,
+            )
+          #(
+            SegmentMutationFieldResult(
+              key: key,
+              payload: Some(json_payload),
+              top_level_errors: [],
+              staged_resource_ids: [],
+            ),
+            store,
+            identity,
+          )
+        }
+      }
     }
   }
 }
@@ -1668,7 +1936,7 @@ fn handle_customer_segment_members_query_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+) -> #(SegmentMutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let input = case dict.get(args, "input") {
@@ -1728,9 +1996,10 @@ fn handle_customer_segment_members_query_create(
       let json_payload =
         customer_segment_members_query_payload_json(payload, field, fragments)
       #(
-        MutationFieldResult(
+        SegmentMutationFieldResult(
           key: key,
-          payload: json_payload,
+          payload: Some(json_payload),
+          top_level_errors: [],
           staged_resource_ids: [gid],
         ),
         store_after,
@@ -1746,9 +2015,10 @@ fn handle_customer_segment_members_query_create(
       let json_payload =
         customer_segment_members_query_payload_json(payload, field, fragments)
       #(
-        MutationFieldResult(
+        SegmentMutationFieldResult(
           key: key,
-          payload: json_payload,
+          payload: Some(json_payload),
+          top_level_errors: [],
           staged_resource_ids: [],
         ),
         store,
