@@ -1,0 +1,368 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "createFormatted": {
+    "variables": {
+      "input": {
+        "firstName": "Hermes",
+        "lastName": "PhoneNormalization",
+        "phone": "+1 (613) 450-5293",
+        "tags": ["phone-normalization-1778098735293"]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585975554354",
+            "phone": "+16134505293",
+            "defaultPhoneNumber": {
+              "phoneNumber": "+16134505293"
+            },
+            "createdAt": "2026-05-06T20:18:55Z",
+            "updatedAt": "2026-05-06T20:18:55Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateNormalized": {
+    "variables": {
+      "input": {
+        "firstName": "Hermes",
+        "lastName": "PhoneDuplicate",
+        "phone": "+16134505293"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["phone"],
+              "message": "Phone has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateSetup": {
+    "variables": {
+      "input": {
+        "firstName": "Hermes",
+        "lastName": "PhoneUpdateSetup",
+        "phone": "+14155555294",
+        "tags": ["phone-update-1778098735293"]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585975619890",
+            "phone": "+14155555294",
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14155555294"
+            },
+            "createdAt": "2026-05-06T20:18:55Z",
+            "updatedAt": "2026-05-06T20:18:55Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1918,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateFormatted": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Customer/10585975619890",
+        "phone": "+1-613-450-5295"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerUpdate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10585975619890",
+            "phone": "+16134505295",
+            "defaultPhoneNumber": {
+              "phoneNumber": "+16134505295"
+            },
+            "createdAt": "2026-05-06T20:18:55Z",
+            "updatedAt": "2026-05-06T20:18:55Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalid": {
+    "variables": {
+      "input": {
+        "phone": "+1234abcd"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["phone"],
+              "message": "Phone is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1973,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tooLong": {
+    "variables": {
+      "input": {
+        "phone": "+111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["phone"],
+              "message": "Phone is too long (maximum is 255 characters)"
+            },
+            {
+              "field": ["phone"],
+              "message": "Phone is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setInvalid": {
+    "variables": {
+      "identifier": {
+        "email": "hermes-phone-set-invalid-1778098735293@example.com"
+      },
+      "input": {
+        "email": "hermes-phone-set-invalid-1778098735293@example.com",
+        "phone": "+1234abcd"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["input", "phone"],
+              "message": "Phone is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585975619890"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585975619890",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10585975554354"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10585975554354",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+16134505293"
+      },
+      "query": "query CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) { nodes { id } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+14155555294"
+      },
+      "query": "query CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) { nodes { id } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

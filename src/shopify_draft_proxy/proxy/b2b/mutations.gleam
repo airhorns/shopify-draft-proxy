@@ -48,6 +48,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 
+import shopify_draft_proxy/proxy/phone_numbers
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -603,89 +604,7 @@ pub fn contact_phone_exists(
 
 @internal
 pub fn normalize_phone(store: Store, phone: String) -> Result(String, Nil) {
-  let trimmed = string.trim(phone)
-  let digits = digits_only(trimmed)
-  case string.starts_with(trimmed, "+") {
-    True -> validate_e164_digits(digits)
-    False -> {
-      let calling_code = country_calling_code(shop_country_code(store))
-      let local_digits = case
-        string.starts_with(digits, calling_code) && string.length(digits) > 10
-      {
-        True -> digits
-        False -> calling_code <> digits
-      }
-      validate_e164_digits(local_digits)
-    }
-  }
-}
-
-@internal
-pub fn validate_e164_digits(digits: String) -> Result(String, Nil) {
-  let length = string.length(digits)
-  case length >= 8 && length <= 15 && all_digits(digits) {
-    True -> Ok("+" <> digits)
-    False -> Error(Nil)
-  }
-}
-
-@internal
-pub fn shop_country_code(store: Store) -> String {
-  case store.get_effective_shop(store) {
-    Some(shop) ->
-      shop.shop_address.country_code_v2
-      |> option.map(string.uppercase)
-      |> option.unwrap("US")
-    None -> "US"
-  }
-}
-
-@internal
-pub fn country_calling_code(country_code: String) -> String {
-  case country_code {
-    "US" | "CA" -> "1"
-    "GB" | "GG" | "IM" | "JE" -> "44"
-    "AU" -> "61"
-    "NZ" -> "64"
-    "FR" -> "33"
-    "DE" -> "49"
-    "ES" -> "34"
-    "IT" -> "39"
-    "NL" -> "31"
-    "BE" -> "32"
-    "CH" -> "41"
-    "AT" -> "43"
-    "DK" -> "45"
-    "FI" -> "358"
-    "IE" -> "353"
-    "NO" -> "47"
-    "SE" -> "46"
-    "BR" -> "55"
-    "MX" -> "52"
-    "JP" -> "81"
-    "SG" -> "65"
-    _ -> "1"
-  }
-}
-
-@internal
-pub fn digits_only(value: String) -> String {
-  case string.pop_grapheme(value) {
-    Error(_) -> ""
-    Ok(#(grapheme, rest)) ->
-      case is_digit_string(grapheme) {
-        True -> grapheme <> digits_only(rest)
-        False -> digits_only(rest)
-      }
-  }
-}
-
-@internal
-pub fn all_digits(value: String) -> Bool {
-  case string.pop_grapheme(value) {
-    Error(_) -> True
-    Ok(#(grapheme, rest)) -> is_digit_string(grapheme) && all_digits(rest)
-  }
+  phone_numbers.normalize_for_store(store, phone)
 }
 
 @internal
