@@ -1273,6 +1273,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translations-mutation-noop-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-mutation-noop-validation-conformance.mts',
+    purpose:
+      'translationsRemove unknown-key and disabled-locale no-op success behavior plus translationsRegister primary-locale validation.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-mutation-noop-validation.json`,
+      'config/parity-specs/localization/localization-translations-mutation-noop-validation.json',
+      'config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, temporarily enables and disables Italian for the disabled-locale removal branch, deletes the product, and restores Italian only if it was enabled before capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-market-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-market-translations-conformance.mts',
