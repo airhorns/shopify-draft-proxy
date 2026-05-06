@@ -12,10 +12,13 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state.{DraftProxy, Request, Response}
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CustomerRecord, type SegmentRecord, CustomerDefaultEmailAddressRecord,
@@ -61,6 +64,26 @@ fn run_mutation_with_variables(
       empty_upstream_context(),
     )
   json.to_string(outcome.data)
+}
+
+fn graphql_request(body: String) -> draft_proxy.Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.new(),
+    body: json.to_string(json.object([#("query", json.string(body))])),
+  )
+}
+
+fn run_proxy_mutation(
+  store_in: store.Store,
+  document: String,
+) -> #(Int, String, draft_proxy.DraftProxy) {
+  let proxy = draft_proxy.new()
+  let proxy = DraftProxy(..proxy, store: store_in)
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(document))
+  #(status, json.to_string(body), next_proxy)
 }
 
 fn seed(store_in: store.Store, record: SegmentRecord) -> store.Store {
@@ -673,16 +696,22 @@ pub fn segment_create_bumps_requested_trailing_numeric_suffix_test() {
 
 pub fn segment_create_duplicate_retry_cap_returns_taken_test() {
   let s = seed_duplicate_segment_names(store.new(), "Bar", 1, 11)
-  let outcome =
-    run_mutation_outcome(
-      s,
-      "mutation { segmentCreate(name: \"Bar\", query: \"number_of_orders >= 10\") { segment { name } userErrors { field message } } }",
-    )
+  let document =
+    "mutation { segmentCreate(name: \"Bar\", query: \"number_of_orders >= 10\") { segment { name } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
   let body = json.to_string(outcome.data)
   assert body
     == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name has already been taken\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert list.length(store.list_effective_segments(outcome.store)) == 11
+
+  let #(status, proxy_body, proxy_after) = run_proxy_mutation(s, document)
+  assert status == 200
+  assert proxy_body == body
+  let assert [entry] = store.get_log(proxy_after.store)
+  assert entry.query == document
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
 }
 
 pub fn segment_update_self_rename_does_not_collide_test() {

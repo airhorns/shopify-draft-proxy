@@ -8,7 +8,6 @@
 
 import gleam/int
 import gleam/list
-import gleam/option.{type Option, None, Some}
 import gleam/string
 import parity/diff
 import parity/discover
@@ -21,61 +20,13 @@ pub type Outcome {
   Failed(spec_path: String, message: String)
 }
 
-pub fn parity_specs_admin_to_discounts_corpus_shard_pass_test() {
-  run_shard("admin-discounts")
-}
-
-pub fn parity_specs_events_to_metaobjects_corpus_shard_pass_test() {
-  run_shard("events-metaobjects")
-}
-
-pub fn parity_specs_online_store_to_products_corpus_shard_pass_test() {
-  run_shard("online-products")
-}
-
-pub fn parity_specs_saved_searches_to_webhooks_corpus_shard_pass_test() {
-  run_shard("saved-webhooks")
-}
-
-pub fn parity_shards_exactly_cover_the_discovered_corpus_test() {
+pub fn all_discovered_parity_specs_pass_test() {
   let assert Ok(discovered_paths) = discover.discover(parity_root)
-  let spec_paths = normalized_spec_paths(discovered_paths)
-  let unassigned =
-    list.filter(spec_paths, fn(path) {
-      case shard_for_domain(spec_domain(path)) {
-        Some(_) -> False
-        None -> True
-      }
-    })
-  case unassigned {
-    [] -> Nil
-    _ -> panic as render_section("unassigned parity specs", unassigned)
-  }
-  let assigned_paths =
-    shard_labels()
-    |> list.fold([], fn(acc, shard) {
-      list.append(spec_paths_for_shard(spec_paths, shard), acc)
-    })
+  let spec_paths =
+    discovered_paths
+    |> list.map(repo_relative_path)
     |> list.sort(by: string.compare)
-  case assigned_paths == spec_paths {
-    True -> Nil
-    False ->
-      panic as string.join(
-          [
-            "parity shard assignment did not exactly cover the corpus",
-            "discovered: " <> int.to_string(list.length(spec_paths)),
-            "assigned: " <> int.to_string(list.length(assigned_paths)),
-          ],
-          "\n",
-        )
-  }
-}
-
-fn run_shard(label: String) {
-  let assert Ok(discovered_paths) = discover.discover(parity_root)
-  let spec_paths = normalized_spec_paths(discovered_paths)
-  let shard_paths = spec_paths_for_shard(spec_paths, label)
-  let outcomes = list.map(shard_paths, run_one)
+  let outcomes = list.map(spec_paths, run_one)
 
   let failures =
     outcomes
@@ -88,78 +39,8 @@ fn run_shard(label: String) {
     })
 
   case failures {
-    [] ->
-      case shard_paths {
-        [] -> {
-          let message = "parity shard '" <> label <> "' matched no specs"
-          panic as message
-        }
-        _ -> Nil
-      }
-    _ -> panic as render_summary(label, failures)
-  }
-}
-
-fn shard_labels() -> List(String) {
-  ["admin-discounts", "events-metaobjects", "online-products", "saved-webhooks"]
-}
-
-fn normalized_spec_paths(paths: List(String)) -> List(String) {
-  paths
-  |> list.map(repo_relative_path)
-  |> list.sort(by: string.compare)
-}
-
-fn spec_paths_for_shard(
-  spec_paths: List(String),
-  label: String,
-) -> List(String) {
-  list.filter(spec_paths, fn(path) {
-    case shard_for_domain(spec_domain(path)) {
-      Some(shard) -> shard == label
-      None -> False
-    }
-  })
-}
-
-fn spec_domain(path: String) -> String {
-  case string.split(path, on: "/") {
-    ["config", "parity-specs", domain, ..] -> domain
-    [domain, ..] -> domain
-    _ -> ""
-  }
-}
-
-fn shard_for_domain(domain: String) -> Option(String) {
-  case domain {
-    "admin-platform" -> Some("admin-discounts")
-    "apps" -> Some("admin-discounts")
-    "b2b" -> Some("admin-discounts")
-    "bulk-operations" -> Some("admin-discounts")
-    "customers" -> Some("admin-discounts")
-    "discounts" -> Some("admin-discounts")
-    "events" -> Some("events-metaobjects")
-    "functions" -> Some("events-metaobjects")
-    "gift-cards" -> Some("events-metaobjects")
-    "localization" -> Some("events-metaobjects")
-    "marketing" -> Some("events-metaobjects")
-    "markets" -> Some("events-metaobjects")
-    "media" -> Some("events-metaobjects")
-    "metafields" -> Some("events-metaobjects")
-    "metaobjects" -> Some("events-metaobjects")
-    "online-store-article-media-navigation-follow-through.json" ->
-      Some("online-products")
-    "online-store" -> Some("online-products")
-    "orders" -> Some("online-products")
-    "payments" -> Some("online-products")
-    "privacy" -> Some("online-products")
-    "products" -> Some("online-products")
-    "saved-searches" -> Some("saved-webhooks")
-    "segments" -> Some("saved-webhooks")
-    "shipping-fulfillments" -> Some("saved-webhooks")
-    "store-properties" -> Some("saved-webhooks")
-    "webhooks" -> Some("saved-webhooks")
-    _ -> None
+    [] -> Nil
+    _ -> panic as render_summary(failures)
   }
 }
 
@@ -197,10 +78,10 @@ fn first_line(message: String) -> String {
   }
 }
 
-fn render_summary(shard: String, failures: List(String)) -> String {
+fn render_summary(failures: List(String)) -> String {
   string.join(
     [
-      "Gleam parity corpus failed for shard '" <> shard <> "'.",
+      "Gleam parity corpus failed.",
       render_section("failures", failures),
     ],
     "\n",
