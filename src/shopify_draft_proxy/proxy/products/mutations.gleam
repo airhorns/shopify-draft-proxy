@@ -40,99 +40,73 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/products/collections_l03.{
+import shopify_draft_proxy/proxy/products/collections_core.{
+  handle_collection_add_products, handle_collection_add_products_v2,
   handle_collection_delete, handle_collection_remove_products,
+  handle_collection_reorder_products, handle_collection_update,
 }
-import shopify_draft_proxy/proxy/products/collections_l05.{
-  handle_collection_add_products_v2, handle_collection_reorder_products,
-}
-import shopify_draft_proxy/proxy/products/collections_l10.{
-  handle_collection_add_products, handle_collection_update,
-}
-import shopify_draft_proxy/proxy/products/collections_l16.{
+import shopify_draft_proxy/proxy/products/collections_serializers.{
   handle_collection_create,
 }
 import shopify_draft_proxy/proxy/products/hydration.{
   hydrate_products_for_live_hybrid_mutation,
 }
-import shopify_draft_proxy/proxy/products/inventory_l05.{
+import shopify_draft_proxy/proxy/products/inventory_apply.{
   handle_inventory_deactivate,
 }
-import shopify_draft_proxy/proxy/products/inventory_l12.{
-  handle_inventory_activate, handle_inventory_bulk_toggle_activation,
-  handle_inventory_item_update,
+import shopify_draft_proxy/proxy/products/inventory_handlers.{
+  handle_inventory_activate, handle_inventory_adjust_quantities,
+  handle_inventory_bulk_toggle_activation, handle_inventory_item_update,
+  handle_inventory_move_quantities, handle_inventory_set_quantities,
 }
-import shopify_draft_proxy/proxy/products/inventory_l14.{
-  handle_inventory_adjust_quantities, handle_inventory_move_quantities,
-}
-import shopify_draft_proxy/proxy/products/inventory_l15.{
-  handle_inventory_set_quantities,
-}
-import shopify_draft_proxy/proxy/products/inventory_shipments_l07.{
-  handle_inventory_shipment_delete,
-}
-import shopify_draft_proxy/proxy/products/inventory_shipments_l14.{
+import shopify_draft_proxy/proxy/products/inventory_shipments_handlers.{
   handle_inventory_shipment_add_items, handle_inventory_shipment_create,
-  handle_inventory_shipment_mark_in_transit, handle_inventory_shipment_receive,
-  handle_inventory_shipment_remove_items, handle_inventory_shipment_set_tracking,
+  handle_inventory_shipment_delete, handle_inventory_shipment_mark_in_transit,
+  handle_inventory_shipment_receive, handle_inventory_shipment_remove_items,
+  handle_inventory_shipment_set_tracking,
   handle_inventory_shipment_update_item_quantities,
 }
-import shopify_draft_proxy/proxy/products/inventory_transfers_l15.{
+import shopify_draft_proxy/proxy/products/inventory_transfers.{
   handle_inventory_transfer_mutation,
 }
-import shopify_draft_proxy/proxy/products/media_l13.{
-  handle_product_variant_media_mutation,
+import shopify_draft_proxy/proxy/products/media_handlers.{
+  handle_product_media_mutation, handle_product_variant_media_mutation,
 }
-import shopify_draft_proxy/proxy/products/media_l15.{
-  handle_product_media_mutation,
+import shopify_draft_proxy/proxy/products/products_handlers.{
+  handle_product_change_status, handle_product_create, handle_product_duplicate,
+  handle_product_set, handle_product_update, handle_tags_update,
 }
-import shopify_draft_proxy/proxy/products/products_l04.{handle_product_delete}
-import shopify_draft_proxy/proxy/products/products_l13.{
-  handle_product_change_status, handle_product_create, handle_product_update,
-  handle_tags_update,
+import shopify_draft_proxy/proxy/products/products_validation.{
+  handle_product_delete,
 }
-import shopify_draft_proxy/proxy/products/products_l15.{
-  handle_product_duplicate, handle_product_set,
-}
-import shopify_draft_proxy/proxy/products/publications_l03.{
-  handle_product_bundle_mutation, handle_product_feed_create,
-  handle_product_feed_delete, handle_product_full_sync,
-  handle_product_variant_relationship_bulk_update,
-}
-import shopify_draft_proxy/proxy/products/publications_l04.{
-  handle_bulk_product_resource_feedback_create,
+import shopify_draft_proxy/proxy/products/publications_feeds.{
+  handle_bulk_product_resource_feedback_create, handle_product_bundle_mutation,
+  handle_product_feed_create, handle_product_feed_delete,
+  handle_product_full_sync, handle_product_variant_relationship_bulk_update,
   handle_shop_resource_feedback_create,
 }
-import shopify_draft_proxy/proxy/products/publications_l09.{
+import shopify_draft_proxy/proxy/products/publications_handlers.{
+  handle_combined_listing_update, handle_product_publication_mutation,
+  handle_publishable_publication_mutation,
+}
+import shopify_draft_proxy/proxy/products/publications_publishable.{
   handle_publication_mutation,
 }
-import shopify_draft_proxy/proxy/products/publications_l12.{
-  handle_combined_listing_update,
+import shopify_draft_proxy/proxy/products/selling_plans_handlers.{
+  handle_product_selling_plan_group_mutation, handle_selling_plan_group_mutation,
 }
-import shopify_draft_proxy/proxy/products/publications_l13.{
-  handle_product_publication_mutation, handle_publishable_publication_mutation,
+import shopify_draft_proxy/proxy/products/shared_money.{
+  admin_api_version_at_least,
 }
-import shopify_draft_proxy/proxy/products/selling_plans_l13.{
-  handle_product_selling_plan_group_mutation,
-}
-import shopify_draft_proxy/proxy/products/selling_plans_l16.{
-  handle_selling_plan_group_mutation,
-}
-import shopify_draft_proxy/proxy/products/shared_l02.{admin_api_version_at_least}
-import shopify_draft_proxy/proxy/products/variants_l06.{
-  handle_product_variant_delete,
-}
-import shopify_draft_proxy/proxy/products/variants_l13.{
+import shopify_draft_proxy/proxy/products/variants_handlers.{
+  handle_product_option_update, handle_product_options_create,
+  handle_product_options_delete, handle_product_options_reorder,
   handle_product_variant_create, handle_product_variant_update,
-  handle_product_variants_bulk_delete, handle_product_variants_bulk_reorder,
+  handle_product_variants_bulk_create, handle_product_variants_bulk_delete,
+  handle_product_variants_bulk_reorder, handle_product_variants_bulk_update,
 }
-import shopify_draft_proxy/proxy/products/variants_l14.{
-  handle_product_option_update, handle_product_options_delete,
-  handle_product_options_reorder, handle_product_variants_bulk_create,
-  handle_product_variants_bulk_update,
-}
-import shopify_draft_proxy/proxy/products/variants_l15.{
-  handle_product_options_create,
+import shopify_draft_proxy/proxy/products/variants_validation.{
+  handle_product_variant_delete,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,

@@ -40,7 +40,9 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
-import shopify_draft_proxy/proxy/products/variants_l00.{has_only_default_variant}
+import shopify_draft_proxy/proxy/products/variants_helpers.{
+  has_only_default_variant,
+}
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
