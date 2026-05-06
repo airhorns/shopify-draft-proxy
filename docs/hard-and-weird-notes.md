@@ -113,6 +113,12 @@ Two nearby 2026-04 traps from the same capture:
 - duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
   returns `addresses: null` and a single `INVALID_INPUT` userError with
   `field: null` and message `Invalid input.`
+- `CompanyLocationUpdateInput` does not expose `billingAddress` or
+  `shippingAddress` in the checked public schema or the live 2026-04 target.
+  Internal Business Customers code has an address-update validator path, but
+  public GraphQL parity for location-update address validation cannot be
+  captured through this input shape; keep local update-path coverage in focused
+  runtime tests unless a later public schema exposes address fields.
 
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 

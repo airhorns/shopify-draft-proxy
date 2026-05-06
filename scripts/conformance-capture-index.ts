@@ -207,6 +207,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-address-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-address-validation-conformance.mts',
+    purpose:
+      'B2B CompanyAddressInput country, zone, zip, HTML, emoji, and name URL validation branches for location create, assign-address, and nested company-create location inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-address-validation.json`,
+      'config/parity-specs/b2b/b2b-address-validation.json',
+      'config/parity-requests/b2b/b2b-address-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with a location for validation targets, records resolver userErrors that do not create additional records, then deletes the setup company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      '`CompanyLocationUpdateInput` does not expose address fields in the public Admin GraphQL schema on the live capture target; update-path address validation remains runtime-test-backed.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-company-update-customer-since',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-update-customer-since-conformance.mts',
@@ -3978,6 +3997,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/customers/customerMerge-parity.json',
     ],
     cleanupBehavior: 'Creates disposable customers; merge consumes source records and cleanup removes leftovers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-merge-blockers',
+    scriptPath: 'scripts/capture-customer-merge-blockers-conformance.mts',
+    purpose: 'Synchronous customerMerge blockers for combined tags, combined notes, and gift-card assignments.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_customer_merge',
+      'write_customer_merge',
+      'read_gift_cards',
+      'write_gift_cards',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-merge-blockers.json`,
+      'config/parity-specs/customers/customerMerge-blockers.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers and one assigned gift card; deactivates the gift card and deletes customers after validation.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
