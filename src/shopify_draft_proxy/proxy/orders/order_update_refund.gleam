@@ -20,6 +20,9 @@ import shopify_draft_proxy/graphql/ast.{
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/customers/customer_mutations
+import shopify_draft_proxy/proxy/customers/customer_types.{UserError}
+import shopify_draft_proxy/proxy/customers/inputs as customer_inputs
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   SelectedFieldOptions, SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt,
@@ -55,7 +58,7 @@ import shopify_draft_proxy/proxy/orders/order_create.{
   serialize_order_mutation_error_payload,
 }
 import shopify_draft_proxy/proxy/orders/order_types.{
-  type RefundCreateUserError, RefundCreateUserError,
+  type OrderMutationUserError, type RefundCreateUserError, RefundCreateUserError,
 }
 import shopify_draft_proxy/proxy/orders/serializers.{
   serialize_order_mutation_payload, serialize_order_node,
@@ -129,44 +132,66 @@ pub fn handle_order_update_mutation(
         Ok(root_field.ObjectVal(input)) ->
           case read_string(input, "id") {
             Some(id) -> {
-              // Pattern 2: orderUpdate merges input into the existing order,
-              // so hydrate the upstream/cassette order before staging locally.
-              let hydrated_store =
-                maybe_hydrate_order_by_id(store, id, upstream)
-              case store.get_order_by_id(hydrated_store, id) {
-                None -> #(
+              case validate_order_update_business_input(input) {
+                [first, ..rest] -> #(
                   key,
-                  serialize_order_mutation_error_payload(field, [
-                    mutation_user_error(["id"], "Order does not exist"),
-                  ]),
-                  hydrated_store,
+                  serialize_order_mutation_payload(
+                    field,
+                    None,
+                    [first, ..rest],
+                    fragments,
+                  ),
+                  store,
                   identity,
                   [],
                   [],
                   [],
                 )
-                Some(order) -> {
-                  let #(updated_order, next_identity) =
-                    build_updated_order(order, input, identity)
-                  let next_store =
-                    store.stage_order(hydrated_store, updated_order)
-                  let payload =
-                    serialize_order_mutation_payload(
-                      field,
-                      Some(updated_order),
+                [] -> {
+                  // Pattern 2: orderUpdate merges input into the existing order,
+                  // so hydrate the upstream/cassette order before staging locally.
+                  let hydrated_store =
+                    maybe_hydrate_order_by_id(store, id, upstream)
+                  case store.get_order_by_id(hydrated_store, id) {
+                    None -> #(
+                      key,
+                      serialize_order_mutation_error_payload(field, [
+                        mutation_user_error(["id"], "Order does not exist"),
+                      ]),
+                      hydrated_store,
+                      identity,
                       [],
-                      fragments,
+                      [],
+                      [],
                     )
-                  let draft =
-                    single_root_log_draft(
-                      "orderUpdate",
-                      [id],
-                      store_types.Staged,
-                      "orders",
-                      "stage-locally",
-                      Some("Locally staged orderUpdate in shopify-draft-proxy."),
-                    )
-                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                    Some(order) -> {
+                      let #(updated_order, next_identity) =
+                        build_updated_order(order, input, identity)
+                      let next_store =
+                        store.stage_order(hydrated_store, updated_order)
+                      let payload =
+                        serialize_order_mutation_payload(
+                          field,
+                          Some(updated_order),
+                          [],
+                          fragments,
+                        )
+                      let draft =
+                        single_root_log_draft(
+                          "orderUpdate",
+                          [id],
+                          store_types.Staged,
+                          "orders",
+                          "stage-locally",
+                          Some(
+                            "Locally staged orderUpdate in shopify-draft-proxy.",
+                          ),
+                        )
+                      #(key, payload, next_store, next_identity, [id], [], [
+                        draft,
+                      ])
+                    }
+                  }
                 }
               }
             }
@@ -1150,6 +1175,75 @@ pub fn order_metafields_connection(
   metafields: List(CapturedJsonValue),
 ) -> CapturedJsonValue {
   CapturedObject([#("nodes", CapturedArray(metafields))])
+}
+
+@internal
+pub fn validate_order_update_business_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  let empty_errors = case has_order_update_mutable_input(input) {
+    True -> []
+    False -> [mutation_user_error(["base"], "no_fields_to_update")]
+  }
+  empty_errors
+  |> list.append(validate_order_update_phone(input))
+  |> list.append(validate_order_update_shipping_address(input))
+}
+
+@internal
+pub fn has_order_update_mutable_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.keys(input)
+  |> list.any(fn(field_name) {
+    list.contains(order_update_mutable_fields(), field_name)
+  })
+}
+
+@internal
+pub fn order_update_mutable_fields() -> List(String) {
+  [
+    "note",
+    "phone",
+    "email",
+    "poNumber",
+    "tags",
+    "metafields",
+    "customAttributes",
+    "shippingAddress",
+  ]
+}
+
+@internal
+pub fn validate_order_update_phone(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_string(input, "phone") {
+    Some(phone) ->
+      case customer_mutations.valid_phone(phone) {
+        True -> []
+        False -> [mutation_user_error(["input", "phone"], "Phone is invalid")]
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn validate_order_update_shipping_address(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_object(input, "shippingAddress") {
+    Some(address) ->
+      customer_inputs.validate_address_input(address, None, [
+        "input",
+        "shippingAddress",
+      ])
+      |> list.map(fn(error) {
+        let UserError(field: field_path, message: message, ..) = error
+        mutation_user_error(field_path, message)
+      })
+    None -> []
+  }
 }
 
 @internal
