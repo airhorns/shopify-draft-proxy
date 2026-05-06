@@ -367,10 +367,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "fr",
-            "de"
-          ],
+          "alternateLocales": ["fr", "de"],
           "subfolderSuffix": "intl"
         }
       },
@@ -550,9 +547,7 @@
       "variables": {
         "id": "gid://shopify/MarketWebPresence/69691408690",
         "input": {
-          "alternateLocales": [
-            "de"
-          ]
+          "alternateLocales": ["de"]
         }
       },
       "response": {
@@ -818,10 +813,7 @@
       "variables": {
         "input": {
           "defaultLocale": "en",
-          "alternateLocales": [
-            "fr",
-            "de"
-          ],
+          "alternateLocales": ["fr", "de"],
           "subfolderSuffix": "intl"
         }
       },
