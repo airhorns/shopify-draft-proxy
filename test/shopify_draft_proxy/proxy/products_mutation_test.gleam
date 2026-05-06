@@ -196,6 +196,18 @@ pub fn selling_plan_group_create_rejects_nested_plan_validation_errors_test() {
     "[\"input\",\"sellingPlansToCreate\",\"0\"]",
     "billing and delivery policy types must be the same.",
   )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Zero interval\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 0, minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 0, cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "GREATER_THAN",
+    "[\"input\",\"sellingPlansToCreate\",\"0\",\"billingPolicy\",\"recurring\",\"intervalCount\"]",
+    "Interval count must be greater than 0",
+  )
+  assert_selling_plan_group_create_user_error(
+    "mutation { sellingPlanGroupCreate(input: { name: \\\"Anchor mismatch\\\", options: [\\\"Delivery\\\"], sellingPlansToCreate: [{ name: \\\"Monthly delivery\\\", options: [\\\"Monthly\\\"], position: 1, category: SUBSCRIPTION, billingPolicy: { recurring: { interval: MONTH, intervalCount: 1, anchors: [{ type: MONTHDAY, day: 1 }], minCycles: 1, maxCycles: 12 } }, deliveryPolicy: { recurring: { interval: MONTH, intervalCount: 1, anchors: [{ type: MONTHDAY, day: 2 }], cutoff: 0 } }, inventoryPolicy: { reserve: ON_FULFILLMENT }, pricingPolicies: [{ fixed: { adjustmentType: PERCENTAGE, adjustmentValue: { percentage: 10 } } }] }] }, resources: {}) { sellingPlanGroup { id } userErrors { field message code } } }",
+    "SELLING_PLAN_BILLING_AND_DELIVERY_POLICY_ANCHORS_MUST_BE_EQUAL",
+    "[\"input\",\"sellingPlansToCreate\",\"0\"]",
+    "Billing and delivery policy anchors must be the same",
+  )
 }
 
 pub fn selling_plan_group_update_rejects_input_validation_errors_test() {
