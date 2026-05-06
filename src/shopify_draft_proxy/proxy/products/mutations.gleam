@@ -1619,16 +1619,24 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Staged captured combinedListingUpdate guardrails locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Rejected combinedListingUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some(
-                    "Staged captured combinedListingUpdate guardrails locally.",
-                  ),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),

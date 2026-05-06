@@ -17,6 +17,7 @@ const adapterTimeoutMs = 20_000;
 beforeAll(() => {
   execFileSync('gleam', ['build', '--target', 'javascript'], {
     cwd: new URL('../..', import.meta.url),
+    maxBuffer: 16 * 1024 * 1024,
     stdio: 'pipe',
   });
 }, adapterTimeoutMs);

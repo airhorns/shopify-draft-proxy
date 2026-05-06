@@ -187,6 +187,10 @@ pub fn product_source_with_relationships(
     #("publishedOnCurrentPublication", SrcBool(visible_publication_count > 0)),
     #("publishedOnCurrentChannel", SrcBool(visible_publication_count > 0)),
     #("publishedOnPublication", SrcBool(published_on_publication)),
+    #(
+      "combinedListingRole",
+      graphql_helpers.option_string_source(product.combined_listing_role),
+    ),
     #("availablePublicationsCount", count_source(visible_publication_count)),
     #("resourcePublicationsCount", count_source(visible_publication_count)),
     #("collections", collections),

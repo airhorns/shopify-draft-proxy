@@ -260,9 +260,10 @@ query ProductsHydrateNodes($ids: [ID!]!) {
     ... on Product {
       legacyResourceId
       title
-      handle
-      status
-      vendor
+	      handle
+	      status
+	      combinedListingRole
+	      vendor
       productType
       tags
       totalInventory

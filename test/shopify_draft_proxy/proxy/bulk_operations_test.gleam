@@ -811,5 +811,8 @@ fn product_record(id: String, title: String) -> ProductRecord {
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }

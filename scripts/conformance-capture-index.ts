@@ -384,6 +384,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'combined-listing-update-validation',
+    scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
+    purpose:
+      'combinedListingUpdate parent role, child relation, optionsAndValues, duplicate, missing child, already-child, edit/remove overlap, and title validation payloads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}combinedListingUpdate-validation.json`,
+      'config/parity-specs/products/combinedListingUpdate-validation.json',
+      'config/parity-requests/products/combinedListingUpdate-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PARENT, plain, and child products; records validation failures plus setup success branches; deletes all setup products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-with-options',
     scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
     purpose:

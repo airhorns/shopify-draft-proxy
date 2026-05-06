@@ -249,6 +249,9 @@ fn delivery_profile_lifecycle_store() -> store.Store {
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
+      combined_listing_role: None,
+      combined_listing_parent_id: None,
+      combined_listing_child_ids: [],
     ),
   ])
   |> store.upsert_base_product_variants([

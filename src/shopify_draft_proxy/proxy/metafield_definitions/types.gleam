@@ -944,6 +944,9 @@ pub fn minimal_product_shell(product_id: String) -> ProductRecord {
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
   )
 }
 
