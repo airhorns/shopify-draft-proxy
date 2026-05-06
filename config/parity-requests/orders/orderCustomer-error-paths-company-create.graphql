@@ -1,0 +1,14 @@
+#graphql
+mutation OrderCustomerErrorPathsCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
