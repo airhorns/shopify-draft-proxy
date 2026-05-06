@@ -559,6 +559,11 @@ pub fn validate_discount_input(
   }
   let errors = case discount_type {
     "bxgy" -> list.append(errors, validate_bxgy_input(input_name, input))
+    "basic" ->
+      list.append(
+        errors,
+        basic_disallowed_discount_on_quantity_errors(input_name, input),
+      )
     _ -> errors
   }
   let errors = case discount_type {
@@ -2113,6 +2118,27 @@ pub fn bxgy_disallowed_value_errors(
         False -> errors
       }
     }
+    None -> []
+  }
+}
+
+@internal
+pub fn basic_disallowed_discount_on_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_value_fields(input) {
+    Some(fields) ->
+      case dict.has_key(fields, "discountOnQuantity") {
+        True -> [
+          discount_types.user_error(
+            [input_name, "customerGets", "value", "discountOnQuantity"],
+            "discountOnQuantity field is only permitted with bxgy discounts.",
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
     None -> []
   }
 }

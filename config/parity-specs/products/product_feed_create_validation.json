@@ -1,0 +1,74 @@
+{
+  "scenarioId": "product-feed-create-validation",
+  "operationNames": ["productFeedCreate", "productFeed", "productFeeds"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "user-error-parity",
+    "no-upstream-passthrough",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/products/product-feed-create-validation.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-feed-create-local-runtime.graphql",
+    "variablesCapturePath": "$.invalidCountry.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid country payload",
+        "capturePath": "$.invalidCountry.response.data.productFeedCreate",
+        "proxyPath": "$.data.productFeedCreate"
+      },
+      {
+        "name": "invalid language payload",
+        "capturePath": "$.invalidLanguage.response.data.productFeedCreate",
+        "proxyPath": "$.data.productFeedCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-create-local-runtime.graphql",
+          "variablesCapturePath": "$.invalidLanguage.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "first create payload",
+        "capturePath": "$.firstCreate.response.data.productFeedCreate",
+        "proxyPath": "$.data.productFeedCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-create-local-runtime.graphql",
+          "variablesCapturePath": "$.firstCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "duplicate create payload",
+        "capturePath": "$.duplicateCreate.response.data.productFeedCreate",
+        "proxyPath": "$.data.productFeedCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-create-local-runtime.graphql",
+          "variablesCapturePath": "$.firstCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "single downstream feed after duplicate",
+        "capturePath": "$.read.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-read-local-runtime.graphql",
+          "variables": {
+            "id": "gid://shopify/ProductFeed/US-EN"
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for productFeedCreate validation and uniqueness. The disposable live store used by existing product feed captures still blocks productFeedCreate success with channel configuration errors, so this scenario records the local supported contract without upstream mutation writes."
+}
