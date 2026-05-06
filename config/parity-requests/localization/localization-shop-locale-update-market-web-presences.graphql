@@ -1,0 +1,21 @@
+mutation LocalizationShopLocaleEnableValidationUpdate($locale: String!, $shopLocale: ShopLocaleInput!) {
+  shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+    shopLocale {
+      locale
+      name
+      primary
+      published
+      marketWebPresences {
+        id
+        __typename
+        defaultLocale {
+          locale
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
