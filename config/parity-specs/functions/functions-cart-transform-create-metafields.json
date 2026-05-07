@@ -54,6 +54,26 @@
             "reason": "Shopify and the local proxy generate independent CartTransform IDs."
           },
           {
+            "path": "$.cartTransform.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy generate independent Metafield IDs."
+          },
+          {
+            "path": "$.cartTransform.metafield.compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the local proxy derive independent metafield compare digests."
+          },
+          {
+            "path": "$.cartTransform.metafield.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.cartTransform.metafield.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
             "path": "$.cartTransform.metafields.nodes[*].id",
             "matcher": "shopify-gid:Metafield",
             "reason": "Shopify and the local proxy generate independent Metafield IDs."
@@ -89,6 +109,26 @@
             "path": "$.nodes[0].id",
             "matcher": "shopify-gid:CartTransform",
             "reason": "Shopify and the local proxy read independently generated CartTransform IDs."
+          },
+          {
+            "path": "$.nodes[0].metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy retain independent Metafield IDs."
+          },
+          {
+            "path": "$.nodes[0].metafield.compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the local proxy derive independent metafield compare digests."
+          },
+          {
+            "path": "$.nodes[0].metafield.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.nodes[0].metafield.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
           },
           {
             "path": "$.nodes[0].metafields.nodes[*].id",
@@ -132,5 +172,5 @@
       }
     ]
   },
-  "notes": "Live Shopify Admin 2026-04 evidence for cartTransformCreate missing metafield value validation, malformed JSON metafield validation, valid cart-transform metafield persistence, downstream cartTransforms read-after-write, direct top-level cartTransformCreate arguments, and CartTransform schema rejection for non-existent fields/wrapper arguments. The fixture starts with invalid branches so parity can then stage the success path from a cold local state without pre-seeding."
+  "notes": "Live Shopify Admin 2026-04 evidence for cartTransformCreate missing metafield value validation, malformed JSON metafield validation, valid cart-transform metafield persistence, singular metafield(namespace:, key:) lookup, downstream cartTransforms read-after-write, direct top-level cartTransformCreate arguments, and CartTransform schema rejection for non-existent fields/wrapper arguments. The fixture starts with invalid branches so parity can then stage the success path from a cold local state without pre-seeding."
 }

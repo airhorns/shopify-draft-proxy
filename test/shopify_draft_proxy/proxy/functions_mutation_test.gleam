@@ -1051,19 +1051,19 @@ pub fn cart_transform_create_persists_metafields_for_downstream_reads_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\", metafields: [{ namespace: \"bundles\", key: \"config\", type: \"json\", value: \"{\\\"enabled\\\":true}\" }, { namespace: \"bundles\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }]) { cartTransform { id metafields(first: 5) { nodes { namespace key type value ownerType compareDigest createdAt updatedAt } } } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\", metafields: [{ namespace: \"bundles\", key: \"config\", type: \"json\", value: \"{\\\"enabled\\\":true}\" }, { namespace: \"bundles\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }]) { cartTransform { id metafield(namespace: \"bundles\", key: \"config\") { namespace key type value ownerType compareDigest createdAt updatedAt } metafields(first: 5) { nodes { namespace key type value ownerType compareDigest createdAt updatedAt } } } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"type\":\"single_line_text_field\",\"value\":\"strict\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwibW9kZSIsInNpbmdsZV9saW5lX3RleHRfZmllbGQiLCJzdHJpY3QiLG51bGwsIjIwMjQtMDEtMDFUMDA6MDA6MDAuMDAwWiJd\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"metafield\":{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"type\":\"single_line_text_field\",\"value\":\"strict\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwibW9kZSIsInNpbmdsZV9saW5lX3RleHRfZmllbGQiLCJzdHJpY3QiLG51bGwsIjIwMjQtMDEtMDFUMDA6MDA6MDAuMDAwWiJd\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
 
   let assert Ok(read_data) =
     functions.handle_function_query(
       outcome.store,
-      "{ cartTransforms(first: 5) { nodes { id metafields(first: 5) { nodes { namespace key value } } } } }",
+      "{ cartTransforms(first: 5) { nodes { id metafield(namespace: \"bundles\", key: \"mode\") { namespace key value } metafields(first: 5) { nodes { namespace key value } } } } }",
       dict.new(),
     )
   assert json.to_string(read_data)
-    == "{\"cartTransforms\":{\"nodes\":[{\"id\":\"gid://shopify/CartTransform/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"value\":\"{\\\"enabled\\\":true}\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
+    == "{\"cartTransforms\":{\"nodes\":[{\"id\":\"gid://shopify/CartTransform/1\",\"metafield\":{\"namespace\":\"bundles\",\"key\":\"mode\",\"value\":\"strict\"},\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"value\":\"{\\\"enabled\\\":true}\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
 }
 
 pub fn cart_transform_create_rejects_invalid_metafields_test() {

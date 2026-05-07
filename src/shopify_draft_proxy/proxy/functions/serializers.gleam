@@ -760,16 +760,66 @@ pub fn cart_transform_mutation_payload(
   cart_transform: Option(CartTransformRecord),
   user_errors: List(function_types.UserError),
 ) -> Json {
-  let cart_transform_source = case cart_transform {
-    Some(record) -> cart_transform_to_source(record)
-    None -> SrcNull
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+      |> project_cart_transform_mutation_payload_entries(
+        cart_transform,
+        user_errors,
+        fragments,
+      )
+      |> json.object
+    _ -> json.object([])
   }
-  let payload =
+}
+
+fn project_cart_transform_mutation_payload_entries(
+  selections: List(Selection),
+  cart_transform: Option(CartTransformRecord),
+  user_errors: List(function_types.UserError),
+  fragments: FragmentMap,
+) -> List(#(String, Json)) {
+  let payload_source =
     src_object([
-      #("cartTransform", cart_transform_source),
+      #("cartTransform", SrcNull),
       #("userErrors", user_errors_source(user_errors)),
     ])
-  project_payload(payload, field, fragments)
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        project_cart_transform_mutation_payload_entries(
+          inner,
+          cart_transform,
+          user_errors,
+          fragments,
+        )
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            project_cart_transform_mutation_payload_entries(
+              inner,
+              cart_transform,
+              user_errors,
+              fragments,
+            )
+          _ -> []
+        }
+      Field(name: name, ..) -> {
+        let key = get_field_response_key(selection)
+        let value = case name.value, cart_transform {
+          "cartTransform", Some(record) ->
+            project_cart_transform(record, selection, fragments)
+          "cartTransform", None -> json.null()
+          _, _ ->
+            project_graphql_field_value(payload_source, selection, fragments)
+        }
+        [#(key, value)]
+      }
+    }
+  })
 }
 
 @internal

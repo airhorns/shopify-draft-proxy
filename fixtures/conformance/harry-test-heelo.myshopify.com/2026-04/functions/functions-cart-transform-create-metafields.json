@@ -1,6 +1,6 @@
 {
   "scenarioId": "functions-cart-transform-create-metafields",
-  "capturedAt": "2026-05-07T15:34:23.741Z",
+  "capturedAt": "2026-05-07T17:20:12.577Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
@@ -307,7 +307,7 @@
     }
   },
   "cartTransformCreateMetafields": {
-    "query": "mutation CartTransformCreateMetafields($functionId: String!, $blockOnFailure: Boolean, $metafields: [MetafieldInput!]) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "query": "mutation CartTransformCreateMetafields($functionId: String!, $blockOnFailure: Boolean, $metafields: [MetafieldInput!]) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
       "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
       "blockOnFailure": false,
@@ -332,32 +332,43 @@
         "data": {
           "cartTransformCreate": {
             "cartTransform": {
-              "id": "gid://shopify/CartTransform/115999026",
+              "id": "gid://shopify/CartTransform/116293938",
               "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
               "blockOnFailure": false,
+              "metafield": {
+                "id": "gid://shopify/Metafield/43125986558258",
+                "namespace": "bundles",
+                "key": "config",
+                "type": "json",
+                "value": "{\"enabled\":true}",
+                "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
+                "ownerType": "CARTTRANSFORM",
+                "createdAt": "2026-05-07T17:20:12Z",
+                "updatedAt": "2026-05-07T17:20:12Z"
+              },
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/43124376830258",
+                    "id": "gid://shopify/Metafield/43125986558258",
                     "namespace": "bundles",
                     "key": "config",
                     "type": "json",
                     "value": "{\"enabled\":true}",
                     "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
                     "ownerType": "CARTTRANSFORM",
-                    "createdAt": "2026-05-07T15:34:23Z",
-                    "updatedAt": "2026-05-07T15:34:23Z"
+                    "createdAt": "2026-05-07T17:20:12Z",
+                    "updatedAt": "2026-05-07T17:20:12Z"
                   },
                   {
-                    "id": "gid://shopify/Metafield/43124376863026",
+                    "id": "gid://shopify/Metafield/43125986591026",
                     "namespace": "bundles",
                     "key": "mode",
                     "type": "single_line_text_field",
                     "value": "strict",
                     "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
                     "ownerType": "CARTTRANSFORM",
-                    "createdAt": "2026-05-07T15:34:23Z",
-                    "updatedAt": "2026-05-07T15:34:23Z"
+                    "createdAt": "2026-05-07T17:20:12Z",
+                    "updatedAt": "2026-05-07T17:20:12Z"
                   }
                 ]
               }
@@ -367,11 +378,11 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 15,
-            "actualQueryCost": 14,
+            "requestedQueryCost": 16,
+            "actualQueryCost": 15,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -380,7 +391,7 @@
     }
   },
   "cartTransformsAfterMetafields": {
-    "query": "query CartTransformsMetafields($first: Int!) {\n  cartTransforms(first: $first) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+    "query": "query CartTransformsMetafields($first: Int!) {\n  cartTransforms(first: $first) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"mode\") {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
     "variables": {
       "first": 5
     },
@@ -391,32 +402,43 @@
           "cartTransforms": {
             "nodes": [
               {
-                "id": "gid://shopify/CartTransform/115999026",
+                "id": "gid://shopify/CartTransform/116293938",
                 "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
                 "blockOnFailure": false,
+                "metafield": {
+                  "id": "gid://shopify/Metafield/43125986591026",
+                  "namespace": "bundles",
+                  "key": "mode",
+                  "type": "single_line_text_field",
+                  "value": "strict",
+                  "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
+                  "ownerType": "CARTTRANSFORM",
+                  "createdAt": "2026-05-07T17:20:12Z",
+                  "updatedAt": "2026-05-07T17:20:12Z"
+                },
                 "metafields": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/Metafield/43124376830258",
+                      "id": "gid://shopify/Metafield/43125986558258",
                       "namespace": "bundles",
                       "key": "config",
                       "type": "json",
                       "value": "{\"enabled\":true}",
                       "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
                       "ownerType": "CARTTRANSFORM",
-                      "createdAt": "2026-05-07T15:34:23Z",
-                      "updatedAt": "2026-05-07T15:34:23Z"
+                      "createdAt": "2026-05-07T17:20:12Z",
+                      "updatedAt": "2026-05-07T17:20:12Z"
                     },
                     {
-                      "id": "gid://shopify/Metafield/43124376863026",
+                      "id": "gid://shopify/Metafield/43125986591026",
                       "namespace": "bundles",
                       "key": "mode",
                       "type": "single_line_text_field",
                       "value": "strict",
                       "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
                       "ownerType": "CARTTRANSFORM",
-                      "createdAt": "2026-05-07T15:34:23Z",
-                      "updatedAt": "2026-05-07T15:34:23Z"
+                      "createdAt": "2026-05-07T17:20:12Z",
+                      "updatedAt": "2026-05-07T17:20:12Z"
                     }
                   ]
                 }
@@ -426,7 +448,7 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 20,
+            "requestedQueryCost": 23,
             "actualQueryCost": 6,
             "throttleStatus": {
               "maximumAvailable": 2000,
@@ -442,7 +464,7 @@
     "cartTransformDelete": {
       "data": {
         "cartTransformDelete": {
-          "deletedId": "gid://shopify/CartTransform/115999026",
+          "deletedId": "gid://shopify/CartTransform/116293938",
           "userErrors": []
         }
       },
