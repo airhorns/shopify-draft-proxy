@@ -2487,6 +2487,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-unsupported-country-region',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-unsupported-country-region-conformance.mts',
+    purpose:
+      'marketCreate UNSUPPORTED_COUNTRY_REGION validation and Shopify-derived unsupported MarketRegionCreateInput country code list.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-unsupported-country-region.json`,
+      'src/shopify_draft_proxy/proxy/markets/unsupported_country_regions.gleam',
+      'config/parity-specs/markets/market-create-unsupported-country-region.json',
+      'config/parity-requests/markets/market-create-unsupported-country-region.graphql',
+    ],
+    cleanupBehavior:
+      'Primary and per-country probe mutations reject before changing market state; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'price-list-fixed-prices-by-product-update-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-fixed-prices-by-product-update-validation-conformance.ts',
