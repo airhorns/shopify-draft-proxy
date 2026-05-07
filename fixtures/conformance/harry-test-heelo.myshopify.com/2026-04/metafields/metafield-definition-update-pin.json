@@ -73,9 +73,7 @@
           "updatedDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition"
-              ],
+              "field": ["definition"],
               "message": "Constrained metafield definitions do not support pinning.",
               "code": "UNSUPPORTED_PINNING"
             }
@@ -225,9 +223,7 @@
           "updatedDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition"
-              ],
+              "field": ["definition"],
               "message": "Limit of 20 pinned definitions.",
               "code": "PINNED_LIMIT_REACHED"
             }
