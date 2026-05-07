@@ -21,6 +21,7 @@ import shopify_draft_proxy/proxy/localization/types.{
   TooManyKeysForResource, max_keys_per_translation_mutation,
   proxy_translation_error, translation_error,
 }
+import shopify_draft_proxy/proxy/markets/mutations as market_mutations
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationFieldResult, type MutationOutcome, MutationFieldResult,
   MutationOutcome, read_optional_string_array, single_root_log_draft,
@@ -306,9 +307,17 @@ fn handle_shop_locale_enable(
               market_web_presence_ids: market_web_presence_ids,
             )
           let #(_, store_after) = store.stage_shop_locale(store_in, record)
+          let store_synced =
+            sync_web_presence_alternate_locale_targets(
+              store_after,
+              locale,
+              record.published,
+              [],
+              market_web_presence_ids,
+            )
           let payload =
             serializers.project_shop_locale_payload(
-              store_after,
+              store_synced,
               field,
               Some(record),
               None,
@@ -322,7 +331,7 @@ fn handle_shop_locale_enable(
               payload: payload,
               staged_resource_ids: [serializers.shop_locale_staged_id(record)],
             ),
-            store_after,
+            store_synced,
             identity,
           )
         }
@@ -356,9 +365,9 @@ fn handle_shop_locale_update(
   let published_input = graphql_helpers.read_arg_bool(input, "published")
   case existing {
     Some(current) -> {
-      let market_web_presence_ids = case
+      let maybe_market_web_presence_ids =
         read_optional_string_array(input, "marketWebPresenceIds")
-      {
+      let market_web_presence_ids = case maybe_market_web_presence_ids {
         Some(ids) -> known_market_web_presence_ids(store_in, ids)
         None -> current.market_web_presence_ids
       }
@@ -398,9 +407,20 @@ fn handle_shop_locale_update(
               market_web_presence_ids: market_web_presence_ids,
             )
           let #(_, store_after) = store.stage_shop_locale(store_in, record)
+          let store_synced = case maybe_market_web_presence_ids {
+            Some(_) ->
+              sync_web_presence_alternate_locale_targets(
+                store_after,
+                current.locale,
+                record.published,
+                current_web_presence_ids_for_locale(store_in, current),
+                market_web_presence_ids,
+              )
+            None -> store_after
+          }
           let payload =
             serializers.project_shop_locale_payload(
-              store_after,
+              store_synced,
               field,
               Some(record),
               None,
@@ -416,7 +436,7 @@ fn handle_shop_locale_update(
                 serializers.shop_locale_staged_id(record),
               ],
             ),
-            store_after,
+            store_synced,
             identity,
           )
         }
@@ -446,9 +466,9 @@ fn handle_shop_locale_update(
           )
         }
         None -> {
-          let market_web_presence_ids = case
+          let maybe_market_web_presence_ids =
             read_optional_string_array(input, "marketWebPresenceIds")
-          {
+          let market_web_presence_ids = case maybe_market_web_presence_ids {
             Some(ids) -> known_market_web_presence_ids(store_in, ids)
             None -> []
           }
@@ -464,9 +484,20 @@ fn handle_shop_locale_update(
               market_web_presence_ids: market_web_presence_ids,
             )
           let #(_, store_after) = store.stage_shop_locale(store_in, record)
+          let store_synced = case maybe_market_web_presence_ids {
+            Some(_) ->
+              sync_web_presence_alternate_locale_targets(
+                store_after,
+                locale,
+                record.published,
+                [],
+                market_web_presence_ids,
+              )
+            None -> store_after
+          }
           let payload =
             serializers.project_shop_locale_payload(
-              store_after,
+              store_synced,
               field,
               Some(record),
               None,
@@ -480,7 +511,7 @@ fn handle_shop_locale_update(
               payload: payload,
               staged_resource_ids: [serializers.shop_locale_staged_id(record)],
             ),
-            store_after,
+            store_synced,
             identity,
           )
         }
@@ -497,6 +528,73 @@ fn known_market_web_presence_ids(
     case store.get_effective_web_presence_by_id(store_in, id) {
       Some(_) -> True
       None -> False
+    }
+  })
+}
+
+fn current_web_presence_ids_for_locale(
+  store_in: Store,
+  locale: state_types.ShopLocaleRecord,
+) -> List(String) {
+  append_unique_strings(
+    market_mutations.web_presence_ids_for_alternate_locale(
+      store_in,
+      locale.locale,
+    ),
+    locale.market_web_presence_ids,
+  )
+}
+
+fn sync_web_presence_alternate_locale_targets(
+  store_in: Store,
+  locale: String,
+  published: Bool,
+  previous_ids: List(String),
+  next_ids: List(String),
+) -> Store {
+  let removed_ids =
+    previous_ids
+    |> list.filter(fn(id) { !list.contains(next_ids, id) })
+  let added_ids =
+    next_ids
+    |> list.filter(fn(id) { !list.contains(previous_ids, id) })
+
+  removed_ids
+  |> list.fold(store_in, fn(acc, id) {
+    market_mutations.remove_web_presence_alternate_locale(acc, id, locale)
+  })
+  |> then_sync_added_web_presence_alternate_locales(
+    locale,
+    published,
+    added_ids,
+  )
+}
+
+fn then_sync_added_web_presence_alternate_locales(
+  store_in: Store,
+  locale: String,
+  published: Bool,
+  added_ids: List(String),
+) -> Store {
+  added_ids
+  |> list.fold(store_in, fn(acc, id) {
+    market_mutations.add_web_presence_alternate_locale(
+      acc,
+      id,
+      locale,
+      published,
+    )
+  })
+}
+
+fn append_unique_strings(
+  base: List(String),
+  extra: List(String),
+) -> List(String) {
+  list.fold(extra, base, fn(acc, item) {
+    case list.contains(acc, item) {
+      True -> acc
+      False -> list.append(acc, [item])
     }
   })
 }

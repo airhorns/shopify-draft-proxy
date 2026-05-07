@@ -1,0 +1,53 @@
+{
+  "scenarioId": "localization-shop-locale-update-web-presence-sync",
+  "operationNames": ["shopLocaleEnable", "shopLocaleUpdate", "webPresences"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "localization-web-presence-sync"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-update-web-presence-sync.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-read.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-enable-source-user-errors",
+        "capturePath": "$.enableSource.response.data.shopLocaleEnable.userErrors",
+        "proxyPath": "$.data.shopLocaleEnable.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-enable.graphql",
+          "variablesCapturePath": "$.enableSource.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop-locale-update-swap-user-errors",
+        "capturePath": "$.updateSwap.response.data.shopLocaleUpdate.userErrors",
+        "proxyPath": "$.data.shopLocaleUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-update.graphql",
+          "variablesCapturePath": "$.updateSwap.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "web-presence-alternate-locales-after-update-swap",
+        "capturePath": "$.readAfterUpdate.response.data.webPresences",
+        "proxyPath": "$.data.webPresences",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-read.graphql",
+          "variablesCapturePath": "$.readAfterUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture against harry-test-heelo.myshopify.com creates two disposable WebPresences, associates fr to the source through shopLocaleEnable, then runs shopLocaleUpdate with the target ID. The downstream webPresences read proves Shopify removes fr from the source WebPresence and adds it to the target immediately; the proxy replay mirrors that with local staging only."
+}

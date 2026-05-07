@@ -1,0 +1,43 @@
+{
+  "scenarioId": "localization-shop-locale-enable-web-presence-sync",
+  "operationNames": ["shopLocaleEnable", "webPresences"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "localization-web-presence-sync"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-enable-web-presence-sync.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-read.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-enable-user-errors",
+        "capturePath": "$.enable.response.data.shopLocaleEnable.userErrors",
+        "proxyPath": "$.data.shopLocaleEnable.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-enable.graphql",
+          "variablesCapturePath": "$.enable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "web-presence-alternate-locales-after-enable",
+        "capturePath": "$.readAfterEnable.response.data.webPresences",
+        "proxyPath": "$.data.webPresences",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-web-presence-sync-read.graphql",
+          "variablesCapturePath": "$.readAfterEnable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture against harry-test-heelo.myshopify.com creates a disposable WebPresence, runs shopLocaleEnable(locale: fr, marketWebPresenceIds: [id]), then verifies the downstream webPresences read exposes fr in alternateLocales and rootUrls for that WebPresence. The proxy replay hydrates the captured WebPresence from the setup read and stages the supported mutation locally."
+}

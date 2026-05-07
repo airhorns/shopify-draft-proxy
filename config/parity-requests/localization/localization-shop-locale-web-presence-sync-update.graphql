@@ -1,0 +1,15 @@
+mutation LocalizationShopLocaleWebPresenceSyncUpdate($locale: String!, $shopLocale: ShopLocaleInput!) {
+  shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+    shopLocale {
+      locale
+      published
+      marketWebPresences {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,15 @@
+mutation LocalizationShopLocaleWebPresenceSyncEnable($locale: String!, $marketWebPresenceIds: [ID!]) {
+  shopLocaleEnable(locale: $locale, marketWebPresenceIds: $marketWebPresenceIds) {
+    shopLocale {
+      locale
+      published
+      marketWebPresences {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
