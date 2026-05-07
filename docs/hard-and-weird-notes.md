@@ -2406,7 +2406,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 

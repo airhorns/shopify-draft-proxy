@@ -3436,8 +3436,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-title-url-and-body-rendering.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-user-error-codes.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/shop-policy-update-parity.json',
       'config/parity-specs/store-properties/shop-policy-update-title-url-and-body-rendering.json',
+      'config/parity-specs/store-properties/shop-policy-update-user-error-codes.json',
     ],
     cleanupBehavior:
       'Restores prior policy content when a write branch is captured. Newly created policy rows may remain on shops where Shopify does not expose deletion, but their bodies are reset to the prior empty fallback.',

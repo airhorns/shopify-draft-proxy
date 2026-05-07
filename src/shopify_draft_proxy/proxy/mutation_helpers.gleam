@@ -1559,6 +1559,7 @@ fn top_level_required_input_field_strict_types() -> List(String) {
     "DeliveryCarrierServiceCreateInput",
     "CatalogCreateInput",
     "PriceListCreateInput",
+    "ShopPolicyInput",
   ]
 }
 
@@ -1985,6 +1986,16 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "ALL_PRODUCTS",
     ]),
     #("TaxExemption", tax_exemption_values()),
+    #("ShopPolicyType", [
+      "REFUND_POLICY",
+      "SHIPPING_POLICY",
+      "PRIVACY_POLICY",
+      "TERMS_OF_SERVICE",
+      "TERMS_OF_SALE",
+      "LEGAL_NOTICE",
+      "SUBSCRIPTION_POLICY",
+      "CONTACT_INFORMATION",
+    ]),
   ])
 }
 
