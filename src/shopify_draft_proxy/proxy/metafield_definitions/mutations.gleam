@@ -2503,6 +2503,71 @@ pub fn update_definition_success(
       constraints: update_definition_constraints(input, definition.constraints),
       validation_status: "ALL_VALID",
     )
+  case definition_types.read_optional_bool(input, "pin") {
+    Some(True) -> {
+      case definition_types.validate_definition_pin(store_in, updated) {
+        [_, ..] as user_errors -> #(
+          serializers.serialize_definition_mutation_payload(
+            store_in,
+            "updatedDefinition",
+            None,
+            definition_input_user_errors(user_errors),
+            field,
+            variables,
+          ),
+          store_in,
+          identity,
+          [],
+        )
+        [] -> {
+          let pinned = definition_types.pin_definition(store_in, updated)
+          definition_update_success_payload(
+            store_in,
+            identity,
+            field,
+            variables,
+            pinned,
+            [pinned],
+            should_stage_validation_job,
+          )
+        }
+      }
+    }
+    Some(False) -> {
+      let #(unpinned, compacted) =
+        definition_types.unpin_definition(store_in, updated)
+      definition_update_success_payload(
+        store_in,
+        identity,
+        field,
+        variables,
+        unpinned,
+        compacted,
+        should_stage_validation_job,
+      )
+    }
+    _ ->
+      definition_update_success_payload(
+        store_in,
+        identity,
+        field,
+        variables,
+        updated,
+        [updated],
+        should_stage_validation_job,
+      )
+  }
+}
+
+fn definition_update_success_payload(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  updated: MetafieldDefinitionRecord,
+  staged_definitions: List(MetafieldDefinitionRecord),
+  should_stage_validation_job: Bool,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
   let #(validation_job_id, next_identity) = case should_stage_validation_job {
     True -> {
       let #(job_id, identity_after_job) =
@@ -2512,7 +2577,7 @@ pub fn update_definition_success(
     False -> #(None, identity)
   }
   let next_store =
-    store.upsert_staged_metafield_definitions(store_in, [updated])
+    store.upsert_staged_metafield_definitions(store_in, staged_definitions)
     |> maybe_stage_validation_job(validation_job_id)
   #(
     serializers.serialize_definition_mutation_payload_with_validation_job(

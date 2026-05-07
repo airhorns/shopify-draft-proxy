@@ -275,7 +275,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "MarketingEvent",
       "MediaImage",
       "Menu",
-      "MetafieldDefinition",
       "Metaobject",
       "MetaobjectDefinition",
       "Model3d",

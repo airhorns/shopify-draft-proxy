@@ -1476,6 +1476,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-update-pin',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-update-pin.mts',
+    purpose:
+      'metafieldDefinitionUpdate pin/unpin handling, constrained-definition pin guard, and product-owner pin limit validation.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-pin.json`,
+      'config/parity-specs/metafield-definitions/update-pin.json',
+      'config/parity-requests/metafield-definitions/update-pin.graphql',
+      'config/parity-requests/metafield-definitions/update-pin-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-app-namespace-resolution',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-app-namespace-resolution-conformance.mts',
