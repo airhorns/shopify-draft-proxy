@@ -25,7 +25,9 @@ Local staged mutations:
 
 - `files` reads serialize normalized `FileRecord` state in snapshot mode and
   after local file mutations. The local connection uses shared cursor/pageInfo
-  helpers and omits files marked deleted by staged `fileDelete`.
+  helpers, applies the `reverse` argument over effective in-memory order, and
+  omits files marked deleted by staged `fileDelete`. Full Shopify file search
+  and sort-key semantics are not modeled yet.
 - `fileSavedSearches` currently returns an empty Shopify-like connection in
   snapshot mode. Saved-search records are not modeled yet.
 - `stagedUploadsCreate` returns inert draft-proxy target metadata so clients can
@@ -49,6 +51,10 @@ Local staged mutations:
   form shape. Captured `PUT` targets for those Google form resources use only
   `content_type` and `acl`. The proxy matches those captured parameter names
   and order while keeping values and URLs inert.
+- Shopify defaults an omitted `StagedUploadInput.httpMethod` to `PUT`.
+  Captured 2026-04 IMAGE and FILE targets with no `httpMethod` therefore use
+  the two-field `content_type`, `acl` parameter shape, and the proxy applies
+  that default instead of assuming POST.
 - `SHOP_IMAGE` is exposed by the 2026-04 resource enum, but the current
   conformance app receives top-level `ACCESS_DENIED` for that resource. The
   local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
@@ -81,6 +87,20 @@ Local staged mutations:
   bulk-mutation variable JSONL handoff; it does not model Shopify storage or
   media processing side effects.
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
+- Files API payloads populate the public File interface fields needed by
+  Shopify's non-null contracts: `createdAt`, `updatedAt`, `fileStatus`, and
+  `fileErrors`. `updatedAt` is the record's last local modification timestamp,
+  and `fileErrors` defaults to `[]` until the model stores Shopify file-error
+  rows. Type-specific fields derive `mimeType` for `MediaImage`, `Video`, and
+  `GenericFile` from the filename/source extension with content-type fallback.
+  `MediaImage`, `Video`, `ExternalVideo`, and `Model3d` expose empty
+  `mediaErrors` / `mediaWarnings` lists by default; `GenericFile` does not
+  expose those Media-interface fields.
+- The local source can derive `displayName`, `updateStatus`, and `fileWarnings`
+  for callers that select them, but public Admin GraphQL 2026-04 schema
+  introspection rejects those fields on `File` alongside `presentation` and
+  `connectedResources*`. Public parity coverage therefore excludes those
+  schema-gated fields instead of recording an invalid Shopify query.
 - `fileCreate` validates original source URL presence/length, non-http(s)
   schemes, filename/originalSource extension mismatches, duplicate-resolution
   mode compatibility, and the private-core `referencesToAdd` cardinality

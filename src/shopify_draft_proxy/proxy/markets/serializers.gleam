@@ -68,6 +68,18 @@ pub fn user_error(
 }
 
 @internal
+pub fn user_error_null_code(
+  field: List(String),
+  message: String,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("field", CapturedArray(list.map(field, CapturedString))),
+    #("message", CapturedString(message)),
+    #("code", CapturedNull),
+  ])
+}
+
+@internal
 pub fn translation_user_error(
   field: List(String),
   message: String,
@@ -561,7 +573,7 @@ pub fn market_currency_settings_data(
       graphql_helpers.read_arg_bool(settings, "roundingEnabled")
         |> option.map(CapturedBool)
         |> option.or(captured_field(existing_settings, "roundingEnabled"))
-        |> option.unwrap(CapturedBool(True)),
+        |> option.unwrap(CapturedBool(False)),
     ),
   ])
 }
@@ -680,7 +692,7 @@ pub fn currency_name(currency: String) -> String {
     "DKK" -> "Danish Krone"
     "MXN" -> "Mexican Peso"
     "PEN" -> "Peruvian Sol"
-    "USD" -> "United States Dollar"
+    "USD" -> "US Dollar"
     _ -> currency
   }
 }

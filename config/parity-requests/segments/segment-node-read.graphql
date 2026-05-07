@@ -1,0 +1,11 @@
+query SegmentNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on Segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+  }
+}

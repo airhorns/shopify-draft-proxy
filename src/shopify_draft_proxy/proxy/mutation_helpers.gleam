@@ -1329,6 +1329,15 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "CartTransformInput" -> [
+                        build_unknown_input_object_field_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       "OnlineStoreThemeInput" -> [
                         build_input_object_argument_not_accepted_error(
                           field_name.value,

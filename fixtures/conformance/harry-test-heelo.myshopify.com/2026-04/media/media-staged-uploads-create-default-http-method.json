@@ -1,0 +1,79 @@
+{
+  "notes": "Captures stagedUploadsCreate target metadata when IMAGE and FILE inputs omit httpMethod. No upload bytes are sent; this fixture records Shopify default-method target parameter shape only.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "imageAndFileOmittedHttpMethod",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadDefaultHttpMethod($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "filename": "default-method-image.png",
+              "mimeType": "image/png",
+              "resource": "IMAGE"
+            },
+            {
+              "filename": "default-method-file.txt",
+              "mimeType": "text/plain",
+              "resource": "FILE"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/f76bf63e-4842-4a8a-959b-538c1ffe6417/default-method-image.png?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T170633Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=7539f5036d8b783768e59d3f3b72fa49c94280edf46c48047b0857bb273056fa531b7430d22bdac24df435b923ffb204bbefd8e7efca1249246b4315b6fc7f1171775212beda833adab9792d0f7cfa2d2c5909db1c615537746b28086697115e4fee00eba84283b450838cdff7e1aeca4af575000c11a21627fb53cb3cf34aa90b1b4f5fd794a9e301f9d56ebbc5a7975090ded33eb3fb03347bc7aacbf462fbf27e4b006c22c2c00eb890efd8c08255dab97f7870aae0c97a5984c18648b724db83820c0ae6c997fad484b9a1348153f20b288330efd5ec573f6b0d9a8eae2c5d80afc270ab1cfdcbc3dbb844e435245185b8cef237a538a4b4f378e014043c",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/f76bf63e-4842-4a8a-959b-538c1ffe6417/default-method-image.png",
+                  "parameters": [
+                    {
+                      "name": "content_type",
+                      "value": "image/png"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    }
+                  ]
+                },
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/250b8e9d-a997-43ee-9962-177bab4b40b5/default-method-file.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T170633Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=3420ed990a1e6429d698d606e23afaf06dbd84cb69319ef1536057f3d0b53528bf8c8d516e572286f40c325eb9dc796ffcd25855b0e652c88587c566c4f1ca40169797cec95076b4ec334cb20bed85f9d8556917d943d37ff667d8560aed7b26ccaf6a8f611cf461040ccbd71933a50237cc918efce6cb3661907d2cec56d545dfa27d48b8b4f95add0f9cb11d223111302bfeb3dae8131c91df91e0315c26caa4b856da191915868b14c3bc63198b961736f37b07edd57ad191033fbb62a52e3ddadd621d0494eb9c7c286ab0fca440d5199e1bd43795f5d2c057e571d3a82c398e3fa19722aea0eb798373bda49fddde565d5ea8743204ed0d3670aa92aaa2",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/250b8e9d-a997-43ee-9962-177bab4b40b5/default-method-file.txt",
+                  "parameters": [
+                    {
+                      "name": "content_type",
+                      "value": "text/plain"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

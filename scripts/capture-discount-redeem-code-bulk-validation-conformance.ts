@@ -32,6 +32,8 @@ assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
 const seedCode = `HAR784BASE${runId}`;
+const crossDiscountCode = `HAR784CROSS${runId}`;
+const existingFreshCode = `HAR784FRESH${runId}`;
 const duplicateCode = `HAR784DUP${runId}`;
 const validCode = `HAR784OK${runId}`;
 const newlineCode = `HAR784NL${runId}\nBAD`;
@@ -156,6 +158,48 @@ const readDocument = `#graphql
   }
 `;
 
+const existingConflictReadDocument = `#graphql
+  query DiscountRedeemCodeBulkValidationExistingRead(
+    $discountId: ID!
+    $sameDiscountCode: String!
+    $crossDiscountCode: String!
+    $freshCode: String!
+  ) {
+    codeDiscountNode(id: $discountId) {
+      codeDiscount {
+        ... on DiscountCodeBasic {
+          codes(first: 10) {
+            nodes {
+              code
+            }
+          }
+          codesCount {
+            count
+            precision
+          }
+        }
+      }
+    }
+    sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) {
+      id
+    }
+    crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) {
+      id
+    }
+    fresh: codeDiscountNodeByCode(code: $freshCode) {
+      id
+    }
+  }
+`;
+
+const uniquenessCheckDocument = `#graphql
+  query DiscountUniquenessCheck($code: String!) {
+    codeDiscountNodeByCode(code: $code) {
+      id
+    }
+  }
+`;
+
 const createVariables = {
   input: {
     title: `HAR-784 redeem code validation ${runId}`,
@@ -177,6 +221,14 @@ const createVariables = {
         all: true,
       },
     },
+  },
+};
+
+const crossCreateVariables = {
+  input: {
+    ...createVariables.input,
+    title: `HAR-784 redeem code cross discount ${runId}`,
+    code: crossDiscountCode,
   },
 };
 
@@ -211,13 +263,21 @@ async function waitForBulkCreationDone(id: string) {
 }
 
 let discountId: string | null = null;
+let crossDiscountId: string | null = null;
 let cleanup: unknown = null;
+let crossCleanup: unknown = null;
 
 try {
   const create = await runGraphqlRaw(createDocument, createVariables);
   discountId = readCreatedDiscountId(create);
   if (!discountId) {
     throw new Error(`discountCodeBasicCreate did not return a code discount id: ${JSON.stringify(create)}`);
+  }
+
+  const crossCreate = await runGraphqlRaw(createDocument, crossCreateVariables);
+  crossDiscountId = readCreatedDiscountId(crossCreate);
+  if (!crossDiscountId) {
+    throw new Error(`cross discountCodeBasicCreate did not return a code discount id: ${JSON.stringify(crossCreate)}`);
   }
 
   const unknownVariables = {
@@ -244,6 +304,10 @@ try {
       { code: validCode },
     ],
   };
+  const existingConflictVariables = {
+    discountId,
+    codes: [{ code: seedCode }, { code: crossDiscountCode }, { code: existingFreshCode }],
+  };
 
   const unknown = await runGraphqlRaw(addDocument, unknownVariables);
   const tooMany = await runGraphqlRaw(addDocument, tooManyVariables);
@@ -259,13 +323,31 @@ try {
     duplicateCode,
     validCode,
   });
+  const crossCodeUniquenessCheck = await runGraphqlRaw(uniquenessCheckDocument, { code: crossDiscountCode });
+  const freshCodeUniquenessCheck = await runGraphqlRaw(uniquenessCheckDocument, { code: existingFreshCode });
+  const existingConflictAdd = await runGraphqlRaw(addDocument, existingConflictVariables);
+  const existingConflictBulkCreationId = readBulkCreationId(existingConflictAdd);
+  if (!existingConflictBulkCreationId) {
+    throw new Error(`existing-conflict add did not return bulk creation id: ${JSON.stringify(existingConflictAdd)}`);
+  }
+  const existingConflictFinalRead = await waitForBulkCreationDone(existingConflictBulkCreationId);
+  const existingConflictReadAfter = await runGraphqlRaw(existingConflictReadDocument, {
+    discountId,
+    sameDiscountCode: seedCode,
+    crossDiscountCode,
+    freshCode: existingFreshCode,
+  });
 
+  crossCleanup = await runGraphqlRaw(deleteDiscountDocument, { id: crossDiscountId });
   cleanup = await runGraphqlRaw(deleteDiscountDocument, { id: discountId });
 
   const output = {
     variables: {
       discountId,
+      crossDiscountId,
       seedCode,
+      crossDiscountCode,
+      existingFreshCode,
       unknownDiscountId,
       duplicateCode,
       validCode,
@@ -273,19 +355,34 @@ try {
       carriageReturnCode,
       longCode,
       invalidBulkCreationId,
+      existingConflictBulkCreationId,
     },
     requests: {
       create: { query: createDocument, variables: createVariables },
+      crossCreate: { query: createDocument, variables: crossCreateVariables },
       unknown: { query: addDocument, variables: unknownVariables },
       tooMany: { query: addDocument, variables: tooManyVariables },
       emptyCodes: { query: addDocument, variables: emptyCodesVariables },
       invalidCodes: { query: addDocument, variables: invalidCodesVariables },
       invalidCodesFinalRead: { query: creationReadDocument, variables: { id: invalidBulkCreationId } },
       invalidCodesReadAfter: { query: readDocument, variables: { discountId, duplicateCode, validCode } },
+      crossCodeUniquenessCheck: { query: uniquenessCheckDocument, variables: { code: crossDiscountCode } },
+      freshCodeUniquenessCheck: { query: uniquenessCheckDocument, variables: { code: existingFreshCode } },
+      existingCodeConflicts: { query: addDocument, variables: existingConflictVariables },
+      existingCodeConflictsFinalRead: {
+        query: creationReadDocument,
+        variables: { id: existingConflictBulkCreationId },
+      },
+      existingCodeConflictsReadAfter: {
+        query: existingConflictReadDocument,
+        variables: { discountId, sameDiscountCode: seedCode, crossDiscountCode, freshCode: existingFreshCode },
+      },
+      crossCleanup: { query: deleteDiscountDocument, variables: { id: crossDiscountId } },
       cleanup: { query: deleteDiscountDocument, variables: { id: discountId } },
     },
     scopeProbe,
     create,
+    crossCreate,
     unknown,
     tooMany,
     emptyCodes,
@@ -294,6 +391,12 @@ try {
       finalRead: invalidCodesFinalRead,
       readAfter: invalidCodesReadAfter,
     },
+    existingCodeConflicts: {
+      add: existingConflictAdd,
+      finalRead: existingConflictFinalRead,
+      readAfter: existingConflictReadAfter,
+    },
+    crossCleanup,
     cleanup,
     upstreamCalls: [
       {
@@ -310,14 +413,54 @@ try {
           },
         },
       },
+      {
+        operationName: 'DiscountUniquenessCheck',
+        variables: { code: crossDiscountCode },
+        query: 'sha:DiscountUniquenessCheck',
+        response: {
+          status: 200,
+          body: crossCodeUniquenessCheck.payload,
+        },
+      },
+      {
+        operationName: 'DiscountUniquenessCheck',
+        variables: { code: existingFreshCode },
+        query: 'sha:DiscountUniquenessCheck',
+        response: {
+          status: 200,
+          body: freshCodeUniquenessCheck.payload,
+        },
+      },
     ],
   };
 
   const outputPath = path.join(outputDir, 'discount-redeem-code-bulk-add-validation.json');
   await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
 
-  console.log(JSON.stringify({ ok: true, apiVersion, outputPath, discountId, invalidBulkCreationId }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        apiVersion,
+        outputPath,
+        discountId,
+        crossDiscountId,
+        invalidBulkCreationId,
+        existingConflictBulkCreationId,
+      },
+      null,
+      2,
+    ),
+  );
 } catch (error) {
+  if (crossDiscountId && !crossCleanup) {
+    try {
+      crossCleanup = await runGraphqlRaw(deleteDiscountDocument, { id: crossDiscountId });
+      console.error(`Cleaned up ${crossDiscountId} after capture failure: ${JSON.stringify(crossCleanup)}`);
+    } catch (cleanupError) {
+      console.error(`Failed to clean up ${crossDiscountId}: ${String(cleanupError)}`);
+    }
+  }
   if (discountId && !cleanup) {
     try {
       cleanup = await runGraphqlRaw(deleteDiscountDocument, { id: discountId });

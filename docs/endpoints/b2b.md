@@ -115,6 +115,20 @@ at `companyId` for a customer already assigned as a company contact, and
 The public `BusinessCustomerUserError` schema rejects selecting `detail`, so
 the local `customer_email_must_exist` detail remains covered by runtime tests.
 
+Company location inputs use the same phone-normalization helper for supported
+local staging. `companyCreate(input.companyLocation)` and
+`companyLocationCreate` normalize valid local-format phone numbers to E.164
+with the effective shop country code and default omitted locales from the
+primary shop locale; invalid phone strings return `INVALID` at the nested
+`input.companyLocation.phone` path or the root `input.phone` path.
+`companyLocationUpdate` normalizes supplied phone values but preserves the
+existing locale when the update input omits `locale`. Public Admin 2026-04
+capture on the live conformance shop accepts malformed location locale strings
+such as `not_a_locale` on nested create, root create, and update, and stores
+the supplied value instead of returning a locale-format userError; the local
+runtime mirrors that captured public behavior for location roots while keeping
+the stricter contact locale validation described above.
+
 Empty-object B2B write inputs short-circuit before local staging. The
 2026-04 `b2b-no-input-validation` parity capture records the public Admin
 payloads for the empty-object branches: `companyContactCreate`,

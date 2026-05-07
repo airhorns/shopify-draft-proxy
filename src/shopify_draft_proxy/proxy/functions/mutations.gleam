@@ -1251,11 +1251,7 @@ fn handle_cart_transform_create(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let input = case graphql_helpers.read_arg_object(args, "cartTransform") {
-    Some(d) -> d
-    None -> args
-  }
-  let reference = read_function_reference(input)
+  let reference = read_function_reference(args)
   case reference.function_id, reference.function_handle {
     None, None -> {
       let payload =
@@ -1280,7 +1276,6 @@ fn handle_cart_transform_create(
       )
     }
     _, _ -> {
-      let title = graphql_helpers.read_arg_string(input, "title")
       let #(resolution, store_after_fn, identity_after_fn) =
         resolve_cart_transform_function(store, identity, reference)
       case resolution {
@@ -1332,21 +1327,17 @@ fn handle_cart_transform_create(
                 )
               let #(metafields, metafield_errors, identity_after_metafields) =
                 read_cart_transform_metafields(
-                  input,
+                  args,
                   cart_transform_id,
                   timestamp,
                   identity_final,
                 )
-              let final_title = case title {
-                Some(t) -> Some(t)
-                None -> shopify_fn.title
-              }
               let function_handle = case reference.function_handle {
                 Some(_) -> reference.function_handle
                 None -> shopify_fn.handle
               }
               let block_on_failure = case
-                graphql_helpers.read_arg_bool(input, "blockOnFailure")
+                graphql_helpers.read_arg_bool(args, "blockOnFailure")
               {
                 Some(b) -> Some(b)
                 None -> Some(False)
@@ -1374,7 +1365,7 @@ fn handle_cart_transform_create(
                   let cart_transform =
                     CartTransformRecord(
                       id: cart_transform_id,
-                      title: final_title,
+                      title: None,
                       block_on_failure: block_on_failure,
                       function_id: Some(shopify_fn.id),
                       function_handle: function_handle,

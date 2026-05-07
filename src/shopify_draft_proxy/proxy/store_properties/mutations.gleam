@@ -12,6 +12,7 @@ import shopify_draft_proxy/graphql/ast.{
   StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/address_names
 import shopify_draft_proxy/proxy/admin_api_versions
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -685,6 +686,8 @@ fn location_add_address_data(
     }
   })
   |> dict.from_list
+  |> maybe_insert_country_name(address)
+  |> maybe_insert_province_name(address)
 }
 
 fn validate_location_add_country_code(
@@ -971,31 +974,13 @@ fn validate_location_edit_address(
   record: StorePropertyRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(store_properties_types.LocationEditUserError) {
-  let address = merged_location_address(record, input)
-  case address {
+  case read_arg_object(input, "address") {
     None -> []
-    Some(fields) ->
-      [
-        required_location_address_error(fields, "countryCode", "Add a country"),
-        required_location_address_error(
-          fields,
-          "address1",
-          "Add a street for this address",
-        ),
-        required_location_address_error(fields, "city", "Add a city"),
-        required_location_address_error(
-          fields,
-          "zip",
-          "Add a postal / ZIP code",
-        ),
-      ]
-      |> list.filter_map(fn(error) {
-        case error {
-          Some(value) -> Ok(value)
-          None -> Error(Nil)
-        }
-      })
-      |> list.append(validate_location_address_component_lengths(fields))
+    Some(_) ->
+      case merged_location_address(record, input) {
+        Some(fields) -> validate_location_address_component_lengths(fields)
+        None -> []
+      }
   }
 }
 
@@ -1084,22 +1069,6 @@ fn validate_location_address_component_lengths(
       _ -> Error(Nil)
     }
   })
-}
-
-fn required_location_address_error(
-  fields: Dict(String, StorePropertyValue),
-  key: String,
-  message: String,
-) -> Option(store_properties_types.LocationEditUserError) {
-  case dict.get(fields, key) {
-    Ok(StorePropertyString(_)) -> None
-    _ ->
-      Some(store_properties_types.LocationEditUserError(
-        field: ["input", "address", key],
-        message: message,
-        code: Some("BLANK"),
-      ))
-  }
 }
 
 fn validate_location_edit_fulfills_online_orders(
@@ -3282,7 +3251,8 @@ fn merged_location_address_from_data(
         |> insert_optional_address_string(values, "zip")
         |> insert_optional_address_string(values, "countryCode")
         |> insert_optional_address_string(values, "provinceCode")
-        |> maybe_insert_country_name(values),
+        |> maybe_insert_country_name(values)
+        |> maybe_insert_province_name(values),
       )
     }
   }
@@ -3304,10 +3274,40 @@ fn maybe_insert_country_name(
   values: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, StorePropertyValue) {
   case read_arg_string(values, "countryCode") {
-    Some("CA") -> dict.insert(fields, "country", StorePropertyString("Canada"))
-    Some("US") ->
-      dict.insert(fields, "country", StorePropertyString("United States"))
+    Some(code) ->
+      dict.insert(
+        fields,
+        "country",
+        StorePropertyString(address_names.country_name(code)),
+      )
     _ -> fields
+  }
+}
+
+fn maybe_insert_province_name(
+  fields: Dict(String, StorePropertyValue),
+  values: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, StorePropertyValue) {
+  case read_arg_string(values, "provinceCode") {
+    Some(province_code) -> {
+      let country_code = case read_arg_string(values, "countryCode") {
+        Some(value) -> value
+        None ->
+          case dict.get(fields, "countryCode") {
+            Ok(StorePropertyString(value)) -> value
+            _ -> ""
+          }
+      }
+      dict.insert(
+        fields,
+        "province",
+        StorePropertyString(address_names.province_name(
+          country_code,
+          province_code,
+        )),
+      )
+    }
+    None -> fields
   }
 }
 

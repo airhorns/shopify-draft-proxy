@@ -122,6 +122,15 @@
         }
       },
       {
+        "name": "giftCard node read after lifecycle matches",
+        "capturePath": "$.operations.readAfterLifecycle.response.payload.data.giftCard",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-node-read-after-lifecycle.graphql",
+          "variablesCapturePath": "$.proxyVariables.readAfterLifecycle"
+        }
+      },
+      {
         "name": "downstream filtered non-empty giftCards read matches",
         "capturePath": "$.operations.readAfterLifecycle.response.payload.data.giftCards",
         "proxyPath": "$.data.giftCards",

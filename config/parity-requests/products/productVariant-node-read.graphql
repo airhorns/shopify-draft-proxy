@@ -1,0 +1,12 @@
+query ProductVariantNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on ProductVariant {
+      id
+      title
+      selectedOptions {
+        name
+        value
+      }
+    }
+  }
+}

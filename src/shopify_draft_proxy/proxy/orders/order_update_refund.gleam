@@ -35,11 +35,11 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/orders/common.{
   captured_int_field, captured_json_source, captured_money_amount,
   captured_money_amount_field, captured_money_presentment_amount,
-  captured_object_field, captured_string_field, field_arguments,
-  find_order_line_item, float_to_fixed_2, format_decimal_amount,
+  captured_object_field, captured_string_field, connection_nodes,
+  field_arguments, find_order_line_item, float_to_fixed_2, format_decimal_amount,
   money_set_string_with_presentment, mutation_user_error, nonzero_float,
   nullable_mutation_user_error, optional_captured_string, order_currency_code,
-  order_money_set_from_input, order_money_set_string,
+  order_money_set_from_input, order_money_set_string, order_mutation_user_error,
   order_presentment_currency_code, order_refunds, order_total_price,
   order_transactions, prepend_captured_replacement, read_bool, read_int,
   read_number, read_object, read_object_list, read_string, read_string_list,
@@ -54,6 +54,7 @@ import shopify_draft_proxy/proxy/orders/order_create.{
 }
 import shopify_draft_proxy/proxy/orders/order_types.{
   type OrderMutationUserError, type RefundCreateUserError, RefundCreateUserError,
+  UserErrorField,
 }
 import shopify_draft_proxy/proxy/orders/serializers.{
   serialize_order_mutation_payload, serialize_order_node,
@@ -134,7 +135,9 @@ pub fn handle_order_update_mutation(
                   [],
                 )
                 Some(order) -> {
-                  case validate_order_update_business_input(input) {
+                  case
+                    validate_order_update_business_input(hydrated_store, input)
+                  {
                     [first, ..rest] -> #(
                       key,
                       serialize_order_mutation_payload(
@@ -151,7 +154,12 @@ pub fn handle_order_update_mutation(
                     )
                     [] -> {
                       let #(updated_order, next_identity) =
-                        build_updated_order(order, input, identity)
+                        build_updated_order(
+                          hydrated_store,
+                          order,
+                          input,
+                          identity,
+                        )
                       let next_store =
                         store.stage_order(hydrated_store, updated_order)
                       let payload =
@@ -293,76 +301,103 @@ pub fn handle_refund_create_mutation(
                   [refund_create_log_draft([order.id], store_types.Failed)],
                 )
                 [] -> {
-                  let refund_amount =
-                    refund_create_requested_amount(input, order)
-                  let refundable_amount = order_refundable_payment_amount(order)
-                  let allow_over_refunding =
-                    read_bool(input, "allowOverRefunding", False)
-                  case
-                    !allow_over_refunding && refund_amount >. refundable_amount
-                  {
-                    True -> {
-                      let message =
-                        "Refund amount $"
-                        <> float_to_fixed_2(refund_amount)
-                        <> " is greater than net payment received $"
-                        <> float_to_fixed_2(refundable_amount)
-                      #(
-                        key,
-                        serialize_refund_create_payload(
-                          field,
-                          None,
-                          Some(order),
-                          [
-                            RefundCreateUserError(
-                              Some(over_refund_field_path(input)),
-                              message,
-                              Some(user_error_codes.invalid),
+                  let transaction_errors =
+                    refund_create_transaction_errors(input, order)
+                  case transaction_errors {
+                    [_, ..] -> #(
+                      key,
+                      serialize_refund_create_payload(
+                        field,
+                        None,
+                        Some(order),
+                        transaction_errors,
+                        fragments,
+                      ),
+                      hydrated_store,
+                      identity,
+                      [],
+                      [],
+                      [refund_create_log_draft([order.id], store_types.Failed)],
+                    )
+                    [] -> {
+                      let refund_amount =
+                        refund_create_requested_amount(input, order)
+                      let refundable_amount =
+                        order_refundable_payment_amount(order)
+                      let allow_over_refunding =
+                        read_bool(input, "allowOverRefunding", False)
+                      case
+                        !allow_over_refunding
+                        && refund_amount >. refundable_amount
+                      {
+                        True -> {
+                          let message =
+                            "Refund amount $"
+                            <> float_to_fixed_2(refund_amount)
+                            <> " is greater than net payment received $"
+                            <> float_to_fixed_2(refundable_amount)
+                          #(
+                            key,
+                            serialize_refund_create_payload(
+                              field,
+                              None,
+                              Some(order),
+                              [
+                                RefundCreateUserError(
+                                  Some(over_refund_field_path(input)),
+                                  message,
+                                  Some(user_error_codes.invalid),
+                                ),
+                              ],
+                              fragments,
                             ),
-                          ],
-                          fragments,
-                        ),
-                        hydrated_store,
-                        identity,
-                        [],
-                        [],
-                        [
-                          refund_create_log_draft(
+                            hydrated_store,
+                            identity,
+                            [],
+                            [],
+                            [
+                              refund_create_log_draft(
+                                [order.id],
+                                store_types.Failed,
+                              ),
+                            ],
+                          )
+                        }
+                        False -> {
+                          let #(refund, refund_transaction, next_identity) =
+                            build_refund_from_input(order, input, identity)
+                          let updated_order =
+                            apply_refund_to_order(
+                              order,
+                              refund,
+                              refund_transaction,
+                            )
+                          let next_store =
+                            store.stage_order(hydrated_store, updated_order)
+                          let payload =
+                            serialize_refund_create_payload(
+                              field,
+                              Some(refund),
+                              Some(updated_order),
+                              [],
+                              fragments,
+                            )
+                          #(
+                            key,
+                            payload,
+                            next_store,
+                            next_identity,
                             [order.id],
-                            store_types.Failed,
-                          ),
-                        ],
-                      )
-                    }
-                    False -> {
-                      let #(refund, refund_transaction, next_identity) =
-                        build_refund_from_input(order, input, identity)
-                      let updated_order =
-                        apply_refund_to_order(order, refund, refund_transaction)
-                      let next_store =
-                        store.stage_order(hydrated_store, updated_order)
-                      let payload =
-                        serialize_refund_create_payload(
-                          field,
-                          Some(refund),
-                          Some(updated_order),
-                          [],
-                          fragments,
-                        )
-                      #(
-                        key,
-                        payload,
-                        next_store,
-                        next_identity,
-                        [order.id],
-                        [],
-                        [
-                          refund_create_log_draft(
-                            [order.id],
-                            store_types.Staged,
-                          ),
-                        ],
-                      )
+                            [],
+                            [
+                              refund_create_log_draft(
+                                [order.id],
+                                store_types.Staged,
+                              ),
+                            ],
+                          )
+                        }
+                      }
                     }
                   }
                 }
@@ -608,6 +643,95 @@ pub fn build_refund_transaction(
       #("amountSet", amount_set),
     ])
   #(transaction, next_identity)
+}
+
+@internal
+pub fn refund_create_transaction_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
+) -> List(RefundCreateUserError) {
+  let #(errors, _) =
+    read_object_list(input, "transactions")
+    |> list.fold(#([], 0), fn(acc, transaction) {
+      let #(errors, index) = acc
+      let transaction_errors =
+        refund_create_transaction_error(order, transaction, index)
+      #(list.append(errors, transaction_errors), index + 1)
+    })
+  errors
+}
+
+@internal
+pub fn refund_create_transaction_error(
+  order: OrderRecord,
+  transaction: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(RefundCreateUserError) {
+  let index_path = int.to_string(index)
+  let kind = read_string(transaction, "kind") |> option.unwrap("REFUND")
+  case is_refund_transaction_kind(kind) {
+    False -> [
+      RefundCreateUserError(
+        Some(["transactions", index_path, "kind"]),
+        "Kind " <> string.lowercase(kind) <> " is not a valid transaction",
+        Some(user_error_codes.invalid),
+      ),
+    ]
+    True -> {
+      case read_string(transaction, "parentId") {
+        Some(parent_id) -> {
+          case find_order_transaction(order, parent_id) {
+            None -> [
+              RefundCreateUserError(
+                Some(["transactions", index_path, "parentId"]),
+                "Transactions require a parent_id associated with the order",
+                Some(user_error_codes.invalid),
+              ),
+            ]
+            Some(parent) -> {
+              case read_string(transaction, "gateway") {
+                Some(gateway) -> {
+                  case captured_string_field(parent, "gateway") {
+                    Some(parent_gateway) if parent_gateway == gateway -> []
+                    _ -> [
+                      RefundCreateUserError(
+                        Some(["transactions", index_path, "gateway"]),
+                        "Gateway does not match parent transaction",
+                        Some(user_error_codes.invalid),
+                      ),
+                    ]
+                  }
+                }
+                None -> []
+              }
+            }
+          }
+        }
+        None -> []
+      }
+    }
+  }
+}
+
+@internal
+pub fn is_refund_transaction_kind(kind: String) -> Bool {
+  case kind {
+    "REFUND" | "VOID" -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn find_order_transaction(
+  order: OrderRecord,
+  transaction_id: String,
+) -> Option(CapturedJsonValue) {
+  order_transactions(order)
+  |> list.find(fn(transaction) {
+    captured_string_field(transaction, "id") == Some(transaction_id)
+  })
+  |> result.map(Some)
+  |> result.unwrap(None)
 }
 
 @internal
@@ -957,6 +1081,7 @@ pub fn sum_order_refunded_shipping_presentment_amount(
 
 @internal
 pub fn build_updated_order(
+  store: Store,
   order: OrderRecord,
   input: Dict(String, root_field.ResolvedValue),
   identity: SyntheticIdentityRegistry,
@@ -1025,6 +1150,8 @@ pub fn build_updated_order(
       "shippingAddress",
       build_order_update_address(read_object(input, "shippingAddress")),
     )
+    |> append_localization_replacements(order.data, input)
+    |> append_staff_member_replacements(store, input)
   let updated_data =
     order.data
     |> replace_captured_object_fields(list.append(
@@ -1032,6 +1159,156 @@ pub fn build_updated_order(
       metafield_replacements,
     ))
   #(OrderRecord(..order, data: updated_data), next_identity)
+}
+
+fn append_localization_replacements(
+  replacements: List(#(String, CapturedJsonValue)),
+  order_data: CapturedJsonValue,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(String, CapturedJsonValue)) {
+  case
+    dict.has_key(input, "localizedFields")
+    || dict.has_key(input, "localizationExtensions")
+  {
+    False -> replacements
+    True -> {
+      let nodes =
+        localization_connection_nodes(order_data)
+        |> merge_localization_nodes(
+          read_object_list(input, "localizedFields")
+          |> list.map(localized_field_node),
+        )
+        |> merge_localization_nodes(
+          read_object_list(input, "localizationExtensions")
+          |> list.map(localization_extension_node),
+        )
+      let localized_fields = CapturedObject([#("nodes", CapturedArray(nodes))])
+      let localization_extensions =
+        CapturedObject([#("nodes", CapturedArray(nodes))])
+      replacements
+      |> prepend_captured_replacement("localizedFields", localized_fields)
+      |> prepend_captured_replacement(
+        "localizationExtensions",
+        localization_extensions,
+      )
+    }
+  }
+}
+
+@internal
+pub fn captured_localized_fields(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "nodes",
+      CapturedArray(list.map(inputs, fn(input) { localized_field_node(input) })),
+    ),
+  ])
+}
+
+@internal
+pub fn captured_localization_extensions(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "nodes",
+      CapturedArray(
+        list.map(inputs, fn(input) { localization_extension_node(input) }),
+      ),
+    ),
+  ])
+}
+
+fn localized_field_node(
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  let key =
+    read_string(input, "key")
+    |> option.or(read_string(input, "keyType"))
+    |> option.unwrap("")
+  CapturedObject([
+    #("key", CapturedString(key)),
+    #("keyType", CapturedString(key)),
+    #("value", optional_captured_string(read_string(input, "value"))),
+  ])
+}
+
+fn localization_extension_node(
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  let key = read_string(input, "key") |> option.unwrap("")
+  CapturedObject([
+    #("key", CapturedString(key)),
+    #("keyType", CapturedString(key)),
+    #("value", optional_captured_string(read_string(input, "value"))),
+  ])
+}
+
+fn localization_connection_nodes(
+  order_data: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(order_data, "localizedFields") {
+    Some(value) -> connection_nodes(value)
+    None ->
+      case captured_object_field(order_data, "localizationExtensions") {
+        Some(value) -> connection_nodes(value)
+        None -> []
+      }
+  }
+}
+
+fn merge_localization_nodes(
+  existing: List(CapturedJsonValue),
+  updates: List(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  list.fold(updates, existing, fn(nodes, update) {
+    let update_key = localization_node_key(update)
+    case update_key {
+      "" -> nodes
+      key ->
+        list.append(
+          nodes
+            |> list.filter(fn(node) { localization_node_key(node) != key }),
+          [update],
+        )
+    }
+  })
+}
+
+fn localization_node_key(node: CapturedJsonValue) -> String {
+  case captured_string_field(node, "key") {
+    Some(key) -> key
+    None -> captured_string_field(node, "keyType") |> option.unwrap("")
+  }
+}
+
+fn append_staff_member_replacements(
+  replacements: List(#(String, CapturedJsonValue)),
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(String, CapturedJsonValue)) {
+  case read_string(input, "staffMemberId") {
+    Some(staff_member_id) ->
+      case
+        store.get_effective_admin_platform_generic_node_by_id(
+          store,
+          staff_member_id,
+        )
+      {
+        Some(record) if record.typename == "StaffMember" ->
+          replacements
+          |> prepend_captured_replacement(
+            "staffMemberId",
+            CapturedString(staff_member_id),
+          )
+          |> prepend_captured_replacement("staffMember", record.data)
+          |> prepend_captured_replacement("user", record.data)
+        _ -> replacements
+      }
+    None -> replacements
+  }
 }
 
 @internal
@@ -1164,6 +1441,7 @@ pub fn order_metafields_connection(
 
 @internal
 pub fn validate_order_update_business_input(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(OrderMutationUserError) {
   let empty_errors = case has_order_update_mutable_input(input) {
@@ -1178,6 +1456,7 @@ pub fn validate_order_update_business_input(
   empty_errors
   |> list.append(validate_order_update_phone(input))
   |> list.append(validate_order_update_shipping_address(input))
+  |> list.append(validate_order_update_staff_member_id(store, input))
 }
 
 @internal
@@ -1201,7 +1480,50 @@ pub fn order_update_mutable_fields() -> List(String) {
     "metafields",
     "customAttributes",
     "shippingAddress",
+    "localizedFields",
+    "localizationExtensions",
+    "staffMemberId",
   ]
+}
+
+@internal
+pub fn validate_order_update_staff_member_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_string(input, "staffMemberId") {
+    Some(staff_member_id) ->
+      case valid_staff_member_gid(staff_member_id) {
+        False -> [
+          mutation_user_error(["input", "staffMemberId"], "Invalid global id"),
+        ]
+        True ->
+          case
+            store.get_effective_admin_platform_generic_node_by_id(
+              store,
+              staff_member_id,
+            )
+          {
+            Some(record) if record.typename == "StaffMember" -> []
+            _ -> [
+              order_mutation_user_error(
+                [UserErrorField("input"), UserErrorField("staffMemberId")],
+                "Staff member does not exist",
+                Some(user_error_codes.not_found),
+              ),
+            ]
+          }
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn valid_staff_member_gid(value: String) -> Bool {
+  case string.split(value, on: "/") {
+    ["gid:", "", "shopify", "StaffMember", tail] -> tail != ""
+    _ -> False
+  }
 }
 
 @internal

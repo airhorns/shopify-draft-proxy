@@ -1,0 +1,43 @@
+mutation SavedSearchFilterProjectionDelete(
+  $upperOnly: SavedSearchDeleteInput!
+  $lowerOnly: SavedSearchDeleteInput!
+  $boundedRange: SavedSearchDeleteInput!
+  $existsFilter: SavedSearchDeleteInput!
+  $negatedRange: SavedSearchDeleteInput!
+) {
+  upperOnly: savedSearchDelete(input: $upperOnly) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  lowerOnly: savedSearchDelete(input: $lowerOnly) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  boundedRange: savedSearchDelete(input: $boundedRange) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  existsFilter: savedSearchDelete(input: $existsFilter) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  negatedRange: savedSearchDelete(input: $negatedRange) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+}

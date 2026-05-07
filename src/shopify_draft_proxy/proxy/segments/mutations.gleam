@@ -10,6 +10,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Selection, Argument, Field, StringValue, VariableValue,
 }
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_document_fragments, get_field_response_key,
@@ -17,6 +18,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
+import shopify_draft_proxy/proxy/mutation_schema_lookup
 import shopify_draft_proxy/proxy/segments/serializers
 import shopify_draft_proxy/proxy/segments/types as segment_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
@@ -63,9 +65,67 @@ pub fn process_mutation(
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      handle_mutation_fields(store, identity, fields, fragments, variables)
+      let operation_path = get_operation_path_label(document)
+      case
+        validate_segment_schema_errors(
+          fields,
+          variables,
+          operation_path,
+          document,
+        )
+      {
+        [] ->
+          handle_mutation_fields(store, identity, fields, fragments, variables)
+        errors ->
+          MutationOutcome(
+            data: mutation_envelope([], errors),
+            store: store,
+            identity: identity,
+            staged_resource_ids: [],
+            log_drafts: [],
+          )
+      }
     }
   }
+}
+
+fn get_operation_path_label(document: String) -> String {
+  case parse_operation.parse_operation(document) {
+    Ok(parsed) -> {
+      let kind = case parsed.type_ {
+        parse_operation.QueryOperation -> "query"
+        parse_operation.MutationOperation -> "mutation"
+      }
+      case parsed.name {
+        Some(name) -> kind <> " " <> name
+        None -> kind
+      }
+    }
+    Error(_) -> "mutation"
+  }
+}
+
+fn validate_segment_schema_errors(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_path: String,
+  document: String,
+) -> List(Json) {
+  let schema = mutation_schema_lookup.default_schema()
+  list.flat_map(fields, fn(field) {
+    case field {
+      Field(name: name, ..) ->
+        mutation_helpers.validate_mutation_field_against_schema(
+          field,
+          variables,
+          name.value,
+          operation_path,
+          document,
+          schema,
+        )
+      _ -> []
+    }
+  })
 }
 
 fn handle_mutation_fields(
@@ -895,7 +955,9 @@ fn validate_customer_segment_members_query_create(
       ),
     ]
     Some(_), None ->
-      segment_types.validate_customer_segment_members_query(raw_query)
+      segment_types.validate_customer_segment_members_query_create_direct_query(
+        raw_query,
+      )
     None, Some(_) ->
       case resolved_segment {
         Some(_) -> []

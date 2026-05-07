@@ -981,6 +981,41 @@ pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
   )
 }
 
+pub fn web_presence_create_rejects_taken_subfolder_suffix_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"fr\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"FR\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id subfolderSuffix } } }",
+    )
+  let second_json = json.to_string(second_body)
+  let read_json = json.to_string(read_body)
+
+  assert first_status == 200
+  assert second_status == 200
+  assert read_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+  assert string.contains(second_json, "\"webPresence\":null")
+  assert string.contains(
+    second_json,
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix has already been taken\",\"code\":\"TAKEN\"",
+  )
+  assert string.contains(
+    read_json,
+    "\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"fr\"}]",
+  )
+  assert !string.contains(read_json, "gid://shopify/MarketWebPresence/3")
+}
+
 pub fn web_presence_create_reports_unknown_domain_only_when_not_stored_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
@@ -1216,6 +1251,48 @@ pub fn web_presence_update_domain_id_is_not_validated_as_user_error_test() {
   )
   assert string.contains(serialized, "\"userErrors\":[]")
   assert !string.contains(serialized, "DOMAIN_NOT_FOUND")
+}
+
+pub fn web_presence_update_rejects_taken_subfolder_suffix_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"fr\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"de\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"DE\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: noop_status, body: noop_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"FR\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let update_json = json.to_string(update_body)
+  let noop_json = json.to_string(noop_body)
+
+  assert first_status == 200
+  assert second_status == 200
+  assert update_status == 200
+  assert noop_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+  assert string.contains(update_json, "\"webPresence\":null")
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix has already been taken\",\"code\":\"TAKEN\"",
+  )
+  assert string.contains(noop_json, "\"userErrors\":[]")
+  assert string.contains(
+    noop_json,
+    "\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"FR\"}",
+  )
 }
 
 pub fn web_presence_update_subfolder_domain_mutex_uses_existing_domain_test() {
@@ -2078,6 +2155,26 @@ pub fn market_create_skips_plan_limit_for_draft_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"status\":\"DRAFT\",\"enabled\":false},\"userErrors\":[]}}}"
 }
 
+pub fn market_create_currency_settings_flags_read_after_write_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      markets_home_proxy(0),
+      "mutation { marketCreate(input: { name: \"Currency Flags\", status: ACTIVE, enabled: true, currencySettings: { baseCurrency: USD, localCurrencies: true, roundingEnabled: true } }) { market { id currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ market(id: \"gid://shopify/Market/1\") { id currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled } } }",
+    )
+
+  assert create_status == 200
+  assert read_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"currencySettings\":{\"baseCurrency\":{\"currencyCode\":\"USD\",\"currencyName\":\"US Dollar\"},\"localCurrencies\":true,\"roundingEnabled\":true}},\"userErrors\":[]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"currencySettings\":{\"baseCurrency\":{\"currencyCode\":\"USD\",\"currencyName\":\"US Dollar\"},\"localCurrencies\":true,\"roundingEnabled\":true}}}}"
+}
+
 pub fn market_create_plan_limit_counts_only_enabled_legacy_markets_test() {
   let proxy = legacy_markets_proxy(2)
   let seeded_store =
@@ -2123,6 +2220,24 @@ pub fn market_create_rejects_invalid_base_currency_test() {
   assert unsupported_status == 200
   assert json.to_string(unsupported_body)
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"currencySettings\",\"baseCurrency\"],\"message\":\"Base currency is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn market_create_rejects_non_positive_manual_fx_rate_test() {
+  let #(Response(status: zero_status, body: zero_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Manual Rate\", currencySettings: { baseCurrency: USD, baseCurrencyManualRate: 0 } }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: negative_status, body: negative_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Manual Rate\", currencySettings: { baseCurrency: USD, baseCurrencyManualRate: -1.5 } }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert zero_status == 200
+  assert negative_status == 200
+  assert json.to_string(zero_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"currencySettings\",\"baseCurrencyManualRate\"],\"message\":\"Enter a rate above 0.\",\"code\":null}]}}}"
+  assert json.to_string(negative_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"currencySettings\",\"baseCurrencyManualRate\"],\"message\":\"Enter a rate above 0.\",\"code\":null}]}}}"
 }
 
 pub fn market_create_rejects_duplicate_region_country_test() {

@@ -106,6 +106,42 @@ pub fn validate_customer_segment_members_query(
   }
 }
 
+@internal
+pub fn validate_customer_segment_members_query_create_direct_query(
+  query: Option(String),
+) -> List(UserError) {
+  case query {
+    None -> [
+      null_field_user_error("Query can't be blank", Some("INVALID")),
+    ]
+    Some(q) ->
+      case string.trim(q) {
+        "" -> [
+          null_field_user_error("Query can't be blank", Some("INVALID")),
+        ]
+        trimmed ->
+          case validate_segment_query_string(trimmed) {
+            [] -> []
+            _ ->
+              case captured_member_query_create_cdp_error(trimmed) {
+                Some(message) -> [
+                  null_field_user_error(message, Some("INVALID")),
+                ]
+                None -> []
+              }
+          }
+      }
+  }
+}
+
+fn captured_member_query_create_cdp_error(trimmed: String) -> Option(String) {
+  case trimmed {
+    "not a valid segment query ???" ->
+      Some("Line 1 Column 6: 'valid' is unexpected.")
+    _ -> None
+  }
+}
+
 /// Mirrors `validateSegmentQueryString(query, 'member-query')` —
 /// member-query mode omits the `Query ` prefix on error messages.
 fn validate_member_query_string(trimmed: String) -> List(String) {
