@@ -2221,6 +2221,18 @@ pub fn store_credit_account_transaction_json(
     #("balanceAfterTransaction", money_json(record.balance_after_transaction)),
     #("createdAt", json.string(record.created_at)),
     #("event", json.string(record.event)),
+    #("notify", optional_bool(record.notify)),
+    #(
+      "attribution",
+      json.object([
+        #("userId", optional_string(record.attribution_user_id)),
+        #(
+          "pointOfSaleDeviceId",
+          optional_string(record.attribution_point_of_sale_device_id),
+        ),
+        #("locationId", optional_string(record.attribution_location_id)),
+      ]),
+    ),
   ])
 }
 

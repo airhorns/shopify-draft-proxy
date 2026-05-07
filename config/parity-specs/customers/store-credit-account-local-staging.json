@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "runtime-staging", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/store-credit-account-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/store-credit-account-parity.json"
   ],
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
   "proxyRequest": {
@@ -150,6 +150,78 @@
         }
       },
       {
+        "name": "over-limit-credit-data",
+        "capturePath": "$.validations.overLimitCredit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.overLimitCredit.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "unsupported-attribution-credit-errors",
+        "capturePath": "$.validations.unsupportedAttributionCredit.response",
+        "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.errors[0].locations[0].line",
+            "matcher": "any-number",
+            "reason": "The proxy replay document is formatted separately from the capture script document, so GraphQL error line offsets differ while message, code, value, and problem path stay strict."
+          },
+          {
+            "path": "$.errors[0].locations[0].column",
+            "matcher": "any-number",
+            "reason": "The proxy replay document is formatted separately from the capture script document, so GraphQL error locations differ while message, code, value, and problem path stay strict."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.unsupportedAttributionCredit.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "unsupported-debit-fields-errors",
+        "capturePath": "$.validations.unsupportedDebitFields.response",
+        "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.errors[0].locations[0].line",
+            "matcher": "any-number",
+            "reason": "The proxy replay document is formatted separately from the capture script document, so GraphQL error line offsets differ while message, code, value, and problem paths stay strict."
+          },
+          {
+            "path": "$.errors[0].locations[0].column",
+            "matcher": "any-number",
+            "reason": "The proxy replay document is formatted separately from the capture script document, so GraphQL error locations differ while message, code, value, and problem paths stay strict."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "debitInput": {
+              "fromCapturePath": "$.validations.unsupportedDebitFields.request.variables.debitInput"
+            }
+          }
+        }
+      },
+      {
         "name": "credit-mutation-data",
         "capturePath": "$.mutation.response.data",
         "proxyPath": "$.data",
@@ -253,5 +325,5 @@
       }
     ]
   },
-  "notes": "HAR-317/HAR-635 captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts."
+  "notes": "HAR-317/HAR-635 captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, and CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts and GraphQL location offsets for validation replay documents."
 }

@@ -454,6 +454,17 @@ fn interface_type_applies(type_condition: String, typename: String) -> Bool {
         ["AppCatalog", "CompanyLocationCatalog", "MarketCatalog"],
         typename,
       )
+    "StoreCreditAccountTransaction" ->
+      list.contains(
+        [
+          "StoreCreditAccountCreditTransaction",
+          "StoreCreditAccountDebitRevertTransaction",
+          "StoreCreditAccountDebitTransaction",
+          "StoreCreditAccountExpirationTransaction",
+          "StoreCreditAccountTransaction",
+        ],
+        typename,
+      )
     _ -> False
   }
 }
