@@ -908,6 +908,52 @@ pub fn web_presence_update_preserves_absent_alternate_locales_test() {
   )
 }
 
+pub fn web_presence_delete_rejects_primary_domain_web_presence_test() {
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_primary_web_presence_proxy(),
+      "mutation { webPresenceDelete(id: \"gid://shopify/MarketWebPresence/primary\") { deletedId userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { webPresences(first: 5) { nodes { id domain { host } } } market(id: \"gid://shopify/Market/primary\") { webPresences(first: 5) { nodes { id } } } }",
+    )
+
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"webPresenceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The shop must have a web presence that uses the primary domain.\",\"code\":\"SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE\"}]}}}"
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"gid://shopify/MarketWebPresence/primary\"",
+  )
+  assert string.contains(
+    json.to_string(read_body),
+    "\"market\":{\"webPresences\":{\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/primary\"}]}}",
+  )
+}
+
+pub fn market_delete_preserves_primary_domain_web_presence_cascade_test() {
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_primary_web_presence_proxy(),
+      "mutation { marketDelete(id: \"gid://shopify/Market/primary\") { deletedId userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { market(id: \"gid://shopify/Market/primary\") { id } webPresences(first: 5) { nodes { id domain { host } } } }",
+    )
+
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"marketDelete\":{\"deletedId\":\"gid://shopify/Market/primary\",\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"market\":null,\"webPresences\":{\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/primary\",\"domain\":{\"host\":\"acme.myshopify.com\"}}]}}}"
+}
+
 pub fn web_presence_update_accepts_empty_input_as_noop_test() {
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     graphql_with_proxy(
@@ -1344,6 +1390,108 @@ fn seeded_proxy() -> DraftProxy {
   let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
   let seeded_store = store.upsert_base_shop(proxy.store, acme_shop())
   DraftProxy(..proxy, store: seeded_store)
+}
+
+fn seeded_primary_web_presence_proxy() -> DraftProxy {
+  let proxy = seeded_proxy()
+  let record =
+    WebPresenceRecord(
+      id: "gid://shopify/MarketWebPresence/primary",
+      cursor: Some("gid://shopify/MarketWebPresence/primary"),
+      data: CapturedObject([
+        #("__typename", CapturedString("MarketWebPresence")),
+        #("id", CapturedString("gid://shopify/MarketWebPresence/primary")),
+        #(
+          "domain",
+          CapturedObject([
+            #("__typename", CapturedString("Domain")),
+            #("id", CapturedString("gid://shopify/Domain/1000")),
+            #("host", CapturedString("acme.myshopify.com")),
+            #("url", CapturedString("https://acme.myshopify.com")),
+            #("sslEnabled", CapturedBool(True)),
+          ]),
+        ),
+        #(
+          "rootUrls",
+          CapturedArray([
+            CapturedObject([
+              #("locale", CapturedString("en")),
+              #("url", CapturedString("https://acme.myshopify.com/")),
+            ]),
+          ]),
+        ),
+        #(
+          "defaultLocale",
+          CapturedObject([
+            #("locale", CapturedString("en")),
+            #("name", CapturedString("English")),
+            #("primary", CapturedBool(True)),
+            #("published", CapturedBool(True)),
+          ]),
+        ),
+        #("alternateLocales", CapturedArray([])),
+        #(
+          "markets",
+          CapturedObject([
+            #("nodes", CapturedArray([])),
+            #("edges", CapturedArray([])),
+            #(
+              "pageInfo",
+              CapturedObject([
+                #("hasNextPage", CapturedBool(False)),
+                #("hasPreviousPage", CapturedBool(False)),
+                #("startCursor", CapturedNull),
+                #("endCursor", CapturedNull),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_markets([primary_web_presence_market_record()])
+    |> store.upsert_base_web_presences([record])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn primary_web_presence_market_record() -> MarketRecord {
+  MarketRecord(
+    id: "gid://shopify/Market/primary",
+    cursor: Some("gid://shopify/Market/primary"),
+    data: CapturedObject([
+      #("__typename", CapturedString("Market")),
+      #("id", CapturedString("gid://shopify/Market/primary")),
+      #("name", CapturedString("Primary market")),
+      #(
+        "webPresences",
+        CapturedObject([
+          #(
+            "nodes",
+            CapturedArray([
+              CapturedObject([
+                #("__typename", CapturedString("MarketWebPresence")),
+                #(
+                  "id",
+                  CapturedString("gid://shopify/MarketWebPresence/primary"),
+                ),
+              ]),
+            ]),
+          ),
+          #("edges", CapturedArray([])),
+          #(
+            "pageInfo",
+            CapturedObject([
+              #("hasNextPage", CapturedBool(False)),
+              #("hasPreviousPage", CapturedBool(False)),
+              #("startCursor", CapturedNull),
+              #("endCursor", CapturedNull),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn legacy_markets_proxy(markets_granted: Int) -> DraftProxy {

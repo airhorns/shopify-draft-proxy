@@ -580,10 +580,120 @@ fn delete_web_presences_for_market(store: Store, market_id: String) -> Store {
   |> list_effective_web_presences
   |> list.filter(fn(record) {
     web_presence_references_market(record, market_id)
+    && !web_presence_matches_shop_primary_host(store, record)
   })
   |> list.fold(store, fn(acc, record) {
     delete_staged_web_presence(acc, record.id)
   })
+}
+
+pub fn web_presence_matches_shop_primary_host(
+  store: Store,
+  record: WebPresenceRecord,
+) -> Bool {
+  case effective_shop_primary_host(store) {
+    Some(primary_host) ->
+      web_presence_normalized_host(record) == Some(primary_host)
+    None -> False
+  }
+}
+
+fn effective_shop_primary_host(store: Store) -> Option(String) {
+  case store.staged_state.shop {
+    Some(shop) -> normalize_web_presence_host(shop.primary_domain.host)
+    None ->
+      case store.base_state.shop {
+        Some(shop) -> normalize_web_presence_host(shop.primary_domain.host)
+        None -> None
+      }
+  }
+}
+
+fn web_presence_normalized_host(record: WebPresenceRecord) -> Option(String) {
+  case web_presence_domain_host(record) {
+    Some(host) -> normalize_web_presence_host(host)
+    None -> web_presence_primary_root_url_host(record)
+  }
+}
+
+fn web_presence_domain_host(record: WebPresenceRecord) -> Option(String) {
+  case captured_field(record.data, "domain") {
+    Some(domain) -> captured_string_field(domain, "host")
+    _ -> None
+  }
+}
+
+fn web_presence_primary_root_url_host(
+  record: WebPresenceRecord,
+) -> Option(String) {
+  case captured_field(record.data, "rootUrls") {
+    Some(CapturedArray(items)) ->
+      case list.find_map(items, web_presence_root_url_host_if_root) {
+        Ok(host) -> Some(host)
+        Error(_) -> None
+      }
+    _ -> None
+  }
+}
+
+fn web_presence_root_url_host_if_root(
+  value: CapturedJsonValue,
+) -> Result(String, Nil) {
+  case captured_string_field(value, "url") {
+    Some(url) -> root_url_normalized_host_if_root(url)
+    None -> Error(Nil)
+  }
+}
+
+fn root_url_normalized_host_if_root(url: String) -> Result(String, Nil) {
+  let trimmed = string.trim(url)
+  let without_scheme = strip_url_scheme(trimmed)
+  case string.split(without_scheme, on: "/") {
+    [host] -> normalize_web_presence_host(host) |> option_to_result
+    [host, ""] -> normalize_web_presence_host(host) |> option_to_result
+    [host, ..rest] ->
+      case list.all(rest, fn(part) { part == "" }) {
+        True -> normalize_web_presence_host(host) |> option_to_result
+        False -> Error(Nil)
+      }
+    [] -> Error(Nil)
+  }
+}
+
+fn strip_url_scheme(url: String) -> String {
+  case string.split(url, on: "://") {
+    [_, rest] -> rest
+    _ -> url
+  }
+}
+
+fn normalize_web_presence_host(host: String) -> Option(String) {
+  let normalized =
+    host
+    |> string.trim
+    |> string_before("/")
+    |> string_before("?")
+    |> string_before("#")
+    |> trim_trailing_dot
+    |> string.lowercase
+  case normalized {
+    "" -> None
+    value -> Some(value)
+  }
+}
+
+fn string_before(value: String, delimiter: String) -> String {
+  case string.split(value, on: delimiter) {
+    [head, ..] -> head
+    [] -> value
+  }
+}
+
+fn trim_trailing_dot(value: String) -> String {
+  case string.ends_with(value, ".") {
+    True -> trim_trailing_dot(string.drop_end(value, 1))
+    False -> value
+  }
 }
 
 fn remove_market_localizations_for_market(
