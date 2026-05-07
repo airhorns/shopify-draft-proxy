@@ -8077,6 +8077,177 @@ pub fn orders_order_create_money_bags_preserve_supplied_presentment_money_test()
     == "{\"data\":{\"refundCreate\":{\"refund\":{\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"3.5\",\"currencyCode\":\"USD\"}}},\"order\":{\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"3.5\",\"currencyCode\":\"USD\"}}},\"userErrors\":[]}}}"
 }
 
+pub fn orders_order_create_math_matrix_status_and_authorization_test() {
+  let mutation =
+    "
+    mutation Create($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          displayFinancialStatus
+          paymentGatewayNames
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalCapturableSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          capturable
+          transactions {
+            kind
+            status
+            gateway
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let pending =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "order",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("currency", root_field.StringVal("CAD")),
+              #(
+                "lineItems",
+                root_field.ListVal([
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #("title", root_field.StringVal("Pending line")),
+                      #("quantity", root_field.IntVal(2)),
+                      #(
+                        "priceSet",
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #(
+                              "shopMoney",
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("amount", root_field.StringVal("10.00")),
+                                  #("currencyCode", root_field.StringVal("CAD")),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(pending.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"displayFinancialStatus\":null,\"paymentGatewayNames\":[],\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"totalCapturableSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"capturable\":false,\"transactions\":[]},\"userErrors\":[]}}}"
+
+  let authorized =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "order",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("currency", root_field.StringVal("CAD")),
+              #(
+                "lineItems",
+                root_field.ListVal([
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #("title", root_field.StringVal("Authorized line")),
+                      #("quantity", root_field.IntVal(1)),
+                      #(
+                        "priceSet",
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #(
+                              "shopMoney",
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("amount", root_field.StringVal("18.00")),
+                                  #("currencyCode", root_field.StringVal("CAD")),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+              #(
+                "transactions",
+                root_field.ListVal([
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #("kind", root_field.StringVal("AUTHORIZATION")),
+                      #("status", root_field.StringVal("SUCCESS")),
+                      #("gateway", root_field.StringVal("manual")),
+                      #(
+                        "amountSet",
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #(
+                              "shopMoney",
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("amount", root_field.StringVal("18.00")),
+                                  #("currencyCode", root_field.StringVal("CAD")),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(authorized.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"displayFinancialStatus\":\"AUTHORIZED\",\"paymentGatewayNames\":[\"manual\"],\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"18.0\",\"currencyCode\":\"CAD\"}},\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"totalCapturableSet\":{\"shopMoney\":{\"amount\":\"18.0\",\"currencyCode\":\"CAD\"}},\"capturable\":true,\"transactions\":[{\"kind\":\"AUTHORIZATION\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"18.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
+}
+
 pub fn orders_order_update_validation_guardrails_test() {
   let missing_inline_id =
     "
