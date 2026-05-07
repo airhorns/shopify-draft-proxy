@@ -1609,6 +1609,114 @@ pub fn engagement_create_rejects_mismatched_input_currencies_test() {
   assert store.list_effective_marketing_engagements(engagement.store) == []
 }
 
+pub fn engagement_create_prioritizes_multiple_identifiers_before_input_currency_test() {
+  let created =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let engagement =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(marketingActivityId: \"gid://shopify/MarketingActivity/1\", remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD }, sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(
+    response,
+    "\"code\":\"INVALID_MARKETING_ENGAGEMENT_ARGUMENTS\"",
+  )
+  assert !string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_prioritizes_channel_multiple_identifiers_before_input_currency_test() {
+  let engagement =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(channelHandle: \"email\", remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD }, sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(
+    response,
+    "\"code\":\"INVALID_MARKETING_ENGAGEMENT_ARGUMENTS\"",
+  )
+  assert !string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_distinguishes_deleted_event_from_unknown_activity_test() {
+  let activity_id = "gid://shopify/MarketingActivity/901"
+  let event_id = "gid://shopify/MarketingEvent/901"
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      activity(
+        activity_id,
+        "Deleted event activity",
+        "deleted-event-remote",
+        "2026-05-05T00:00:00Z",
+      ),
+    ])
+    |> store.upsert_base_marketing_events([
+      marketing_event(event_id, "deleted-event-remote"),
+    ])
+    |> store.stage_delete_marketing_event(event_id)
+
+  let deleted_event =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"deleted-event-remote\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let deleted_event_response = json.to_string(deleted_event.data)
+  assert string.contains(
+    deleted_event_response,
+    "\"code\":\"MARKETING_EVENT_DOES_NOT_EXIST\"",
+  )
+  assert !string.contains(
+    deleted_event_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+
+  let missing_activity =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"missing-activity\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD } }) { marketingEngagement { occurredOn } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_activity_response = json.to_string(missing_activity.data)
+  assert string.contains(
+    missing_activity_response,
+    "\"code\":\"MARKETING_ACTIVITY_DOES_NOT_EXIST\"",
+  )
+  assert !string.contains(
+    missing_activity_response,
+    "\"code\":\"MARKETING_EVENT_DOES_NOT_EXIST\"",
+  )
+  assert store.list_effective_marketing_engagements(deleted_event.store) == []
+  assert store.list_effective_marketing_engagements(missing_activity.store)
+    == []
+}
+
 pub fn engagement_create_rejects_activity_currency_mismatch_by_id_test() {
   let created =
     marketing.process_mutation(

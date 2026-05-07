@@ -136,6 +136,21 @@ pub fn stage_marketing_event(
   #(record, Store(..store, staged_state: next))
 }
 
+pub fn stage_delete_marketing_event(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let next =
+    StagedState(
+      ..staged,
+      marketing_events: dict.delete(staged.marketing_events, id),
+      deleted_marketing_event_ids: dict.insert(
+        staged.deleted_marketing_event_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, staged_state: next)
+}
+
 pub fn stage_delete_marketing_activity(store: Store, id: String) -> Store {
   let event_id = case get_effective_marketing_activity_record_by_id(store, id) {
     Some(record) -> read_marketing_event_id(record.data)

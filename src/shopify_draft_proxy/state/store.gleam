@@ -664,6 +664,8 @@ pub const stage_marketing_activity = marketing.stage_marketing_activity
 
 pub const stage_marketing_event = marketing.stage_marketing_event
 
+pub const stage_delete_marketing_event = marketing.stage_delete_marketing_event
+
 pub const stage_delete_marketing_activity = marketing.stage_delete_marketing_activity
 
 pub const stage_delete_all_external_marketing_activities = marketing.stage_delete_all_external_marketing_activities
