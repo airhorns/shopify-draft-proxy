@@ -7,6 +7,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 
 import gleam/result
 import gleam/string
@@ -52,11 +53,12 @@ import shopify_draft_proxy/proxy/products/variants_helpers.{
   bulk_variant_option_field_name, compare_variant_price, find_product_option,
   has_variant_id, has_variant_option_input, make_created_option_value_records,
   make_default_option_record, make_default_variant_record,
-  option_value_id_exists, position_options, product_option_identity_key,
-  product_set_variant_signature_title, remaining_option_values,
-  variant_selected_options_with_value, variant_title,
+  option_value_id_exists, position_options, product_option_duplicate_input_key,
+  product_option_identity_key, product_set_variant_signature_title,
+  remaining_option_values, variant_selected_options_with_value, variant_title,
 }
 import shopify_draft_proxy/proxy/products/variants_options_core.{
+  type ReorderReference, ReorderById, ReorderByName, ReorderMissing,
   duplicate_option_input_name_errors_loop,
   duplicate_option_value_input_errors_loop, find_option_value_update,
   find_variant_for_combination, make_default_variant_for_options,
@@ -807,42 +809,548 @@ pub fn remap_variant_selections_for_option_update(
   })
 }
 
-@internal
-pub fn reorder_product_options(
+fn has_selector(input: Dict(String, ResolvedValue), key: String) -> Bool {
+  case read_string_field(input, key) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+fn reorder_reference(input: Dict(String, ResolvedValue)) -> ReorderReference {
+  case read_string_field(input, "id"), read_string_field(input, "name") {
+    Some(_), _ -> ReorderById
+    None, Some(_) -> ReorderByName
+    None, None -> ReorderMissing
+  }
+}
+
+fn no_key_on_reorder_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(input, index) = pair
+    case dict.has_key(input, "position") {
+      True ->
+        Ok(ProductUserError(
+          ["options", int.to_string(index), "position"],
+          "On reorder, this key cannot be used.",
+          Some("NO_KEY_ON_REORDER"),
+        ))
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn mixed_selector_error(
+  field: List(String),
+  message: String,
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    message,
+    Some("MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED"),
+  )
+}
+
+fn mixed_option_reference_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  let has_id = list.any(inputs, fn(input) { has_selector(input, "id") })
+  let has_name = list.any(inputs, fn(input) { has_selector(input, "name") })
+  case has_id && has_name {
+    True -> [
+      mixed_selector_error(
+        ["options"],
+        "Only specify one of `id` or `name` fields for options.",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn mixed_value_reference_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(input, _) = pair
+    let values = read_object_list_field(input, "values")
+    let has_id = list.any(values, fn(value) { has_selector(value, "id") })
+    let has_name = list.any(values, fn(value) { has_selector(value, "name") })
+    case has_id && has_name {
+      True ->
+        Ok(mixed_selector_error(
+          ["options"],
+          "Only specify one of `id` or `name` fields for option values.",
+        ))
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn missing_input_option_reference_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(input, index) = pair
+    case reorder_reference(input) {
+      ReorderMissing ->
+        Ok(ProductUserError(
+          ["options", int.to_string(index)],
+          "Missing option name.",
+          Some("MISSING_OPTION_NAME"),
+        ))
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn missing_value_reference_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(input, option_index) = pair
+    read_object_list_field(input, "values")
+    |> enumerate_items()
+    |> list.filter_map(fn(value_pair) {
+      let #(value, value_index) = value_pair
+      case reorder_reference(value) {
+        ReorderMissing ->
+          Ok(ProductUserError(
+            [
+              "options",
+              int.to_string(option_index),
+              "values",
+              int.to_string(value_index),
+            ],
+            "Option value is missing.",
+            Some("MISSING_OPTION_VALUE"),
+          ))
+        _ -> Error(Nil)
+      }
+    })
+  })
+}
+
+fn duplicate_reorder_option_name_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> duplicate_reorder_option_name_errors_loop(dict.new(), [])
+}
+
+fn duplicate_reorder_option_name_errors_loop(
+  pairs: List(#(Dict(String, ResolvedValue), Int)),
+  seen: Dict(String, String),
+  reversed_errors: List(ProductUserError),
+) -> List(ProductUserError) {
+  case pairs {
+    [] -> list.reverse(reversed_errors)
+    [#(input, index), ..rest] -> {
+      let name =
+        read_string_field(input, "name")
+        |> option.unwrap("")
+      let key = product_option_duplicate_input_key(name)
+      case key == "" {
+        True ->
+          duplicate_reorder_option_name_errors_loop(rest, seen, reversed_errors)
+        False ->
+          case dict.has_key(seen, key) {
+            True ->
+              duplicate_reorder_option_name_errors_loop(rest, seen, [
+                ProductUserError(
+                  ["options", int.to_string(index)],
+                  "Duplicated option name '" <> name <> "'.",
+                  Some("DUPLICATED_OPTION_NAME"),
+                ),
+                ..reversed_errors
+              ])
+            False ->
+              duplicate_reorder_option_name_errors_loop(
+                rest,
+                dict.insert(seen, key, name),
+                reversed_errors,
+              )
+          }
+      }
+    }
+  }
+}
+
+fn duplicate_reorder_value_name_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  inputs
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(input, _) = pair
+    read_object_list_field(input, "values")
+    |> enumerate_items()
+    |> duplicate_reorder_value_name_errors_loop(dict.new(), [])
+  })
+}
+
+fn duplicate_reorder_value_name_errors_loop(
+  pairs: List(#(Dict(String, ResolvedValue), Int)),
+  seen: Dict(String, String),
+  reversed_errors: List(ProductUserError),
+) -> List(ProductUserError) {
+  case pairs {
+    [] -> list.reverse(reversed_errors)
+    [#(input, value_index), ..rest] -> {
+      let name =
+        read_string_field(input, "name")
+        |> option.unwrap("")
+      let key = product_option_duplicate_input_key(name)
+      case key == "" {
+        True ->
+          duplicate_reorder_value_name_errors_loop(rest, seen, reversed_errors)
+        False ->
+          case dict.has_key(seen, key) {
+            True ->
+              duplicate_reorder_value_name_errors_loop(rest, seen, [
+                ProductUserError(
+                  ["options", int.to_string(value_index)],
+                  "Duplicated option value '" <> name <> "'.",
+                  Some("DUPLICATED_OPTION_VALUE"),
+                ),
+                ..reversed_errors
+              ])
+            False ->
+              duplicate_reorder_value_name_errors_loop(
+                rest,
+                dict.insert(seen, key, name),
+                reversed_errors,
+              )
+          }
+      }
+    }
+  }
+}
+
+fn reorder_validation_errors(
+  _options: List(ProductOptionRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  []
+  |> list.append(no_key_on_reorder_errors(inputs))
+  |> list.append(mixed_option_reference_errors(inputs))
+  |> list.append(missing_input_option_reference_errors(inputs))
+  |> list.append(duplicate_reorder_option_name_errors(inputs))
+  |> list.append(mixed_value_reference_errors(inputs))
+  |> list.append(missing_value_reference_errors(inputs))
+  |> list.append(duplicate_reorder_value_name_errors(inputs))
+}
+
+fn missing_existing_option_errors(
   options: List(ProductOptionRecord),
   inputs: List(Dict(String, ResolvedValue)),
-) -> #(List(ProductOptionRecord), List(ProductUserError)) {
-  let #(remaining, reversed_reordered, reversed_errors, _) =
-    list.fold(inputs, #(options, [], [], 0), fn(acc, input) {
-      let #(current_remaining, reordered, errors, index) = acc
-      let #(matched, next_remaining) =
-        take_matching_option(current_remaining, input)
-      case matched {
-        Some(option) -> #(
-          next_remaining,
-          [option, ..reordered],
-          errors,
-          index + 1,
+) -> List(ProductUserError) {
+  options
+  |> list.filter_map(fn(option) {
+    case reorder_inputs_contain_option(inputs, option) {
+      True -> Error(Nil)
+      False ->
+        Ok(ProductUserError(
+          ["options"],
+          "Missing option name '" <> option.name <> "'.",
+          Some("MISSING_OPTION_NAME"),
+        ))
+    }
+  })
+}
+
+fn reorder_inputs_contain_option(
+  inputs: List(Dict(String, ResolvedValue)),
+  option: ProductOptionRecord,
+) -> Bool {
+  list.any(inputs, fn(input) {
+    let input_id = read_string_field(input, "id")
+    let input_name = read_string_field(input, "name")
+    input_id == Some(option.id) || input_name == Some(option.name)
+  })
+}
+
+fn take_matching_option_value_loop(
+  values: List(ProductOptionValueRecord),
+  value_id: Option(String),
+  value_name: Option(String),
+  reversed_before: List(ProductOptionValueRecord),
+) -> #(Option(ProductOptionValueRecord), List(ProductOptionValueRecord)) {
+  case values {
+    [] -> #(None, list.reverse(reversed_before))
+    [value, ..rest] -> {
+      let matches_id = case value_id {
+        Some(id) -> value.id == id
+        None -> False
+      }
+      let matches_name = case value_name {
+        Some(name) -> value.name == name
+        None -> False
+      }
+      case matches_id || matches_name {
+        True -> #(Some(value), list.append(list.reverse(reversed_before), rest))
+        False ->
+          take_matching_option_value_loop(rest, value_id, value_name, [
+            value,
+            ..reversed_before
+          ])
+      }
+    }
+  }
+}
+
+fn take_matching_option_value(
+  values: List(ProductOptionValueRecord),
+  input: Dict(String, ResolvedValue),
+) -> #(
+  Option(ProductOptionValueRecord),
+  List(ProductOptionValueRecord),
+  ReorderReference,
+) {
+  let value_id = read_string_field(input, "id")
+  let value_name = read_string_field(input, "name")
+  let reference = reorder_reference(input)
+  let #(matched, remaining) =
+    take_matching_option_value_loop(values, value_id, value_name, [])
+  #(matched, remaining, reference)
+}
+
+fn option_id_suffix(option_id: String) -> String {
+  option_id
+  |> string.split("/")
+  |> list.last
+  |> result.unwrap(option_id)
+}
+
+fn unknown_option_error(
+  input: Dict(String, ResolvedValue),
+  reference: ReorderReference,
+  index: Int,
+) -> ProductUserError {
+  case reference {
+    ReorderById ->
+      ProductUserError(
+        ["options"],
+        "Option id '"
+          <> option_id_suffix(
+          read_string_field(input, "id") |> option.unwrap(""),
         )
+          <> "' does not exist.",
+        Some("OPTION_ID_DOES_NOT_EXIST"),
+      )
+    ReorderByName ->
+      ProductUserError(
+        ["options"],
+        "Option name '"
+          <> { read_string_field(input, "name") |> option.unwrap("") }
+          <> "' does not exist.",
+        Some("OPTION_NAME_DOES_NOT_EXIST"),
+      )
+    ReorderMissing ->
+      ProductUserError(
+        ["options", int.to_string(index)],
+        "Missing option name.",
+        Some("MISSING_OPTION_NAME"),
+      )
+  }
+}
+
+fn unknown_option_value_error(
+  input: Dict(String, ResolvedValue),
+  reference: ReorderReference,
+  option_index: Int,
+  value_index: Int,
+) -> ProductUserError {
+  case reference {
+    ReorderById ->
+      ProductUserError(
+        ["options"],
+        "Option value id '"
+          <> option_id_suffix(
+          read_string_field(input, "id") |> option.unwrap(""),
+        )
+          <> "' does not exist.",
+        Some("OPTION_VALUE_ID_DOES_NOT_EXIST"),
+      )
+    ReorderByName ->
+      ProductUserError(
+        ["options"],
+        "Option value '"
+          <> { read_string_field(input, "name") |> option.unwrap("") }
+          <> "' does not exist.",
+        Some("OPTION_VALUE_DOES_NOT_EXIST"),
+      )
+    ReorderMissing ->
+      ProductUserError(
+        [
+          "options",
+          int.to_string(option_index),
+          "values",
+          int.to_string(value_index),
+        ],
+        "Option value is missing.",
+        Some("MISSING_OPTION_VALUE"),
+      )
+  }
+}
+
+fn reorder_option_values(
+  option: ProductOptionRecord,
+  value_inputs: List(Dict(String, ResolvedValue)),
+  option_index: Int,
+) -> #(ProductOptionRecord, List(ProductUserError)) {
+  let #(remaining, reversed_reordered, reversed_errors, _) =
+    list.fold(value_inputs, #(option.option_values, [], [], 0), fn(acc, input) {
+      let #(current_remaining, reordered, errors, index) = acc
+      let #(matched, next_remaining, reference) =
+        take_matching_option_value(current_remaining, input)
+      case matched {
+        Some(value) ->
+          case value.has_variants {
+            True -> #(next_remaining, [value, ..reordered], errors, index + 1)
+            False -> #(current_remaining, reordered, errors, index + 1)
+          }
         None -> #(
           current_remaining,
           reordered,
           [
-            ProductUserError(
-              ["options", int.to_string(index)],
-              "Option does not exist",
-              None,
-            ),
+            unknown_option_value_error(input, reference, option_index, index),
             ..errors
           ],
           index + 1,
         )
       }
     })
-  let next_options =
-    list.append(list.reverse(reversed_reordered), remaining)
-    |> position_options(1, [])
-  #(next_options, list.reverse(reversed_errors))
+  let next_option = case reversed_errors {
+    [] ->
+      ProductOptionRecord(
+        ..option,
+        option_values: list.append(list.reverse(reversed_reordered), remaining),
+      )
+    _ -> option
+  }
+  #(next_option, list.reverse(reversed_errors))
+}
+
+@internal
+pub fn reorder_product_options(
+  options: List(ProductOptionRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> #(List(ProductOptionRecord), List(ProductUserError)) {
+  case reorder_validation_errors(options, inputs) {
+    [_, ..] as errors -> #(options, errors)
+    [] -> {
+      let #(remaining, reversed_reordered, reversed_errors, _) =
+        list.fold(inputs, #(options, [], [], 0), fn(acc, input) {
+          let #(current_remaining, reordered, errors, index) = acc
+          let #(matched, next_remaining, reference) =
+            take_matching_option(current_remaining, input)
+          case matched {
+            Some(option) -> {
+              let value_inputs = read_object_list_field(input, "values")
+              let #(next_option, value_errors) =
+                reorder_option_values(option, value_inputs, index)
+              #(
+                next_remaining,
+                [next_option, ..reordered],
+                list.append(list.reverse(value_errors), errors),
+                index + 1,
+              )
+            }
+            None -> #(
+              current_remaining,
+              reordered,
+              [unknown_option_error(input, reference, index), ..errors],
+              index + 1,
+            )
+          }
+        })
+      let next_options =
+        list.append(list.reverse(reversed_reordered), remaining)
+        |> position_options(1, [])
+      let errors = list.reverse(reversed_errors)
+      case errors, missing_existing_option_errors(options, inputs) {
+        [], [_, ..] as missing_errors -> #(options, missing_errors)
+        _, _ -> #(next_options, errors)
+      }
+    }
+  }
+}
+
+fn option_value_rank(
+  option: ProductOptionRecord,
+  selected_value: String,
+) -> Int {
+  option.option_values
+  |> enumerate_items()
+  |> list.find_map(fn(pair) {
+    let #(value, index) = pair
+    case value.name == selected_value {
+      True -> Ok(index)
+      False -> Error(Nil)
+    }
+  })
+  |> result.unwrap(999_999)
+}
+
+fn selected_option_value(
+  selected_options: List(ProductVariantSelectedOptionRecord),
+  option_name: String,
+) -> String {
+  selected_options
+  |> list.find_map(fn(selected) {
+    case selected.name == option_name {
+      True -> Ok(selected.value)
+      False -> Error(Nil)
+    }
+  })
+  |> result.unwrap("")
+}
+
+fn compare_variants_by_reordered_options_loop(
+  options: List(ProductOptionRecord),
+  left: ProductVariantRecord,
+  right: ProductVariantRecord,
+) -> order.Order {
+  case options {
+    [] -> string.compare(left.id, right.id)
+    [option, ..rest] -> {
+      let left_rank =
+        option_value_rank(
+          option,
+          selected_option_value(left.selected_options, option.name),
+        )
+      let right_rank =
+        option_value_rank(
+          option,
+          selected_option_value(right.selected_options, option.name),
+        )
+      case int.compare(left_rank, right_rank) {
+        order.Eq ->
+          compare_variants_by_reordered_options_loop(rest, left, right)
+        other -> other
+      }
+    }
+  }
+}
+
+@internal
+pub fn sort_variants_by_reordered_options(
+  variants: List(ProductVariantRecord),
+  options: List(ProductOptionRecord),
+) -> List(ProductVariantRecord) {
+  list.sort(variants, fn(left, right) {
+    compare_variants_by_reordered_options_loop(options, left, right)
+  })
 }
 
 @internal

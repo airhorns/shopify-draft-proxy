@@ -1112,6 +1112,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-options-reorder-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-options-reorder-validation-conformance.mts',
+    purpose: 'productOptionsReorder validation codes, option-value reorder, and downstream read-after-write behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json',
+      'config/parity-specs/products/productOptionsReorder-validation.json',
+      'config/parity-requests/products/productOptionsReorder-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable product/options/variants and deletes the product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-option-variant-strategy-edges',
     scriptPath: 'scripts/capture-product-option-variant-strategy-edge-conformance.mts',
     purpose: 'product option variantStrategy and productVariantsBulkCreate.strategy edge behavior.',
