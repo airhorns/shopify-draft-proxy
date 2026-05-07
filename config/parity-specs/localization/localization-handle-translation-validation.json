@@ -1,0 +1,133 @@
+{
+  "scenarioId": "localization-handle-translation-validation",
+  "operationNames": ["translationsRegister", "translatableResource"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-branch-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-handle-translation-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translations-error-codes-read.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setupRead.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "translations-register-too-long-handle",
+        "capturePath": "$.tooLongHandle.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.tooLongHandle.variables"
+        }
+      },
+      {
+        "name": "translatable-resource-read-after-too-long-handle",
+        "capturePath": "$.readAfterTooLongHandle.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.readAfterTooLongHandle.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-spaces",
+        "capturePath": "$.normalizedHandleSpaces.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandleSpaces.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-uppercase",
+        "capturePath": "$.normalizedHandleUppercase.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandleUppercase.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-leading-dash",
+        "capturePath": "$.normalizedHandleLeadingDash.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandleLeadingDash.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-trailing-dash",
+        "capturePath": "$.normalizedHandleTrailingDash.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandleTrailingDash.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-double-dash",
+        "capturePath": "$.normalizedHandleDoubleDash.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandleDoubleDash.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-punctuation-only",
+        "capturePath": "$.normalizedHandlePunctuationOnly.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandlePunctuationOnly.variables"
+        }
+      },
+      {
+        "name": "translations-register-normalized-handle-slash",
+        "capturePath": "$.normalizedHandleSlash.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.normalizedHandleSlash.variables"
+        }
+      },
+      {
+        "name": "translations-register-valid-handle",
+        "capturePath": "$.validHandle.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validHandle.variables"
+        }
+      },
+      {
+        "name": "translatable-resource-read-after-valid-handle",
+        "capturePath": "$.readAfterValidHandle.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.readAfterValidHandle.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product, ensures the French shop locale is enabled, captures handle translation too-long validation, proves the rejected row does not appear in a downstream translation read, then captures Shopify-normalized handle translations for spaces, uppercase, leading/trailing/double dashes, punctuation-only input, and slash input before a valid lowercase dash/alphanumeric handle translation and downstream read."
+}

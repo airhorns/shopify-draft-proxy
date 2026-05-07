@@ -624,6 +624,69 @@ pub fn translations_register_blank_value_returns_resource_validation_error_test(
     == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"value\"],\"message\":\"Value can't be blank\",\"code\":\"FAILS_RESOURCE_VALIDATION\"}]}}}"
 }
 
+pub fn translations_register_normalizes_handle_values_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "handle", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"fr\", key: \"handle\", value: \"Bad Value With Spaces\", translatableContentDigest: \"abc\" }, { locale: \"fr\", key: \"handle\", value: \"%%%\", translatableContentDigest: \"abc\" }]) { translations { key value locale } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[{\"key\":\"handle\",\"value\":\"bad-value-with-spaces\",\"locale\":\"fr\"},{\"key\":\"handle\",\"value\":\"store-localization/generic-dynamic-content-translation\",\"locale\":\"fr\"}],\"userErrors\":[]}}}"
+  let stored =
+    store.list_effective_translations(
+      register.store,
+      "gid://shopify/Product/1",
+      "fr",
+      None,
+    )
+  assert list.length(stored) == 1
+  let assert [record] = stored
+  assert record.value
+    == "store-localization/generic-dynamic-content-translation"
+}
+
+pub fn translations_register_does_not_normalize_non_handle_values_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let body =
+    run(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"fr\", key: \"title\", value: \"Bad Value With Spaces\", translatableContentDigest: \"abc\" }]) { translations { key value locale } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[{\"key\":\"title\",\"value\":\"Bad Value With Spaces\",\"locale\":\"fr\"}],\"userErrors\":[]}}}"
+}
+
+pub fn translations_register_rejects_too_long_handle_value_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "handle", "abc")
+  let long_handle = string.repeat("a", times: 256)
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"fr\", key: \"handle\", value: \""
+        <> long_handle
+        <> "\", translatableContentDigest: \"abc\" }]) { translations { key value locale } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"value\"],\"message\":\"Value fails validation on resource: [\\\"Handle is too long (maximum is 255 characters)\\\"]\",\"code\":\"FAILS_RESOURCE_VALIDATION\"}]}}}"
+  let stored =
+    store.list_effective_translations(
+      register.store,
+      "gid://shopify/Product/1",
+      "fr",
+      None,
+    )
+  assert stored == []
+}
+
 pub fn translations_register_rejects_more_than_100_keys_test() {
   let s =
     seed_shop_locale(store.new(), "fr", False, True)
