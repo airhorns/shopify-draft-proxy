@@ -4519,6 +4519,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-validation-update-metafields-upsert',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-update-metafields-upsert-conformance.ts',
+    purpose:
+      'validationUpdate omitted, empty, and partial non-empty metafields input semantics for validation-owned metafield rows.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for disposable validationCreate/update/delete lifecycle capture',
+      'released conformance-validation Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-update-metafields-upsert.json`,
+      'config/parity-specs/functions/functions-validation-update-metafields-upsert.json',
+      'config/parity-requests/functions/functions-validation-update-metafields-upsert-create.graphql',
+      'config/parity-requests/functions/functions-validation-update-metafields-upsert-update.graphql',
+      'config/parity-requests/functions/functions-validation-update-metafields-upsert-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable validation with two metafields through conformance-validation, updates it with title-only, empty metafields, and partial metafields inputs, reads after each update, then deletes the disposable validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-validation-create-title-fallback',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-validation-create-title-fallback-conformance.ts',

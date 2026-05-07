@@ -272,9 +272,19 @@ fn read_validation_metafields(
   timestamp: String,
   identity: SyntheticIdentityRegistry,
 ) -> #(List(ValidationMetafieldRecord), SyntheticIdentityRegistry) {
+  upsert_validation_metafields([], input, validation_id, timestamp, identity)
+}
+
+fn upsert_validation_metafields(
+  existing: List(ValidationMetafieldRecord),
+  input: Dict(String, root_field.ResolvedValue),
+  validation_id: String,
+  timestamp: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(List(ValidationMetafieldRecord), SyntheticIdentityRegistry) {
   case dict.get(input, "metafields") {
     Ok(root_field.ListVal(items)) ->
-      list.fold(items, #([], identity), fn(acc, item) {
+      list.fold(items, #(existing, identity), fn(acc, item) {
         let #(rows, current_identity) = acc
         case item {
           root_field.ObjectVal(fields) ->
@@ -282,36 +292,81 @@ fn read_validation_metafields(
               graphql_helpers.read_arg_string(fields, "namespace"),
               graphql_helpers.read_arg_string(fields, "key")
             {
-              Some(namespace), Some(key) -> {
-                let #(id, next_identity) =
-                  synthetic_identity.make_synthetic_gid(
-                    current_identity,
-                    "Metafield",
-                  )
-                #(
-                  list.append(rows, [
-                    ValidationMetafieldRecord(
-                      id: id,
-                      validation_id: validation_id,
-                      namespace: namespace,
-                      key: key,
-                      type_: graphql_helpers.read_arg_string(fields, "type"),
-                      value: graphql_helpers.read_arg_string(fields, "value"),
-                      compare_digest: None,
-                      created_at: Some(timestamp),
-                      updated_at: Some(timestamp),
-                      owner_type: Some("VALIDATION"),
-                    ),
-                  ]),
-                  next_identity,
+              Some(namespace), Some(key) ->
+                upsert_validation_metafield(
+                  rows,
+                  validation_id,
+                  namespace,
+                  key,
+                  graphql_helpers.read_arg_string(fields, "type"),
+                  graphql_helpers.read_arg_string(fields, "value"),
+                  timestamp,
+                  current_identity,
                 )
-              }
               _, _ -> acc
             }
           _ -> acc
         }
       })
-    _ -> #([], identity)
+    _ -> #(existing, identity)
+  }
+}
+
+fn upsert_validation_metafield(
+  rows: List(ValidationMetafieldRecord),
+  validation_id: String,
+  namespace: String,
+  key: String,
+  type_: Option(String),
+  value: Option(String),
+  timestamp: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(List(ValidationMetafieldRecord), SyntheticIdentityRegistry) {
+  let #(updated_rows, matched) =
+    list.fold(rows, #([], False), fn(acc, row) {
+      let #(next_rows, already_matched) = acc
+      case row.namespace == namespace && row.key == key {
+        True -> #(
+          list.append(next_rows, [
+            ValidationMetafieldRecord(
+              ..row,
+              validation_id: validation_id,
+              type_: type_,
+              value: value,
+              compare_digest: None,
+              updated_at: Some(timestamp),
+              owner_type: Some("VALIDATION"),
+            ),
+          ]),
+          True,
+        )
+        False -> #(list.append(next_rows, [row]), already_matched)
+      }
+    })
+
+  case matched {
+    True -> #(updated_rows, identity)
+    False -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "Metafield")
+      #(
+        list.append(updated_rows, [
+          ValidationMetafieldRecord(
+            id: id,
+            validation_id: validation_id,
+            namespace: namespace,
+            key: key,
+            type_: type_,
+            value: value,
+            compare_digest: None,
+            created_at: Some(timestamp),
+            updated_at: Some(timestamp),
+            owner_type: Some("VALIDATION"),
+          ),
+        ]),
+        next_identity,
+      )
+    }
   }
 }
 
@@ -706,7 +761,8 @@ fn handle_validation_update(
             dict.has_key(input, "metafields")
           {
             True ->
-              read_validation_metafields(
+              upsert_validation_metafields(
+                current.metafields,
                 input,
                 current.id,
                 timestamp,
