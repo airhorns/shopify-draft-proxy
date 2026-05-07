@@ -3,7 +3,7 @@
   "storeDomain": "local-runtime",
   "apiVersion": "2025-01",
   "capturedAt": "2026-05-05T17:31:15.000Z",
-  "notes": "Deterministic local-runtime evidence for HAR-686. The proxy request stages a $5 CAD gift card and then exercises the ticketed userError code and field-path branches without upstream mutation passthrough. Live conformance auth was valid, but public Admin API 2025-01 and 2026-04 rejected `code` selection on `giftCardUpdate.userErrors`, so this fixture records the ticket's internal typed-error contract rather than a live public-schema response.",
+  "notes": "Deterministic local-runtime evidence for gift-card mutation userError code and field-path branches. The proxy request stages a $5 CAD gift card and then exercises create/update/credit/debit validation without upstream mutation passthrough. Live conformance auth was valid, but public Admin API 2025-01 and 2026-04 rejected `code` selection on `giftCardUpdate.userErrors`, so this fixture records the local typed-error contract rather than a live public-schema response.",
   "expected": {
     "data": {
       "zeroInitialValue": {
@@ -29,7 +29,7 @@
           {
             "field": ["creditInput", "creditAmount", "amount"],
             "code": "NEGATIVE_OR_ZERO_AMOUNT",
-            "message": "Amount must be greater than zero"
+            "message": "A positive amount must be used."
           }
         ]
       },
@@ -38,7 +38,7 @@
           {
             "field": ["debitInput", "debitAmount", "amount"],
             "code": "INSUFFICIENT_FUNDS",
-            "message": "Insufficient balance"
+            "message": "The gift card does not have sufficient funds to satisfy the request."
           }
         ]
       }

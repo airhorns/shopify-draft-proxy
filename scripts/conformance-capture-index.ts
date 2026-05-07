@@ -5362,6 +5362,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'gift-cards',
+    captureId: 'gift-card-user-error-typename',
+    scriptPath: 'scripts/capture-gift-card-user-error-typename-conformance.ts',
+    purpose:
+      'Gift-card mutation userErrors __typename values for typed create, credit, debit, deactivate, and notification payloads.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-user-error-typename.json`,
+      'config/parity-specs/gift-cards/gift-card-user-error-typename.json',
+      'config/parity-requests/gift-cards/gift-card-user-error-typename.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable small-balance gift card, records validation-only mutation errors, then deactivates the setup gift card during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'GiftCardUpdatePayload.userErrors is generic UserError in the public schema and lacks a selectable code field, so update typename behavior is covered by schema evidence plus local runtime tests.',
+  },
+  {
     domain: 'customers',
     captureId: 'customers',
     scriptPath: 'scripts/capture-customer-conformance.mts',
