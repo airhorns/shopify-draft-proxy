@@ -709,8 +709,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-set-shape-validator-parity.json`,
       `${CAPTURE_ROOT}product-set-async-operation-parity.json`,
+      `${CAPTURE_ROOT}product-set-id-not-allowed.json`,
       'config/parity-specs/products/productSet-shape-validator-parity.json',
       'config/parity-specs/products/productSet-async-operation-parity.json',
+      'config/parity-specs/products/product-set-id-not-allowed.json',
     ],
     cleanupBehavior:
       'Validation branches create no products; async productSet creates one disposable product and deletes it in cleanup.',

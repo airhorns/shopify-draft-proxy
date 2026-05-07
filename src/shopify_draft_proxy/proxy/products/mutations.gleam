@@ -15,7 +15,8 @@ import shopify_draft_proxy/graphql/root_field.{
 }
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, get_document_fragments,
+  type FragmentMap, field_args, get_document_fragments, read_arg_object,
+  read_arg_string,
 }
 
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -232,8 +233,15 @@ pub fn process_mutation(
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let operation_path = get_operation_path_label(document)
+      let skipped_hydration_ids =
+        product_set_input_ids_rejected_before_resolution(fields, variables)
       let hydrated_store =
-        hydrate_products_for_live_hybrid_mutation(store, variables, upstream)
+        hydrate_products_for_live_hybrid_mutation(
+          store,
+          variables,
+          upstream,
+          skipped_hydration_ids,
+        )
       handle_mutation_fields(
         hydrated_store,
         identity,
@@ -248,6 +256,36 @@ pub fn process_mutation(
       )
     }
   }
+}
+
+fn product_set_input_ids_rejected_before_resolution(
+  fields: List(Selection),
+  variables: Dict(String, ResolvedValue),
+) -> List(String) {
+  fields
+  |> list.filter_map(fn(field) {
+    case field {
+      Field(name: name, ..) ->
+        case name.value {
+          "productSet" -> {
+            let args = field_args(field, variables)
+            case
+              read_arg_object(args, "identifier"),
+              read_arg_object(args, "input")
+            {
+              Some(_), Some(input) ->
+                case read_arg_string(input, "id") {
+                  Some(id) -> Ok(id)
+                  None -> Error(Nil)
+                }
+              _, _ -> Error(Nil)
+            }
+          }
+          _ -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
 }
 
 @internal

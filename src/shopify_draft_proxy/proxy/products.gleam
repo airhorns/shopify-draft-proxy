@@ -224,6 +224,7 @@ pub fn hydrate_products_for_live_hybrid_mutation(
     store,
     variables,
     upstream,
+    [],
   )
 }
 

@@ -1,0 +1,77 @@
+{
+  "idNotAllowed": {
+    "variables": {
+      "synchronous": true,
+      "identifier": {
+        "handle": "hermes-product-set-id-not-allowed-1778123974928"
+      },
+      "input": {
+        "id": "gid://shopify/Product/999999999999",
+        "title": "Hermes ProductSet ID Not Allowed 1778123974928",
+        "handle": "hermes-product-set-id-not-allowed-1778123974928",
+        "vendor": "Hermes"
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": [
+                "input"
+              ],
+              "message": "The id field is not allowed if identifier is provided.",
+              "code": "ID_NOT_ALLOWED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1596,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingIdentifier": {
+    "variables": {
+      "synchronous": true,
+      "identifier": null,
+      "input": {
+        "title": "Hermes ProductSet Missing Identifier 1778123974928",
+        "vendor": "Hermes"
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": {
+            "id": "gid://shopify/Product/10179285221682",
+            "title": "Hermes ProductSet Missing Identifier 1778123974928",
+            "handle": "hermes-productset-missing-identifier-1778123974928"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1596,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
