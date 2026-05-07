@@ -1098,6 +1098,206 @@ pub fn metafield_definition_pin_rejects_constrained_definition_test() {
     == "{\"data\":{\"metafieldDefinitionPin\":{\"pinnedDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
 }
 
+pub fn metafield_definition_update_pin_true_pins_definition_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Update pin\",
+          namespace: \"update_pin\",
+          key: \"pin_true\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\"
+        }) {
+          createdDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let update =
+    "mutation {
+        metafieldDefinitionUpdate(definition: {
+          namespace: \"update_pin\",
+          key: \"pin_true\",
+          ownerType: PRODUCT,
+          pin: true
+        }) {
+          updatedDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update)
+
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"metafieldDefinitionUpdate\":{\"updatedDefinition\":{\"id\":\"gid://shopify/MetafieldDefinition/1\",\"key\":\"pin_true\",\"pinnedPosition\":1},\"userErrors\":[]}}}"
+
+  let node_read =
+    "{ node(id: \"gid://shopify/MetafieldDefinition/1\") { ... on MetafieldDefinition { key pinnedPosition } } }"
+  let #(Response(status: node_status, body: node_body, ..), proxy) =
+    graphql(proxy, node_read)
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"node\":{\"key\":\"pin_true\",\"pinnedPosition\":1}}}"
+
+  let pinned_read =
+    "{ metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: \"update_pin\", pinnedStatus: PINNED, sortKey: PINNED_POSITION) { nodes { key pinnedPosition } } }"
+  let #(Response(status: pinned_status, body: pinned_body, ..), _) =
+    graphql(proxy, pinned_read)
+  assert pinned_status == 200
+  assert json.to_string(pinned_body)
+    == "{\"data\":{\"metafieldDefinitions\":{\"nodes\":[{\"key\":\"pin_true\",\"pinnedPosition\":1}]}}}"
+}
+
+pub fn metafield_definition_update_pin_false_unpins_definition_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Update unpin\",
+          namespace: \"update_pin\",
+          key: \"pin_false\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\",
+          pin: true
+        }) {
+          createdDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let update =
+    "mutation {
+        metafieldDefinitionUpdate(definition: {
+          namespace: \"update_pin\",
+          key: \"pin_false\",
+          ownerType: PRODUCT,
+          pin: false
+        }) {
+          updatedDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update)
+
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"metafieldDefinitionUpdate\":{\"updatedDefinition\":{\"id\":\"gid://shopify/MetafieldDefinition/1\",\"key\":\"pin_false\",\"pinnedPosition\":null},\"userErrors\":[]}}}"
+
+  let node_read =
+    "{ node(id: \"gid://shopify/MetafieldDefinition/1\") { ... on MetafieldDefinition { key pinnedPosition } } }"
+  let #(Response(status: node_status, body: node_body, ..), proxy) =
+    graphql(proxy, node_read)
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"node\":{\"key\":\"pin_false\",\"pinnedPosition\":null}}}"
+
+  let pinned_read =
+    "{ metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: \"update_pin\", pinnedStatus: PINNED, sortKey: PINNED_POSITION) { nodes { key pinnedPosition } } }"
+  let #(Response(status: pinned_status, body: pinned_body, ..), _) =
+    graphql(proxy, pinned_read)
+  assert pinned_status == 200
+  assert json.to_string(pinned_body)
+    == "{\"data\":{\"metafieldDefinitions\":{\"nodes\":[]}}}"
+}
+
+pub fn metafield_definition_update_pin_rejects_twenty_first_product_pin_test() {
+  let #(pinned_store, pinned_identity, _) =
+    list.fold(
+      int_range(from: 1, to: 20),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_and_pin,
+    )
+  let created =
+    run_mutation(
+      pinned_store,
+      pinned_identity,
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Update pin over cap\",
+          namespace: \"update_pin\",
+          key: \"over_cap\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\"
+        }) {
+          createdDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let updated =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metafieldDefinitionUpdate(definition: {
+          namespace: \"update_pin\",
+          key: \"over_cap\",
+          ownerType: PRODUCT,
+          pin: true
+        }) {
+          updatedDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert updated.staged_resource_ids == []
+  assert json.to_string(updated.data)
+    == "{\"data\":{\"metafieldDefinitionUpdate\":{\"updatedDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Limit of 20 pinned definitions.\",\"code\":\"PINNED_LIMIT_REACHED\"}]}}}"
+}
+
+pub fn metafield_definition_update_pin_rejects_constrained_definition_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Update constrained pin\",
+          namespace: \"update_pin\",
+          key: \"constrained\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\",
+          constraints: { key: \"category\", values: [\"gid://shopify/TaxonomyCategory/ap-2\"] }
+        }) {
+          createdDefinition { id key constraints { key } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let updated =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metafieldDefinitionUpdate(definition: {
+          namespace: \"update_pin\",
+          key: \"constrained\",
+          ownerType: PRODUCT,
+          pin: true
+        }) {
+          updatedDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert updated.staged_resource_ids == []
+  assert json.to_string(updated.data)
+    == "{\"data\":{\"metafieldDefinitionUpdate\":{\"updatedDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
+}
+
 pub fn metafield_definition_update_rejects_conflicting_constraint_inputs_test() {
   let proxy = draft_proxy.new()
   let create =

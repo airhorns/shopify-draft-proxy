@@ -1,0 +1,519 @@
+mutation MetafieldDefinitionUpdatePin($namespace: String!, $categoryId: String!) {
+  createPinTarget: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_true"
+      name: "Update pin target"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updatePinTrue: metafieldDefinitionUpdate(
+    definition: { ownerType: PRODUCT, namespace: $namespace, key: "pin_true", pin: true }
+  ) {
+    updatedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createUnpinTarget: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_false"
+      name: "Update unpin target"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updatePinFalse: metafieldDefinitionUpdate(
+    definition: { ownerType: PRODUCT, namespace: $namespace, key: "pin_false", pin: false }
+  ) {
+    updatedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createConstrained: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "constrained"
+      name: "Update constrained pin target"
+      type: "single_line_text_field"
+      constraints: { key: "category", values: [$categoryId] }
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+      constraints {
+        key
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateConstrainedPin: metafieldDefinitionUpdate(
+    definition: { ownerType: PRODUCT, namespace: $namespace, key: "constrained", pin: true }
+  ) {
+    updatedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin02: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_02"
+      name: "Update pin filler 02"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin03: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_03"
+      name: "Update pin filler 03"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin04: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_04"
+      name: "Update pin filler 04"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin05: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_05"
+      name: "Update pin filler 05"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin06: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_06"
+      name: "Update pin filler 06"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin07: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_07"
+      name: "Update pin filler 07"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin08: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_08"
+      name: "Update pin filler 08"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin09: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_09"
+      name: "Update pin filler 09"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin10: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_10"
+      name: "Update pin filler 10"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin11: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_11"
+      name: "Update pin filler 11"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin12: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_12"
+      name: "Update pin filler 12"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin13: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_13"
+      name: "Update pin filler 13"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin14: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_14"
+      name: "Update pin filler 14"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin15: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_15"
+      name: "Update pin filler 15"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin16: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_16"
+      name: "Update pin filler 16"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin17: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_17"
+      name: "Update pin filler 17"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin18: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_18"
+      name: "Update pin filler 18"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin19: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_19"
+      name: "Update pin filler 19"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createPin20: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_20"
+      name: "Update pin filler 20"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createOverCap: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "over_cap"
+      name: "Update pin over cap target"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateOverCapPin: metafieldDefinitionUpdate(
+    definition: { ownerType: PRODUCT, namespace: $namespace, key: "over_cap", pin: true }
+  ) {
+    updatedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,485 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "namespace": "update_pin_movhzhug",
+    "categoryId": "gid://shopify/TaxonomyCategory/ap-2"
+  },
+  "baselinePinnedDefinitions": [
+    {
+      "id": "gid://shopify/MetafieldDefinition/98376220978",
+      "key": "binding_mount",
+      "namespace": "test_data",
+      "pinnedPosition": 2
+    },
+    {
+      "id": "gid://shopify/MetafieldDefinition/98376188210",
+      "key": "snowboard_length",
+      "namespace": "test_data",
+      "pinnedPosition": 1
+    }
+  ],
+  "primary": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/update-pin.graphql",
+      "variables": {
+        "namespace": "update_pin_movhzhug",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2"
+      }
+    },
+    "response": {
+      "data": {
+        "createPinTarget": {
+          "createdDefinition": {
+            "key": "pin_true",
+            "pinnedPosition": null
+          },
+          "userErrors": []
+        },
+        "updatePinTrue": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207241904434",
+            "key": "pin_true",
+            "pinnedPosition": 1
+          },
+          "userErrors": []
+        },
+        "createUnpinTarget": {
+          "createdDefinition": {
+            "key": "pin_false",
+            "pinnedPosition": 2
+          },
+          "userErrors": []
+        },
+        "updatePinFalse": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207241937202",
+            "key": "pin_false",
+            "pinnedPosition": null
+          },
+          "userErrors": []
+        },
+        "createConstrained": {
+          "createdDefinition": {
+            "key": "constrained",
+            "pinnedPosition": null,
+            "constraints": {
+              "key": "category"
+            }
+          },
+          "userErrors": []
+        },
+        "updateConstrainedPin": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": [
+                "definition"
+              ],
+              "message": "Constrained metafield definitions do not support pinning.",
+              "code": "UNSUPPORTED_PINNING"
+            }
+          ]
+        },
+        "createPin02": {
+          "createdDefinition": {
+            "key": "pin_02",
+            "pinnedPosition": 2
+          },
+          "userErrors": []
+        },
+        "createPin03": {
+          "createdDefinition": {
+            "key": "pin_03",
+            "pinnedPosition": 3
+          },
+          "userErrors": []
+        },
+        "createPin04": {
+          "createdDefinition": {
+            "key": "pin_04",
+            "pinnedPosition": 4
+          },
+          "userErrors": []
+        },
+        "createPin05": {
+          "createdDefinition": {
+            "key": "pin_05",
+            "pinnedPosition": 5
+          },
+          "userErrors": []
+        },
+        "createPin06": {
+          "createdDefinition": {
+            "key": "pin_06",
+            "pinnedPosition": 6
+          },
+          "userErrors": []
+        },
+        "createPin07": {
+          "createdDefinition": {
+            "key": "pin_07",
+            "pinnedPosition": 7
+          },
+          "userErrors": []
+        },
+        "createPin08": {
+          "createdDefinition": {
+            "key": "pin_08",
+            "pinnedPosition": 8
+          },
+          "userErrors": []
+        },
+        "createPin09": {
+          "createdDefinition": {
+            "key": "pin_09",
+            "pinnedPosition": 9
+          },
+          "userErrors": []
+        },
+        "createPin10": {
+          "createdDefinition": {
+            "key": "pin_10",
+            "pinnedPosition": 10
+          },
+          "userErrors": []
+        },
+        "createPin11": {
+          "createdDefinition": {
+            "key": "pin_11",
+            "pinnedPosition": 11
+          },
+          "userErrors": []
+        },
+        "createPin12": {
+          "createdDefinition": {
+            "key": "pin_12",
+            "pinnedPosition": 12
+          },
+          "userErrors": []
+        },
+        "createPin13": {
+          "createdDefinition": {
+            "key": "pin_13",
+            "pinnedPosition": 13
+          },
+          "userErrors": []
+        },
+        "createPin14": {
+          "createdDefinition": {
+            "key": "pin_14",
+            "pinnedPosition": 14
+          },
+          "userErrors": []
+        },
+        "createPin15": {
+          "createdDefinition": {
+            "key": "pin_15",
+            "pinnedPosition": 15
+          },
+          "userErrors": []
+        },
+        "createPin16": {
+          "createdDefinition": {
+            "key": "pin_16",
+            "pinnedPosition": 16
+          },
+          "userErrors": []
+        },
+        "createPin17": {
+          "createdDefinition": {
+            "key": "pin_17",
+            "pinnedPosition": 17
+          },
+          "userErrors": []
+        },
+        "createPin18": {
+          "createdDefinition": {
+            "key": "pin_18",
+            "pinnedPosition": 18
+          },
+          "userErrors": []
+        },
+        "createPin19": {
+          "createdDefinition": {
+            "key": "pin_19",
+            "pinnedPosition": 19
+          },
+          "userErrors": []
+        },
+        "createPin20": {
+          "createdDefinition": {
+            "key": "pin_20",
+            "pinnedPosition": 20
+          },
+          "userErrors": []
+        },
+        "createOverCap": {
+          "createdDefinition": {
+            "key": "over_cap",
+            "pinnedPosition": null
+          },
+          "userErrors": []
+        },
+        "updateOverCapPin": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": [
+                "definition"
+              ],
+              "message": "Limit of 20 pinned definitions.",
+              "code": "PINNED_LIMIT_REACHED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 271,
+          "actualQueryCost": 271,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1729,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfter": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/update-pin-read.graphql",
+      "variables": {
+        "namespace": "update_pin_movhzhug",
+        "categoryId": "gid://shopify/TaxonomyCategory/ap-2"
+      }
+    },
+    "response": {
+      "data": {
+        "pinnedDefinition": {
+          "key": "pin_true",
+          "pinnedPosition": 1
+        },
+        "unpinnedDefinition": {
+          "key": "pin_false",
+          "pinnedPosition": null
+        },
+        "constrainedDefinition": {
+          "key": "constrained",
+          "pinnedPosition": null
+        },
+        "overCapDefinition": {
+          "key": "over_cap",
+          "pinnedPosition": null
+        },
+        "pinned": {
+          "nodes": [
+            {
+              "key": "pin_20",
+              "pinnedPosition": 20
+            },
+            {
+              "key": "pin_19",
+              "pinnedPosition": 19
+            },
+            {
+              "key": "pin_18",
+              "pinnedPosition": 18
+            },
+            {
+              "key": "pin_17",
+              "pinnedPosition": 17
+            },
+            {
+              "key": "pin_16",
+              "pinnedPosition": 16
+            },
+            {
+              "key": "pin_15",
+              "pinnedPosition": 15
+            },
+            {
+              "key": "pin_14",
+              "pinnedPosition": 14
+            },
+            {
+              "key": "pin_13",
+              "pinnedPosition": 13
+            },
+            {
+              "key": "pin_12",
+              "pinnedPosition": 12
+            },
+            {
+              "key": "pin_11",
+              "pinnedPosition": 11
+            },
+            {
+              "key": "pin_10",
+              "pinnedPosition": 10
+            },
+            {
+              "key": "pin_09",
+              "pinnedPosition": 9
+            },
+            {
+              "key": "pin_08",
+              "pinnedPosition": 8
+            },
+            {
+              "key": "pin_07",
+              "pinnedPosition": 7
+            },
+            {
+              "key": "pin_06",
+              "pinnedPosition": 6
+            },
+            {
+              "key": "pin_05",
+              "pinnedPosition": 5
+            },
+            {
+              "key": "pin_04",
+              "pinnedPosition": 4
+            },
+            {
+              "key": "pin_03",
+              "pinnedPosition": 3
+            },
+            {
+              "key": "pin_02",
+              "pinnedPosition": 2
+            },
+            {
+              "key": "pin_true",
+              "pinnedPosition": 1
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1846,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "deletedDefinitions": [
+      {
+        "id": "gid://shopify/MetafieldDefinition/207241904434",
+        "key": "pin_true"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207241937202",
+        "key": "pin_false"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207241969970",
+        "key": "constrained"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242002738",
+        "key": "pin_02"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242035506",
+        "key": "pin_03"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242068274",
+        "key": "pin_04"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242101042",
+        "key": "pin_05"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242133810",
+        "key": "pin_06"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242166578",
+        "key": "pin_07"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242199346",
+        "key": "pin_08"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242232114",
+        "key": "pin_09"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242264882",
+        "key": "pin_10"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242297650",
+        "key": "pin_11"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242330418",
+        "key": "pin_12"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242363186",
+        "key": "pin_13"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242395954",
+        "key": "pin_14"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242428722",
+        "key": "pin_15"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242461490",
+        "key": "pin_16"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242494258",
+        "key": "pin_17"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242527026",
+        "key": "pin_18"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242559794",
+        "key": "pin_19"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242592562",
+        "key": "pin_20"
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/207242625330",
+        "key": "over_cap"
+      }
+    ],
+    "restoredPinnedDefinitions": [
+      {
+        "id": "gid://shopify/MetafieldDefinition/98376220978",
+        "key": "binding_mount",
+        "namespace": "test_data",
+        "pinnedPosition": 2
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/98376188210",
+        "key": "snowboard_length",
+        "namespace": "test_data",
+        "pinnedPosition": 1
+      }
+    ]
+  },
+  "upstreamCalls": []
+}

@@ -2386,21 +2386,79 @@ pub fn update_definition_success(
       },
       constraints: update_definition_constraints(input, definition.constraints),
     )
-  let next_store =
-    store.upsert_staged_metafield_definitions(store_in, [updated])
-  #(
-    serializers.serialize_definition_mutation_payload(
-      store_in,
-      "updatedDefinition",
-      Some(updated),
-      [],
-      field,
-      variables,
-    ),
-    next_store,
-    identity,
-    [updated.id],
-  )
+  case definition_types.read_optional_bool(input, "pin") {
+    Some(True) -> {
+      case definition_types.validate_definition_pin(store_in, updated) {
+        [_, ..] as user_errors -> #(
+          serializers.serialize_definition_mutation_payload(
+            store_in,
+            "updatedDefinition",
+            None,
+            definition_input_user_errors(user_errors),
+            field,
+            variables,
+          ),
+          store_in,
+          identity,
+          [],
+        )
+        [] -> {
+          let pinned = definition_types.pin_definition(store_in, updated)
+          let next_store =
+            store.upsert_staged_metafield_definitions(store_in, [pinned])
+          #(
+            serializers.serialize_definition_mutation_payload(
+              store_in,
+              "updatedDefinition",
+              Some(pinned),
+              [],
+              field,
+              variables,
+            ),
+            next_store,
+            identity,
+            [pinned.id],
+          )
+        }
+      }
+    }
+    Some(False) -> {
+      let #(unpinned, compacted) =
+        definition_types.unpin_definition(store_in, updated)
+      let next_store =
+        store.upsert_staged_metafield_definitions(store_in, compacted)
+      #(
+        serializers.serialize_definition_mutation_payload(
+          store_in,
+          "updatedDefinition",
+          Some(unpinned),
+          [],
+          field,
+          variables,
+        ),
+        next_store,
+        identity,
+        [unpinned.id],
+      )
+    }
+    _ -> {
+      let next_store =
+        store.upsert_staged_metafield_definitions(store_in, [updated])
+      #(
+        serializers.serialize_definition_mutation_payload(
+          store_in,
+          "updatedDefinition",
+          Some(updated),
+          [],
+          field,
+          variables,
+        ),
+        next_store,
+        identity,
+        [updated.id],
+      )
+    }
+  }
 }
 
 @internal
