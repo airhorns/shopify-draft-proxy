@@ -1,0 +1,81 @@
+{
+  "scenarioId": "media-file-user-error-aggregation",
+  "operationNames": ["fileCreate", "fileDelete", "fileUpdate", "fileAcknowledgeUpdateFailed"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-user-error-aggregation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-user-error-aggregation-create.graphql",
+    "variablesCapturePath": "$.setup.nonReadyCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Files API aggregate userErrors for multi-id fileDelete and fileUpdate missing-id branches, plus fileAcknowledgeUpdateFailed behavior where missing ids short-circuit state validation and all-existing FAILED ids aggregate into one NON_READY_STATE userError. Acknowledge non-ready messages embed live file ids, so that volatile message string is covered by focused runtime tests while parity keeps response shape, error class count, fields, and codes aligned.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-delete-two-missing-ids",
+        "capturePath": "$.branches.fileDeleteMissing.response.data.fileDelete",
+        "proxyPath": "$.data.fileDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-aggregation-delete.graphql",
+          "variablesCapturePath": "$.branches.fileDeleteMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "file-update-two-missing-ids",
+        "capturePath": "$.branches.fileUpdateMissing.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-aggregation-update.graphql",
+          "variablesCapturePath": "$.branches.fileUpdateMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "file-acknowledge-missing-short-circuits-state",
+        "capturePath": "$.branches.fileAcknowledgeMixed.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-aggregation-acknowledge.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromCapturePath": "$.branches.fileAcknowledgeMixed.variables.fileIds[0]"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "file-acknowledge-two-non-ready-ids",
+        "capturePath": "$.branches.fileAcknowledgeNonReady.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "excludedPaths": ["$.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-user-error-aggregation-acknowledge.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[1].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

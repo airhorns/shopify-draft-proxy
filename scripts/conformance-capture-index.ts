@@ -800,6 +800,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-user-error-aggregation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-user-error-aggregation-conformance.ts',
+    purpose:
+      'Files API aggregate userError shape for multi-id fileDelete and fileUpdate misses plus mixed fileAcknowledgeUpdateFailed validation.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-user-error-aggregation.json`,
+      'config/parity-specs/media/media-file-user-error-aggregation.json',
+      'config/parity-requests/media/media-file-user-error-aggregation-create.graphql',
+      'config/parity-requests/media/media-file-user-error-aggregation-delete.graphql',
+      'config/parity-requests/media/media-file-user-error-aggregation-update.graphql',
+      'config/parity-requests/media/media-file-user-error-aggregation-acknowledge.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable non-ready files for acknowledge validation and deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-create-validation-conformance.mts',

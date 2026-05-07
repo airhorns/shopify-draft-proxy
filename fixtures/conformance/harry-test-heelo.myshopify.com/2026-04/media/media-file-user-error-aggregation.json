@@ -1,0 +1,288 @@
+{
+  "capturedAt": "2026-05-07T00:10:14.337Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-user-error-aggregation",
+  "setup": {
+    "nonReadyCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "media-user-error-aggregation-a-1778112611394.jpg",
+            "originalSource": "https://example.com/not-an-image.jpg",
+            "alt": "Files user error aggregation seed A"
+          },
+          {
+            "contentType": "IMAGE",
+            "filename": "media-user-error-aggregation-b-1778112611394.jpg",
+            "originalSource": "https://example.com/not-an-image.jpg",
+            "alt": "Files user error aggregation seed B"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43679049023794",
+                "__typename": "MediaImage",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43679049056562",
+                "__typename": "MediaImage",
+                "fileStatus": "UPLOADED"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonReadyReads": [
+      {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43679049023794",
+            "fileStatus": "FAILED"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43679049056562",
+            "fileStatus": "FAILED"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    ]
+  },
+  "branches": {
+    "fileDeleteMissing": {
+      "variables": {
+        "fileIds": [
+          "gid://shopify/MediaImage/900000000000001",
+          "gid://shopify/MediaImage/900000000000002"
+        ]
+      },
+      "response": {
+        "data": {
+          "fileDelete": {
+            "deletedFileIds": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fileIds"
+                ],
+                "message": "File ids gid://shopify/MediaImage/900000000000001,gid://shopify/MediaImage/900000000000002 do not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fileUpdateMissing": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/900000000000003",
+            "alt": "Missing first"
+          },
+          {
+            "id": "gid://shopify/MediaImage/900000000000004",
+            "alt": "Missing second"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": [
+                  "files"
+                ],
+                "message": "File ids [\"gid://shopify/MediaImage/900000000000003\", \"gid://shopify/MediaImage/900000000000004\"] do not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fileAcknowledgeMixed": {
+      "variables": {
+        "fileIds": [
+          "gid://shopify/MediaImage/900000000000005",
+          "gid://shopify/MediaImage/43679049023794"
+        ]
+      },
+      "response": {
+        "data": {
+          "fileAcknowledgeUpdateFailed": {
+            "files": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fileIds"
+                ],
+                "message": "File id gid://shopify/MediaImage/900000000000005 does not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fileAcknowledgeNonReady": {
+      "variables": {
+        "fileIds": [
+          "gid://shopify/MediaImage/43679049023794",
+          "gid://shopify/MediaImage/43679049056562"
+        ]
+      },
+      "response": {
+        "data": {
+          "fileAcknowledgeUpdateFailed": {
+            "files": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fileIds"
+                ],
+                "message": "Files with ids gid://shopify/MediaImage/43679049023794, gid://shopify/MediaImage/43679049056562 are not in the READY state.",
+                "code": "NON_READY_STATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileReferencesHydrate",
+      "variables": {
+        "fileIds": [
+          "gid://shopify/MediaImage/900000000000001",
+          "gid://shopify/MediaImage/900000000000002"
+        ]
+      },
+      "query": "sha:media-file-references-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              null,
+              null
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": [
+          "gid://shopify/MediaImage/900000000000003",
+          "gid://shopify/MediaImage/900000000000004"
+        ]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              null,
+              null
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
