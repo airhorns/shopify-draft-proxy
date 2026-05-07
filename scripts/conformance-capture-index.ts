@@ -1933,6 +1933,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-update-redirect-new-handle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-update-redirect-new-handle-conformance.ts',
+    purpose:
+      'metaobjectUpdate redirectNewHandle behavior for online-store renderable metaobjects, explicit false input, and non-renderable no-op handling.',
+    requiredAuthScopes: [
+      'read_metaobjects',
+      'write_metaobjects',
+      'read_online_store_navigation',
+      'write_online_store_navigation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-update-redirect-new-handle.json`,
+      'config/parity-specs/metaobjects/metaobject-update-redirect-new-handle.json',
+      'config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-url-redirect.graphql',
+      'config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-url-redirects.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions and rows for each branch, deletes any redirect row observed from the redirect-true branch, then deletes rows and definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'standard-metaobject-definition-enable-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',

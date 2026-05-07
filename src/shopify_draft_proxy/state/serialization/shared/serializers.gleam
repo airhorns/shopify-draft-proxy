@@ -1205,6 +1205,7 @@ pub fn metaobject_definition_json(
     #("name", optional_string(record.name)),
     #("description", optional_string(record.description)),
     #("displayNameKey", optional_string(record.display_name_key)),
+    #("onlineStoreUrlHandle", optional_string(record.online_store_url_handle)),
     #("access", dict_to_json(record.access, optional_string)),
     #(
       "capabilities",
@@ -1440,6 +1441,18 @@ pub fn metaobject_online_store_json(
   record: types.MetaobjectOnlineStoreCapabilityRecord,
 ) -> Json {
   json.object([#("templateSuffix", optional_string(record.template_suffix))])
+}
+
+@internal
+pub fn url_redirect_json(record: types.UrlRedirectRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("path", json.string(record.path)),
+    #("target", json.string(record.target)),
+    #("cursor", optional_string(record.cursor)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+  ])
 }
 
 @internal

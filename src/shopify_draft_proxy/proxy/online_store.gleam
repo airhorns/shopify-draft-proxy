@@ -45,7 +45,9 @@ pub fn is_online_store_query_root(name: String, query: String) -> Bool {
     | "webPixel"
     | "serverPixel"
     | "mobilePlatformApplication"
-    | "mobilePlatformApplications" -> True
+    | "mobilePlatformApplications"
+    | "urlRedirect"
+    | "urlRedirects" -> True
     "shop" -> string.contains(query, "storefrontAccessTokens")
     _ -> False
   }
