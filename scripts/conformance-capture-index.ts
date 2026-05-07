@@ -5550,6 +5550,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-credit-limit-exceeded',
+    scriptPath: 'scripts/capture-gift-card-credit-limit-exceeded-conformance.ts',
+    purpose:
+      'Gift-card credit validation when a card at the configured issue limit is credited past that limit, plus the debit-after-rejection public Admin path.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-credit-limit-exceeded.json`,
+      'config/parity-specs/gift-cards/gift-card-credit-limit-exceeded.json',
+      'config/parity-requests/gift-cards/gift-card-credit-limit-exceeded.graphql',
+    ],
+    cleanupBehavior:
+      'Reads giftCardConfiguration.issueLimit, creates one boundary gift card, records an over-limit credit rejection and a one-cent debit probe, then deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-update-validation',
     scriptPath: 'scripts/capture-gift-card-update-validation-conformance.ts',
     purpose:
