@@ -92,6 +92,20 @@ new version-specific capture proves Shopify changed the public API branch. The
 checked-in anchor is
 `config/parity-specs/payments/payment-terms-create-order-eligibility.json`.
 
+## Current: draftOrderInvoicePreview internal payload fields are not in public Admin schema
+
+During draft-order invoice preview compatibility work, live probes against
+`harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01 and 2026-04 rejected
+both `draftOrderInvoicePreview(presentmentCurrencyCode:)` and selecting
+`DraftOrderInvoicePreviewPayload.invoiceErrors`. The public responses were
+schema-level errors (`argumentNotAccepted` for the argument and `undefinedField`
+for `invoiceErrors`), even though internal-source notes describe those branches.
+
+Practical rule: keep public live residual-helper captures on the exposed schema.
+When modeling the internal compatibility surface locally, mark the evidence as
+local-runtime-backed and do not present it as public Shopify parity unless a
+future version-specific capture proves the public schema changed.
+
 ## Current: productCreate legacy ProductInput key guard differs from internal notes
 
 A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed

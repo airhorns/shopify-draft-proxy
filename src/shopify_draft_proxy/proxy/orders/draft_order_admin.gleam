@@ -1022,8 +1022,17 @@ pub fn handle_draft_order_invoice_preview(
         Some(_) -> []
         None -> [inferred_user_error(["id"], "Draft order does not exist")]
       }
+      let invoice_errors = case draft_order {
+        Some(draft_order) -> draft_order_invoice_preview_errors(draft_order)
+        None -> []
+      }
       let payload =
-        serialize_draft_order_invoice_preview_payload(field, args, user_errors)
+        serialize_draft_order_invoice_preview_payload(
+          field,
+          args,
+          user_errors,
+          invoice_errors,
+        )
       let draft =
         single_root_log_draft(
           "draftOrderInvoicePreview",
@@ -1048,11 +1057,13 @@ pub fn serialize_draft_order_invoice_preview_payload(
   field: Selection,
   args: Dict(String, root_field.ResolvedValue),
   user_errors: List(#(List(String), String, Option(String))),
+  invoice_errors: List(#(String, String)),
 ) -> Json {
   let email = read_object(args, "email") |> option.unwrap(dict.new())
   let subject =
     read_string(email, "subject") |> option.unwrap("Complete your purchase")
   let custom_message = read_string(email, "customMessage") |> option.unwrap("")
+  let presentment_currency = read_string_arg(args, "presentmentCurrencyCode")
   let source =
     src_object([
       #("previewSubject", SrcString(subject)),
@@ -1063,7 +1074,21 @@ pub fn serialize_draft_order_invoice_preview_payload(
           <> subject
           <> "</h1><p>"
           <> custom_message
-          <> "</p></body></html>",
+          <> "</p>"
+          <> presentment_currency_preview_marker(presentment_currency)
+          <> "</body></html>",
+        ),
+      ),
+      #(
+        "invoiceErrors",
+        SrcList(
+          list.map(invoice_errors, fn(error) {
+            let #(code, message) = error
+            src_object([
+              #("code", SrcString(code)),
+              #("message", SrcString(message)),
+            ])
+          }),
         ),
       ),
       #(
@@ -1077,6 +1102,40 @@ pub fn serialize_draft_order_invoice_preview_payload(
       ),
     ])
   project_graphql_value(source, selection_children(field), dict.new())
+}
+
+fn presentment_currency_preview_marker(currency: Option(String)) -> String {
+  case currency {
+    Some(currency) -> "<p data-presentment-currency=\"" <> currency <> "\"></p>"
+    None -> ""
+  }
+}
+
+fn draft_order_invoice_preview_errors(
+  draft_order: DraftOrderRecord,
+) -> List(#(String, String)) {
+  case draft_order_invoice_recipient_email(draft_order) {
+    Some(email) ->
+      case string.trim(email) {
+        "" -> [customer_no_email_invoice_error()]
+        _ -> []
+      }
+    None -> [customer_no_email_invoice_error()]
+  }
+}
+
+fn draft_order_invoice_recipient_email(
+  draft_order: DraftOrderRecord,
+) -> Option(String) {
+  captured_string_field(draft_order.data, "email")
+  |> option.or(
+    captured_object_field(draft_order.data, "customer")
+    |> option.then(fn(customer) { captured_string_field(customer, "email") }),
+  )
+}
+
+fn customer_no_email_invoice_error() -> #(String, String) {
+  #("CUSTOMER_NO_EMAIL", "Customer has no email address")
 }
 
 @internal

@@ -1,0 +1,14 @@
+mutation DraftOrderInvoicePreviewLocal($id: ID!, $email: EmailInput, $presentmentCurrencyCode: CurrencyCode) {
+  draftOrderInvoicePreview(id: $id, email: $email, presentmentCurrencyCode: $presentmentCurrencyCode) {
+    previewSubject
+    previewHtml
+    invoiceErrors {
+      code
+      message
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

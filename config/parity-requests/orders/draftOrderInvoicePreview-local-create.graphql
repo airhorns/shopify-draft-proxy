@@ -1,0 +1,11 @@
+mutation DraftOrderInvoicePreviewLocalCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

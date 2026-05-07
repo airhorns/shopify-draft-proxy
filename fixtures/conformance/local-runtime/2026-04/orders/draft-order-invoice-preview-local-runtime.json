@@ -1,0 +1,78 @@
+{
+  "scenarioId": "draftOrderInvoicePreview-local-runtime",
+  "recordedAt": "2026-05-07T15:20:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime evidence for the proxy-only draftOrderInvoicePreview invoiceErrors and presentmentCurrencyCode compatibility path. Live public Admin GraphQL 2025-01 and 2026-04 rejected invoiceErrors and presentmentCurrencyCode on this root during implementation, so this fixture is not claimed as Shopify public-schema fidelity.",
+  "setup": {
+    "happyDraftOrderCreate": {
+      "variables": {
+        "input": {
+          "email": "invoice-preview-local@example.com",
+          "lineItems": [
+            {
+              "title": "Invoice preview local item",
+              "quantity": 1,
+              "originalUnitPrice": "1.00"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "data": {
+          "draftOrderCreate": {
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "noEmailDraftOrderCreate": {
+      "variables": {
+        "input": {
+          "lineItems": [
+            {
+              "title": "No email invoice preview local item",
+              "quantity": 1,
+              "originalUnitPrice": "1.00"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "data": {
+          "draftOrderCreate": {
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "happyPreview": {
+      "data": {
+        "draftOrderInvoicePreview": {
+          "previewSubject": "Currency subject",
+          "previewHtml": "<!DOCTYPE html><html><body><h1>Currency subject</h1><p>Currency note</p><p data-presentment-currency=\"CAD\"></p></body></html>",
+          "invoiceErrors": [],
+          "userErrors": []
+        }
+      }
+    },
+    "noEmailPreview": {
+      "data": {
+        "draftOrderInvoicePreview": {
+          "previewSubject": "No email subject",
+          "previewHtml": "<!DOCTYPE html><html><body><h1>No email subject</h1><p></p></body></html>",
+          "invoiceErrors": [
+            {
+              "code": "CUSTOMER_NO_EMAIL",
+              "message": "Customer has no email address"
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

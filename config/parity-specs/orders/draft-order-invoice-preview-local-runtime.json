@@ -1,0 +1,75 @@
+{
+  "scenarioId": "draftOrderInvoicePreview-local-runtime",
+  "operationNames": ["draftOrderCreate", "draftOrderInvoicePreview"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "local-runtime-backed", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-invoice-preview-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderInvoicePreview-local-create.graphql",
+    "variablesCapturePath": "$.setup.happyDraftOrderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "happy-draft-create",
+        "capturePath": "$.setup.happyDraftOrderCreate.expected.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "happy-invoice-preview",
+        "capturePath": "$.expected.happyPreview",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoicePreview-local-preview.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "presentmentCurrencyCode": "CAD",
+            "email": {
+              "subject": "Currency subject",
+              "customMessage": "Currency note"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "no-email-draft-create",
+        "capturePath": "$.setup.noEmailDraftOrderCreate.expected.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoicePreview-local-create.graphql",
+          "variablesCapturePath": "$.setup.noEmailDraftOrderCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "no-email-invoice-preview",
+        "capturePath": "$.expected.noEmailPreview",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoicePreview-local-preview.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "no-email-draft-create",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "email": {
+              "subject": "No email subject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live public Admin GraphQL 2025-01 and 2026-04 rejected `draftOrderInvoicePreview.presentmentCurrencyCode` and `DraftOrderInvoicePreviewPayload.invoiceErrors` during implementation. This scenario is intentionally local-runtime-backed to exercise the proxy's compatibility behavior requested by the ticket rather than claiming public Shopify schema parity."
+}

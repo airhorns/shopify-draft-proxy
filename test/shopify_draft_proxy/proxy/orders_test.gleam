@@ -11889,6 +11889,102 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
     == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\",\"email\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\"},\"userErrors\":[{\"field\":null,\"message\":\"To can't be blank\"}]}}}"
 }
 
+pub fn orders_draft_order_invoice_preview_invoice_errors_and_currency_test() {
+  let preview_mutation =
+    "
+    mutation PreviewDraftInvoice($id: ID!, $email: EmailInput, $currency: CurrencyCode) {
+      draftOrderInvoicePreview(id: $id, email: $email, presentmentCurrencyCode: $currency) {
+        previewSubject
+        previewHtml
+        invoiceErrors { code message }
+        userErrors { field message }
+      }
+    }
+  "
+  let create_with_email =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderCreate(input: {
+          email: \"preview@example.test\"
+          lineItems: [{ title: \"Invoice preview item\", quantity: 1, originalUnitPrice: \"1.00\" }]
+        }) {
+          draftOrder { id }
+          userErrors { field message }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+  let happy_preview =
+    orders.process_mutation(
+      create_with_email.store,
+      create_with_email.identity,
+      "/admin/api/2025-01/graphql.json",
+      preview_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #("currency", root_field.StringVal("CAD")),
+        #(
+          "email",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("subject", root_field.StringVal("Currency subject")),
+              #("customMessage", root_field.StringVal("Currency note")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(happy_preview.data)
+    == "{\"data\":{\"draftOrderInvoicePreview\":{\"previewSubject\":\"Currency subject\",\"previewHtml\":\"<!DOCTYPE html><html><body><h1>Currency subject</h1><p>Currency note</p><p data-presentment-currency=\\\"CAD\\\"></p></body></html>\",\"invoiceErrors\":[],\"userErrors\":[]}}}"
+
+  let create_without_email =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderCreate(input: {
+          lineItems: [{ title: \"No email invoice preview item\", quantity: 1, originalUnitPrice: \"1.00\" }]
+        }) {
+          draftOrder { id email customer { email } }
+          userErrors { field message }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+  let no_email_preview =
+    orders.process_mutation(
+      create_without_email.store,
+      create_without_email.identity,
+      "/admin/api/2025-01/graphql.json",
+      preview_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #(
+          "email",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("subject", root_field.StringVal("No email subject")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(no_email_preview.data)
+    == "{\"data\":{\"draftOrderInvoicePreview\":{\"previewSubject\":\"No email subject\",\"previewHtml\":\"<!DOCTYPE html><html><body><h1>No email subject</h1><p></p></body></html>\",\"invoiceErrors\":[{\"code\":\"CUSTOMER_NO_EMAIL\",\"message\":\"Customer has no email address\"}],\"userErrors\":[]}}}"
+}
+
 pub fn orders_draft_order_residual_helper_roots_test() {
   let assert Ok(delivery_result) =
     orders.process(
