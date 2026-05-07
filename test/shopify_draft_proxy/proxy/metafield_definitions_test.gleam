@@ -513,6 +513,120 @@ pub fn metafield_definition_update_validates_validation_options_test() {
   assert string.contains(json.to_string(read_body), "\"validations\":[]")
 }
 
+pub fn metafield_definition_update_validation_change_stages_job_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Validation job\",
+        namespace: \"validation_job\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id validations { name value } validationStatus }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let set_metafield =
+    "mutation {
+      metafieldsSet(metafields: [{
+        ownerId: \"gid://shopify/Product/1\",
+        namespace: \"validation_job\",
+        key: \"target\",
+        type: \"single_line_text_field\",
+        value: \"ABCDE\"
+      }]) {
+        metafields { id namespace key type value }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(proxy, set_metafield)
+  assert set_status == 200
+  assert string.contains(json.to_string(set_body), "\"userErrors\":[]")
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"validation_job\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        validations: [{ name: \"max\", value: \"8\" }]
+      }) {
+        updatedDefinition {
+          id
+          validations { name value }
+          validationStatus
+        }
+        validationJob { __typename id done query { __typename } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"validationStatus\":\"ALL_VALID\"")
+  assert string.contains(
+    update_json,
+    "\"validationJob\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null}",
+  )
+  assert string.contains(update_json, "\"userErrors\":[]")
+
+  let read =
+    "query {
+      job(id: \"gid://shopify/Job/5\") {
+        __typename
+        id
+        done
+        query { __typename }
+      }
+      jobNode: node(id: \"gid://shopify/Job/5\") {
+        __typename
+        id
+        ... on Job { done query { __typename } }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null}",
+  )
+  assert string.contains(
+    read_json,
+    "\"jobNode\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null}",
+  )
+
+  let rename =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"validation_job\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        name: \"Validation job renamed\"
+      }) {
+        updatedDefinition { id name validationStatus }
+        validationJob { id done }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: rename_status, body: rename_body, ..), _) =
+    graphql(proxy, rename)
+  assert rename_status == 200
+  let rename_json = json.to_string(rename_body)
+  assert string.contains(rename_json, "\"validationJob\":null")
+  assert string.contains(rename_json, "\"validationStatus\":\"ALL_VALID\"")
+}
+
 pub fn metafield_definition_update_rejects_metaobject_definition_id_change_test() {
   let proxy = draft_proxy.new()
   let create =

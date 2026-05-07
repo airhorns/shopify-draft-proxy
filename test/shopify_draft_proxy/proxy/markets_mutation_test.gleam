@@ -1984,6 +1984,108 @@ pub fn market_create_rejects_duplicate_region_country_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"regions\",\"0\",\"countryCode\"],\"message\":\"Code has already been taken\",\"code\":\"TAKEN\"}]}}}"
 }
 
+pub fn market_create_rejects_unsupported_country_regions_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Unsupported\", regions: [{ countryCode: US }, { countryCode: CU }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "GET",
+        path: "/__meta/state",
+        headers: dict.new(),
+        body: "",
+      ),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"regions\",\"1\",\"countryCode\"],\"message\":\"CU is not a supported country or region code.\",\"code\":\"UNSUPPORTED_COUNTRY_REGION\"}]}}}"
+  assert state_status == 200
+  assert !string.contains(json.to_string(state_body), "\"Unsupported\"")
+}
+
+pub fn market_create_unsupported_country_region_precedes_taken_test() {
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_markets([
+      MarketRecord(
+        "gid://shopify/Market/base-cu",
+        Some("gid://shopify/Market/base-cu"),
+        CapturedObject([
+          #("id", CapturedString("gid://shopify/Market/base-cu")),
+          #("name", CapturedString("Existing Unsupported")),
+          #(
+            "conditions",
+            CapturedObject([
+              #(
+                "regionsCondition",
+                CapturedObject([
+                  #(
+                    "regions",
+                    CapturedObject([
+                      #(
+                        "nodes",
+                        CapturedArray([
+                          CapturedObject([
+                            #("code", CapturedString("CU")),
+                            #("name", CapturedString("Cuba")),
+                          ]),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let proxy =
+    draft_proxy.new()
+    |> draft_proxy.with_default_registry
+    |> fn(proxy) { DraftProxy(..proxy, store: seeded_store) }
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Unsupported\", regions: [{ countryCode: CU }] }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"regions\",\"0\",\"countryCode\"],\"message\":\"CU is not a supported country or region code.\",\"code\":\"UNSUPPORTED_COUNTRY_REGION\"}]}}}"
+}
+
+pub fn market_update_rejects_unsupported_country_regions_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Supported\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketUpdate(id: \"gid://shopify/Market/1\", input: { conditions: { regionsCondition: { regions: [{ countryCode: CU }] } } }) { market { id conditions { regionsCondition { regions(first: 5) { nodes { ... on MarketRegionCountry { code } } } } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { market(id: \"gid://shopify/Market/1\") { id conditions { regionsCondition { regions(first: 5) { nodes { ... on MarketRegionCountry { code } } } } } } }",
+    )
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"marketUpdate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"conditions\",\"regionsCondition\",\"regions\",\"0\",\"countryCode\"],\"message\":\"CU is not a supported country or region code.\",\"code\":\"UNSUPPORTED_COUNTRY_REGION\"}]}}}"
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"code\":\"DK\"")
+  assert !string.contains(json.to_string(read_body), "\"code\":\"CU\"")
+}
+
 pub fn market_create_dedupes_generated_handles_test() {
   let #(Response(status: first_status, body: first_body, ..), proxy) =
     graphql(

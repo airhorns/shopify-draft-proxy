@@ -1360,6 +1360,12 @@ pub fn metaobject_definition_decoder() -> Decoder(
     False,
     decode.bool,
   )
+  use enabled_by_shopify <- optional_field(
+    "enabledByShopify",
+    False,
+    decode.bool,
+  )
+  use enabled_by_shopify_at <- optional_string_field("enabledByShopifyAt")
   use linked_metafields <- optional_field(
     "linkedMetafields",
     [],
@@ -1383,6 +1389,8 @@ pub fn metaobject_definition_decoder() -> Decoder(
     standard_template_id: standard_template_id,
     standard_template_dependent_on_app: standard_template_dependent_on_app,
     app_config_managed: app_config_managed,
+    enabled_by_shopify: enabled_by_shopify,
+    enabled_by_shopify_at: enabled_by_shopify_at,
     linked_metafields: linked_metafields,
     created_at: created_at,
     updated_at: updated_at,
@@ -1529,9 +1537,17 @@ pub fn metaobject_standard_template_decoder() -> Decoder(
 ) {
   use type_ <- optional_string_field("type")
   use name <- optional_string_field("name")
+  use enabled_by_shopify <- optional_field(
+    "enabledByShopify",
+    False,
+    decode.bool,
+  )
+  use enabled_by_shopify_at <- optional_string_field("enabledByShopifyAt")
   decode.success(types.MetaobjectStandardTemplateRecord(
     type_: type_,
     name: name,
+    enabled_by_shopify: enabled_by_shopify,
+    enabled_by_shopify_at: enabled_by_shopify_at,
   ))
 }
 

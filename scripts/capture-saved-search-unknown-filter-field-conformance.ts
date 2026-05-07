@@ -82,6 +82,25 @@ function assertPositiveCreate(payload: ConformanceGraphqlPayload): string {
   return id;
 }
 
+function assertUpdateUnknownFilterUserError(payload: ConformanceGraphqlPayload, id: string): void {
+  const mutationPayload = readMutationPayload(payload, 'savedSearchUpdate');
+  const savedSearch = readObject(mutationPayload['savedSearch']);
+  if (savedSearch?.['id'] !== id || savedSearch['query'] !== 'made_up_filter:foo') {
+    throw new Error(`Expected unknown filter update savedSearch echo: ${JSON.stringify(mutationPayload)}`);
+  }
+  const userErrors = mutationPayload['userErrors'];
+  if (!Array.isArray(userErrors) || userErrors.length !== 1) {
+    throw new Error(`Expected one unknown filter update userError: ${JSON.stringify(mutationPayload)}`);
+  }
+  const first = readObject(userErrors[0]);
+  if (
+    JSON.stringify(first?.['field']) !== JSON.stringify(['input', 'query']) ||
+    first?.['message'] !== "Query is invalid, 'made_up_filter' is not a valid filter"
+  ) {
+    throw new Error(`Unexpected unknown filter update userError: ${JSON.stringify(first)}`);
+  }
+}
+
 function assertDeleteSucceeded(payload: ConformanceGraphqlPayload, id: string): void {
   const mutationPayload = readMutationPayload(payload, 'savedSearchDelete');
   if (mutationPayload['deletedSavedSearchId'] !== id) {
@@ -107,6 +126,7 @@ async function cleanup(id: string): Promise<void> {
 }
 
 const createDocument = await readRequest('saved-search-unknown-filter-field.graphql');
+const updateDocument = await readRequest('saved-search-unknown-filter-field-update.graphql');
 const deleteDocument = await readRequest('saved-search-query-grammar-delete.graphql');
 const token = `SSF-${Date.now().toString(36)}`;
 const createVariables = {
@@ -129,6 +149,16 @@ const createdId = assertPositiveCreate(savedSearchUnknownFilterField.payload);
 
 let cleanupComplete = false;
 try {
+  const updateVariables = {
+    input: {
+      id: createdId,
+      query: 'made_up_filter:foo',
+    },
+  };
+  const updateUnknownProduct = await client.runGraphqlRequest(updateDocument, updateVariables);
+  assertNoTopLevelErrors(updateUnknownProduct, 'saved-search unknown filter update capture');
+  assertUpdateUnknownFilterUserError(updateUnknownProduct.payload, createdId);
+
   const deleteVariables = { input: { id: createdId } };
   const cleanupDelete = await client.runGraphqlRequest(deleteDocument, deleteVariables);
   assertNoTopLevelErrors(cleanupDelete, 'saved-search unknown filter cleanup');
@@ -142,6 +172,7 @@ try {
     token,
     notes: [
       'SavedSearch PRODUCT create rejects made_up_filter as an invalid filter with field ["input", "query"].',
+      'SavedSearch PRODUCT update rejects made_up_filter as an invalid filter with field ["input", "query"].',
       'SavedSearch PRODUCT create accepts vendor as a valid filter and returns an empty userErrors list.',
       'The positive-control saved search is deleted during cleanup.',
     ],
@@ -149,6 +180,11 @@ try {
       documentPath: 'config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql',
       variables: createVariables,
       payload: savedSearchUnknownFilterField.payload,
+      updateUnknownProduct: {
+        documentPath: 'config/parity-requests/saved-searches/saved-search-unknown-filter-field-update.graphql',
+        variables: updateVariables,
+        payload: updateUnknownProduct.payload,
+      },
     },
     cleanupDelete: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql',
