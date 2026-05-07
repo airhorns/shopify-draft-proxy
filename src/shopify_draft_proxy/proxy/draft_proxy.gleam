@@ -808,6 +808,11 @@ fn schema_validation_errors(
               operation_path,
               query,
             ))
+            |> list.append(fulfillment_service_removed_argument_errors(
+              field,
+              operation_path,
+              query,
+            ))
             |> list.append(metaobject_argument_visibility_errors(
               field,
               request_headers,
@@ -920,6 +925,43 @@ fn server_pixel_endpoint_argument_errors(
         _ -> []
       }
     }
+    _ -> []
+  }
+}
+
+fn fulfillment_service_removed_argument_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, arguments: arguments, loc: field_loc, ..) ->
+      case name.value {
+        "fulfillmentServiceCreate" | "fulfillmentServiceUpdate" ->
+          list.flat_map(
+            [
+              "permitsSkuSharing",
+              "inventorySyncEnabled",
+              "fulfillmentOrdersOptIn",
+            ],
+            fn(argument_name) {
+              case argument_location(arguments, argument_name) {
+                Some(argument_loc) -> [
+                  build_top_level_argument_not_accepted_error(
+                    name.value,
+                    argument_name,
+                    operation_path,
+                    field_loc,
+                    Some(argument_loc),
+                    source_body,
+                  ),
+                ]
+                None -> []
+              }
+            },
+          )
+        _ -> []
+      }
     _ -> []
   }
 }
