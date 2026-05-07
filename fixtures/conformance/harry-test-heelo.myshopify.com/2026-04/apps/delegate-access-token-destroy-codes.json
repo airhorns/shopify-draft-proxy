@@ -1,12 +1,11 @@
 {
-  "capturedAt": "2026-05-05T21:30:00.000Z",
+  "capturedAt": "2026-05-06T22:26:33.933Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenario": "delegate-access-token-destroy-codes",
   "notes": [
-    "HAR-751 live probes captured the public Admin GraphQL 2026-04 response shape for missing token, parent-token self destroy, sibling hierarchy denial, successful destroy, and repeat destroy.",
-    "Raw parent and delegate tokens are intentionally omitted; parity replay creates synthetic delegate tokens locally and uses request headers to model caller token identity.",
-    "Cross-app denial remains local-runtime evidence until the harness has a second disposable app credential; it uses the same ACCESS_DENIED payload shape as the captured hierarchy denial."
+    "Live probes captured the public Admin GraphQL response shape for missing token, parent-token self destroy, sibling hierarchy denial, successful destroy, and repeat destroy.",
+    "Raw parent and delegate tokens are intentionally omitted; parity replay creates synthetic delegate tokens locally and uses request headers to model caller token identity."
   ],
   "evidence": {
     "live": {
@@ -27,6 +26,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         },
         "success": {
@@ -38,6 +48,17 @@
                 "name": "harry-test-heelo"
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         },
@@ -57,6 +78,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         },
         "parentSelf": {
@@ -74,6 +106,17 @@
                   "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
             }
           }
         },
@@ -93,6 +136,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -103,12 +157,23 @@
           "data": {
             "delegateAccessTokenCreate": {
               "delegateAccessToken": {
-                "accessToken": "shpat_delegate_proxy_redacted",
+                "accessToken": "[redacted-live-delegate-token]",
                 "accessScopes": ["read_products"],
-                "createdAt": "2026-05-05T21:30:00.000Z",
-                "expiresIn": 3600
+                "createdAt": "2026-05-06T22:26:33Z",
+                "expiresIn": 298
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         },
@@ -127,6 +192,17 @@
                   "code": "ACCESS_DENIED"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }

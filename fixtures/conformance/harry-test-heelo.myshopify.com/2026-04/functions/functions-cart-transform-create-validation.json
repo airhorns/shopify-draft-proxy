@@ -1,10 +1,10 @@
 {
   "scenarioId": "functions-cart-transform-create-validation",
-  "capturedAt": "2026-05-05T00:00:00.000Z",
-  "source": "live-shopify-derived",
+  "capturedAt": "2026-05-06T22:26:44.517Z",
+  "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "Cart transform create Function identifier validation. Duplicate and API-mismatch branches are derived from the live HAR-416 functions capture; the both-identifiers branch was captured live on 2026-05-05 after the store no longer exposed the released validation/cart-transform Functions.",
+  "summary": "Cart transform create Function identifier validation, duplicate registration, multiple identifiers, and downstream read evidence.",
   "shopifyFunctions": {
     "cartTransform": {
       "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
@@ -38,31 +38,46 @@
     }
   },
   "cartTransformCreateSetup": {
+    "query": "mutation CartTransformCreateSetup($functionId: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
       "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
       "blockOnFailure": false
     },
     "response": {
+      "status": 200,
       "payload": {
         "data": {
           "cartTransformCreate": {
             "cartTransform": {
-              "id": "gid://shopify/CartTransform/112918834",
+              "id": "gid://shopify/CartTransform/115179826",
               "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
               "blockOnFailure": false
             },
             "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
           }
         }
       }
     }
   },
   "cartTransformCreateConflict": {
+    "query": "mutation CartTransformCreateConflict($functionId: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
       "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
       "blockOnFailure": false
     },
     "response": {
+      "status": 200,
       "payload": {
         "data": {
           "cartTransformCreate": {
@@ -75,16 +90,29 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     }
   },
   "cartTransformCreateApiMismatch": {
+    "query": "mutation CartTransformCreateApiMismatch($functionId: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
       "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
       "blockOnFailure": false
     },
     "response": {
+      "status": 200,
       "payload": {
         "data": {
           "cartTransformCreate": {
@@ -93,21 +121,34 @@
               {
                 "field": ["functionId"],
                 "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
-                "code": "FUNCTION_DOES_NOT_IMPLEMENT"
+                "code": "FUNCTION_NOT_FOUND"
               }
             ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
           }
         }
       }
     }
   },
   "cartTransformCreateBoth": {
+    "query": "mutation CartTransformCreateBoth($functionId: String!, $functionHandle: String!, $blockOnFailure: Boolean) {\n  cartTransformCreate(functionId: $functionId, functionHandle: $functionHandle, blockOnFailure: $blockOnFailure) {\n    cartTransform {\n      id\n      functionId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "functionId": "gid://shopify/ShopifyFunction/har-696-both",
-      "functionHandle": "har-696-both",
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "functionHandle": "conformance-cart-transform",
       "blockOnFailure": false
     },
     "response": {
+      "status": 200,
       "payload": {
         "data": {
           "cartTransformCreate": {
@@ -120,33 +161,57 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     }
   },
   "cartTransformsAfterValidation": {
+    "query": "query CartTransforms($first: Int!) {\n  cartTransforms(first: $first) {\n    nodes {\n      id\n      functionId\n    }\n  }\n}\n",
     "variables": {
       "first": 5
     },
     "response": {
+      "status": 200,
       "payload": {
         "data": {
           "cartTransforms": {
             "nodes": [
               {
-                "id": "gid://shopify/CartTransform/112918834",
+                "id": "gid://shopify/CartTransform/115179826",
                 "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
               }
             ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
           }
         }
       }
     }
   },
   "captureNotes": [
-    "The original live setup, duplicate, and API-mismatch evidence is checked in at fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json.",
-    "A fresh 2026-04 live capture on 2026-05-05 confirmed the exact MULTIPLE_FUNCTION_IDENTIFIERS field/message/code without requiring a deployed cart-transform Function.",
-    "Re-recording the full setup/duplicate/API-mismatch sequence on 2026-05-05 was blocked because the live store's shopifyFunctions response only exposed conformance-payment-customization, not the previously deployed conformance-validation or conformance-cart-transform handles."
+    "The setup branch creates one disposable cart transform from the released cart-transform Function.",
+    "The conflict branch reuses the same Function id and records duplicate-registration behavior.",
+    "The both-identifiers branch sends both Function id and handle for the same released Function."
   ],
   "upstreamCalls": [
     {
@@ -154,7 +219,7 @@
       "variables": {
         "id": "019dd44b-127f-724b-a49c-70fc98ff4d72"
       },
-      "query": "hand-synthesized from shopifyFunctions.cartTransform live capture",
+      "query": "query FunctionHydrateById($id: String!) {\n    shopifyFunction(id: $id) {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
@@ -174,6 +239,17 @@
                 "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
               }
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -183,7 +259,7 @@
       "variables": {
         "id": "019dd44b-127f-7061-a930-422cbd4a751f"
       },
-      "query": "hand-synthesized from shopifyFunctions.validation live capture",
+      "query": "query FunctionHydrateById($id: String!) {\n    shopifyFunction(id: $id) {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
@@ -201,6 +277,17 @@
                 "title": "hermes-conformance-products",
                 "handle": "hermes-conformance-products",
                 "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
               }
             }
           }

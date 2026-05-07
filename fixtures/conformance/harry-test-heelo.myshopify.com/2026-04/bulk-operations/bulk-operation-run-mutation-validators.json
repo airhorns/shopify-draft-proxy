@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T04:48:07.863Z",
+  "capturedAt": "2026-05-06T22:24:43.600Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "request": {
@@ -102,7 +102,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -136,7 +136,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
