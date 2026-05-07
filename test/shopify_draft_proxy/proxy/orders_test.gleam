@@ -6162,6 +6162,245 @@ pub fn orders_refund_create_allow_over_refunding_stages_amount_over_refund_test(
   assert outcome.staged_resource_ids == [order_id]
 }
 
+pub fn orders_refund_create_rejects_invalid_transaction_kind_test() {
+  let order_id = "gid://shopify/Order/refund-transaction-kind"
+  let transaction_id = "gid://shopify/OrderTransaction/refund-kind-sale"
+  let seeded = refund_transaction_validation_store(order_id, transaction_id)
+
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      refund_transaction_validation_mutation(),
+      refund_transaction_validation_variables(
+        order_id,
+        transaction_id,
+        "AUTHORIZATION",
+        "manual",
+      ),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/refund-transaction-kind\"},\"userErrors\":[{\"field\":[\"transactions\",\"0\",\"kind\"],\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.get_order_by_id(outcome.store, order_id)
+    == store.get_order_by_id(seeded, order_id)
+}
+
+pub fn orders_refund_create_rejects_missing_parent_transaction_test() {
+  let order_id = "gid://shopify/Order/refund-transaction-parent"
+  let transaction_id = "gid://shopify/OrderTransaction/refund-parent-sale"
+  let seeded = refund_transaction_validation_store(order_id, transaction_id)
+
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      refund_transaction_validation_mutation(),
+      refund_transaction_validation_variables(
+        order_id,
+        "gid://shopify/OrderTransaction/missing",
+        "REFUND",
+        "manual",
+      ),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/refund-transaction-parent\"},\"userErrors\":[{\"field\":[\"transactions\",\"0\",\"parentId\"],\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.get_order_by_id(outcome.store, order_id)
+    == store.get_order_by_id(seeded, order_id)
+}
+
+pub fn orders_refund_create_rejects_mismatched_parent_gateway_test() {
+  let order_id = "gid://shopify/Order/refund-transaction-gateway"
+  let transaction_id = "gid://shopify/OrderTransaction/refund-gateway-sale"
+  let seeded = refund_transaction_validation_store(order_id, transaction_id)
+
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      refund_transaction_validation_mutation(),
+      refund_transaction_validation_variables(
+        order_id,
+        transaction_id,
+        "REFUND",
+        "bogus-gateway",
+      ),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/refund-transaction-gateway\"},\"userErrors\":[{\"field\":[\"transactions\",\"0\",\"gateway\"],\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.get_order_by_id(outcome.store, order_id)
+    == store.get_order_by_id(seeded, order_id)
+}
+
+pub fn orders_refund_create_accepts_void_transaction_kind_with_matching_parent_test() {
+  let order_id = "gid://shopify/Order/refund-transaction-void"
+  let transaction_id = "gid://shopify/OrderTransaction/refund-void-sale"
+  let seeded = refund_transaction_validation_store(order_id, transaction_id)
+
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      refund_transaction_validation_mutation(),
+      refund_transaction_validation_variables(
+        order_id,
+        transaction_id,
+        "VOID",
+        "manual",
+      ),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"transactions\":{\"nodes\":[{\"kind\":\"VOID\",\"gateway\":\"manual\"}]}},\"order\":{\"id\":\"gid://shopify/Order/refund-transaction-void\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+}
+
+fn refund_transaction_validation_store(
+  order_id: String,
+  transaction_id: String,
+) -> Store {
+  store.new()
+  |> store.upsert_base_orders([
+    types.OrderRecord(
+      id: order_id,
+      cursor: None,
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("displayFinancialStatus", types.CapturedString("PAID")),
+        #(
+          "totalPriceSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("10.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "totalReceivedSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("10.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "totalRefundedSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString("0.0")),
+                #("currencyCode", types.CapturedString("CAD")),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "transactions",
+          types.CapturedArray([
+            types.CapturedObject([
+              #("id", types.CapturedString(transaction_id)),
+              #("kind", types.CapturedString("SALE")),
+              #("status", types.CapturedString("SUCCESS")),
+              #("gateway", types.CapturedString("manual")),
+              #(
+                "amountSet",
+                types.CapturedObject([
+                  #(
+                    "shopMoney",
+                    types.CapturedObject([
+                      #("amount", types.CapturedString("10.0")),
+                      #("currencyCode", types.CapturedString("CAD")),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+        #("refunds", types.CapturedArray([])),
+      ]),
+    ),
+  ])
+}
+
+fn refund_transaction_validation_mutation() -> String {
+  "
+    mutation RefundCreateTransactionValidation($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          id
+          transactions(first: 5) {
+            nodes {
+              kind
+              gateway
+            }
+          }
+        }
+        order {
+          id
+        }
+        userErrors {
+          field
+          code
+        }
+      }
+    }
+  "
+}
+
+fn refund_transaction_validation_variables(
+  order_id: String,
+  parent_id: String,
+  kind: String,
+  gateway: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #(
+      "input",
+      root_field.ObjectVal(
+        dict.from_list([
+          #("orderId", root_field.StringVal(order_id)),
+          #(
+            "transactions",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("amount", root_field.StringVal("1.00")),
+                  #("kind", root_field.StringVal(kind)),
+                  #("gateway", root_field.StringVal(gateway)),
+                  #("parentId", root_field.StringVal(parent_id)),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ),
+  ])
+}
+
 pub fn orders_refund_create_partial_success_stages_refund_and_transaction_test() {
   let order_id = "gid://shopify/Order/6830465188073"
   let line_item_id = "gid://shopify/LineItem/16202166272233"

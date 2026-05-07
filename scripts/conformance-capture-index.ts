@@ -5567,6 +5567,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-refund-transactions-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-refund-transactions-validation-conformance.mts',
+    purpose:
+      'refundCreate transaction kind, parent transaction, gateway mismatch, and matching-parent happy path validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}refund-create-transactions-validation.json`,
+      'config/parity-specs/orders/refundCreate-transactions-validation.json',
+      'config/parity-requests/orders/refundCreate-transactions-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable paid orders, captures rejected refundCreate transaction kind and parent validation, captures current public gateway-normalization behavior, captures one accepted baseline, then attempts orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-refunds',
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
     purpose: 'Order refund calculation/create behavior against disposable orders.',
