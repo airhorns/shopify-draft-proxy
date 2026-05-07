@@ -6748,6 +6748,7 @@ fn product_publication_shop() -> ShopRecord {
       live_view: True,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
+      b2b_deposits_enabled: True,
       discounts_by_market_enabled: False,
       markets_granted: 50,
       sells_subscriptions: False,

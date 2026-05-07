@@ -1,0 +1,179 @@
+{
+  "scenarioId": "b2b-buyer-experience-configuration",
+  "operationNames": ["companyCreate", "companyLocationCreate", "companyLocationUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "read-after-write",
+    "buyer-experience-configuration",
+    "validation-atomicity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-buyer-experience-configuration.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-company-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for B2B CompanyLocation.buyerExperienceConfiguration on companyCreate, companyLocationCreate, companyLocationUpdate, downstream company location reads, empty BEC validation, and deposit-without-payment-terms validation. The live 2026-04 conformance shop accepted deposit with paymentTermsTemplateId gid://shopify/PaymentTermsTemplate/4; the disabled-shop deposit_not_enabled branch is runtime-test-backed because it depends on shop capability posture rather than public input shape.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-buyer-experience",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-create-buyer-experience",
+        "capturePath": "$.locationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationCreate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      },
+      {
+        "name": "validation-location-create",
+        "capturePath": "$.validationLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.validationLocationCreate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      },
+      {
+        "name": "empty-buyer-experience-validation",
+        "capturePath": "$.emptyBuyerExperienceUpdate.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "input": {
+              "fromCapturePath": "$.emptyBuyerExperienceUpdate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "deposit-without-terms-validation",
+        "capturePath": "$.depositWithoutTermsUpdate.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "validation-location-create",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "input": {
+              "fromCapturePath": "$.depositWithoutTermsUpdate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "deposit-with-terms-update",
+        "capturePath": "$.depositWithTermsUpdate.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "input": {
+              "fromCapturePath": "$.depositWithTermsUpdate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      },
+      {
+        "name": "read-after-buyer-experience",
+        "capturePath": "$.readAfterBuyerExperience.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-buyer-experience-company-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      }
+    ]
+  }
+}

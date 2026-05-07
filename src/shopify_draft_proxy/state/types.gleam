@@ -892,6 +892,7 @@ pub type ShopFeaturesRecord {
     live_view: Bool,
     paypal_express_subscription_gateway_status: String,
     reports: Bool,
+    b2b_deposits_enabled: Bool,
     discounts_by_market_enabled: Bool,
     markets_granted: Int,
     sells_subscriptions: Bool,
