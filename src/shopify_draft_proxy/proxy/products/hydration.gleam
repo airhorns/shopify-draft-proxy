@@ -41,18 +41,19 @@ import shopify_draft_proxy/state/types.{
   type InventoryItemRecord, type InventoryLevelRecord,
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
-  type ProductMediaRecord, type ProductMetafieldRecord,
-  type ProductOptionLinkedMetafieldRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, type SellingPlanGroupRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, CollectionRecord, CollectionRuleRecord,
-  CollectionRuleSetRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, ProductCollectionRecord, ProductMediaRecord,
-  ProductMetafieldRecord, ProductOptionLinkedMetafieldRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  type ProductCategoryRecord, type ProductMediaRecord,
+  type ProductMetafieldRecord, type ProductOptionLinkedMetafieldRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type SellingPlanGroupRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
+  InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
+  InventoryWeightRecord, LocationRecord, ProductCategoryRecord,
+  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
+  ProductOptionLinkedMetafieldRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
   ProductVariantRecord, ProductVariantSelectedOptionRecord,
   SellingPlanGroupRecord,
 }
@@ -515,6 +516,7 @@ pub fn upsert_hydrated_variant_without_product(
                   template_suffix: None,
                   seo: ProductSeoRecord(title: None, description: None),
                   category: None,
+                  requires_selling_plan: None,
                   publication_ids: [],
                   contextual_pricing: None,
                   cursor: None,
@@ -712,7 +714,8 @@ pub fn upsert_hydrated_inventory_level(
           online_store_preview_url: None,
           template_suffix: None,
           seo: ProductSeoRecord(title: None, description: None),
-          category: None,
+          category: product_category_record_from_json(node),
+          requires_selling_plan: json_bool_field(node, "requiresSellingPlan"),
           publication_ids: [],
           contextual_pricing: None,
           cursor: None,
@@ -846,7 +849,8 @@ pub fn upsert_hydrated_inventory_item_without_variant(
           online_store_preview_url: None,
           template_suffix: None,
           seo: ProductSeoRecord(title: None, description: None),
-          category: None,
+          category: product_category_record_from_json(node),
+          requires_selling_plan: json_bool_field(node, "requiresSellingPlan"),
           publication_ids: [],
           contextual_pricing: None,
           cursor: None,
@@ -942,7 +946,8 @@ pub fn product_record_from_json(
             title: json_string_field_at(node, ["seo", "title"]),
             description: json_string_field_at(node, ["seo", "description"]),
           ),
-          category: None,
+          category: product_category_record_from_json(node),
+          requires_selling_plan: json_bool_field(node, "requiresSellingPlan"),
           publication_ids: product_publication_ids_from_json(node),
           contextual_pricing: json_field(node, ["contextualPricing"])
             |> option.map(captured_json_from_commit),
@@ -952,6 +957,20 @@ pub fn product_record_from_json(
           combined_listing_child_ids: [],
         ),
       )
+  }
+}
+
+fn product_category_record_from_json(
+  node: commit.JsonValue,
+) -> Option(ProductCategoryRecord) {
+  case json_string_field_at(node, ["category", "id"]) {
+    None -> None
+    Some(id) ->
+      Some(ProductCategoryRecord(
+        id: id,
+        full_name: json_string_field_at(node, ["category", "fullName"])
+          |> option.unwrap(id),
+      ))
   }
 }
 

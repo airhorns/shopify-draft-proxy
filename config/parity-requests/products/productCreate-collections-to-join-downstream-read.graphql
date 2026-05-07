@@ -1,0 +1,48 @@
+query ProductCreateCollectionsToJoinDownstreamRead($productId: ID!, $firstCollectionId: ID!, $secondCollectionId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    handle
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+  firstCollection: collection(id: $firstCollectionId) {
+    id
+    title
+    handle
+    hasProduct(id: $productId)
+    productsCount {
+      count
+      precision
+    }
+    products(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+  secondCollection: collection(id: $secondCollectionId) {
+    id
+    title
+    handle
+    hasProduct(id: $productId)
+    productsCount {
+      count
+      precision
+    }
+    products(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+}
