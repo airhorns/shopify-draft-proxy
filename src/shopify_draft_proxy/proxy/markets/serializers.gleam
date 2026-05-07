@@ -1228,9 +1228,11 @@ pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
   }
 }
 
+const price_list_name_max_length = 255
+
 @internal
 pub fn price_list_input_errors(
-  _store: Store,
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
 ) -> List(CapturedJsonValue) {
@@ -1239,16 +1241,65 @@ pub fn price_list_input_errors(
     |> option.or(option.then(existing, captured_string_field(_, "name")))
     |> option.unwrap("")
     |> string.trim
-  let name_errors = case name {
-    "" -> [user_error(["input", "name"], "Name can't be blank", "BLANK")]
-    _ -> []
-  }
+  let existing_id = option.then(existing, captured_string_field(_, "id"))
+  let name_errors = price_list_name_errors(store, name, existing_id)
   let currency_errors = price_list_currency_errors(input, existing)
   let parent_errors = case currency_errors {
     [] -> price_list_parent_errors(input, existing)
     _ -> []
   }
   combine_error_lists([name_errors, currency_errors, parent_errors])
+}
+
+fn price_list_name_errors(
+  store: Store,
+  name: String,
+  existing_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case name {
+    "" -> [user_error(["input", "name"], "Name can't be blank", "BLANK")]
+    _ -> {
+      let length_errors = case
+        string.length(name) > price_list_name_max_length
+      {
+        True -> [
+          user_error(
+            ["input", "name"],
+            "Name is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False -> []
+      }
+      let uniqueness_errors = case length_errors {
+        [] ->
+          case price_list_name_taken(store, name, existing_id) {
+            True -> [
+              user_error(
+                ["input", "name"],
+                "Name has already been taken",
+                "TAKEN",
+              ),
+            ]
+            False -> []
+          }
+        _ -> []
+      }
+      combine_error_lists([length_errors, uniqueness_errors])
+    }
+  }
+}
+
+fn price_list_name_taken(
+  store: Store,
+  name: String,
+  existing_id: Option(String),
+) -> Bool {
+  store.list_effective_price_lists(store)
+  |> list.any(fn(record) {
+    Some(record.id) != existing_id
+    && captured_string_field(record.data, "name") == Some(name)
+  })
 }
 
 @internal

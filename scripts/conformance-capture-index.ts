@@ -2372,6 +2372,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-name-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-name-validation-conformance.ts',
+    purpose:
+      'priceListCreate and priceListUpdate name validation for duplicate names and names longer than 255 characters.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-name-validation.json`,
+      'config/parity-specs/markets/price-list-name-validation.json',
+      'config/parity-requests/markets/price-list-name-validation-create.graphql',
+      'config/parity-requests/markets/price-list-name-validation-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable setup price lists for duplicate/update validation, records rejected duplicate and over-length branches, then deletes all successfully created price lists.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-relation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-relation-validation-conformance.mts',

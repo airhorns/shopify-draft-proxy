@@ -1,0 +1,21 @@
+#graphql
+mutation PriceListNameValidationUpdate($id: ID!, $input: PriceListUpdateInput!) {
+  priceListUpdate(id: $id, input: $input) {
+    priceList {
+      id
+      name
+      currency
+      parent {
+        adjustment {
+          type
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
