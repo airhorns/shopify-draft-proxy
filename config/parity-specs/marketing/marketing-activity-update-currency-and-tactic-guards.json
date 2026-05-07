@@ -1,0 +1,113 @@
+{
+  "scenarioId": "marketing-activity-update-currency-and-tactic-guards",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "local-staging", "downstream-read-parity"],
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityUpdateExternal",
+    "marketingActivityUpsertExternal"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-activity-update-currency-and-tactic-guards.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-update-currency-and-tactic-guards.graphql",
+    "variablesCapturePath": "$.operations.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "happy-update-control",
+        "capturePath": "$.operations.primary.response.payload.data.happyUpdate",
+        "proxyPath": "$.data.happyUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.marketingActivity.id",
+            "matcher": "shopify-gid:MarketingActivity",
+            "reason": "Shopify and the local proxy allocate independent marketing activity IDs."
+          }
+        ]
+      },
+      {
+        "name": "currency-mismatch-update-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.currencyMismatchUpdate",
+        "proxyPath": "$.data.currencyMismatchUpdate"
+      },
+      {
+        "name": "update-to-storefront-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.updateToStorefront",
+        "proxyPath": "$.data.updateToStorefront"
+      },
+      {
+        "name": "upsert-to-storefront-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.upsertToStorefront",
+        "proxyPath": "$.data.upsertToStorefront"
+      },
+      {
+        "name": "baseline-read-after-rejections",
+        "capturePath": "$.operations.readBaseline.response.payload.data.marketingActivity",
+        "proxyPath": "$.data.marketingActivity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-update-currency-and-tactic-guards-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.baselineCreate.marketingActivity.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MarketingActivity",
+            "reason": "Shopify and the local proxy allocate independent marketing activity IDs."
+          }
+        ]
+      },
+      {
+        "name": "update-from-storefront-user-errors",
+        "capturePath": "$.operations.updateFromStorefront.response.payload.data.marketingActivityUpdateExternal",
+        "proxyPath": "$.data.marketingActivityUpdateExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-update-from-storefront-guard.graphql",
+          "variables": {
+            "marketingActivityId": {
+              "fromPrimaryProxyPath": "$.data.storefrontCreate.marketingActivity.id"
+            },
+            "input": {
+              "fromCapturePath": "$.operations.updateFromStorefront.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-read-after-rejection",
+        "capturePath": "$.operations.readStorefront.response.payload.data.marketingActivity",
+        "proxyPath": "$.data.marketingActivity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-update-currency-and-tactic-guards-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.storefrontCreate.marketingActivity.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MarketingActivity",
+            "reason": "Shopify and the local proxy allocate independent marketing activity IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captures Shopify 2026-04 behavior for external marketing activity update guardrails: mismatched budget/adSpend currencies, update/upsert attempts to change an existing activity to STOREFRONT_APP, and updating an existing STOREFRONT_APP activity to NEWSLETTER by marketingActivityId. The live conformance shop can create a STOREFRONT_APP activity, but a same-remoteId upsert after that creation resolves as create instead of update there, so the originally-STOREFRONT_APP upsert branch is covered by the same shared update validator in focused runtime tests while the live fixture locks the exact Shopify error code/message for the update path."
+}

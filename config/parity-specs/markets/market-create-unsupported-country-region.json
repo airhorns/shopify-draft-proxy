@@ -1,0 +1,26 @@
+{
+  "scenarioId": "market-create-unsupported-country-region",
+  "operationNames": ["marketCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-unsupported-country-region.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-unsupported-country-region.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. The same capture records the Shopify-derived unsupported CountryCode set by probing every live CountryCode enum value through a validation-only marketCreate branch.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unsupported-country-region-market-create-data",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

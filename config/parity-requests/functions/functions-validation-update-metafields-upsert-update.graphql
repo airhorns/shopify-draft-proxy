@@ -1,0 +1,22 @@
+mutation ValidationUpdateMetafieldsUpsert($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation {
+      id
+      title
+      metafields(first: 5) {
+        nodes {
+          namespace
+          key
+          type
+          value
+          updatedAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -244,9 +244,8 @@ pub fn primary_locale_for(store_in: Store) -> String {
 // Resource reconstruction
 // ---------------------------------------------------------------------------
 
-/// Find a translatable resource by id from effective Product and
-/// product Metafield state, mirroring the TypeScript localization
-/// runtime.
+/// Find a translatable resource by id from the locally modeled
+/// translatable owner slice.
 fn find_resource(
   store_in: Store,
   resource_id: String,
@@ -259,24 +258,33 @@ fn find_resource(
         content: product_content(product),
       ))
     None ->
-      case
-        list.find(list_product_metafields(store_in), fn(metafield) {
-          metafield.id == resource_id
-        })
-      {
-        Ok(metafield) ->
+      case store.get_effective_collection_by_id(store_in, resource_id) {
+        Some(collection) ->
           Some(TranslatableResource(
-            resource_id: metafield.id,
-            resource_type: "METAFIELD",
-            content: metafield_content(metafield),
+            resource_id: collection.id,
+            resource_type: "COLLECTION",
+            content: collection_content(collection),
           ))
-        Error(_) -> None
+        None ->
+          case
+            list.find(list_product_metafields(store_in), fn(metafield) {
+              metafield.id == resource_id
+            })
+          {
+            Ok(metafield) ->
+              Some(TranslatableResource(
+                resource_id: metafield.id,
+                resource_type: "METAFIELD",
+                content: metafield_content(metafield),
+              ))
+            Error(_) -> None
+          }
       }
   }
 }
 
 /// Enumerate every translatable resource of a given type from effective
-/// Product/Product Metafield state plus capture-backed source markers.
+/// local state plus capture-backed source markers.
 fn list_resources(
   store_in: Store,
   resource_type: Option(String),
@@ -289,6 +297,20 @@ fn list_resources(
           resource_id: product.id,
           resource_type: "PRODUCT",
           content: product_content(product),
+        )
+      })
+    False -> []
+  }
+  let collection_resources = case
+    resource_matches(resource_type, "COLLECTION")
+  {
+    True ->
+      store.list_effective_collections(store_in)
+      |> list.map(fn(collection) {
+        TranslatableResource(
+          resource_id: collection.id,
+          resource_type: "COLLECTION",
+          content: collection_content(collection),
         )
       })
     False -> []
@@ -310,7 +332,8 @@ fn list_resources(
     |> list.filter(fn(resource) {
       resource_matches(resource_type, resource.resource_type)
     })
-  list.append(product_resources, metafield_resources)
+  list.append(product_resources, collection_resources)
+  |> list.append(metafield_resources)
   |> list.append(seeded_resources)
   |> dedupe_resources([])
   |> list.sort(fn(left, right) {
@@ -409,6 +432,66 @@ fn product_content(
     None -> with_type
   }
   case product.seo.description {
+    Some(value) ->
+      list.append(with_seo_title, [
+        TranslatableContent(
+          key: "meta_description",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "MULTI_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_seo_title
+  }
+}
+
+fn collection_content(
+  collection: state_types.CollectionRecord,
+) -> List(TranslatableContent) {
+  let base = [
+    TranslatableContent(
+      key: "title",
+      value: Some(collection.title),
+      digest: Some(crypto.sha256_hex(collection.title)),
+      locale: "en",
+      type_: "SINGLE_LINE_TEXT_FIELD",
+    ),
+    TranslatableContent(
+      key: "handle",
+      value: Some(collection.handle),
+      digest: Some(crypto.sha256_hex(collection.handle)),
+      locale: "en",
+      type_: "URI",
+    ),
+  ]
+  let with_body = case collection.description_html {
+    Some(value) if value != "" ->
+      list.append(base, [
+        TranslatableContent(
+          key: "body_html",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "HTML",
+        ),
+      ])
+    _ -> base
+  }
+  let with_seo_title = case collection.seo.title {
+    Some(value) ->
+      list.append(with_body, [
+        TranslatableContent(
+          key: "meta_title",
+          value: Some(value),
+          digest: Some(crypto.sha256_hex(value)),
+          locale: "en",
+          type_: "SINGLE_LINE_TEXT_FIELD",
+        ),
+      ])
+    None -> with_body
+  }
+  case collection.seo.description {
     Some(value) ->
       list.append(with_seo_title, [
         TranslatableContent(
@@ -832,9 +915,63 @@ pub fn resource_exists_for_validation(
 }
 
 fn synthetic_resource_type(resource_id: String) -> String {
-  case string.starts_with(resource_id, "gid://shopify/Metafield/") {
-    True -> "METAFIELD"
-    False -> "PRODUCT"
+  case resource_gid_type(resource_id) {
+    "Collection" -> "COLLECTION"
+    "Metafield" -> "METAFIELD"
+    _ -> "PRODUCT"
+  }
+}
+
+@internal
+pub fn unsupported_translatable_resource_type(
+  resource_id: String,
+) -> Option(String) {
+  let type_name = resource_gid_type(resource_id)
+  case type_name {
+    "OnlineStoreArticle"
+    | "OnlineStoreBlog"
+    | "OnlineStorePage"
+    | "ShippingZone"
+    | "OnlineStoreTheme"
+    | "Theme"
+    | "EmailTemplate"
+    | "Filter"
+    | "Link"
+    | "Menu"
+    | "PaymentGatewayAttribute"
+    | "Shop"
+    | "ShopPolicy"
+    | "SmsTemplate"
+    | "Metaobject" -> Some(type_name)
+    _ -> None
+  }
+}
+
+fn resource_gid_type(resource_id: String) -> String {
+  let prefixes = [
+    #("gid://shopify/Collection/", "Collection"),
+    #("gid://shopify/Metafield/", "Metafield"),
+    #("gid://shopify/OnlineStoreArticle/", "OnlineStoreArticle"),
+    #("gid://shopify/OnlineStoreBlog/", "OnlineStoreBlog"),
+    #("gid://shopify/OnlineStorePage/", "OnlineStorePage"),
+    #("gid://shopify/ShippingZone/", "ShippingZone"),
+    #("gid://shopify/OnlineStoreTheme/", "OnlineStoreTheme"),
+    #("gid://shopify/Theme/", "Theme"),
+    #("gid://shopify/EmailTemplate/", "EmailTemplate"),
+    #("gid://shopify/Filter/", "Filter"),
+    #("gid://shopify/Link/", "Link"),
+    #("gid://shopify/Menu/", "Menu"),
+    #("gid://shopify/PaymentGatewayAttribute/", "PaymentGatewayAttribute"),
+    #("gid://shopify/ShopPolicy/", "ShopPolicy"),
+    #("gid://shopify/Shop/", "Shop"),
+    #("gid://shopify/SmsTemplate/", "SmsTemplate"),
+    #("gid://shopify/Metaobject/", "Metaobject"),
+  ]
+  case
+    list.find(prefixes, fn(prefix) { string.starts_with(resource_id, prefix.0) })
+  {
+    Ok(prefix) -> prefix.1
+    Error(_) -> "Product"
   }
 }
 

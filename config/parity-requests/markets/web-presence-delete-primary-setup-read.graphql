@@ -1,0 +1,51 @@
+fragment MarketWebPresenceDeletePrimarySetupFields on MarketWebPresence {
+  id
+  subfolderSuffix
+  domain {
+    id
+    host
+    url
+    sslEnabled
+  }
+  rootUrls {
+    locale
+    url
+  }
+  defaultLocale {
+    locale
+    name
+    primary
+    published
+  }
+  alternateLocales {
+    locale
+    name
+    primary
+    published
+  }
+  markets(first: 5) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+  }
+}
+
+query WebPresenceDeletePrimarySetupRead($first: Int!) {
+  webPresences(first: $first) {
+    nodes {
+      ...MarketWebPresenceDeletePrimarySetupFields
+    }
+  }
+  shop {
+    id
+    myshopifyDomain
+    primaryDomain {
+      host
+      url
+    }
+  }
+}

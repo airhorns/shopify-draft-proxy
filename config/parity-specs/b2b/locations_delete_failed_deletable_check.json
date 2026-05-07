@@ -1,0 +1,220 @@
+{
+  "scenarioId": "locations_delete_failed_deletable_check",
+  "operationNames": [
+    "companyCreate",
+    "companyLocationCreate",
+    "storeCreditAccountCredit",
+    "companyLocationsDelete",
+    "companyLocation"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "business-rule-precondition", "bulk-partial-success"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/location-delete-failed-deletable-check.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/location-delete-check-company-create.graphql",
+    "variablesCapturePath": "$.storeCreditCompanyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Live Shopify 2026-04 evidence for companyLocationsDelete partial success: a location with non-zero store credit fails the deletable check with an indexed INTERNAL_ERROR userError, a normal location is deleted, and an unknown ID returns indexed RESOURCE_NOT_FOUND. A live probe during this work found the public bulk only-location branch returns the same INTERNAL_ERROR family, so only-location delete FAILED_TO_DELETE parity is covered by the single-location delete scenario while bulk partial success models the public bulk error surface.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulk-store-credit-company-create",
+        "capturePath": "$.storeCreditCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-store-credit-extra-location-create",
+        "capturePath": "$.storeCreditExtraLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.storeCreditExtraLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location belongs to the locally staged company."
+          }
+        ]
+      },
+      {
+        "name": "bulk-store-credit-location-credit",
+        "capturePath": "$.storeCreditAccountCredit.response.data.storeCreditAccountCredit",
+        "proxyPath": "$.data.storeCreditAccountCredit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-store-credit-credit.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.storeCreditAccountCredit.request.variables.creditInput"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "Live Shopify and local staging allocate different store credit account IDs."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The account owner references the proxy-created synthetic CompanyLocation GID."
+          }
+        ]
+      },
+      {
+        "name": "bulk-normal-company-create",
+        "capturePath": "$.bulkNormalCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-company-create.graphql",
+          "variablesCapturePath": "$.bulkNormalCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-normal-extra-location-create",
+        "capturePath": "$.bulkNormalExtraLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "bulk-normal-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.bulkNormalExtraLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location belongs to the locally staged company."
+          }
+        ]
+      },
+      {
+        "name": "bulk-locations-delete",
+        "capturePath": "$.bulkLocationsDelete.response.data.companyLocationsDelete",
+        "proxyPath": "$.data.companyLocationsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-locations-delete.graphql",
+          "variables": {
+            "companyLocationIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+              },
+              {
+                "fromProxyResponse": "bulk-normal-extra-location-create",
+                "path": "$.data.companyLocationCreate.companyLocation.id"
+              },
+              {
+                "fromCapturePath": "$.bulkLocationsDelete.request.variables.companyLocationIds[2]"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCompanyLocationIds[*]",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy deletes the locally staged normal location ID."
+          },
+          {
+            "path": "$.userErrors[0].message",
+            "matcher": "regex:^Failed to delete CompanyLocation ",
+            "reason": "The public bulk failed-deletable message embeds the live or proxy-local CompanyLocation ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-bulk-locations-delete",
+        "capturePath": "$.readAfterBulkLocationsDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-bulk-read.graphql",
+          "variables": {
+            "blockedCompanyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "deletedCompanyLocationId": {
+              "fromProxyResponse": "bulk-normal-extra-location-create",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.blocked.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked location remains visible with the local synthetic ID."
+          }
+        ]
+      }
+    ]
+  }
+}

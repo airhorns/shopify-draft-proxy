@@ -1,0 +1,90 @@
+mutation MarketingActivityUpdateCurrencyAndTacticGuards(
+  $baselineInput: MarketingActivityCreateExternalInput!
+  $storefrontInput: MarketingActivityCreateExternalInput!
+  $baselineRemoteId: String!
+  $happyUpdateInput: MarketingActivityUpdateExternalInput!
+  $currencyMismatchInput: MarketingActivityUpdateExternalInput!
+  $toStorefrontUpdateInput: MarketingActivityUpdateExternalInput!
+  $toStorefrontUpsertInput: MarketingActivityUpsertExternalInput!
+) {
+  baselineCreate: marketingActivityCreateExternal(input: $baselineInput) {
+    marketingActivity {
+      id
+      title
+      tactic
+      adSpend {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  happyUpdate: marketingActivityUpdateExternal(remoteId: $baselineRemoteId, input: $happyUpdateInput) {
+    marketingActivity {
+      id
+      title
+      tactic
+      adSpend {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  storefrontCreate: marketingActivityCreateExternal(input: $storefrontInput) {
+    marketingActivity {
+      id
+      title
+      tactic
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  currencyMismatchUpdate: marketingActivityUpdateExternal(remoteId: $baselineRemoteId, input: $currencyMismatchInput) {
+    marketingActivity {
+      id
+      title
+      tactic
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateToStorefront: marketingActivityUpdateExternal(remoteId: $baselineRemoteId, input: $toStorefrontUpdateInput) {
+    marketingActivity {
+      id
+      title
+      tactic
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  upsertToStorefront: marketingActivityUpsertExternal(input: $toStorefrontUpsertInput) {
+    marketingActivity {
+      id
+      title
+      tactic
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

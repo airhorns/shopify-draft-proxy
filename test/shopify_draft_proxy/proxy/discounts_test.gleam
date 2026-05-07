@@ -759,7 +759,7 @@ pub fn code_discount_creates_reject_missing_and_blank_codes_test() {
   assert json.to_string(whitespace_free_shipping.data)
     == "{\"data\":{\"discountCodeFreeShippingCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingCodeDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
   assert json.to_string(missing_app.data)
-    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Discount code can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
 }
 
 pub fn app_discount_creates_validate_function_identifiers_test() {
@@ -871,6 +871,52 @@ pub fn app_discount_create_with_valid_function_still_stages_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":{\"discountId\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"appDiscountType\":{\"functionId\":\"discount-local\",\"title\":\"discount-local title\"}},\"userErrors\":[]}}}"
+}
+
+pub fn app_discount_creates_validate_captured_input_errors_test() {
+  let outcome =
+    run_mutation_from(
+      discount_function_store(),
+      synthetic_identity.new(),
+      "mutation { missingCode: discountCodeAppCreate(codeAppDiscount: { title: \"App\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } blankCode: discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } missingStartsAt: discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APPNOSTART\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } emptyClasses: discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APPEMPTYCLASS\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } emptyCustomers: discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APPCUSTEMPTY\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER], customerSelection: { customers: { add: [] } } }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } blankAutoTitle: discountAutomaticAppCreate(automaticAppDiscount: { title: \"\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } missingAutoStartsAt: discountAutomaticAppCreate(automaticAppDiscount: { title: \"Auto\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } emptyAutoClasses: discountAutomaticAppCreate(automaticAppDiscount: { title: \"Auto\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [] }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"missingCode\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Discount code can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"blankCode\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Discount code can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"missingStartsAt\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"startsAt\"],\"message\":\"Starts at can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptyClasses\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"discountClasses\"],\"message\":\"Discount classes can't be empty.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptyCustomers\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"customerSelection\"],\"message\":\"a minimum of one prerequisite segment or prerequisite customer must be provided\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"blankAutoTitle\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"title\"],\"message\":\"Title can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"missingAutoStartsAt\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"startsAt\"],\"message\":\"Starts at can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptyAutoClasses\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"discountClasses\"],\"message\":\"Discount classes can't be empty.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn app_discount_updates_validate_captured_input_errors_test() {
+  let code_create =
+    run_mutation_from(
+      discount_function_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_create =
+    run_mutation_from(
+      code_create.store,
+      code_create.identity,
+      "mutation { discountAutomaticAppCreate(automaticAppDiscount: { title: \"Auto\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let outcome =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { blankCode: discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App\", code: \"\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } emptyClasses: discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App\", code: \"APP2\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } emptySegments: discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App\", code: \"APP3\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER], customerSelection: { customerSegments: { add: [] } } }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } blankAutoTitle: discountAutomaticAppUpdate(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\", automaticAppDiscount: { title: \"\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } emptyAutoClasses: discountAutomaticAppUpdate(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\", automaticAppDiscount: { title: \"Auto\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [] }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let assert Ok(read) =
+    discounts.handle_discount_query(
+      outcome.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { id codeDiscount { ... on DiscountCodeApp { title codes(first: 1) { nodes { code } } } } } automaticDiscountNode(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\") { id automaticDiscount { ... on DiscountAutomaticApp { title } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"blankCode\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Discount code can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptyClasses\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"discountClasses\"],\"message\":\"Discount classes can't be empty.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptySegments\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"customerSelection\"],\"message\":\"a minimum of one prerequisite segment or prerequisite customer must be provided\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"blankAutoTitle\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"title\"],\"message\":\"Title can't be blank.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptyAutoClasses\":{\"automaticAppDiscount\":null,\"userErrors\":[{\"field\":[\"automaticAppDiscount\",\"discountClasses\"],\"message\":\"Discount classes can't be empty.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert json.to_string(read)
+    == "{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"App\",\"codes\":{\"nodes\":[{\"code\":\"APP\"}]}}},\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\",\"automaticDiscount\":{\"title\":\"Auto\"}}}"
 }
 
 pub fn code_discount_creates_reject_code_format_constraints_test() {

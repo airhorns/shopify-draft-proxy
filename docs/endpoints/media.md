@@ -42,6 +42,23 @@ Local staged mutations:
   `x-goog-date`, `x-goog-credential`, `x-goog-algorithm`, `x-goog-signature`,
   and `policy`. VIDEO and MODEL_3D use the captured signed upload field names:
   `GoogleAccessId`, `key`, `policy`, and `signature`.
+- Live 2026-04 capture for additional staged upload resources shows
+  `BULK_MUTATION_VARIABLES`, `URL_REDIRECT_IMPORT`, `RETURN_LABEL`, and
+  `DISPUTE_FILE_UPLOAD` use the same Google form field names for `POST`.
+  `COLLECTION_IMAGE` and deprecated `PRODUCT_IMAGE` also use that IMAGE-family
+  form shape. Captured `PUT` targets for those Google form resources use only
+  `content_type` and `acl`. The proxy matches those captured parameter names
+  and order while keeping values and URLs inert.
+- `SHOP_IMAGE` is exposed by the 2026-04 resource enum, but the current
+  conformance app receives top-level `ACCESS_DENIED` for that resource. The
+  local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
+  not emit proxy-specific parameter names; a scoped live target capture remains
+  blocked until the conformance credential can access that resource.
+- `CUSTOMER_IMPORT`, `INVENTORY_IMPORT`, `ARTICLE_IMAGE`, `THEME_ARCHIVE`, and
+  `TRANSLATIONS_IMPORT` are not public 2026-04 enum values on the captured
+  conformance store. Variable requests for those resources are rejected by
+  Shopify as `INVALID_VARIABLE`, and the proxy keeps them out of its accepted
+  resource enum rather than guessing target shapes.
 - The staged upload fields that intentionally remain placeholders are `url`,
   `resourceUrl`, resource path keys, storage account/signature fields, and
   policy values. Static non-secret form values match the capture where Shopify

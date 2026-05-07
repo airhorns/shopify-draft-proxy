@@ -69,6 +69,10 @@ const location_hydrate_operation: String = "StorePropertiesLocationHydrate"
 
 const location_hydrate_query: String = "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"
 
+const location_name_limit_chars = 100
+
+const location_address_component_limit_chars = 255
+
 @internal
 pub fn is_store_properties_mutation_root(name: String) -> Bool {
   case name {
@@ -209,21 +213,26 @@ pub fn process_mutation(
                       variables,
                       upstream,
                     )
-                  let #(logged_store, logged_identity) =
-                    record_mutation_log(
-                      result.store,
-                      result.identity,
-                      request_path,
-                      document,
-                      name.value,
-                      result.staged_resource_ids,
-                    )
+                  let #(logged_store, logged_identity) = case
+                    result.should_log
+                  {
+                    True ->
+                      record_mutation_log(
+                        result.store,
+                        result.identity,
+                        request_path,
+                        document,
+                        name.value,
+                        result.staged_resource_ids,
+                      )
+                    False -> #(result.store, result.identity)
+                  }
                   #(
                     list.append(data_entries, [#(key, result.payload)]),
                     logged_store,
                     logged_identity,
                     list.append(current_ids, result.staged_resource_ids),
-                    current_errors,
+                    list.append(current_errors, result.top_level_errors),
                   )
                 }
                 _ -> #(
@@ -421,59 +430,105 @@ fn stage_location_add(
             fragments,
           )
         _, Ok(_) -> {
-          let #(id, next_identity) =
-            synthetic_identity.make_synthetic_gid(identity, "Location")
-          let fields = [
-            #("__typename", StorePropertyString("Location")),
-            #("id", StorePropertyString(id)),
-            #("name", StorePropertyString(value)),
-            #("isActive", StorePropertyBool(True)),
-            #("activatable", StorePropertyBool(False)),
-            #("deactivatable", StorePropertyBool(True)),
-            #("deletable", StorePropertyBool(False)),
-            #(
-              "fulfillsOnlineOrders",
-              StorePropertyBool(
-                read_arg_bool(input_values, "fulfillsOnlineOrders")
-                |> option.unwrap(True),
-              ),
-            ),
-            #(
-              "address",
-              StorePropertyObject(location_add_address_data(address_values)),
-            ),
-          ]
-          let record =
-            StorePropertyRecord(
-              id: id,
-              cursor: None,
-              data: dict.from_list(fields),
-            )
-          let #(_, next_store) =
-            store.upsert_staged_store_property_location(store, record)
-          let payload_source =
-            src_object([
-              #("location", store_property_data_to_source(record.data)),
-              #("userErrors", SrcList([])),
-            ])
-          store_properties_types.GenericMutationResult(
-            payload: project_graphql_value(
-              payload_source,
-              selected_children(field),
-              fragments,
-            ),
-            store: next_store,
-            identity: next_identity,
-            staged_resource_ids: [id],
-            top_level_errors: [],
-            should_log: True,
-          )
+          let address_data = location_add_address_data(address_values)
+          let errors =
+            []
+            |> list.append(validate_location_name_length(value))
+            |> list.append(validate_location_duplicate_name(store, value, None))
+            |> list.append(validate_location_address_component_lengths(
+              address_data,
+            ))
+          case errors {
+            [_, ..] ->
+              location_add_errors_result(
+                store,
+                identity,
+                field,
+                fragments,
+                errors,
+              )
+            [] -> {
+              let #(id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Location")
+              let fields = [
+                #("__typename", StorePropertyString("Location")),
+                #("id", StorePropertyString(id)),
+                #("name", StorePropertyString(value)),
+                #("isActive", StorePropertyBool(True)),
+                #("activatable", StorePropertyBool(False)),
+                #("deactivatable", StorePropertyBool(True)),
+                #("deletable", StorePropertyBool(False)),
+                #(
+                  "fulfillsOnlineOrders",
+                  StorePropertyBool(
+                    read_arg_bool(input_values, "fulfillsOnlineOrders")
+                    |> option.unwrap(True),
+                  ),
+                ),
+                #("address", StorePropertyObject(address_data)),
+              ]
+              let record =
+                StorePropertyRecord(
+                  id: id,
+                  cursor: None,
+                  data: dict.from_list(fields),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_store_property_location(store, record)
+              let payload_source =
+                src_object([
+                  #("location", store_property_data_to_source(record.data)),
+                  #("userErrors", SrcList([])),
+                ])
+              store_properties_types.GenericMutationResult(
+                payload: project_graphql_value(
+                  payload_source,
+                  selected_children(field),
+                  fragments,
+                ),
+                store: next_store,
+                identity: next_identity,
+                staged_resource_ids: [id],
+                top_level_errors: [],
+                should_log: True,
+              )
+            }
+          }
         }
       }
     _, _, _ -> {
       location_add_blank_name_result(store, identity, field, fragments)
     }
   }
+}
+
+fn location_add_errors_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(store_properties_types.LocationEditUserError),
+) -> store_properties_types.GenericMutationResult {
+  let payload_source =
+    src_object([
+      #("location", SrcNull),
+      #(
+        "userErrors",
+        SrcList(list.map(errors, location_validation_error_source)),
+      ),
+    ])
+  store_properties_types.GenericMutationResult(
+    payload: project_graphql_value(
+      payload_source,
+      selected_children(field),
+      fragments,
+    ),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [],
+    should_log: False,
+  )
 }
 
 fn location_add_blank_name_result(
@@ -766,6 +821,12 @@ fn location_edit_result(
 fn location_edit_error_source(
   error: store_properties_types.LocationEditUserError,
 ) -> SourceValue {
+  location_validation_error_source(error)
+}
+
+fn location_validation_error_source(
+  error: store_properties_types.LocationEditUserError,
+) -> SourceValue {
   src_object([
     #("field", SrcList(list.map(error.field, SrcString))),
     #("message", SrcString(error.message)),
@@ -779,7 +840,7 @@ fn validate_location_edit_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(store_properties_types.LocationEditUserError) {
   []
-  |> list.append(validate_location_edit_name(input))
+  |> list.append(validate_location_edit_name(store, record, input))
   |> list.append(validate_location_edit_address(record, input))
   |> list.append(validate_location_edit_fulfills_online_orders(
     store,
@@ -790,20 +851,23 @@ fn validate_location_edit_input(
 }
 
 fn validate_location_edit_name(
+  store: Store,
+  record: StorePropertyRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(store_properties_types.LocationEditUserError) {
   case read_arg_string(input, "name") {
     Some(name) ->
-      case string.trim(name) {
-        "" -> [
-          store_properties_types.LocationEditUserError(
-            field: ["input", "name"],
-            message: "Add a location name",
-            code: Some("BLANK"),
-          ),
-        ]
+      []
+      |> list.append(case string.trim(name) {
+        "" -> [location_blank_name_error()]
         _ -> []
-      }
+      })
+      |> list.append(validate_location_name_length(name))
+      |> list.append(validate_location_duplicate_name(
+        store,
+        name,
+        Some(record.id),
+      ))
     None -> []
   }
 }
@@ -836,7 +900,95 @@ fn validate_location_edit_address(
           None -> Error(Nil)
         }
       })
+      |> list.append(validate_location_address_component_lengths(fields))
   }
+}
+
+fn location_blank_name_error() -> store_properties_types.LocationEditUserError {
+  store_properties_types.LocationEditUserError(
+    field: ["input", "name"],
+    message: "Add a location name",
+    code: Some("BLANK"),
+  )
+}
+
+fn validate_location_name_length(
+  name: String,
+) -> List(store_properties_types.LocationEditUserError) {
+  case string.length(name) > location_name_limit_chars {
+    True -> [
+      store_properties_types.LocationEditUserError(
+        field: ["input", "name"],
+        message: "Use a shorter location name (up to 100 characters)",
+        code: Some("TOO_LONG"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_location_duplicate_name(
+  store: Store,
+  name: String,
+  except_id: Option(String),
+) -> List(store_properties_types.LocationEditUserError) {
+  case string.trim(name) {
+    "" -> []
+    _ ->
+      case active_location_name_exists(store, name, except_id) {
+        True -> [
+          store_properties_types.LocationEditUserError(
+            field: ["input", "name"],
+            message: "You already have a location with this name",
+            code: Some("TAKEN"),
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn active_location_name_exists(
+  store: Store,
+  name: String,
+  except_id: Option(String),
+) -> Bool {
+  store.list_effective_store_property_locations(store)
+  |> list.any(fn(other) {
+    let excluded = case except_id {
+      Some(id) -> other.id == id
+      None -> False
+    }
+    !excluded
+    && location_bool_field(other, "isActive", True)
+    && location_string_field(other, "name") == Some(name)
+  })
+}
+
+fn validate_location_address_component_lengths(
+  fields: Dict(String, StorePropertyValue),
+) -> List(store_properties_types.LocationEditUserError) {
+  [
+    #("address1", "Use a shorter name for the street (up to 255 characters)"),
+    #("city", "Use a shorter city name (up to 255 characters)"),
+    #("zip", "Use a shorter postal / ZIP code (up to 255 characters)"),
+  ]
+  |> list.filter_map(fn(entry) {
+    let #(key, message) = entry
+    case dict.get(fields, key) {
+      Ok(StorePropertyString(value)) ->
+        case string.length(value) > location_address_component_limit_chars {
+          True ->
+            Ok(store_properties_types.LocationEditUserError(
+              field: ["input", "address", key],
+              message: message,
+              code: Some("TOO_LONG"),
+            ))
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
 }
 
 fn required_location_address_error(
@@ -2418,36 +2570,270 @@ fn stage_publishable_mutation(
         ),
       ])
   }
-  let next_store = case dict.get(payload_data, "publishable") {
-    Ok(StorePropertyObject(data)) ->
-      case dict.get(data, "id") {
-        Ok(StorePropertyString(publishable_id)) -> {
-          let #(_, staged) =
-            store.upsert_staged_publishable(
-              store,
-              StorePropertyRecord(id: publishable_id, cursor: None, data: data),
-            )
-          staged
-        }
+  let input_errors =
+    publishable_input_user_errors(store, payload_data, root_name, args)
+  let has_input_errors = !list.is_empty(input_errors)
+  let response_data = case has_input_errors {
+    True ->
+      dict.insert(payload_data, "userErrors", StorePropertyList(input_errors))
+    False -> payload_data
+  }
+  let next_store = case has_input_errors {
+    True -> store
+    False ->
+      case dict.get(payload_data, "publishable") {
+        Ok(StorePropertyObject(data)) ->
+          case dict.get(data, "id") {
+            Ok(StorePropertyString(publishable_id)) -> {
+              let #(_, staged) =
+                store.upsert_staged_publishable(
+                  store,
+                  StorePropertyRecord(
+                    id: publishable_id,
+                    cursor: None,
+                    data: data,
+                  ),
+                )
+              staged
+            }
+            _ -> store
+          }
         _ -> store
       }
-    _ -> store
   }
   store_properties_types.GenericMutationResult(
     payload: project_graphql_value(
-      store_property_data_to_source(payload_data),
+      store_property_data_to_source(response_data),
       selected_children(field),
       fragments,
     ),
     store: next_store,
     identity: identity,
-    staged_resource_ids: case id {
-      "" -> []
-      _ -> [id]
+    staged_resource_ids: case id, has_input_errors {
+      "", _ -> []
+      _, True -> []
+      _, False -> [id]
     },
     top_level_errors: [],
-    should_log: True,
+    should_log: !has_input_errors,
   )
+}
+
+fn publishable_input_user_errors(
+  store: Store,
+  payload_data: Dict(String, StorePropertyValue),
+  root_name: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(StorePropertyValue) {
+  case root_name {
+    "publishablePublish" | "publishableUnpublish" ->
+      publishable_input_items(args)
+      |> validate_publishable_inputs(
+        known_publishable_publication_ids(store, payload_data),
+        [],
+        0,
+        [],
+      )
+    _ -> []
+  }
+}
+
+fn publishable_input_items(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, "input") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(fields) -> Ok(fields)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn validate_publishable_inputs(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  known_publication_ids: List(String),
+  seen_publication_ids: List(String),
+  index: Int,
+  errors: List(StorePropertyValue),
+) -> List(StorePropertyValue) {
+  case inputs {
+    [] -> list.reverse(errors)
+    [input, ..rest] -> {
+      let #(next_seen, next_errors) =
+        validate_publishable_input(
+          input,
+          known_publication_ids,
+          seen_publication_ids,
+          index,
+          errors,
+        )
+      validate_publishable_inputs(
+        rest,
+        known_publication_ids,
+        next_seen,
+        index + 1,
+        next_errors,
+      )
+    }
+  }
+}
+
+fn validate_publishable_input(
+  input: Dict(String, root_field.ResolvedValue),
+  known_publication_ids: List(String),
+  seen_publication_ids: List(String),
+  index: Int,
+  errors: List(StorePropertyValue),
+) -> #(List(String), List(StorePropertyValue)) {
+  let path = ["input", int.to_string(index)]
+  let publication_id = read_publishable_input_string(input, "publicationId")
+  let publish_date = read_publishable_input_string(input, "publishDate")
+  case publication_id {
+    None -> #(seen_publication_ids, [
+      publishable_user_error(
+        list.append(path, ["publicationId"]),
+        "PublicationId cannot be empty",
+      ),
+      ..errors
+    ])
+    Some(id) -> {
+      let trimmed_id = string.trim(id)
+      case trimmed_id {
+        "" -> #(seen_publication_ids, [
+          publishable_user_error(
+            list.append(path, ["publicationId"]),
+            "PublicationId cannot be empty",
+          ),
+          ..errors
+        ])
+        _ ->
+          case list.contains(seen_publication_ids, trimmed_id) {
+            True -> #(seen_publication_ids, [
+              publishable_user_error(
+                list.append(path, ["publicationId"]),
+                "The same publication was specified more than once",
+              ),
+              ..errors
+            ])
+            False ->
+              case publish_date {
+                Some(value) ->
+                  case publish_date_before_1970(value) {
+                    True -> #([trimmed_id, ..seen_publication_ids], [
+                      publishable_user_error(
+                        list.append(path, ["publishDate"]),
+                        "Publish date must be a date after the year 1969",
+                      ),
+                      ..errors
+                    ])
+                    False ->
+                      case
+                        !list.is_empty(known_publication_ids)
+                        && !list.contains(known_publication_ids, trimmed_id)
+                      {
+                        True -> #([trimmed_id, ..seen_publication_ids], [
+                          publishable_user_error(
+                            list.append(path, ["publicationId"]),
+                            "Publication does not exist or is not publishable",
+                          ),
+                          ..errors
+                        ])
+                        False -> #([trimmed_id, ..seen_publication_ids], errors)
+                      }
+                  }
+                _ ->
+                  case
+                    !list.is_empty(known_publication_ids)
+                    && !list.contains(known_publication_ids, trimmed_id)
+                  {
+                    True -> #([trimmed_id, ..seen_publication_ids], [
+                      publishable_user_error(
+                        list.append(path, ["publicationId"]),
+                        "Publication does not exist or is not publishable",
+                      ),
+                      ..errors
+                    ])
+                    False -> #([trimmed_id, ..seen_publication_ids], errors)
+                  }
+              }
+          }
+      }
+    }
+  }
+}
+
+fn read_publishable_input_string(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(String) {
+  case dict.get(input, key) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn publish_date_before_1970(value: String) -> Bool {
+  case int.parse(string.slice(string.trim(value), 0, 4)) {
+    Ok(year) -> year < 1970
+    Error(_) -> False
+  }
+}
+
+fn publishable_user_error(
+  field: List(String),
+  message: String,
+) -> StorePropertyValue {
+  StorePropertyObject(
+    dict.from_list([
+      #(
+        "field",
+        StorePropertyList(
+          list.map(field, fn(part) { StorePropertyString(part) }),
+        ),
+      ),
+      #("message", StorePropertyString(message)),
+    ]),
+  )
+}
+
+fn known_publishable_publication_ids(
+  store: Store,
+  payload_data: Dict(String, StorePropertyValue),
+) -> List(String) {
+  list.append(
+    store.list_effective_publications(store)
+      |> list.map(fn(publication) { publication.id }),
+    payload_publication_ids(payload_data),
+  )
+}
+
+fn payload_publication_ids(
+  payload_data: Dict(String, StorePropertyValue),
+) -> List(String) {
+  case dict.get(payload_data, "publications") {
+    Ok(StorePropertyObject(connection)) ->
+      case dict.get(connection, "nodes") {
+        Ok(StorePropertyList(nodes)) ->
+          nodes
+          |> list.filter_map(fn(node) {
+            case node {
+              StorePropertyObject(fields) ->
+                case dict.get(fields, "id") {
+                  Ok(StorePropertyString(id)) -> Ok(id)
+                  _ -> Error(Nil)
+                }
+              _ -> Error(Nil)
+            }
+          })
+        _ -> []
+      }
+    _ -> []
+  }
 }
 
 pub fn hydrate_shop_baseline_if_needed(
@@ -2565,6 +2951,13 @@ fn publishable_payload_data_from_json(
       ]
       None -> base_fields
     }
+    let fields = case json_path(response, ["data", "publications"]) {
+      Some(publications) -> [
+        #("publications", store_property_value_from_json(publications)),
+        ..fields
+      ]
+      None -> fields
+    }
     Some(dict.from_list(fields))
   }
 }
@@ -2588,7 +2981,7 @@ fn publishable_hydrate_query(operation_name: String) -> String {
   <> "publishable: node(id: $id) { "
   <> "... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } "
   <> "... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: \"gid://shopify/Publication/0\") availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } "
-  <> "} shop { publicationCount } }"
+  <> "} shop { publicationCount } publications(first: 20) { nodes { id name } } }"
 }
 
 fn stage_valid_shop_policy_update(
