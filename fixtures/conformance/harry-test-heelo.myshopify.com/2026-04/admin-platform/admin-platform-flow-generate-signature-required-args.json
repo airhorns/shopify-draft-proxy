@@ -1,0 +1,154 @@
+{
+  "scenarioId": "admin-platform-flow-generate-signature-required-args",
+  "capturedAt": "2026-05-07T00:14:22.341Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "missingBoth": {
+      "operationName": "FlowGenerateSignatureMissingBothRequiredArgs",
+      "query": "mutation FlowGenerateSignatureMissingBothRequiredArgs {\n  flowGenerateSignature {\n    signature\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'flowGenerateSignature' is missing required arguments: id, payload",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": [
+              "mutation FlowGenerateSignatureMissingBothRequiredArgs",
+              "flowGenerateSignature"
+            ],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "flowGenerateSignature",
+              "arguments": "id, payload"
+            }
+          }
+        ]
+      }
+    },
+    "missingId": {
+      "operationName": "FlowGenerateSignatureMissingIdRequiredArg",
+      "query": "mutation FlowGenerateSignatureMissingIdRequiredArg {\n  flowGenerateSignature(payload: \"{}\") {\n    signature\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'flowGenerateSignature' is missing required arguments: id",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": [
+              "mutation FlowGenerateSignatureMissingIdRequiredArg",
+              "flowGenerateSignature"
+            ],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "flowGenerateSignature",
+              "arguments": "id"
+            }
+          }
+        ]
+      }
+    },
+    "missingPayload": {
+      "operationName": "FlowGenerateSignatureMissingPayloadRequiredArg",
+      "query": "mutation FlowGenerateSignatureMissingPayloadRequiredArg {\n  flowGenerateSignature(id: \"gid://shopify/FlowActionDefinition/0\") {\n    signature\n    payload\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'flowGenerateSignature' is missing required arguments: payload",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": [
+              "mutation FlowGenerateSignatureMissingPayloadRequiredArg",
+              "flowGenerateSignature"
+            ],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "flowGenerateSignature",
+              "arguments": "payload"
+            }
+          }
+        ]
+      }
+    },
+    "nullId": {
+      "operationName": "FlowGenerateSignatureNullIdRequiredArg",
+      "query": "mutation FlowGenerateSignatureNullIdRequiredArg {\n  flowGenerateSignature(id: null, payload: \"{}\") {\n    signature\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'id' on Field 'flowGenerateSignature' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": [
+              "mutation FlowGenerateSignatureNullIdRequiredArg",
+              "flowGenerateSignature",
+              "id"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "id"
+            }
+          }
+        ]
+      }
+    },
+    "nullPayload": {
+      "operationName": "FlowGenerateSignatureNullPayloadRequiredArg",
+      "query": "mutation FlowGenerateSignatureNullPayloadRequiredArg {\n  flowGenerateSignature(id: \"gid://shopify/FlowActionDefinition/0\", payload: null) {\n    signature\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'payload' on Field 'flowGenerateSignature' has an invalid value (null). Expected type 'String!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": [
+              "mutation FlowGenerateSignatureNullPayloadRequiredArg",
+              "flowGenerateSignature",
+              "payload"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "payload"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

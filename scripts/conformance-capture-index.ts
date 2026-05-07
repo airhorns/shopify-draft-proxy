@@ -4278,6 +4278,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'admin-platform',
+    captureId: 'admin-platform-flow-generate-signature-required-args',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-flow-generate-signature-required-args-conformance.mts',
+    purpose:
+      'flowGenerateSignature missing and literal-null required-argument GraphQL coercion validation before resolver execution.',
+    requiredAuthScopes: ['active Admin API token with Admin GraphQL schema access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-flow-generate-signature-required-args.json`,
+      'config/parity-specs/admin-platform/admin-platform-flow-generate-signature-required-args.json',
+      'config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-missing-both.graphql',
+      'config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-missing-id.graphql',
+      'config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-missing-payload.graphql',
+      'config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-null-id.graphql',
+      'config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-null-payload.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; requests fail GraphQL coercion before the resolver and do not mutate store data.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'orders',
     captureId: 'order-refunds',
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
