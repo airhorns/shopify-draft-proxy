@@ -2602,6 +2602,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-engagement-response-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-engagement-response-shape-conformance.mts',
+    purpose:
+      'Marketing engagement create immediate response shape for full input, sparse input missing V2 required fields, and missing occurredOn.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-engagement-create-response-shape.json`,
+      'config/parity-specs/marketing/marketing-engagement-create-response-shape.json',
+      'config/parity-requests/marketing/marketing-engagement-response-shape-create-activity.graphql',
+      'config/parity-requests/marketing/marketing-engagement-response-shape-full.graphql',
+      'config/parity-requests/marketing/marketing-engagement-response-shape-sparse.graphql',
+      'config/parity-requests/marketing/marketing-engagement-response-shape-missing-occurred-on.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable external marketing activity, captures full and omitted-field engagement create branches, then deletes the activity.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-immutable-fields',
     scriptPath: 'scripts/capture-marketing-activity-immutable-fields-conformance.mts',
     purpose:

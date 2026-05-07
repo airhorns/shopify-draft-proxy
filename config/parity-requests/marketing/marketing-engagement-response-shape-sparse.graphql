@@ -1,0 +1,19 @@
+mutation MarketingEngagementResponseShapeSparse($remoteId: String!) {
+  marketingEngagementCreate(
+    remoteId: $remoteId
+    marketingEngagement: { occurredOn: "2026-04-02", impressionsCount: 7 }
+  ) {
+    marketingEngagement {
+      __typename
+      occurredOn
+      utcOffset
+      isCumulative
+      impressionsCount
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
