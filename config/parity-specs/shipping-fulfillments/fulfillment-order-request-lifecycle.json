@@ -136,11 +136,34 @@
         "proxyPath": "$.data.fulfillmentOrderAcceptCancellationRequest"
       },
       {
+        "name": "reject-fulfillment-setup-submit-request",
+        "capturePath": "$.partialSubmit.response.data.fulfillmentOrderSubmitFulfillmentRequest.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-submit-request-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.rejectFulfillmentRequest.variables.id"
+            },
+            "message": "Hermes submit then reject",
+            "notifyCustomer": false
+          }
+        },
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest.userErrors"
+      },
+      {
         "name": "reject-fulfillment-request",
         "capturePath": "$.rejectFulfillmentRequest.response.data.fulfillmentOrderRejectFulfillmentRequest",
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-reject-request-lifecycle.graphql",
-          "variablesCapturePath": "$.rejectFulfillmentRequest.variables"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "reject-fulfillment-setup-submit-request",
+              "path": "$.data.fulfillmentOrderSubmitFulfillmentRequest.originalFulfillmentOrder.id"
+            },
+            "message": {
+              "fromCapturePath": "$.rejectFulfillmentRequest.variables.message"
+            }
+          }
         },
         "proxyPath": "$.data.fulfillmentOrderRejectFulfillmentRequest"
       },

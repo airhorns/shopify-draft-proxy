@@ -10,7 +10,8 @@ import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, SrcList, SrcString, get_field_response_key,
+  type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
+  get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers.{
   find_unsubmitted_sibling_fulfillment_order, fulfillment_event_missing_result,
@@ -67,77 +68,98 @@ pub fn handle_fulfillment_order_submit_request(
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
-        Some(order) -> {
-          let message = read_string(args, "message")
-          let requested_line_items =
-            read_requested_fulfillment_order_line_items(args)
-          let #(submitted_line_items, unsubmitted_line_items, identity) =
-            split_submit_request_line_items(
-              identity,
-              captured_array_field(order.data, "lineItems", "nodes"),
-              requested_line_items,
-              [],
-              [],
-            )
-          let request_options =
-            CapturedObject([
-              #("notify_customer", case read_bool(args, "notifyCustomer") {
-                Some(value) -> CapturedBool(value)
-                None -> CapturedNull
-              }),
-            ])
-          let request =
-            fulfillment_order_merchant_request(
-              "FULFILLMENT_REQUEST",
-              message,
-              request_options,
-            )
-          let updated =
-            update_fulfillment_order_fields(order, [
-              #("status", CapturedString("OPEN")),
-              #("requestStatus", CapturedString("SUBMITTED")),
-              #("lineItems", captured_connection(submitted_line_items)),
-              #("merchantRequests", captured_connection([request])),
-            ])
-          let updated =
-            FulfillmentOrderRecord(
-              ..updated,
-              status: "OPEN",
-              request_status: "SUBMITTED",
-              assignment_status: Some("FULFILLMENT_REQUESTED"),
-            )
-          let #(staged, next_store) =
-            store.stage_upsert_fulfillment_order(draft_store, updated)
-          let #(unsubmitted, next_store, identity) =
-            maybe_stage_unsubmitted_fulfillment_order(
-              next_store,
-              staged,
-              unsubmitted_line_items,
-              identity,
-            )
-          #(
-            shipping_types.MutationFieldResult(
-              key: key,
-              payload: fulfillment_order_payload_json(field, fragments, [
-                #(
-                  "__typename",
-                  SrcString("FulfillmentOrderSubmitFulfillmentRequestPayload"),
+        Some(order) ->
+          case validate_fulfillment_order_submit_request(order) {
+            Some(#(code, message)) ->
+              fulfillment_order_request_user_error_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderSubmitFulfillmentRequestPayload",
+                code,
+                message,
+              )
+            None -> {
+              let message = read_string(args, "message")
+              let requested_line_items =
+                read_requested_fulfillment_order_line_items(args)
+              let #(submitted_line_items, unsubmitted_line_items, identity) =
+                split_submit_request_line_items(
+                  identity,
+                  captured_array_field(order.data, "lineItems", "nodes"),
+                  requested_line_items,
+                  [],
+                  [],
+                )
+              let request_options =
+                CapturedObject([
+                  #("notify_customer", case read_bool(args, "notifyCustomer") {
+                    Some(value) -> CapturedBool(value)
+                    None -> CapturedNull
+                  }),
+                ])
+              let request =
+                fulfillment_order_merchant_request(
+                  "FULFILLMENT_REQUEST",
+                  message,
+                  request_options,
+                )
+              let updated =
+                update_fulfillment_order_fields(order, [
+                  #("status", CapturedString("OPEN")),
+                  #("requestStatus", CapturedString("SUBMITTED")),
+                  #("lineItems", captured_connection(submitted_line_items)),
+                  #("merchantRequests", captured_connection([request])),
+                ])
+              let updated =
+                FulfillmentOrderRecord(
+                  ..updated,
+                  status: "OPEN",
+                  request_status: "SUBMITTED",
+                  assignment_status: Some("FULFILLMENT_REQUESTED"),
+                )
+              let #(staged, next_store) =
+                store.stage_upsert_fulfillment_order(draft_store, updated)
+              let #(unsubmitted, next_store, identity) =
+                maybe_stage_unsubmitted_fulfillment_order(
+                  next_store,
+                  staged,
+                  unsubmitted_line_items,
+                  identity,
+                )
+              #(
+                shipping_types.MutationFieldResult(
+                  key: key,
+                  payload: fulfillment_order_payload_json(field, fragments, [
+                    #(
+                      "__typename",
+                      SrcString(
+                        "FulfillmentOrderSubmitFulfillmentRequestPayload",
+                      ),
+                    ),
+                    #(
+                      "originalFulfillmentOrder",
+                      fulfillment_order_source(staged),
+                    ),
+                    #(
+                      "submittedFulfillmentOrder",
+                      fulfillment_order_source(staged),
+                    ),
+                    #(
+                      "unsubmittedFulfillmentOrder",
+                      optional_fulfillment_order_source(unsubmitted),
+                    ),
+                    #("userErrors", SrcList([])),
+                  ]),
+                  errors: [],
+                  staged_resource_ids: [id],
                 ),
-                #("originalFulfillmentOrder", fulfillment_order_source(staged)),
-                #("submittedFulfillmentOrder", fulfillment_order_source(staged)),
-                #(
-                  "unsubmittedFulfillmentOrder",
-                  optional_fulfillment_order_source(unsubmitted),
-                ),
-                #("userErrors", SrcList([])),
-              ]),
-              errors: [],
-              staged_resource_ids: [id],
-            ),
-            next_store,
-            identity,
-          )
-        }
+                next_store,
+                identity,
+              )
+            }
+          }
         None ->
           fulfillment_order_missing_mutation_result(
             draft_store,
@@ -156,6 +178,139 @@ pub fn handle_fulfillment_order_submit_request(
         "FulfillmentOrderSubmitFulfillmentRequestPayload",
       )
   }
+}
+
+fn validate_fulfillment_order_submit_request(
+  order: FulfillmentOrderRecord,
+) -> Option(#(String, String)) {
+  case fulfillment_order_is_open(order) {
+    False -> Some(fulfillment_order_not_found_error())
+    True ->
+      case order.request_status {
+        "UNSUBMITTED" | "REJECTED" -> None
+        _ -> Some(invalid_request_status_error())
+      }
+  }
+}
+
+fn validate_fulfillment_order_request_status_update(
+  order: FulfillmentOrderRecord,
+  target_request_status: String,
+) -> Option(#(String, String)) {
+  case target_request_status {
+    "ACCEPTED" | "REJECTED" -> validate_fulfillment_request_response(order)
+    "CANCELLATION_REJECTED" ->
+      validate_fulfillment_order_cancellation_response(order)
+    _ -> None
+  }
+}
+
+fn validate_fulfillment_request_response(
+  order: FulfillmentOrderRecord,
+) -> Option(#(String, String)) {
+  case order.request_status {
+    "SUBMITTED" ->
+      case fulfillment_order_is_open(order) {
+        True -> None
+        False -> Some(fulfillment_order_not_found_error())
+      }
+    _ -> Some(invalid_request_status_error())
+  }
+}
+
+fn validate_fulfillment_order_submit_cancellation_request(
+  order: FulfillmentOrderRecord,
+) -> Option(#(String, String)) {
+  case fulfillment_order_is_in_progress(order) {
+    False -> Some(fulfillment_order_not_found_error())
+    True ->
+      case fulfillment_order_has_pending_cancellation_request(order) {
+        True -> Some(invalid_request_status_error())
+        False ->
+          case order.request_status {
+            "ACCEPTED" | "CANCELLATION_REJECTED" -> None
+            _ -> Some(invalid_request_status_error())
+          }
+      }
+  }
+}
+
+fn validate_fulfillment_order_cancellation_response(
+  order: FulfillmentOrderRecord,
+) -> Option(#(String, String)) {
+  case fulfillment_order_is_in_progress(order) {
+    False -> Some(fulfillment_order_not_found_error())
+    True ->
+      case fulfillment_order_has_pending_cancellation_request(order) {
+        True -> None
+        False -> Some(invalid_request_status_error())
+      }
+  }
+}
+
+fn fulfillment_order_is_open(order: FulfillmentOrderRecord) -> Bool {
+  order.status == "OPEN"
+}
+
+fn fulfillment_order_is_in_progress(order: FulfillmentOrderRecord) -> Bool {
+  order.status == "IN_PROGRESS"
+}
+
+fn fulfillment_order_has_pending_cancellation_request(
+  order: FulfillmentOrderRecord,
+) -> Bool {
+  order.assignment_status == Some("CANCELLATION_REQUESTED")
+  || order.request_status == "CANCELLATION_REQUESTED"
+}
+
+fn invalid_request_status_error() -> #(String, String) {
+  #("INVALID_REQUEST_STATUS", "Invalid request status.")
+}
+
+fn fulfillment_order_not_found_error() -> #(String, String) {
+  #("FULFILLMENT_ORDER_NOT_FOUND", "Fulfillment order does not exist.")
+}
+
+fn fulfillment_order_request_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  payload_typename: String,
+  code: String,
+  message: String,
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let user_error = fulfillment_order_request_user_error_source(code, message)
+  #(
+    shipping_types.MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString(payload_typename)),
+        #("fulfillmentOrder", SrcNull),
+        #("originalFulfillmentOrder", SrcNull),
+        #("submittedFulfillmentOrder", SrcNull),
+        #("unsubmittedFulfillmentOrder", SrcNull),
+        #("userErrors", SrcList([user_error])),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn fulfillment_order_request_user_error_source(
+  code: String,
+  message: String,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("UserError")),
+    #("field", SrcList([SrcString("id")])),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
 }
 
 fn read_requested_fulfillment_order_line_items(
@@ -329,33 +484,51 @@ pub fn handle_fulfillment_order_request_status_update(
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
-        Some(order) -> {
-          let updated =
-            update_fulfillment_order_fields(order, [
-              #("status", CapturedString(status)),
-              #("requestStatus", CapturedString(request_status)),
-            ])
-          let assignment_status = case request_status {
-            "ACCEPTED" -> Some("FULFILLMENT_ACCEPTED")
-            "CANCELLATION_REJECTED" -> Some("FULFILLMENT_ACCEPTED")
-            _ -> None
-          }
-          let updated =
-            FulfillmentOrderRecord(
-              ..updated,
-              status: status,
-              request_status: request_status,
-              assignment_status: assignment_status,
+        Some(order) ->
+          case
+            validate_fulfillment_order_request_status_update(
+              order,
+              request_status,
             )
-          fulfillment_order_single_payload_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            payload_typename,
-            updated,
-          )
-        }
+          {
+            Some(#(code, message)) ->
+              fulfillment_order_request_user_error_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                payload_typename,
+                code,
+                message,
+              )
+            None -> {
+              let updated =
+                update_fulfillment_order_fields(order, [
+                  #("status", CapturedString(status)),
+                  #("requestStatus", CapturedString(request_status)),
+                ])
+              let assignment_status = case request_status {
+                "ACCEPTED" -> Some("FULFILLMENT_ACCEPTED")
+                "CANCELLATION_REJECTED" -> Some("FULFILLMENT_ACCEPTED")
+                _ -> None
+              }
+              let updated =
+                FulfillmentOrderRecord(
+                  ..updated,
+                  status: status,
+                  request_status: request_status,
+                  assignment_status: assignment_status,
+                )
+              fulfillment_order_single_payload_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                payload_typename,
+                updated,
+              )
+            }
+          }
         None ->
           fulfillment_order_missing_mutation_result(
             draft_store,
@@ -388,36 +561,53 @@ pub fn handle_fulfillment_order_submit_cancellation_request(
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
-        Some(order) -> {
-          let existing_requests =
-            captured_array_field(order.data, "merchantRequests", "nodes")
-          let request =
-            fulfillment_order_merchant_request(
-              "CANCELLATION_REQUEST",
-              read_string(args, "message"),
-              CapturedObject([]),
-            )
-          let updated =
-            update_fulfillment_order_fields(order, [
-              #(
-                "merchantRequests",
-                captured_connection(list.append(existing_requests, [request])),
-              ),
-            ])
-          let updated =
-            FulfillmentOrderRecord(
-              ..updated,
-              assignment_status: Some("CANCELLATION_REQUESTED"),
-            )
-          fulfillment_order_single_payload_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            "FulfillmentOrderSubmitCancellationRequestPayload",
-            updated,
-          )
-        }
+        Some(order) ->
+          case validate_fulfillment_order_submit_cancellation_request(order) {
+            Some(#(code, message)) ->
+              fulfillment_order_request_user_error_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderSubmitCancellationRequestPayload",
+                code,
+                message,
+              )
+            None -> {
+              let existing_requests =
+                captured_array_field(order.data, "merchantRequests", "nodes")
+              let request =
+                fulfillment_order_merchant_request(
+                  "CANCELLATION_REQUEST",
+                  read_string(args, "message"),
+                  CapturedObject([]),
+                )
+              let updated =
+                update_fulfillment_order_fields(order, [
+                  #(
+                    "merchantRequests",
+                    captured_connection(
+                      list.append(existing_requests, [
+                        request,
+                      ]),
+                    ),
+                  ),
+                ])
+              let updated =
+                FulfillmentOrderRecord(
+                  ..updated,
+                  assignment_status: Some("CANCELLATION_REQUESTED"),
+                )
+              fulfillment_order_single_payload_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderSubmitCancellationRequestPayload",
+                updated,
+              )
+            }
+          }
         None ->
           fulfillment_order_missing_mutation_result(
             draft_store,
@@ -450,32 +640,45 @@ pub fn handle_fulfillment_order_accept_cancellation_request(
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
-        Some(order) -> {
-          let updated =
-            update_fulfillment_order_fields(order, [
-              #("status", CapturedString("CLOSED")),
-              #("requestStatus", CapturedString("CANCELLATION_ACCEPTED")),
-              #(
-                "lineItems",
-                zero_fulfillment_order_line_items(order.data, None),
-              ),
-            ])
-          let updated =
-            FulfillmentOrderRecord(
-              ..updated,
-              status: "CLOSED",
-              request_status: "CANCELLATION_ACCEPTED",
-              assignment_status: None,
-            )
-          fulfillment_order_single_payload_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            "FulfillmentOrderAcceptCancellationRequestPayload",
-            updated,
-          )
-        }
+        Some(order) ->
+          case validate_fulfillment_order_cancellation_response(order) {
+            Some(#(code, message)) ->
+              fulfillment_order_request_user_error_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderAcceptCancellationRequestPayload",
+                code,
+                message,
+              )
+            None -> {
+              let updated =
+                update_fulfillment_order_fields(order, [
+                  #("status", CapturedString("CLOSED")),
+                  #("requestStatus", CapturedString("CANCELLATION_ACCEPTED")),
+                  #(
+                    "lineItems",
+                    zero_fulfillment_order_line_items(order.data, None),
+                  ),
+                ])
+              let updated =
+                FulfillmentOrderRecord(
+                  ..updated,
+                  status: "CLOSED",
+                  request_status: "CANCELLATION_ACCEPTED",
+                  assignment_status: None,
+                )
+              fulfillment_order_single_payload_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                "FulfillmentOrderAcceptCancellationRequestPayload",
+                updated,
+              )
+            }
+          }
         None ->
           fulfillment_order_missing_mutation_result(
             draft_store,

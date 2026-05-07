@@ -3471,6 +3471,62 @@ fn split_fulfillment_order_record(
   )
 }
 
+fn request_lifecycle_fulfillment_order_record(
+  id: String,
+  status: String,
+  request_status: String,
+  assignment_status: Option(String),
+) -> FulfillmentOrderRecord {
+  let line_item_id = id <> "/line-item"
+  let order =
+    split_fulfillment_order_record(id, [
+      #(line_item_id, id <> "/line", 1),
+    ])
+  let data = case order.data {
+    CapturedObject(fields) ->
+      CapturedObject(list.append(
+        [
+          #("status", CapturedString(status)),
+          #("requestStatus", CapturedString(request_status)),
+          #("merchantRequests", CapturedObject([#("nodes", CapturedArray([]))])),
+        ],
+        fields,
+      ))
+    other -> other
+  }
+  FulfillmentOrderRecord(
+    ..order,
+    status: status,
+    request_status: request_status,
+    assignment_status: assignment_status,
+    data: data,
+  )
+}
+
+fn assert_invalid_request_status(payload: json.Json) {
+  let body = json.to_string(payload)
+  assert string.contains(body, "\"field\":[\"id\"]")
+  assert string.contains(body, "\"code\":\"INVALID_REQUEST_STATUS\"")
+}
+
+fn assert_fulfillment_order_not_found(payload: json.Json) {
+  let body = json.to_string(payload)
+  assert string.contains(body, "\"field\":[\"id\"]")
+  assert string.contains(body, "\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"")
+}
+
+fn assert_fulfillment_order_state(
+  draft_store: store.Store,
+  id: String,
+  status: String,
+  request_status: String,
+) {
+  let assert Some(order) =
+    store.get_effective_fulfillment_order_by_id(draft_store, id)
+  assert order.status == status
+  assert order.request_status == request_status
+}
+
 fn split_input(
   fulfillment_order_id: String,
   line_items: List(#(String, Int)),
@@ -3821,6 +3877,188 @@ pub fn fulfillment_order_submit_request_splits_partial_line_item_test() {
   assert string.contains(read_json, "\"id\":\"" <> unsubmitted_id <> "\"")
   assert string.contains(read_json, "\"requestStatus\":\"UNSUBMITTED\"")
   assert string.contains(read_json, "\"remainingQuantity\":1")
+}
+
+pub fn fulfillment_order_request_lifecycle_rejects_ineligible_transitions_test() {
+  let invalid_accept_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-accept"
+  let invalid_reject_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-reject"
+  let invalid_reject_cancel_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-reject-cancel"
+  let invalid_accept_cancel_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-accept-cancel"
+  let invalid_submit_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-submit"
+  let invalid_submit_cancel_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-submit-cancel"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      request_lifecycle_fulfillment_order_record(
+        invalid_accept_id,
+        "IN_PROGRESS",
+        "ACCEPTED",
+        Some("FULFILLMENT_ACCEPTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_reject_id,
+        "OPEN",
+        "UNSUBMITTED",
+        None,
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_reject_cancel_id,
+        "IN_PROGRESS",
+        "SUBMITTED",
+        Some("FULFILLMENT_ACCEPTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_accept_cancel_id,
+        "OPEN",
+        "ACCEPTED",
+        Some("CANCELLATION_REQUESTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_submit_id,
+        "OPEN",
+        "SUBMITTED",
+        Some("FULFILLMENT_REQUESTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_submit_cancel_id,
+        "OPEN",
+        "ACCEPTED",
+        Some("FULFILLMENT_ACCEPTED"),
+      ),
+    ])
+
+  let accept_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidAccept($id: ID!) { fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: \"again\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_accept_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(accept_outcome.data)
+  assert_fulfillment_order_state(
+    accept_outcome.store,
+    invalid_accept_id,
+    "IN_PROGRESS",
+    "ACCEPTED",
+  )
+
+  let reject_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidReject($id: ID!) { fulfillmentOrderRejectFulfillmentRequest(id: $id, reason: OTHER, message: \"reject\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_reject_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(reject_outcome.data)
+  assert_fulfillment_order_state(
+    reject_outcome.store,
+    invalid_reject_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let reject_cancel_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidRejectCancel($id: ID!) { fulfillmentOrderRejectCancellationRequest(id: $id, message: \"reject cancel\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_reject_cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(reject_cancel_outcome.data)
+  assert_fulfillment_order_state(
+    reject_cancel_outcome.store,
+    invalid_reject_cancel_id,
+    "IN_PROGRESS",
+    "SUBMITTED",
+  )
+
+  let accept_cancel_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidAcceptCancel($id: ID!) { fulfillmentOrderAcceptCancellationRequest(id: $id, message: \"accept cancel\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_accept_cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(accept_cancel_outcome.data)
+  assert_fulfillment_order_state(
+    accept_cancel_outcome.store,
+    invalid_accept_cancel_id,
+    "OPEN",
+    "ACCEPTED",
+  )
+
+  let submit_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidSubmit($id: ID!) { fulfillmentOrderSubmitFulfillmentRequest(id: $id, message: \"submit\") { originalFulfillmentOrder { id } submittedFulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_submit_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(submit_outcome.data)
+  assert_fulfillment_order_state(
+    submit_outcome.store,
+    invalid_submit_id,
+    "OPEN",
+    "SUBMITTED",
+  )
+
+  let submit_cancel_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidSubmitCancel($id: ID!) { fulfillmentOrderSubmitCancellationRequest(id: $id, message: \"submit cancel\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_submit_cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(submit_cancel_outcome.data)
+  assert_fulfillment_order_state(
+    submit_cancel_outcome.store,
+    invalid_submit_cancel_id,
+    "OPEN",
+    "ACCEPTED",
+  )
+}
+
+pub fn fulfillment_order_accept_request_preserves_valid_transition_test() {
+  let order_id = "gid://shopify/FulfillmentOrder/request-precondition-happy"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      request_lifecycle_fulfillment_order_record(
+        order_id,
+        "OPEN",
+        "SUBMITTED",
+        Some("FULFILLMENT_REQUESTED"),
+      ),
+    ])
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Accept($id: ID!) { fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: \"accepted\") { fulfillmentOrder { id status requestStatus } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentOrderAcceptFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/request-precondition-happy\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"ACCEPTED\"},\"userErrors\":[]}}}"
 }
 
 pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
