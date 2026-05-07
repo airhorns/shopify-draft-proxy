@@ -35,14 +35,16 @@ import shopify_draft_proxy/proxy/b2b/serializers.{
   optional_src_string, put_source, read_object, read_object_sources, read_string,
   read_string_list, remove_string, resource_not_found,
   serialize_mutation_payload, source_id, source_string, source_to_value,
-  timestamp, user_error, validate_company_input, validate_contact_input,
+  timestamp, user_error, validate_buyer_experience_configuration_input,
+  validate_company_input, validate_contact_input, validate_location_create_input,
   validate_location_input,
 }
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type SourceValue, SrcBool, SrcInt, SrcList, SrcObject, SrcString,
-  get_document_fragments, get_field_response_key, src_object,
+  get_document_fragments, get_field_response_key, resolved_value_to_source,
+  src_object,
 }
 
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -62,7 +64,8 @@ import shopify_draft_proxy/state/types.{
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
   type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord, B2BCompanyRecord, CapturedObject, CapturedString,
-  StorePropertyInt, StorePropertyList, StorePropertyObject, StorePropertyString,
+  StorePropertyInt, StorePropertyList, StorePropertyNull, StorePropertyObject,
+  StorePropertyString,
 }
 
 @internal
@@ -298,6 +301,24 @@ pub fn contact_data_from_input(
     fn(acc, key) { maybe_put_string(acc, input, key) },
   )
   |> dict.insert("updatedAt", StorePropertyString(now))
+}
+
+fn contact_customer_data_from_input(
+  contact_data: Dict(String, StorePropertyValue),
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, StorePropertyValue) {
+  case dict.get(contact_data, "customer") {
+    Ok(StorePropertyObject(customer)) -> {
+      let customer =
+        list.fold(
+          ["firstName", "lastName", "email", "phone"],
+          customer,
+          fn(acc, key) { maybe_put_string(acc, input, key) },
+        )
+      dict.insert(contact_data, "customer", StorePropertyObject(customer))
+    }
+    _ -> contact_data
+  }
 }
 
 @internal
@@ -785,6 +806,20 @@ pub fn location_data_from_input(
       )
     _ -> data
   }
+  let data = case dict.get(input, "buyerExperienceConfiguration") {
+    Ok(root_field.ObjectVal(configuration)) ->
+      dict.insert(
+        data,
+        "buyerExperienceConfiguration",
+        buyer_experience_configuration_from_input(
+          configuration,
+          data_get(data, "buyerExperienceConfiguration"),
+        ),
+      )
+    Ok(root_field.NullVal) ->
+      dict.insert(data, "buyerExperienceConfiguration", StorePropertyNull)
+    _ -> data
+  }
   let #(data, identity) = case dict.get(input, "billingAddress") {
     Ok(root_field.ObjectVal(address_input)) -> {
       let existing_id = address_id(data_get(data, "billingAddress"))
@@ -812,6 +847,70 @@ pub fn location_data_from_input(
     _, _ -> data
   }
   #(data, identity)
+}
+
+fn buyer_experience_configuration_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: SourceValue,
+) -> StorePropertyValue {
+  let existing_data = case existing {
+    SrcObject(fields) ->
+      dict.map_values(fields, fn(_key, value) { source_to_value(value) })
+    _ -> dict.new()
+  }
+  let data =
+    list.fold(
+      ["checkoutToDraft", "editableShippingAddress"],
+      existing_data,
+      fn(acc, key) { maybe_put_bool(acc, input, key) },
+    )
+    |> maybe_put_string(input, "paymentTermsTemplateId")
+  let data = case read_string(input, "paymentTermsTemplateId") {
+    Some(id) ->
+      dict.insert(
+        data,
+        "paymentTermsTemplate",
+        source_to_value(
+          src_object([
+            #("__typename", SrcString("PaymentTermsTemplate")),
+            #("id", SrcString(id)),
+          ]),
+        ),
+      )
+    None ->
+      case dict.get(input, "paymentTermsTemplateId") {
+        Ok(root_field.NullVal) ->
+          dict.insert(data, "paymentTermsTemplate", StorePropertyNull)
+        _ -> data
+      }
+  }
+  let data = case dict.get(input, "deposit") {
+    Ok(root_field.ObjectVal(deposit)) ->
+      dict.insert(
+        data,
+        "deposit",
+        source_to_value(
+          add_deposit_typename(
+            resolved_value_to_source(root_field.ObjectVal(deposit)),
+          ),
+        ),
+      )
+    Ok(root_field.NullVal) -> dict.insert(data, "deposit", StorePropertyNull)
+    _ -> data
+  }
+  StorePropertyObject(data)
+}
+
+fn add_deposit_typename(value: SourceValue) -> SourceValue {
+  case value {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(
+        fields,
+        "__typename",
+        SrcString("DepositPercentage"),
+      ))
+    _ -> value
+  }
 }
 
 @internal
@@ -1005,10 +1104,18 @@ pub fn handle_company_create(
   let #(company_input, company_errors) =
     validate_company_input(read_object(input, "company"), ["input", "company"])
   let #(location_input, location_errors) =
-    validate_location_input(read_object(input, "companyLocation"), [
+    validate_location_create_input(read_object(input, "companyLocation"), [
       "input",
       "companyLocation",
     ])
+  let location_errors =
+    location_errors
+    |> list.append(validate_buyer_experience_configuration_input(
+      store,
+      location_input,
+      ["input", "companyLocation"],
+      False,
+    ))
   let company_errors =
     company_errors
     |> list.append(
@@ -1616,11 +1723,10 @@ pub fn handle_contact_update(
                   )
                 [] -> {
                   let #(now, identity) = timestamp(identity)
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..contact,
-                      data: contact_data_from_input(input, now, contact.data),
-                    )
+                  let data =
+                    contact_data_from_input(input, now, contact.data)
+                    |> contact_customer_data_from_input(input)
+                  let updated = B2BCompanyContactRecord(..contact, data: data)
                   let #(updated, store) =
                     store.upsert_staged_b2b_company_contact(store, updated)
                   b2b_types.RootResult(
@@ -2253,9 +2359,15 @@ pub fn handle_location_create(
         Some(company) -> {
           let raw_input = read_object(args, "input")
           let #(input, validation_errors) =
-            validate_location_input(raw_input, ["input"])
+            validate_location_create_input(raw_input, ["input"])
           let validation_errors =
             validation_errors
+            |> list.append(validate_buyer_experience_configuration_input(
+              store,
+              input,
+              ["input"],
+              False,
+            ))
             |> list.append(
               validate_duplicate_location_external_id(store, input, None, [
                 "input",
@@ -2334,6 +2446,12 @@ pub fn handle_location_update(
                 validate_location_input(raw_input, ["input"])
               let validation_errors =
                 validation_errors
+                |> list.append(validate_buyer_experience_configuration_input(
+                  store,
+                  input,
+                  ["input"],
+                  True,
+                ))
                 |> list.append(
                   validate_duplicate_location_external_id(
                     store,

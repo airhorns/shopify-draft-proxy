@@ -1,0 +1,13 @@
+query DiscountBulkSearchEffectsActivateRead($activatedQuery: String!) {
+  activatedDiscountNodes: discountNodes(first: 5, query: $activatedQuery) {
+    nodes {
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+        }
+      }
+    }
+  }
+}

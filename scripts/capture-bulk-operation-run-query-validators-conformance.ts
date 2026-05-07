@@ -162,6 +162,33 @@ const validatorQueries = {
     }
   }
 }`,
+  invalidOperationType: `#graphql
+mutation {
+  productCreate(input: { title: "Bulk validator invalid operation type" }) {
+    product {
+      id
+    }
+  }
+}`,
+  connectionWithinList: `#graphql
+{
+  orders {
+    edges {
+      node {
+        id
+        fulfillments {
+          events {
+            edges {
+              node {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`,
 };
 
 function captureResult(

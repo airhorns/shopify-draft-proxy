@@ -1,0 +1,25 @@
+mutation DiscountBulkSearchEffectsSetup($scheduledCodeInput: DiscountCodeBasicInput!) {
+  scheduledCode: discountCodeBasicCreate(basicCodeDiscount: $scheduledCodeInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 1) {
+            nodes {
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

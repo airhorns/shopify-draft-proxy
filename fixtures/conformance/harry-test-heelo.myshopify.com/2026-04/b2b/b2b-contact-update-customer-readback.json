@@ -1,0 +1,396 @@
+{
+  "scenarioId": "b2b-contact-update-customer-readback",
+  "capturedAt": "2026-05-07T13:41:09.499Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create a disposable B2B company and contact, update firstName/lastName/email/phone, verify the linked customer subobject changes in the mutation response and downstream companyContact readback, then delete the company."
+  },
+  "schemaProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BContactUpdateCustomerReadbackSchema {\n    contactType: __type(name: \"CompanyContact\") {\n      fields { name }\n    }\n    customerType: __type(name: \"Customer\") {\n      fields { name }\n    }\n    contactInputType: __type(name: \"CompanyContactInput\") {\n      inputFields { name }\n    }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "contactType": {
+          "fields": [
+            {
+              "name": "company"
+            },
+            {
+              "name": "createdAt"
+            },
+            {
+              "name": "customer"
+            },
+            {
+              "name": "draftOrders"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "isMainContact"
+            },
+            {
+              "name": "lifetimeDuration"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "orders"
+            },
+            {
+              "name": "roleAssignments"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "updatedAt"
+            }
+          ]
+        },
+        "customerType": {
+          "fields": [
+            {
+              "name": "addressesV2"
+            },
+            {
+              "name": "amountSpent"
+            },
+            {
+              "name": "canDelete"
+            },
+            {
+              "name": "companyContactProfiles"
+            },
+            {
+              "name": "createdAt"
+            },
+            {
+              "name": "dataSaleOptOut"
+            },
+            {
+              "name": "defaultAddress"
+            },
+            {
+              "name": "defaultEmailAddress"
+            },
+            {
+              "name": "defaultPhoneNumber"
+            },
+            {
+              "name": "displayName"
+            },
+            {
+              "name": "events"
+            },
+            {
+              "name": "firstName"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "image"
+            },
+            {
+              "name": "lastName"
+            },
+            {
+              "name": "lastOrder"
+            },
+            {
+              "name": "legacyResourceId"
+            },
+            {
+              "name": "lifetimeDuration"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "mergeable"
+            },
+            {
+              "name": "metafield"
+            },
+            {
+              "name": "metafields"
+            },
+            {
+              "name": "multipassIdentifier"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "numberOfOrders"
+            },
+            {
+              "name": "orders"
+            },
+            {
+              "name": "paymentMethods"
+            },
+            {
+              "name": "productSubscriberStatus"
+            },
+            {
+              "name": "state"
+            },
+            {
+              "name": "statistics"
+            },
+            {
+              "name": "storeCreditAccounts"
+            },
+            {
+              "name": "subscriptionContracts"
+            },
+            {
+              "name": "tags"
+            },
+            {
+              "name": "taxExempt"
+            },
+            {
+              "name": "taxExemptions"
+            },
+            {
+              "name": "updatedAt"
+            },
+            {
+              "name": "verifiedEmail"
+            }
+          ]
+        },
+        "contactInputType": {
+          "inputFields": [
+            {
+              "name": "firstName"
+            },
+            {
+              "name": "lastName"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "phone"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B contact customer readback 1778161268239"
+          },
+          "companyLocation": {
+            "name": "B2B contact customer readback 1778161268239 HQ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5447549234",
+            "name": "B2B contact customer readback 1778161268239"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447549234",
+        "input": {
+          "email": "b2b-contact-customer-old-1778161268239@example.com",
+          "firstName": "Old",
+          "lastName": "Buyer",
+          "phone": "(415) 555-0100"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10164633906",
+            "customer": {
+              "id": "gid://shopify/Customer/10588274688306",
+              "email": "b2b-contact-customer-old-1778161268239@example.com",
+              "firstName": "Old",
+              "lastName": "Buyer"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n          phone\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10164633906",
+        "input": {
+          "email": "b2b-contact-customer-new-1778161268239@example.com",
+          "firstName": "New",
+          "lastName": "Name",
+          "phone": "(650) 555-0101"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10164633906",
+            "customer": {
+              "id": "gid://shopify/Customer/10588274688306",
+              "email": "b2b-contact-customer-new-1778161268239@example.com",
+              "firstName": "New",
+              "lastName": "Name",
+              "phone": "+16505550101"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactReadAfterUpdate": {
+    "request": {
+      "query": "#graphql\n  query B2BContactUpdateCustomerReadbackContactRead($companyContactId: ID!) {\n    companyContact(id: $companyContactId) {\n      id\n      customer {\n        id\n        email\n        firstName\n        lastName\n        phone\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10164633906"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10164633906",
+          "customer": {
+            "id": "gid://shopify/Customer/10588274688306",
+            "email": "b2b-contact-customer-new-1778161268239@example.com",
+            "firstName": "New",
+            "lastName": "Name",
+            "phone": "+16505550101"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5447549234"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5447549234",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

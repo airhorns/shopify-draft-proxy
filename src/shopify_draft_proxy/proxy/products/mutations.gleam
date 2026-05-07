@@ -539,21 +539,34 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store_types.Staged,
+                  "Staged productOptionsReorder locally.",
+                )
+                True -> #(
+                  store_types.Failed,
+                  "Rejected productOptionsReorder locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged productOptionsReorder locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
                 errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
+                case result.staging_failed {
+                  True -> staged_ids
+                  False -> list.append(staged_ids, result.staged_resource_ids)
+                },
                 list.append(drafts, [draft]),
               )
             }

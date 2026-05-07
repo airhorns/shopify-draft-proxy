@@ -1,0 +1,392 @@
+{
+  "capturedAt": "2026-05-07T14:33:43.294Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-update-source-semantics",
+  "setup": {
+    "imageCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "source-semantics-image-1778164415849.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Source semantics image seed"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43684330733874",
+                "__typename": "MediaImage",
+                "alt": "Source semantics image seed",
+                "createdAt": "2026-05-07T14:33:35Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readyImageRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/43684330733874",
+          "__typename": "MediaImage",
+          "alt": "Source semantics image seed",
+          "createdAt": "2026-05-07T14:33:35Z",
+          "fileStatus": "READY",
+          "image": {
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/source-semantics-image-1778164415849.jpg?v=1778164417",
+            "width": 600,
+            "height": 400
+          },
+          "preview": {
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/source-semantics-image-1778164415849.jpg?v=1778164417",
+              "width": 600,
+              "height": 400
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "genericCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "FILE",
+            "filename": "source-semantics-generic-1778164415849.pdf",
+            "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+            "alt": "Source semantics generic seed"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/GenericFile/43684330832178",
+                "__typename": "GenericFile",
+                "alt": "Source semantics generic seed",
+                "createdAt": "2026-05-07T14:33:38Z",
+                "fileStatus": "UPLOADED",
+                "url": null
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readyGenericRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/GenericFile/43684330832178",
+          "__typename": "GenericFile",
+          "alt": "Source semantics generic seed",
+          "createdAt": "2026-05-07T14:33:38Z",
+          "fileStatus": "READY",
+          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/dummy.pdf?v=1778164420"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updates": {
+    "imageOriginalSource": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/43684330733874",
+            "originalSource": "https://placehold.co/640x480.jpg"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43684330733874",
+                "__typename": "MediaImage",
+                "alt": "Source semantics image seed",
+                "createdAt": "2026-05-07T14:33:35Z",
+                "fileStatus": "READY",
+                "image": null,
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/source-semantics-image-1778164415849.jpg?v=1778164418",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "genericOriginalSource": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/GenericFile/43684330832178",
+            "originalSource": "https://www.w3.org/WAI/WCAG21/working-examples/pdf-table/table.pdf"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [
+              {
+                "id": "gid://shopify/GenericFile/43684330832178",
+                "__typename": "GenericFile",
+                "alt": "Source semantics generic seed",
+                "createdAt": "2026-05-07T14:33:38Z",
+                "fileStatus": "READY",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/dummy.pdf?v=1778164423"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "imageAfterOriginalSource": {
+      "response": {
+        "data": {
+          "files": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43684330733874",
+                "__typename": "MediaImage",
+                "alt": "Source semantics image seed",
+                "createdAt": "2026-05-07T14:33:35Z",
+                "fileStatus": "READY",
+                "image": null,
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/source-semantics-image-1778164415849.jpg?v=1778164418",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "genericAfterOriginalSource": {
+      "response": {
+        "data": {
+          "files": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GenericFile/43684330832178",
+                "__typename": "GenericFile",
+                "alt": "Source semantics generic seed",
+                "createdAt": "2026-05-07T14:33:38Z",
+                "fileStatus": "READY",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/dummy.pdf?v=1778164423"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43684330733874",
+                "__typename": "MediaImage",
+                "alt": "Source semantics image seed",
+                "createdAt": "2026-05-07T14:33:35Z",
+                "fileStatus": "READY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43684330733874"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/43684330733874",
+                "__typename": "MediaImage",
+                "alt": "Source semantics image seed",
+                "createdAt": "2026-05-07T14:33:35Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/source-semantics-image-1778164415849.jpg?v=1778164417",
+                  "width": 600,
+                  "height": 400
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/source-semantics-image-1778164415849.jpg?v=1778164417",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/GenericFile/43684330832178"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GenericFile/43684330832178",
+                "__typename": "GenericFile",
+                "alt": "Source semantics generic seed",
+                "createdAt": "2026-05-07T14:33:38Z",
+                "fileStatus": "READY",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/dummy.pdf?v=1778164420"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43684330733874", "gid://shopify/GenericFile/43684330832178"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43684330733874", "gid://shopify/GenericFile/43684330832178"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
