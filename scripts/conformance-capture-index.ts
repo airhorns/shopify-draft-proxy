@@ -6403,6 +6403,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-profile-create-disallowed-update-keys',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-profile-create-disallowed-update-keys-conformance.ts',
+    purpose:
+      'deliveryProfileCreate validation for create-time update-only keys and allowed method-definition create input.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delivery-profile-create-disallowed-update-keys.json`,
+      'config/parity-specs/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.graphql',
+    ],
+    cleanupBehavior:
+      'Records validation-only rejection branches, then creates one disposable allowed profile and removes it in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'carrier-service-callback-url-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-carrier-service-callback-url-validation-conformance.ts',

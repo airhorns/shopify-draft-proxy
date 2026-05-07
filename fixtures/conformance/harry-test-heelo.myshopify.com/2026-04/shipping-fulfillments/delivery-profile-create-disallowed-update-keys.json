@@ -1,0 +1,321 @@
+{
+  "capturedAt": "2026-05-07T18:49:15.844Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "locationUsed": "gid://shopify/Location/106318430514",
+    "deliveryProfileCreateUserErrorsType": "UserError",
+    "userErrorFields": ["field", "message"]
+  },
+  "mutations": {
+    "variantsToDissociate": {
+      "query": "mutation DeliveryProfileCreateDisallowedUpdateKeys($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Disallowed variants dissociate",
+          "variantsToDissociate": ["gid://shopify/ProductVariant/1"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot disassociate variants when creating a profile."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "zonesToUpdate": {
+      "query": "mutation DeliveryProfileCreateDisallowedUpdateKeys($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Disallowed zones update",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToUpdate": [
+                {
+                  "id": "gid://shopify/DeliveryZone/1",
+                  "name": "Renamed"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot update zones when creating a profile."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "methodDefinitionsToUpdate": {
+      "query": "mutation DeliveryProfileCreateDisallowedUpdateKeys($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Disallowed method update",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "Domestic",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ],
+                  "methodDefinitionsToUpdate": [
+                    {
+                      "id": "gid://shopify/DeliveryMethodDefinition/1"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Profile is invalid: Input cannot include method_definitions_to_update on create."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "allowedMethodDefinitionsToCreate": {
+      "query": "mutation DeliveryProfileCreateDisallowedUpdateKeys($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "profile": {
+          "name": "Allowed method create 1778179755362",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "Domestic",
+                  "countries": [
+                    {
+                      "code": "US",
+                      "includeAllProvinces": true
+                    }
+                  ],
+                  "methodDefinitionsToCreate": [
+                    {
+                      "name": "Standard",
+                      "active": true,
+                      "rateDefinition": {
+                        "price": {
+                          "amount": "7.25",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/131813540146",
+                "name": "Allowed method create 1778179755362",
+                "version": 1,
+                "originLocationCount": 1,
+                "zoneCountryCount": 1,
+                "activeMethodDefinitionsCount": 1,
+                "profileLocationGroups": [
+                  {
+                    "locationGroup": {
+                      "id": "gid://shopify/DeliveryLocationGroup/133500961074"
+                    },
+                    "locationGroupZones": {
+                      "nodes": [
+                        {
+                          "zone": {
+                            "id": "gid://shopify/DeliveryZone/582272254258",
+                            "name": "Domestic"
+                          },
+                          "methodDefinitions": {
+                            "nodes": [
+                              {
+                                "id": "gid://shopify/DeliveryMethodDefinition/1090771714354",
+                                "name": "Standard",
+                                "active": true,
+                                "rateProvider": {
+                                  "id": "gid://shopify/DeliveryRateDefinition/1013206712626",
+                                  "price": {
+                                    "amount": "7.25",
+                                    "currencyCode": "USD"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "removeCreatedProfile": {
+      "query": "mutation DeliveryProfileCreateDisallowedUpdateKeysCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/131813540146"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/f6630e98-ad96-45d5-9b22-2d27d73bf0bb",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured with home-folder conformance auth against a disposable Shopify test store.",
+    "The public Admin GraphQL 2026-04 schema exposes deliveryProfileCreate.userErrors as UserError with field/message only; these create-only guards return field: null with public messages, while runtime tests cover the proxy-local code convenience field.",
+    "The allowed methodDefinitionsToCreate branch creates a disposable profile and removes it in cleanup."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileLocationsHydrate",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

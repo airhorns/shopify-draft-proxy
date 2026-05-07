@@ -19,6 +19,9 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   blank_delivery_profile_create_name_error,
+  delivery_profile_create_disassociate_variants_error,
+  delivery_profile_create_update_method_definitions_error,
+  delivery_profile_create_update_zones_error,
   empty_delivery_profile_zone_countries_error, is_active_location,
   is_fulfillment_service_location, overlapping_delivery_profile_zone_error,
   too_long_delivery_profile_create_name_error,
@@ -56,14 +59,18 @@ pub fn validate_delivery_profile_create_input(
         draft_store,
         input,
         "profileLocationGroups",
+        True,
       ),
       validate_delivery_profile_location_group_inputs(
         draft_store,
         input,
         "locationGroupsToCreate",
+        False,
       ),
     )
-  let errors = list.append(name_errors, nested_errors)
+  let create_only_errors = validate_delivery_profile_create_only_inputs(input)
+  let errors =
+    list.append(name_errors, list.append(create_only_errors, nested_errors))
   case errors, name {
     [], Some(value) -> Ok(value)
     _, _ -> Error(errors)
@@ -71,14 +78,70 @@ pub fn validate_delivery_profile_create_input(
 }
 
 @internal
+pub fn validate_delivery_profile_create_only_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(shipping_types.DeliveryProfileUserError) {
+  let dissociate_errors = case
+    read_string_array(input, "variantsToDissociate")
+  {
+    [] -> []
+    _ -> [delivery_profile_create_disassociate_variants_error()]
+  }
+  list.append(
+    dissociate_errors,
+    validate_delivery_profile_create_location_groups(input),
+  )
+}
+
+@internal
+pub fn validate_delivery_profile_create_location_groups(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(shipping_types.DeliveryProfileUserError) {
+  read_indexed_object_array(input, "locationGroupsToCreate")
+  |> list.flat_map(validate_delivery_profile_create_location_group)
+}
+
+@internal
+pub fn validate_delivery_profile_create_location_group(
+  group: #(Int, Dict(String, root_field.ResolvedValue)),
+) -> List(shipping_types.DeliveryProfileUserError) {
+  let group_index = group.0
+  let zones_to_update_errors = case dict.has_key(group.1, "zonesToUpdate") {
+    False -> []
+    True -> [delivery_profile_create_update_zones_error(group_index)]
+  }
+  let method_definition_errors =
+    read_indexed_object_array(group.1, "zonesToCreate")
+    |> list.flat_map(fn(zone) {
+      case dict.has_key(zone.1, "methodDefinitionsToUpdate") {
+        False -> []
+        True -> [
+          delivery_profile_create_update_method_definitions_error(
+            group_index,
+            zone.0,
+          ),
+        ]
+      }
+    })
+  list.append(zones_to_update_errors, method_definition_errors)
+}
+
+@internal
 pub fn validate_delivery_profile_location_group_inputs(
   draft_store: Store,
   input: Dict(String, root_field.ResolvedValue),
   key: String,
+  validate_zone_updates: Bool,
 ) -> List(shipping_types.DeliveryProfileUserError) {
   read_indexed_object_array(input, key)
   |> list.flat_map(fn(group) {
-    validate_delivery_profile_location_group(draft_store, key, group.0, group.1)
+    validate_delivery_profile_location_group(
+      draft_store,
+      key,
+      group.0,
+      group.1,
+      validate_zone_updates,
+    )
   })
 }
 
@@ -88,6 +151,7 @@ pub fn validate_delivery_profile_location_group(
   group_key: String,
   group_index: Int,
   input: Dict(String, root_field.ResolvedValue),
+  validate_zone_updates: Bool,
 ) -> List(shipping_types.DeliveryProfileUserError) {
   let location_errors =
     read_indexed_string_array(input, "locations")
@@ -104,21 +168,24 @@ pub fn validate_delivery_profile_location_group(
           ))
       }
     })
-  let zone_errors =
-    list.append(
-      validate_delivery_profile_zones(
-        read_indexed_object_array(input, "zonesToCreate"),
-        group_key,
-        group_index,
-        "zonesToCreate",
-      ),
+  let create_zone_errors =
+    validate_delivery_profile_zones(
+      read_indexed_object_array(input, "zonesToCreate"),
+      group_key,
+      group_index,
+      "zonesToCreate",
+    )
+  let update_zone_errors = case validate_zone_updates {
+    True ->
       validate_delivery_profile_zones(
         read_indexed_object_array(input, "zonesToUpdate"),
         group_key,
         group_index,
         "zonesToUpdate",
-      ),
-    )
+      )
+    False -> []
+  }
+  let zone_errors = list.append(create_zone_errors, update_zone_errors)
   list.append(location_errors, zone_errors)
 }
 

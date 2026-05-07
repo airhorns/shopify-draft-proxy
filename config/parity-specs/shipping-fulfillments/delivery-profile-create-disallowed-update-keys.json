@@ -1,0 +1,69 @@
+{
+  "scenarioId": "delivery-profile-create-disallowed-update-keys",
+  "operationNames": ["deliveryProfileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.json"
+  ],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.graphql",
+    "variablesCapturePath": "$.mutations.variantsToDissociate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 deliveryProfileCreate validation for create-time update-only keys plus an allowed methodDefinitionsToCreate contrast branch. Public deliveryProfileCreate.userErrors exposes generic UserError field/message only in 2026-04, so runtime tests cover the proxy-local code convenience field.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variants-to-dissociate-user-error",
+        "capturePath": "$.mutations.variantsToDissociate.result.payload.data.deliveryProfileCreate",
+        "proxyPath": "$.data.deliveryProfileCreate"
+      },
+      {
+        "name": "zones-to-update-user-error",
+        "capturePath": "$.mutations.zonesToUpdate.result.payload.data.deliveryProfileCreate",
+        "proxyPath": "$.data.deliveryProfileCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.graphql",
+          "variablesCapturePath": "$.mutations.zonesToUpdate.variables"
+        }
+      },
+      {
+        "name": "method-definitions-to-update-user-error",
+        "capturePath": "$.mutations.methodDefinitionsToUpdate.result.payload.data.deliveryProfileCreate",
+        "proxyPath": "$.data.deliveryProfileCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.graphql",
+          "variablesCapturePath": "$.mutations.methodDefinitionsToUpdate.variables"
+        }
+      },
+      {
+        "name": "allowed-method-definitions-to-create",
+        "capturePath": "$.mutations.allowedMethodDefinitionsToCreate.result.payload.data.deliveryProfileCreate",
+        "proxyPath": "$.data.deliveryProfileCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-disallowed-update-keys.graphql",
+          "variablesCapturePath": "$.mutations.allowedMethodDefinitionsToCreate.variables"
+        },
+        "selectedPaths": [
+          "$.profile.name",
+          "$.profile.version",
+          "$.profile.originLocationCount",
+          "$.profile.zoneCountryCount",
+          "$.profile.activeMethodDefinitionsCount",
+          "$.profile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.name",
+          "$.profile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].name",
+          "$.profile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].active",
+          "$.profile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].rateProvider.price",
+          "$.userErrors"
+        ]
+      }
+    ]
+  }
+}
