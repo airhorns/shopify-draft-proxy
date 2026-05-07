@@ -4,6 +4,15 @@ This endpoint group tracks Admin GraphQL payment-area roots whose behavior is se
 
 Order payment transaction mutations such as `orderCapture`, `transactionVoid`, and `orderCreateMandatePayment` are modeled with the order graph because their downstream reads are `Order` financial and transaction fields. Their local validation and payment-service safety notes live in `docs/endpoints/orders.md`.
 
+For `orderCapture`, checked-in live public parity must use the public Admin
+GraphQL payload shape: `OrderCapturePayload.userErrors` is plain `UserError`
+with selectable `field` and `message` only, and the payload does not expose an
+`order` field. The draft proxy still keeps a local/internal code-bearing
+contract for validation branches such as currency mismatch, missing parent
+transaction, invalid amount, and final-capture lock behavior; that contract is
+covered by focused runtime tests rather than public live parity until a
+captured schema exposes `OrderCaptureUserError.code`.
+
 ## Current support and limitations
 
 ### HAR-439 payment-sensitive order review
