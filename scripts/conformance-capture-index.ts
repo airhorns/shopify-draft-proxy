@@ -4777,6 +4777,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-address-byte-size-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-address-byte-size-validation.ts',
+    purpose: "Webhook subscription address byte-size validation at and above Shopify's text-column limit.",
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-address-byte-size-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-address-byte-size-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates one temporary SHOP_UPDATE webhook subscription at the accepted byte-size boundary and deletes it during cleanup; the above-limit branch is validation-only.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
