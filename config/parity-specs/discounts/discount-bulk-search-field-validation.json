@@ -1,0 +1,31 @@
+{
+  "scenarioId": "discount-bulk-search-field-validation",
+  "operationNames": [
+    "discountCodeBulkActivate",
+    "discountCodeBulkDeactivate",
+    "discountCodeBulkDelete",
+    "discountAutomaticBulkDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-bulk-search-field-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-bulk-search-field-validation.graphql",
+    "variablesCapturePath": "$.validation.bulkSearchField.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 discount bulk search field-name validation. Shopify rejected unknown, code, and discount_class fields only on discountCodeBulkDelete; it accepted status, times_used, and discount_type there. The sibling bulk roots accepted the probed unknown fields without userErrors, so the proxy preserves that captured dispatch behavior rather than applying code-delete validation to every bulk root.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-bulk-search-field-user-errors",
+        "capturePath": "$.validation.bulkSearchField.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

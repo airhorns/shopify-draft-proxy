@@ -397,6 +397,22 @@ pub fn bulk_selector_validation_matches_captured_automatic_delete_test() {
     == "{\"data\":{\"missing\":{\"userErrors\":[{\"field\":null,\"message\":\"One of IDs, search argument or saved search ID is required.\",\"code\":\"MISSING_ARGUMENT\",\"extraInfo\":null}]},\"blank\":{\"userErrors\":[]},\"tooMany\":{\"userErrors\":[{\"field\":null,\"message\":\"Only one of IDs, search argument or saved search ID is allowed.\",\"code\":\"TOO_MANY_ARGUMENTS\",\"extraInfo\":null}]},\"saved\":{\"userErrors\":[{\"field\":[\"savedSearchId\"],\"message\":\"Invalid savedSearchId.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
 }
 
+pub fn bulk_search_field_validation_matches_captured_behavior_test() {
+  let outcome =
+    run_mutation(
+      "mutation { codeDeleteKnownStatus: discountCodeBulkDelete(search: \"status:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } codeDeleteKnownTimesUsed: discountCodeBulkDelete(search: \"times_used:>9999999\") { job { done } userErrors { field message code extraInfo } } codeDeleteCodeField: discountCodeBulkDelete(search: \"code:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } codeDeleteClassField: discountCodeBulkDelete(search: \"discount_class:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } codeDeleteUnknown: discountCodeBulkDelete(search: \"frobnicate:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } activateUnknown: discountCodeBulkActivate(search: \"frobnicate:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } deactivateUnknown: discountCodeBulkDeactivate(search: \"frobnicate:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } automaticCodeField: discountAutomaticBulkDelete(search: \"code:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } automaticUnknown: discountAutomaticBulkDelete(search: \"frobnicate:DRAFT_PROXY_NO_MATCH\") { job { done } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"codeDeleteKnownStatus\":{\"job\":{\"done\":true},\"userErrors\":[]},\"codeDeleteKnownTimesUsed\":{\"job\":{\"done\":true},\"userErrors\":[]},\"codeDeleteCodeField\":{\"job\":null,\"userErrors\":[{\"field\":[\"search\"],\"message\":\"Invalid search field(s): code. Check the query syntax.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"codeDeleteClassField\":{\"job\":null,\"userErrors\":[{\"field\":[\"search\"],\"message\":\"Invalid search field(s): discount_class. Check the query syntax.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"codeDeleteUnknown\":{\"job\":null,\"userErrors\":[{\"field\":[\"search\"],\"message\":\"Invalid search field(s): frobnicate. Check the query syntax.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"activateUnknown\":{\"job\":{\"done\":true},\"userErrors\":[]},\"deactivateUnknown\":{\"job\":{\"done\":true},\"userErrors\":[]},\"automaticCodeField\":{\"job\":{\"done\":true},\"userErrors\":[]},\"automaticUnknown\":{\"job\":{\"done\":true},\"userErrors\":[]}}}"
+
+  assert list.contains(
+    outcome.staged_resource_ids,
+    "gid://shopify/Job/1?shopify-draft-proxy=synthetic",
+  )
+  assert list.length(outcome.staged_resource_ids) == 6
+}
+
 pub fn bulk_selector_validation_accepts_known_price_rule_saved_search_test() {
   let base_store =
     store.upsert_base_saved_searches(store.new(), [
