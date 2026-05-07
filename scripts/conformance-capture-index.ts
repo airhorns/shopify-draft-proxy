@@ -5322,7 +5322,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-cart-transform-metafields-conformance.ts',
     purpose:
-      'cartTransformCreate metafield input validation, valid metafield persistence, singular metafield lookup, and downstream cartTransforms metafield readback.',
+      'cartTransformCreate metafield input validation, direct top-level argument shape, valid metafield persistence, downstream cartTransforms metafield readback, and invalid CartTransform field/input rejection.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_cart_transforms',
@@ -5334,6 +5334,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/functions/functions-cart-transform-create-metafields-invalid.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-metafields-success.graphql',
       'config/parity-requests/functions/functions-cart-transform-create-metafields-read.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-shape-invalid-fields.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-shape-invalid-wrapper.graphql',
     ],
     cleanupBehavior:
       'Deletes pre-existing cartTransforms, captures invalid metafield branches without side effects, creates one disposable cartTransform with two metafields, captures downstream readback, then deletes the disposable cartTransform.',

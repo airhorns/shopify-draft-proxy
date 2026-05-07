@@ -890,15 +890,13 @@ pub fn cart_transform_create_with_handle_mints_records_test() {
   let body =
     run_mutation(
       s,
-      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\", title: \"My transformer\" }) { cartTransform { id title functionHandle blockOnFailure } userErrors { field } } }",
+      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\", blockOnFailure: false) { cartTransform { id functionId blockOnFailure } userErrors { field } } }",
     )
   assert body
-    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"title\":\"My transformer\",\"functionHandle\":\"cart-transformer\",\"blockOnFailure\":false},\"userErrors\":[]}}}"
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"functionId\":\"gid://shopify/ShopifyFunction/cart-transformer\",\"blockOnFailure\":false},\"userErrors\":[]}}}"
 }
 
-pub fn cart_transform_create_falls_back_to_top_level_args_test() {
-  // TS quirk: cartTransformCreate accepts either nested input (cartTransform: {...})
-  // or top-level args (functionHandle directly).
+pub fn cart_transform_create_reads_top_level_args_test() {
   let s =
     seed_function(
       store.new(),
@@ -911,17 +909,17 @@ pub fn cart_transform_create_falls_back_to_top_level_args_test() {
   let body =
     run_mutation(
       s,
-      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\") { cartTransform { id functionHandle } userErrors { field } } }",
+      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\") { cartTransform { id functionId } userErrors { field } } }",
     )
   assert body
-    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"functionHandle\":\"cart-transformer\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"functionId\":\"gid://shopify/ShopifyFunction/cart-transformer\"},\"userErrors\":[]}}}"
 }
 
 pub fn cart_transform_create_missing_function_emits_user_error_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { cartTransformCreate(cartTransform: { title: \"No function\" }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate { cartTransform { id } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -935,7 +933,7 @@ pub fn cart_transform_create_with_both_function_identifiers_errors_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/cart-transformer\", functionHandle: \"cart-transformer\" }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/cart-transformer\", functionHandle: \"cart-transformer\") { cartTransform { id } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -949,7 +947,7 @@ pub fn cart_transform_create_unknown_function_id_errors_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/missing\") { cartTransform { id } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -972,7 +970,7 @@ pub fn cart_transform_create_rejects_non_cart_transform_function_id_test() {
   let outcome =
     run_mutation_outcome(
       s,
-      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/checkout-validator\" }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -998,7 +996,7 @@ pub fn cart_transform_create_rejects_non_cart_transform_function_handle_test() {
   let outcome =
     run_mutation_outcome(
       s,
-      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"checkout-validator\" }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionHandle: \"checkout-validator\") { cartTransform { id } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -1033,7 +1031,7 @@ pub fn cart_transform_create_rejects_duplicate_function_id_test() {
   let outcome =
     run_mutation_outcome(
       s,
-      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/cart-transformer\" }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionId: \"gid://shopify/ShopifyFunction/cart-transformer\") { cartTransform { id } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -1053,7 +1051,7 @@ pub fn cart_transform_create_persists_metafields_for_downstream_reads_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\", title: \"Bundle transform\", metafields: [{ namespace: \"bundles\", key: \"config\", type: \"json\", value: \"{\\\"enabled\\\":true}\" }, { namespace: \"bundles\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }] }) { cartTransform { id metafield(namespace: \"bundles\", key: \"config\") { namespace key type value ownerType compareDigest createdAt updatedAt } metafields(first: 5) { nodes { namespace key type value ownerType compareDigest createdAt updatedAt } } } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\", metafields: [{ namespace: \"bundles\", key: \"config\", type: \"json\", value: \"{\\\"enabled\\\":true}\" }, { namespace: \"bundles\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }]) { cartTransform { id metafield(namespace: \"bundles\", key: \"config\") { namespace key type value ownerType compareDigest createdAt updatedAt } metafields(first: 5) { nodes { namespace key type value ownerType compareDigest createdAt updatedAt } } } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"metafield\":{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"type\":\"single_line_text_field\",\"value\":\"strict\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwibW9kZSIsInNpbmdsZV9saW5lX3RleHRfZmllbGQiLCJzdHJpY3QiLG51bGwsIjIwMjQtMDEtMDFUMDA6MDA6MDAuMDAwWiJd\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
@@ -1078,7 +1076,7 @@ pub fn cart_transform_create_rejects_invalid_metafields_test() {
   let outcome =
     run_mutation_outcome(
       seed_function(store.new(), fn_record),
-      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\", metafields: [{ namespace: \"bundles\", key: \"missing_value\", type: \"single_line_text_field\" }, { namespace: \"bundles\", key: \"bad_json\", type: \"json\", value: \"not-json\" }] }) { cartTransform { id } userErrors { field message code } } }",
+      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\", metafields: [{ namespace: \"bundles\", key: \"missing_value\", type: \"single_line_text_field\" }, { namespace: \"bundles\", key: \"bad_json\", type: \"json\", value: \"not-json\" }]) { cartTransform { id } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
@@ -1102,7 +1100,7 @@ pub fn cart_transform_delete_removes_record_test() {
   let create_outcome =
     run_mutation_outcome(
       s,
-      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\" }) { cartTransform { id } } }",
+      "mutation { cartTransformCreate(functionHandle: \"cart-transformer\") { cartTransform { id } } }",
     )
   let body =
     run_mutation(

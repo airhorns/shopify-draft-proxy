@@ -106,6 +106,24 @@ function assertInvalidMetafields(captureResult: Capture, context: string): void 
   }
 }
 
+function assertTopLevelErrors(captureResult: Capture, context: string, expectedSnippets: string[]): void {
+  if (captureResult.response.status < 200 || captureResult.response.status >= 300) {
+    throw new Error(
+      `${context} failed with HTTP ${captureResult.response.status}: ${JSON.stringify(captureResult.response, null, 2)}`,
+    );
+  }
+  const errors = readArray(readRecord(captureResult.response.payload)['errors']);
+  if (errors.length === 0) {
+    throw new Error(`${context} did not return top-level errors: ${JSON.stringify(captureResult.response, null, 2)}`);
+  }
+  const serialized = JSON.stringify(errors);
+  for (const snippet of expectedSnippets) {
+    if (!serialized.includes(snippet)) {
+      throw new Error(`${context} did not include ${snippet}: ${JSON.stringify(errors, null, 2)}`);
+    }
+  }
+}
+
 function readFunctionNodes(captureResult: Capture): FunctionNode[] {
   return readArray(readPath(captureResult.response.payload, ['data', 'shopifyFunctions', 'nodes'])).map(
     (node) => readRecord(node) as FunctionNode,
@@ -195,6 +213,8 @@ const cartTransformDeleteDocument = `mutation DeleteCapturedCartTransform($id: I
 const invalidDocument = await loadRequest('functions-cart-transform-create-metafields-invalid.graphql');
 const successDocument = await loadRequest('functions-cart-transform-create-metafields-success.graphql');
 const readDocument = await loadRequest('functions-cart-transform-create-metafields-read.graphql');
+const invalidFieldsDocument = await loadRequest('functions-cart-transform-create-shape-invalid-fields.graphql');
+const invalidWrapperDocument = await loadRequest('functions-cart-transform-create-shape-invalid-wrapper.graphql');
 const cleanupReadDocument = await loadRequest('functions-cart-transform-create-validation-read.graphql');
 
 const functionRead = await capture(functionReadDocument);
@@ -253,6 +273,20 @@ let createdCartTransformId: string | null = null;
 const cleanupAfter: JsonRecord = {};
 
 try {
+  const cartTransformInvalidFields = await capture(invalidFieldsDocument);
+  assertTopLevelErrors(cartTransformInvalidFields, 'CartTransform invalid field selection', [
+    "Field 'title' doesn't exist on type 'CartTransform'",
+    "Field 'functionHandle' doesn't exist on type 'CartTransform'",
+    "Field 'createdAt' doesn't exist on type 'CartTransform'",
+    "Field 'updatedAt' doesn't exist on type 'CartTransform'",
+  ]);
+
+  const cartTransformCreateInvalidWrapper = await capture(invalidWrapperDocument);
+  assertTopLevelErrors(cartTransformCreateInvalidWrapper, 'cartTransformCreate invalid wrapper/title input', [
+    "Field 'cartTransformCreate' doesn't accept argument 'cartTransform'",
+    "Field 'cartTransformCreate' doesn't accept argument 'title'",
+  ]);
+
   const cartTransformCreateMissingValue = await capture(invalidDocument, missingValueVariables);
   assertInvalidMetafields(cartTransformCreateMissingValue, 'cartTransformCreate missing value metafield');
 
@@ -296,12 +330,14 @@ try {
     storeDomain,
     apiVersion,
     summary:
-      'cartTransformCreate metafield validation, valid metafield persistence, singular lookup, and downstream cartTransforms read evidence.',
+      'cartTransformCreate metafield validation, direct top-level argument shape, valid metafield persistence, downstream cartTransforms read evidence, and invalid CartTransform field/input rejection.',
     shopifyFunctions: {
       cartTransform: normalizeFunctionNode(cartTransformFunction),
     },
     functionRead,
     cleanupBefore,
+    cartTransformInvalidFields,
+    cartTransformCreateInvalidWrapper,
     cartTransformCreateMissingValue,
     cartTransformCreateInvalidJson,
     cartTransformCreateMetafields,
@@ -320,7 +356,7 @@ try {
     ],
     notes: {
       validation:
-        'Invalid branches are captured before the success path so they prove INVALID_METAFIELDS without colliding with the one-cart-transform-per-Function constraint. Public Shopify Admin 2026-04 accepted an empty namespace during exploratory capture, so empty namespace is not modeled as a cartTransformCreate rejection here.',
+        'Invalid branches are captured before the success path so they prove CartTransform field/input schema rejection and INVALID_METAFIELDS without colliding with the one-cart-transform-per-Function constraint. Public Shopify Admin 2026-04 accepted an empty namespace during exploratory capture, so empty namespace is not modeled as a cartTransformCreate rejection here.',
       sideEffectBoundary:
         'The invalid branches return cartTransform null; the success branch creates one disposable cart transform that is cleaned up after the fixture is written.',
     },

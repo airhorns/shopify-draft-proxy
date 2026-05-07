@@ -29,9 +29,8 @@ query ReadFunctionMetadata($validationId: ID!) {
   cartTransforms(first: 5) {
     nodes {
       id
-      title
       blockOnFailure
-      functionHandle
+      functionId
     }
     pageInfo {
       hasNextPage
