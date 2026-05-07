@@ -1,0 +1,298 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T23:12:08.800Z",
+  "variables": {
+    "namespace": "validations_input_mouo9jo2",
+    "targetDefinitionId": "gid://shopify/MetaobjectDefinition/17912365362",
+    "replacementDefinitionId": "gid://shopify/MetaobjectDefinition/17912398130"
+  },
+  "setup": {
+    "target": {
+      "request": {
+        "query": "#graphql\n  mutation CreateMetaobjectDefinitionForMetafieldValidation($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "type": "validations_input_target_mouo9jo2",
+            "name": "Validation Target mouo9jo2",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17912365362",
+              "type": "validations_input_target_mouo9jo2"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "replacement": {
+      "request": {
+        "query": "#graphql\n  mutation CreateMetaobjectDefinitionForMetafieldValidation($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "type": "validations_input_replacement_mouo9jo2",
+            "name": "Validation Replacement mouo9jo2",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17912398130",
+              "type": "validations_input_replacement_mouo9jo2"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "primary": {
+    "request": {
+      "query": "mutation MetafieldDefinitionValidationsInput(\n  $namespace: String!\n  $targetDefinitionId: String!\n  $replacementDefinitionId: String!\n) {\n  unknown: metafieldDefinitionCreate(\n    definition: {\n      name: \"Unknown validation option\"\n      namespace: $namespace\n      key: \"unknown\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"totally_unknown_option\", value: \"x\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicate: metafieldDefinitionCreate(\n    definition: {\n      name: \"Duplicate validation option\"\n      namespace: $namespace\n      key: \"duplicate\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"min\", value: \"5\" }, { name: \"min\", value: \"10\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  badNumber: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid number validation\"\n      namespace: $namespace\n      key: \"bad_number\"\n      ownerType: PRODUCT\n      type: \"number_integer\"\n      validations: [{ name: \"min\", value: \"not-a-number\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  minMax: metafieldDefinitionCreate(\n    definition: {\n      name: \"Invalid min max validation\"\n      namespace: $namespace\n      key: \"min_max\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      validations: [{ name: \"min\", value: \"10\" }, { name: \"max\", value: \"5\" }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  metaobjectRequired: metafieldDefinitionCreate(\n    definition: {\n      name: \"Missing metaobject validation\"\n      namespace: $namespace\n      key: \"metaobject_required\"\n      ownerType: PRODUCT\n      type: \"metaobject_reference\"\n      validations: []\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  ratingRequired: metafieldDefinitionCreate(\n    definition: {\n      name: \"Missing rating validation\"\n      namespace: $namespace\n      key: \"rating_required\"\n      ownerType: PRODUCT\n      type: \"rating\"\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createMetaobjectReference: metafieldDefinitionCreate(\n    definition: {\n      name: \"Metaobject reference\"\n      namespace: $namespace\n      key: \"metaobject_reference\"\n      ownerType: PRODUCT\n      type: \"metaobject_reference\"\n      validations: [{ name: \"metaobject_definition_id\", value: $targetDefinitionId }]\n    }\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateMetaobjectReference: metafieldDefinitionUpdate(\n    definition: {\n      namespace: $namespace\n      key: \"metaobject_reference\"\n      ownerType: PRODUCT\n      validations: [{ name: \"metaobject_definition_id\", value: $replacementDefinitionId }]\n    }\n  ) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n    validationJob {\n      id\n    }\n  }\n}\n",
+      "variables": {
+        "namespace": "validations_input_mouo9jo2",
+        "targetDefinitionId": "gid://shopify/MetaobjectDefinition/17912365362",
+        "replacementDefinitionId": "gid://shopify/MetaobjectDefinition/17912398130"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "unknown": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option totally_unknown_option contains an invalid value: 'totally_unknown_option' isn't supported for single_line_text_field.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "duplicate": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations cannot contain duplicate \"name\" options.",
+              "code": "DUPLICATE_OPTION"
+            }
+          ]
+        },
+        "badNumber": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations value for option min must be an integer.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "minMax": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations contains an invalid value: 'min' must be less than 'max'.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "metaobjectRequired": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations require that you select a metaobject.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "ratingRequired": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations requires 'scale_max' to be provided.",
+              "code": "INVALID_OPTION"
+            },
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations requires 'scale_min' to be provided.",
+              "code": "INVALID_OPTION"
+            }
+          ]
+        },
+        "createMetaobjectReference": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207074525490",
+            "namespace": "validations_input_mouo9jo2",
+            "key": "metaobject_reference",
+            "validations": [
+              {
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/17912365362"
+              }
+            ],
+            "pinnedPosition": null
+          },
+          "userErrors": []
+        },
+        "updateMetaobjectReference": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "validations"],
+              "message": "Validations must not change the existing metaobject definition value",
+              "code": "METAOBJECT_DEFINITION_CHANGED"
+            }
+          ],
+          "validationJob": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 88,
+          "actualQueryCost": 81,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1919,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetafieldDefinitionForValidationInput($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/207074525490"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207074525490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1934,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinitionForMetafieldValidation($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17912365362"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17912365362",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1939,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinitionForMetafieldValidation($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17912398130"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17912398130",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1943,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
