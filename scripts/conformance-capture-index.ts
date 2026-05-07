@@ -4320,6 +4320,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-tag-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-tag-validation-conformance.ts',
+    purpose:
+      'DraftOrderInput tag count and per-tag length validation for draftOrderCreate, draftOrderUpdate, and draftOrderCalculate.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draftOrder-tag-validation.json`,
+      'config/parity-specs/orders/draftOrder-tag-validation.json',
+      'config/parity-requests/orders/draftOrder-tag-validation-create.graphql',
+      'config/parity-requests/orders/draftOrder-tag-validation-update.graphql',
+      'config/parity-requests/orders/draftOrder-tag-validation-calculate.graphql',
+      'config/parity-requests/orders/draftOrder-tag-validation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable draft orders for setup and normalized-count acceptance, captures rejected validation branches, and deletes created draft orders after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-safety',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-safety-conformance.ts',

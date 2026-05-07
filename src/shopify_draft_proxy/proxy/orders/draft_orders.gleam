@@ -44,6 +44,11 @@ import shopify_draft_proxy/proxy/orders/draft_order_builders.{
   build_draft_order_shipping_line, captured_attributes, discount_amount,
   total_quantity,
 }
+import shopify_draft_proxy/proxy/orders/draft_order_tags.{
+  draft_order_tags_exceed_graphql_input_limit,
+  draft_order_tags_max_input_size_error, normalize_draft_order_tags,
+  nullable_draft_order_input_tag_user_errors,
+}
 import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_draft_order_customer_from_input,
   maybe_hydrate_draft_order_variant_catalog_from_input,
@@ -107,7 +112,7 @@ pub fn handle_draft_order_create(
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
           let max_input_errors =
-            validate_draft_order_line_items_max_input_size(
+            validate_draft_order_input_max_input_size_errors(
               "draftOrderCreate",
               document,
               field,
@@ -619,6 +624,29 @@ pub fn validate_draft_order_line_items_max_input_size(
   }
 }
 
+@internal
+pub fn validate_draft_order_input_max_input_size_errors(
+  operation_name: String,
+  document: String,
+  field: Selection,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  list.append(
+    validate_draft_order_line_items_max_input_size(
+      operation_name,
+      document,
+      field,
+      input,
+    ),
+    case draft_order_input_tag_count_over_graphql_limit(input) {
+      Some(tag_count) -> [
+        draft_order_tags_max_input_size_error(operation_name, tag_count),
+      ]
+      None -> []
+    },
+  )
+}
+
 fn draft_order_line_items_input_size(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Int {
@@ -695,6 +723,7 @@ pub fn validate_draft_order_create_input(
         })
         |> list.flatten
       list.flatten([
+        validate_draft_order_input_tags(input, "draftOrderCreate"),
         validate_draft_order_create_email(input),
         validate_draft_order_create_reserve(input),
         validate_draft_order_create_payment_terms(input),
@@ -720,11 +749,41 @@ pub fn validate_draft_order_calculate_input(
         })
         |> list.flatten
       list.flatten([
+        validate_draft_order_input_tags(input, "draftOrderCalculate"),
         validate_draft_order_create_email(input),
         validate_draft_order_create_reserve(input),
         line_item_errors,
       ])
     }
+  }
+}
+
+@internal
+pub fn draft_order_input_tag_count_over_graphql_limit(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Int) {
+  case dict.has_key(input, "tags") {
+    True -> {
+      let tags = read_string_list(input, "tags")
+      case draft_order_tags_exceed_graphql_input_limit(tags) {
+        True -> Some(list.length(tags))
+        False -> None
+      }
+    }
+    False -> None
+  }
+}
+
+@internal
+pub fn validate_draft_order_input_tags(
+  input: Dict(String, root_field.ResolvedValue),
+  root_name: String,
+) -> List(#(Option(List(String)), String, Option(String))) {
+  case dict.has_key(input, "tags") {
+    True ->
+      read_string_list(input, "tags")
+      |> nullable_draft_order_input_tag_user_errors(root_name)
+    False -> []
   }
 }
 
@@ -969,7 +1028,7 @@ pub fn build_updated_draft_order(
       "tags",
       CapturedArray(
         read_string_list(input, "tags")
-        |> list.sort(by: string.compare)
+        |> normalize_draft_order_tags
         |> list.map(CapturedString),
       ),
     )
