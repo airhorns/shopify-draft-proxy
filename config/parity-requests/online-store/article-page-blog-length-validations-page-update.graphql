@@ -1,0 +1,15 @@
+mutation ArticlePageBlogLengthValidationsPageUpdate($id: ID!, $page: PageUpdateInput!) {
+  pageUpdate(id: $id, page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

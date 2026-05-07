@@ -248,6 +248,320 @@ pub fn metafield_definition_create_rejects_unknown_type_test() {
   assert string.contains(body, "totally_made_up_type is not a valid type")
 }
 
+pub fn metafield_definition_create_rejects_invalid_validation_options_test() {
+  let invalid_integer =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "bad_integer",
+        "Bad integer",
+        "number_integer",
+        ", validations: [{ name: \"min\", value: \"not-a-number\" }]",
+      ),
+    )
+  let unknown =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "unknown",
+        "Unknown",
+        "single_line_text_field",
+        ", validations: [{ name: \"totally_unknown_option\", value: \"x\" }]",
+      ),
+    )
+  let duplicate =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "duplicate",
+        "Duplicate",
+        "single_line_text_field",
+        ", validations: [{ name: \"min\", value: \"5\" }, { name: \"min\", value: \"10\" }]",
+      ),
+    )
+  let min_max =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "min_max",
+        "Min max",
+        "single_line_text_field",
+        ", validations: [{ name: \"min\", value: \"10\" }, { name: \"max\", value: \"5\" }]",
+      ),
+    )
+
+  assert invalid_integer.staged_resource_ids == []
+  assert string.contains(
+    json.to_string(invalid_integer.data),
+    "\"message\":\"Validations value for option min must be an integer.\"",
+  )
+  assert string.contains(
+    json.to_string(unknown.data),
+    "\"createdDefinition\":null",
+  )
+  assert string.contains(
+    json.to_string(unknown.data),
+    "totally_unknown_option' isn't supported for single_line_text_field",
+  )
+  assert string.contains(
+    json.to_string(duplicate.data),
+    "\"code\":\"DUPLICATE_OPTION\"",
+  )
+  assert string.contains(
+    json.to_string(min_max.data),
+    "\"message\":\"Validations contains an invalid value: 'min' must be less than 'max'.\"",
+  )
+}
+
+pub fn metafield_definition_create_rejects_required_and_typed_validations_test() {
+  let metaobject_required =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "metaobject_required",
+        "Metaobject required",
+        "metaobject_reference",
+        ", validations: []",
+      ),
+    )
+  let rating_required =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "rating_required",
+        "Rating required",
+        "rating",
+        "",
+      ),
+    )
+  let choices_shape =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "choices_shape",
+        "Choices shape",
+        "single_line_text_field",
+        ", validations: [{ name: \"choices\", value: \"{\\\"x\\\":1}\" }]",
+      ),
+    )
+  let file_type_options =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "file_type_options",
+        "File type options",
+        "file_reference",
+        ", validations: [{ name: \"file_type_options\", value: \"[\\\"bad\\\"]\" }]",
+      ),
+    )
+  let dimension_shape =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "dimension_shape",
+        "Dimension shape",
+        "dimension",
+        ", validations: [{ name: \"min\", value: \"not-json\" }]",
+      ),
+    )
+  let regex_shape =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "regex_shape",
+        "Regex shape",
+        "single_line_text_field",
+        ", validations: [{ name: \"regex\", value: \"[\" }]",
+      ),
+    )
+
+  assert string.contains(
+    json.to_string(metaobject_required.data),
+    "Validations require that you select a metaobject.",
+  )
+  assert string.contains(
+    json.to_string(rating_required.data),
+    "Validations requires 'scale_max' to be provided.",
+  )
+  assert string.contains(
+    json.to_string(rating_required.data),
+    "Validations requires 'scale_min' to be provided.",
+  )
+  assert string.contains(
+    json.to_string(choices_shape.data),
+    "Validations value for option choices must be an array.",
+  )
+  assert string.contains(
+    json.to_string(file_type_options.data),
+    "Validations must be one of the following file types",
+  )
+  assert string.contains(
+    json.to_string(dimension_shape.data),
+    "must be a stringified JSON object",
+  )
+  assert string.contains(
+    json.to_string(regex_shape.data),
+    "Validations has the following regex error",
+  )
+}
+
+pub fn metafield_definition_validation_failure_does_not_allocate_identity_test() {
+  let rejected =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "validation_rules",
+        "bad_integer",
+        "Bad integer",
+        "number_integer",
+        ", validations: [{ name: \"min\", value: \"not-a-number\" }], pin: true",
+      ),
+    )
+  let accepted =
+    run_mutation(
+      rejected.store,
+      rejected.identity,
+      create_definition_validation_query(
+        "validation_rules",
+        "accepted",
+        "Accepted",
+        "single_line_text_field",
+        "",
+      ),
+    )
+
+  assert rejected.staged_resource_ids == []
+  assert string.contains(
+    json.to_string(rejected.data),
+    "\"createdDefinition\":null",
+  )
+  assert string.contains(
+    json.to_string(accepted.data),
+    "\"createdDefinition\":{\"id\":\"gid://shopify/MetafieldDefinition/1\"}",
+  )
+}
+
+pub fn metafield_definition_update_validates_validation_options_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Validation update\",
+        namespace: \"validation_update\",
+        key: \"guard\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id validations { name value } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"validation_update\",
+        key: \"guard\",
+        ownerType: PRODUCT,
+        validations: [{ name: \"min\", value: \"10\" }, { name: \"max\", value: \"5\" }]
+      }) {
+        updatedDefinition { id validations { name value } }
+        userErrors { field message code }
+        validationJob { id }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"updatedDefinition\":null")
+  assert string.contains(
+    update_json,
+    "\"message\":\"Validations contains an invalid value: 'min' must be less than 'max'.\"",
+  )
+
+  let read =
+    "{ metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: \"validation_update\", key: \"guard\" }) { id validations { name value } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"validations\":[]")
+}
+
+pub fn metafield_definition_update_rejects_metaobject_definition_id_change_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Metaobject link\",
+        namespace: \"metaobject_link\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        type: \"metaobject_reference\",
+        validations: [{ name: \"metaobject_definition_id\", value: \"gid://shopify/MetaobjectDefinition/1\" }]
+      }) {
+        createdDefinition { id validations { name value } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"metaobject_link\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        validations: [{ name: \"metaobject_definition_id\", value: \"gid://shopify/MetaobjectDefinition/2\" }]
+      }) {
+        updatedDefinition { id validations { name value } }
+        userErrors { field message code }
+        validationJob { id }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"updatedDefinition\":null")
+  assert string.contains(
+    update_json,
+    "\"code\":\"METAOBJECT_DEFINITION_CHANGED\"",
+  )
+  assert string.contains(
+    update_json,
+    "Validations must not change the existing metaobject definition value",
+  )
+}
+
 pub fn metafield_definition_create_rejects_ineligible_unique_values_test() {
   let result =
     run_mutation(

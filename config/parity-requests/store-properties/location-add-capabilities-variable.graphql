@@ -1,0 +1,13 @@
+#graphql
+mutation LocationAddCapabilitiesVariable($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

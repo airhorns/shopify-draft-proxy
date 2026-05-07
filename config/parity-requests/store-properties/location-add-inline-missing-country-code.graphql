@@ -1,0 +1,13 @@
+#graphql
+mutation LocationAddInlineMissingCountryCode {
+  locationAdd(input: { name: "Bad", address: { address1: "1 Infinite Loop" } }) {
+    location {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

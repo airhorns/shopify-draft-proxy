@@ -1,0 +1,108 @@
+{
+  "scenarioId": "metaobjectDefinitionUpdate-field-operation-errors",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectDefinitionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinitionUpdate-field-operation-errors.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-create.graphql",
+    "variablesCapturePath": "$.setup[0].request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 evidence for metaobjectDefinitionUpdate field-operation conflicts: create against an existing key uses OBJECT_FIELD_TAKEN at the create.key path, update/delete against missing keys use UNDEFINED_OBJECT_FIELD at the operation.key path, and multi-conflict operations are emitted in input order.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-definition-create",
+        "capturePath": "$.setup[0].response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returned the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-existing-field",
+        "capturePath": "$.cases.createExisting.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.createExisting.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-missing-field",
+        "capturePath": "$.cases.updateMissing.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.updateMissing.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "delete-missing-field",
+        "capturePath": "$.cases.deleteMissing.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.deleteMissing.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "multi-conflict-field-operations",
+        "capturePath": "$.cases.multiConflict.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.multiConflict.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

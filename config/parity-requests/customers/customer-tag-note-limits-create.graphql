@@ -1,0 +1,14 @@
+mutation CustomerTagNoteLimitsCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      note
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "scenarioId": "gift-card-user-error-typename",
+  "operationNames": [
+    "giftCardCreate",
+    "giftCardCredit",
+    "giftCardDebit",
+    "giftCardDeactivate",
+    "giftCardSendNotificationToCustomer",
+    "giftCardSendNotificationToRecipient"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "schema-introspection"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-user-error-typename.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-user-error-typename.graphql",
+    "variablesCapturePath": "$.proxyVariables.userErrorTypename"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures the public gift-card mutation userErrors __typename behavior for schema-valid typed user-error payloads. GiftCardUpdatePayload.userErrors is intentionally generic UserError and the public schema does not expose code on UserError, so update is covered by schema introspection and the local runtime regression rather than this strict live request.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "giftCardCreate userErrors use GiftCardUserError",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.createError.userErrors",
+        "proxyPath": "$.data.createError.userErrors"
+      },
+      {
+        "name": "giftCardCredit userErrors use GiftCardTransactionUserError",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.creditError.userErrors",
+        "proxyPath": "$.data.creditError.userErrors"
+      },
+      {
+        "name": "giftCardDebit userErrors use GiftCardTransactionUserError",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.debitError.userErrors",
+        "proxyPath": "$.data.debitError.userErrors"
+      },
+      {
+        "name": "giftCardDeactivate userErrors use GiftCardDeactivateUserError",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.deactivateError.userErrors",
+        "proxyPath": "$.data.deactivateError.userErrors"
+      },
+      {
+        "name": "giftCardSendNotificationToCustomer userErrors use GiftCardSendNotificationToCustomerUserError",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.notificationCustomerError.userErrors",
+        "proxyPath": "$.data.notificationCustomerError.userErrors"
+      },
+      {
+        "name": "giftCardSendNotificationToRecipient userErrors use GiftCardSendNotificationToRecipientUserError",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.notificationRecipientError.userErrors",
+        "proxyPath": "$.data.notificationRecipientError.userErrors"
+      }
+    ]
+  }
+}

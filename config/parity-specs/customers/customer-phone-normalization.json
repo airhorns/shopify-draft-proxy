@@ -1,0 +1,128 @@
+{
+  "scenarioId": "customer-phone-normalization",
+  "operationNames": ["customerCreate", "customerUpdate", "customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-phone-normalization.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-phone-normalization-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.createFormatted.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL phone normalization behavior for CustomerInput and CustomerSetInput: formatted customerCreate/customerUpdate values normalize to E.164, duplicate checks compare normalized forms, invalid phones return INVALID, and >255-grapheme phone input returns Shopify's too-long validation shape. Follow-up requests reuse state staged by earlier runner requests rather than pre-seeding.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerCreate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.customerCreate.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerCreate with a deterministic local timestamp while Shopify returns the live write timestamp."
+      },
+      {
+        "path": "$.customerCreate.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerCreate with a deterministic local timestamp while Shopify returns the live write timestamp."
+      },
+      {
+        "path": "$.customerUpdate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerUpdate locally over a synthetic Customer GID while Shopify returns the live Customer GID."
+      },
+      {
+        "path": "$.customerUpdate.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy preserves a deterministic local create timestamp while Shopify returns the live create timestamp."
+      },
+      {
+        "path": "$.customerUpdate.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerUpdate with a deterministic local update timestamp while Shopify returns the live write timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-formatted-phone-normalizes",
+        "capturePath": "$.createFormatted.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "duplicate-normalized-phone",
+        "capturePath": "$.duplicateNormalized.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-phone-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.duplicateNormalized.variables"
+        }
+      },
+      {
+        "name": "update-setup",
+        "capturePath": "$.updateSetup.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-phone-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.updateSetup.variables"
+        }
+      },
+      {
+        "name": "update-formatted-phone-normalizes",
+        "capturePath": "$.updateFormatted.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-phone-normalization-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "update-setup",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "phone": {
+                "fromCapturePath": "$.updateFormatted.variables.input.phone"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "invalid-phone",
+        "capturePath": "$.invalid.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-phone-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.invalid.variables"
+        }
+      },
+      {
+        "name": "too-long-phone",
+        "capturePath": "$.tooLong.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-phone-normalization-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.tooLong.variables"
+        }
+      },
+      {
+        "name": "customer-set-invalid-phone",
+        "capturePath": "$.setInvalid.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-phone-normalization-set.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.setInvalid.variables"
+        }
+      }
+    ]
+  }
+}

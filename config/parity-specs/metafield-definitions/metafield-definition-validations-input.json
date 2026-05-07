@@ -1,0 +1,69 @@
+{
+  "scenarioId": "metafield-definition-validations-input",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-validations-input.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definitions/metafield-definition-validations-input.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-option-name",
+        "capturePath": "$.primary.response.data.unknown",
+        "proxyPath": "$.data.unknown"
+      },
+      {
+        "name": "duplicate-option-name",
+        "capturePath": "$.primary.response.data.duplicate",
+        "proxyPath": "$.data.duplicate"
+      },
+      {
+        "name": "invalid-integer-coercion",
+        "capturePath": "$.primary.response.data.badNumber",
+        "proxyPath": "$.data.badNumber"
+      },
+      {
+        "name": "min-greater-than-max",
+        "capturePath": "$.primary.response.data.minMax",
+        "proxyPath": "$.data.minMax"
+      },
+      {
+        "name": "metaobject-reference-required-option",
+        "capturePath": "$.primary.response.data.metaobjectRequired",
+        "proxyPath": "$.data.metaobjectRequired"
+      },
+      {
+        "name": "rating-required-options",
+        "capturePath": "$.primary.response.data.ratingRequired",
+        "proxyPath": "$.data.ratingRequired"
+      },
+      {
+        "name": "metaobject-reference-create",
+        "capturePath": "$.primary.response.data.createMetaobjectReference",
+        "proxyPath": "$.data.createMetaobjectReference",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "metaobject-definition-id-immutability",
+        "capturePath": "$.primary.response.data.updateMetaobjectReference",
+        "proxyPath": "$.data.updateMetaobjectReference"
+      }
+    ]
+  },
+  "notes": "Captured against Shopify Admin API validation branches for metafield definition validations[]. The scenario verifies create-time unknown/duplicate/required/coercion/min-max errors and update-time metaobject_definition_id immutability. Validation failures return null definitions and do not allocate local staged definitions."
+}

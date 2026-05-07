@@ -1,0 +1,321 @@
+{
+  "capturedAt": "2026-05-06T21:07:23.259Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and ordering.",
+  "seed": {
+    "type": "field_operation_errors_1778101642271",
+    "definitionId": "gid://shopify/MetaobjectDefinition/17908203826"
+  },
+  "setup": [
+    {
+      "name": "setup-definition-create",
+      "request": {
+        "query": "fragment MetaobjectDefinitionFieldOperationErrorFields on MetaobjectDefinition {\n  id\n  type\n  displayNameKey\n  fieldDefinitions {\n    key\n    name\n  }\n}\n\nmutation MetaobjectDefinitionFieldOperationErrorsCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectDefinitionFieldOperationErrorFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "field_operation_errors_1778101642271",
+            "name": "Field operation errors 1778101642271",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "type": "multi_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17908203826",
+              "type": "field_operation_errors_1778101642271",
+              "displayNameKey": "title",
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title"
+                },
+                {
+                  "key": "body",
+                  "name": "Body"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cases": {
+    "createExisting": {
+      "name": "create-existing-field",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "create": {
+                  "key": "title",
+                  "name": "Title again",
+                  "type": "single_line_text_field"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions", "0", "create", "key"],
+                "message": "Field definition \"title\" is already taken",
+                "code": "OBJECT_FIELD_TAKEN",
+                "elementKey": "title",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateMissing": {
+      "name": "update-missing-field",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "update": {
+                  "key": "missing_update",
+                  "name": "Missing update"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions", "0", "update", "key"],
+                "message": "Field definition \"missing_update\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": "missing_update",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteMissing": {
+      "name": "delete-missing-field",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "delete": {
+                  "key": "missing_delete"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions", "0", "delete", "key"],
+                "message": "Field definition \"missing_delete\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": "missing_delete",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multiConflict": {
+      "name": "multi-conflict-field-operations",
+      "request": {
+        "query": "mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908203826",
+          "definition": {
+            "fieldDefinitions": [
+              {
+                "update": {
+                  "key": "missing_update",
+                  "name": "Missing update"
+                }
+              },
+              {
+                "create": {
+                  "key": "title",
+                  "name": "Title again",
+                  "type": "single_line_text_field"
+                }
+              },
+              {
+                "delete": {
+                  "key": "missing_delete"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionUpdate": {
+            "metaobjectDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition", "fieldDefinitions", "0", "update", "key"],
+                "message": "Field definition \"missing_update\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": "missing_update",
+                "elementIndex": null
+              },
+              {
+                "field": ["definition", "fieldDefinitions", "1", "create", "key"],
+                "message": "Field definition \"title\" is already taken",
+                "code": "OBJECT_FIELD_TAKEN",
+                "elementKey": "title",
+                "elementIndex": null
+              },
+              {
+                "field": ["definition", "fieldDefinitions", "2", "delete", "key"],
+                "message": "Field definition \"missing_delete\" does not exist",
+                "code": "UNDEFINED_OBJECT_FIELD",
+                "elementKey": "missing_delete",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionFieldOperationErrorsDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17908203826"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17908203826",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

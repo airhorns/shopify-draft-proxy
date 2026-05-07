@@ -353,6 +353,15 @@ fn graphql_request(body: String) -> Request {
   )
 }
 
+fn graphql_request_for_version(version: String, body: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/" <> version <> "/graphql.json",
+    headers: empty_headers(),
+    body: body,
+  )
+}
+
 /// Synthetic registry that the dispatcher tests use to exercise the
 /// capability-driven path without depending on the production registry.
 fn capability_test_registry() -> List(operation_registry.RegistryEntry) {
@@ -548,6 +557,45 @@ pub fn graphql_order_edit_add_custom_item_inline_price_requires_currency_code_te
   assert status == 200
   assert json.to_string(body)
     == "{\"errors\":[{\"message\":\"Argument 'currencyCode' on InputObject 'MoneyInput' is required. Expected type CurrencyCode!\",\"locations\":[{\"line\":1,\"column\":121}],\"path\":[\"mutation\",\"orderEditAddCustomItem\",\"price\",\"currencyCode\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"currencyCode\",\"argumentType\":\"CurrencyCode!\",\"inputObjectType\":\"MoneyInput\"}}]}"
+}
+
+pub fn graphql_marketing_engagement_create_inline_input_requires_captured_fields_test() {
+  let proxy = draft_proxy.new()
+  let sparse_request =
+    graphql_request_for_version(
+      "2026-04",
+      "{\"query\":\"mutation { marketingEngagementCreate(remoteId: \\\"remote-1\\\", marketingEngagement: { occurredOn: \\\"2026-04-02\\\", impressionsCount: 7 }) { marketingEngagement { occurredOn utcOffset isCumulative } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: sparse_status, body: sparse_body, ..), _) =
+    draft_proxy.process_request(proxy, sparse_request)
+  let sparse_json = json.to_string(sparse_body)
+  assert sparse_status == 200
+  assert string.contains(
+    sparse_json,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert string.contains(sparse_json, "\"argumentName\":\"isCumulative\"")
+  assert string.contains(sparse_json, "\"argumentType\":\"Boolean!\"")
+  assert string.contains(sparse_json, "\"argumentName\":\"utcOffset\"")
+  assert string.contains(sparse_json, "\"argumentType\":\"UtcOffset!\"")
+  assert !string.contains(sparse_json, "\"data\"")
+
+  let missing_occurred_on_request =
+    graphql_request_for_version(
+      "2026-04",
+      "{\"query\":\"mutation { marketingEngagementCreate(remoteId: \\\"remote-1\\\", marketingEngagement: { utcOffset: \\\"+00:00\\\", isCumulative: false, impressionsCount: 1 }) { marketingEngagement { occurredOn utcOffset isCumulative impressionsCount } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    draft_proxy.process_request(proxy, missing_occurred_on_request)
+  let missing_json = json.to_string(missing_body)
+  assert missing_status == 200
+  assert string.contains(
+    missing_json,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert string.contains(missing_json, "\"argumentName\":\"occurredOn\"")
+  assert string.contains(missing_json, "\"argumentType\":\"Date!\"")
+  assert !string.contains(missing_json, "\"data\"")
 }
 
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
@@ -1445,6 +1493,25 @@ pub fn graphql_carrier_service_create_unparseable_callback_url_invalid_variable_
   assert string.contains(
     response_json,
     "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Invalid url 'not-a-url', missing scheme\",\"message\":\"Invalid url 'not-a-url', missing scheme\"}]",
+  )
+}
+
+pub fn graphql_url_variable_hostless_scheme_reports_missing_host_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Hermes Javascript Callback\",\"callbackUrl\":\"javascript:alert(1)\",\"supportsServiceDiscovery\":false,\"active\":false}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let response_json = json.to_string(response_body)
+  assert string.contains(
+    response_json,
+    "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Invalid url 'javascript:alert(1)', missing host)",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    response_json,
+    "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Invalid url 'javascript:alert(1)', missing host\",\"message\":\"Invalid url 'javascript:alert(1)', missing host\"}]",
   )
 }
 

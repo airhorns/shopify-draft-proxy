@@ -1,0 +1,24 @@
+#graphql
+query BulkOperationsSortKeyCapture($sortKey: BulkOperationsSortKeys!, $reverse: Boolean!) {
+  bulkOperations(first: 50, sortKey: $sortKey, reverse: $reverse) {
+    nodes {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

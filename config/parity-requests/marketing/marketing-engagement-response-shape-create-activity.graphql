@@ -1,0 +1,12 @@
+mutation MarketingEngagementResponseShapeCreateActivity($input: MarketingActivityCreateExternalInput!) {
+  marketingActivityCreateExternal(input: $input) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -6,6 +6,7 @@
 import gleam/dict.{type Dict}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -38,7 +39,8 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/sources.{
   delivery_profile_update_not_found, find_active_store_property_location,
   flat_rate_shipping_package_not_updatable,
   fulfillment_service_destination_location_should_not_be_present,
-  fulfillment_service_location_record, fulfillment_service_not_found,
+  fulfillment_service_location_record, fulfillment_service_name_taken_error,
+  fulfillment_service_not_found,
   invalid_fulfillment_service_destination_location,
   invalid_shipping_package_result, is_active_location,
   is_flat_rate_shipping_package, is_fulfillment_service_location,
@@ -607,14 +609,18 @@ pub fn handle_fulfillment_service_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
   let name = read_trimmed_string(args, "name")
   let callback_url = read_fulfillment_service_callback_url(args)
   let user_errors =
     list.append(
-      validate_fulfillment_service_name(name),
-      validate_fulfillment_service_callback_url(callback_url),
+      list.append(
+        validate_fulfillment_service_name(name),
+        validate_fulfillment_service_callback_url(callback_url, upstream_origin),
+      ),
+      validate_fulfillment_service_uniqueness(draft_store, name, None),
     )
   case user_errors, name {
     [], Some(valid_name) -> {
@@ -692,6 +698,7 @@ pub fn handle_fulfillment_service_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
   case read_string(args, "id") {
@@ -705,6 +712,7 @@ pub fn handle_fulfillment_service_update(
             fragments,
             args,
             existing,
+            upstream_origin,
           )
         None ->
           fulfillment_service_validation_result(
@@ -736,6 +744,7 @@ pub fn update_existing_fulfillment_service(
   fragments: FragmentMap,
   args: Dict(String, root_field.ResolvedValue),
   existing: FulfillmentServiceRecord,
+  upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let next_name = case read_trimmed_string(args, "name") {
     Some(value) -> Some(value)
@@ -747,8 +756,15 @@ pub fn update_existing_fulfillment_service(
   }
   let user_errors =
     list.append(
-      validate_fulfillment_service_name(next_name),
-      validate_fulfillment_service_callback_url(callback_url),
+      list.append(
+        validate_fulfillment_service_name(next_name),
+        validate_fulfillment_service_callback_url(callback_url, upstream_origin),
+      ),
+      validate_fulfillment_service_uniqueness(
+        draft_store,
+        next_name,
+        Some(existing.id),
+      ),
     )
   case user_errors, next_name {
     [], Some(valid_name) -> {
@@ -806,6 +822,52 @@ pub fn update_existing_fulfillment_service(
         user_errors,
       )
   }
+}
+
+fn validate_fulfillment_service_uniqueness(
+  draft_store: Store,
+  name: Option(String),
+  exclude_id: Option(String),
+) -> List(shipping_types.FulfillmentServiceUserError) {
+  case name {
+    Some(value) -> {
+      let trimmed = string.trim(value)
+      case trimmed {
+        "" -> []
+        _ -> {
+          let wanted_name = string.lowercase(trimmed)
+          let wanted_handle =
+            normalize_fulfillment_service_handle(trimmed)
+            |> string.lowercase
+          case
+            store.list_effective_fulfillment_services(draft_store)
+            |> list.any(fn(service) {
+              case exclude_id {
+                Some(id) ->
+                  case same_fulfillment_service_id(service.id, id) {
+                    True -> False
+                    False ->
+                      string.lowercase(service.service_name) == wanted_name
+                      || string.lowercase(service.handle) == wanted_handle
+                  }
+                _ ->
+                  string.lowercase(service.service_name) == wanted_name
+                  || string.lowercase(service.handle) == wanted_handle
+              }
+            })
+          {
+            True -> [fulfillment_service_name_taken_error()]
+            False -> []
+          }
+        }
+      }
+    }
+    None -> []
+  }
+}
+
+fn same_fulfillment_service_id(left: String, right: String) -> Bool {
+  strip_query_from_gid(left) == strip_query_from_gid(right)
 }
 
 @internal

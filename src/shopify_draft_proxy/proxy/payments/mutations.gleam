@@ -47,8 +47,6 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types as state_types
 
-const max_active_payment_customizations = 5
-
 @internal
 pub fn process_mutation(
   store: Store,
@@ -470,14 +468,6 @@ fn function_id_cannot_be_changed_error() -> UserError {
   )
 }
 
-fn maximum_active_payment_customizations_error() -> UserError {
-  payment_customization_error(
-    ["paymentCustomization", "enabled"],
-    "Maximum active payment customizations reached.",
-    "MAXIMUM_ACTIVE_PAYMENT_CUSTOMIZATIONS",
-  )
-}
-
 fn invalid_metafield_error(index: Int, field_name: String) -> UserError {
   payment_customization_error(
     ["paymentCustomization", "metafields", int.to_string(index), field_name],
@@ -513,26 +503,22 @@ fn customization_activation_not_found_error(ids: List(String)) -> UserError {
 }
 
 fn validate_create_input(
-  store: Store,
+  _store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
-  let errors =
+  list.append(
     list.append(
       required_create_input_errors(input),
       validate_create_function_identifier(input),
-    )
-    |> list.append(validate_payment_customization_metafield_input(input))
-
-  case errors {
-    [_, ..] -> errors
-    [] -> validate_active_payment_customization_limit(store, input)
-  }
+    ),
+    validate_payment_customization_metafield_input(input),
+  )
 }
 
 fn required_create_input_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
-  ["title", "enabled", "metafields"]
+  ["title", "enabled"]
   |> list.filter_map(fn(field_name) {
     case has_key(input, field_name) {
       True -> Error(Nil)
@@ -557,29 +543,6 @@ fn validate_create_function_identifier(
       }
     None, Some(_) -> []
   }
-}
-
-fn validate_active_payment_customization_limit(
-  store: Store,
-  input: Dict(String, root_field.ResolvedValue),
-) -> List(UserError) {
-  case read_bool_field(input, "enabled") {
-    Some(True) ->
-      case
-        active_payment_customization_count(store)
-        >= max_active_payment_customizations
-      {
-        True -> [maximum_active_payment_customizations_error()]
-        False -> []
-      }
-    _ -> []
-  }
-}
-
-fn active_payment_customization_count(store: Store) -> Int {
-  store.list_effective_payment_customizations(store)
-  |> list.filter(fn(record) { record.enabled == Some(True) })
-  |> list.length
 }
 
 fn validate_update_input(

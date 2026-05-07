@@ -1,15 +1,18 @@
 //// Mutation handling for the metafield definitions domain.
 
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/regexp
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/app_identity
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{get_field_response_key}
 import shopify_draft_proxy/proxy/metafield_definitions/serializers
 import shopify_draft_proxy/proxy/metafield_definitions/standard_templates_data
@@ -1213,7 +1216,11 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
     definition_types.read_optional_string(input, "type")
     |> option.unwrap("single_line_text_field")
   let input_errors = definition_types.validate_definition_input(input, True)
-  let capability_errors = case input_errors {
+  let validation_errors = case input_errors {
+    [] -> validate_definition_validation_records(input, type_name)
+    [_, ..] -> []
+  }
+  let capability_errors = case list.append(input_errors, validation_errors) {
     [] ->
       validate_capability_inputs(
         store_in,
@@ -1225,7 +1232,10 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
       )
     [_, ..] -> []
   }
-  let errors = list.append(input_errors, capability_errors)
+  let errors =
+    input_errors
+    |> list.append(validation_errors)
+    |> list.append(capability_errors)
   case errors {
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
@@ -1520,7 +1530,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
                   [],
                 )
                 False ->
-                  update_definition_success_after_capability_validation(
+                  update_definition_success_after_validation(
                     store_in,
                     identity,
                     field,
@@ -1530,7 +1540,7 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
                   )
               }
             _ -> {
-              update_definition_success_after_capability_validation(
+              update_definition_success_after_validation(
                 store_in,
                 identity,
                 field,
@@ -1543,6 +1553,51 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
         }
       }
     }
+  }
+}
+
+fn update_definition_success_after_validation(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let validation_errors = case
+    definition_types.has_field(input, "validations")
+  {
+    True ->
+      validate_definition_validation_records(input, definition.type_.name)
+      |> list.append(validate_metaobject_definition_id_immutability(
+        input,
+        definition,
+      ))
+    False -> []
+  }
+  case validation_errors {
+    [_, ..] -> #(
+      serializers.serialize_definition_mutation_payload(
+        store_in,
+        "updatedDefinition",
+        None,
+        validation_errors,
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    [] ->
+      update_definition_success_after_capability_validation(
+        store_in,
+        identity,
+        field,
+        variables,
+        input,
+        definition,
+      )
   }
 }
 
@@ -1591,6 +1646,629 @@ fn update_definition_success_after_capability_validation(
         input,
         definition,
       )
+  }
+}
+
+fn validations_user_error(
+  message: String,
+  code: String,
+) -> definition_types.UserError {
+  definition_types.UserError(
+    field: Some(["definition", "validations"]),
+    message: message,
+    code: code,
+  )
+}
+
+fn validate_definition_validation_records(
+  input: Dict(String, root_field.ResolvedValue),
+  type_name: String,
+) -> List(definition_types.UserError) {
+  case read_validation_input_objects(input) {
+    Error(errors) -> errors
+    Ok(records) -> {
+      case duplicate_validation_name(records) {
+        Some(_) -> [
+          validations_user_error(
+            "Validations cannot contain duplicate \"name\" options.",
+            "DUPLICATE_OPTION",
+          ),
+        ]
+        None ->
+          records
+          |> list.index_map(fn(record, index) {
+            validate_validation_record(index, record, type_name)
+          })
+          |> list.flatten
+          |> list.append(validate_required_validation_options(
+            records,
+            type_name,
+          ))
+          |> list.append(validate_min_max_validation_options(records, type_name))
+      }
+    }
+  }
+}
+
+fn read_validation_input_objects(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Result(
+  List(Dict(String, root_field.ResolvedValue)),
+  List(definition_types.UserError),
+) {
+  case dict.get(input, "validations") {
+    Error(_) -> Ok([])
+    Ok(root_field.ListVal(values)) -> {
+      let errors =
+        list.filter_map(values, fn(value) {
+          case value {
+            root_field.ObjectVal(record) ->
+              case valid_validation_record_shape(record) {
+                True -> Error(Nil)
+                False ->
+                  Ok(validations_user_error(
+                    "Validations must be an array of objects with exactly name and value fields.",
+                    "INVALID",
+                  ))
+              }
+            _ ->
+              Ok(validations_user_error(
+                "Validations must be an array of objects with exactly name and value fields.",
+                "INVALID",
+              ))
+          }
+        })
+      case errors {
+        [_, ..] -> Error(errors)
+        [] ->
+          Ok(
+            list.filter_map(values, fn(value) {
+              case value {
+                root_field.ObjectVal(record) -> Ok(record)
+                _ -> Error(Nil)
+              }
+            }),
+          )
+      }
+    }
+    _ ->
+      Error([
+        validations_user_error(
+          "Validations must be an array of objects with exactly name and value fields.",
+          "INVALID",
+        ),
+      ])
+  }
+}
+
+fn valid_validation_record_shape(
+  record: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.size(record) == 2
+  && definition_types.has_field(record, "name")
+  && definition_types.has_field(record, "value")
+}
+
+fn duplicate_validation_name(
+  records: List(Dict(String, root_field.ResolvedValue)),
+) -> Option(String) {
+  duplicate_validation_name_loop(records, [])
+}
+
+fn duplicate_validation_name_loop(
+  records: List(Dict(String, root_field.ResolvedValue)),
+  seen: List(String),
+) -> Option(String) {
+  case records {
+    [] -> None
+    [record, ..rest] -> {
+      let name = definition_types.read_optional_string(record, "name")
+      case name {
+        Some(name) ->
+          case list.contains(seen, name) {
+            True -> Some(name)
+            False -> duplicate_validation_name_loop(rest, [name, ..seen])
+          }
+        None -> duplicate_validation_name_loop(rest, seen)
+      }
+    }
+  }
+}
+
+fn validate_validation_record(
+  index: Int,
+  record: Dict(String, root_field.ResolvedValue),
+  type_name: String,
+) -> List(definition_types.UserError) {
+  case definition_types.read_optional_string(record, "name") {
+    None -> [
+      validations_user_error(
+        "Validations must be an array of objects with exactly name and value fields.",
+        "INVALID",
+      ),
+    ]
+    Some(name) -> {
+      case string.trim(name) {
+        "" -> [
+          validations_user_error("Validations name is required.", "INVALID"),
+        ]
+        _ ->
+          case list.contains(allowed_validation_option_names(type_name), name) {
+            False -> [
+              validations_user_error(
+                "Validations value for option "
+                  <> name
+                  <> " contains an invalid value: '"
+                  <> name
+                  <> "' isn't supported for "
+                  <> type_name
+                  <> ".",
+                "INVALID_OPTION",
+              ),
+            ]
+            True -> validate_validation_value(index, record, type_name, name)
+          }
+      }
+    }
+  }
+}
+
+fn allowed_validation_option_names(type_name: String) -> List(String) {
+  let base = scalar_definition_type_name(type_name)
+  case base {
+    "single_line_text_field" | "multi_line_text_field" -> [
+      "min", "max", "regex", "choices",
+    ]
+    "number_integer" -> ["min", "max"]
+    "number_decimal" -> ["min", "max"]
+    "rating" -> ["scale_min", "scale_max"]
+    "metaobject_reference" -> ["metaobject_definition_id"]
+    "file_reference" -> ["file_type_options"]
+    "json" | "rich_text_field" -> ["schema"]
+    "dimension" | "volume" | "weight" | "money" -> ["min", "max"]
+    _ -> []
+  }
+}
+
+fn scalar_definition_type_name(type_name: String) -> String {
+  case string.starts_with(type_name, "list.") {
+    True -> string.drop_start(type_name, 5)
+    False -> type_name
+  }
+}
+
+fn validate_validation_value(
+  _index: Int,
+  record: Dict(String, root_field.ResolvedValue),
+  type_name: String,
+  name: String,
+) -> List(definition_types.UserError) {
+  case definition_types.read_optional_string(record, "value") {
+    None -> [
+      validations_user_error(
+        "Validations value for option " <> name <> " is required.",
+        "INVALID_OPTION",
+      ),
+    ]
+    Some(value) -> validate_validation_string_value(type_name, name, value)
+  }
+}
+
+fn validate_validation_string_value(
+  type_name: String,
+  name: String,
+  value: String,
+) -> List(definition_types.UserError) {
+  let base = scalar_definition_type_name(type_name)
+  case name {
+    "min" | "max" -> validate_min_max_value_for_type(base, name, value)
+    "scale_min" | "scale_max" -> validate_decimal_validation_option(name, value)
+    "regex" -> validate_regex_validation_option(value)
+    "choices" -> validate_choices_validation_option(value)
+    "file_type_options" -> validate_file_type_options_validation_option(value)
+    "schema" -> validate_json_validation_option(name, value)
+    "metaobject_definition_id" ->
+      validate_metaobject_definition_id_option(value)
+    _ -> []
+  }
+}
+
+fn validate_min_max_value_for_type(
+  type_name: String,
+  name: String,
+  value: String,
+) -> List(definition_types.UserError) {
+  case type_name {
+    "number_integer" ->
+      case int.parse(value) {
+        Ok(_) -> []
+        Error(_) -> [
+          validations_user_error(
+            "Validations value for option " <> name <> " must be an integer.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+    "number_decimal" -> validate_decimal_validation_option(name, value)
+    "single_line_text_field" | "multi_line_text_field" ->
+      validate_positive_int_validation_option(name, value)
+    "dimension" | "volume" | "weight" ->
+      case definition_types.valid_value_unit_json_object(value) {
+        True -> []
+        False -> [
+          validations_user_error(
+            "Validations value for option "
+              <> name
+              <> " must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+    "money" ->
+      case definition_types.valid_money_json_object(value) {
+        True -> []
+        False -> [
+          validations_user_error(
+            "Validations value for option "
+              <> name
+              <> " must be a stringified JSON object with a value (numeric) and unit (string from one the supported measurement units) fields.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+    _ -> []
+  }
+}
+
+fn validate_positive_int_validation_option(
+  name: String,
+  value: String,
+) -> List(definition_types.UserError) {
+  case int.parse(value) {
+    Ok(parsed) ->
+      case parsed < 0 {
+        True -> [
+          validations_user_error(
+            "Validations contains an invalid value: '"
+              <> name
+              <> "' must be positive.",
+            "INVALID_OPTION",
+          ),
+        ]
+        False -> []
+      }
+    Error(_) -> [
+      validations_user_error(
+        "Validations value for option " <> name <> " must be an integer.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_decimal_validation_option(
+  name: String,
+  value: String,
+) -> List(definition_types.UserError) {
+  case parse_validation_float(value) {
+    Some(_) -> []
+    None -> [
+      validations_user_error(
+        "Validations value for option " <> name <> " must be a number.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_regex_validation_option(
+  value: String,
+) -> List(definition_types.UserError) {
+  case regexp.from_string(value) {
+    Ok(_) -> []
+    Error(_) -> [
+      validations_user_error(
+        "Validations has the following regex error: invalid regular expression.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_choices_validation_option(
+  value: String,
+) -> List(definition_types.UserError) {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(commit.JsonArray(items)) ->
+      case list.length(items) > 128 {
+        True -> [
+          validations_user_error(
+            "Validations choices cannot contain more than 128 values.",
+            "INVALID_OPTION",
+          ),
+        ]
+        False -> {
+          case
+            list.all(items, fn(item) {
+              case item {
+                commit.JsonString(_) -> True
+                _ -> False
+              }
+            })
+          {
+            True -> []
+            False -> [
+              validations_user_error(
+                "Validations value for option choices must be an array of strings.",
+                "INVALID_OPTION",
+              ),
+            ]
+          }
+        }
+      }
+    Ok(_) -> [
+      validations_user_error(
+        "Validations value for option choices must be an array.",
+        "INVALID_OPTION",
+      ),
+    ]
+    Error(_) -> [
+      validations_user_error(
+        "Validations value for option choices is invalid JSON.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_file_type_options_validation_option(
+  value: String,
+) -> List(definition_types.UserError) {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(commit.JsonArray(items)) -> {
+      let allowed = [
+        "Image", "GenericFile", "Video", "Model3dEnvironmentImage", "Model3d",
+      ]
+      case
+        list.all(items, fn(item) {
+          case item {
+            commit.JsonString(file_type) -> list.contains(allowed, file_type)
+            _ -> False
+          }
+        })
+      {
+        True -> []
+        False -> [
+          validations_user_error(
+            "Validations must be one of the following file types: Image, GenericFile, Video, Model3dEnvironmentImage, Model3d.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+    }
+    Ok(_) -> [
+      validations_user_error(
+        "Validations value for option file_type_options must be an array.",
+        "INVALID_OPTION",
+      ),
+    ]
+    Error(_) -> [
+      validations_user_error(
+        "Validations value for option file_type_options is invalid JSON.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_json_validation_option(
+  name: String,
+  value: String,
+) -> List(definition_types.UserError) {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(_) -> []
+    Error(_) -> [
+      validations_user_error(
+        "Validations value for option " <> name <> " is invalid JSON.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_metaobject_definition_id_option(
+  value: String,
+) -> List(definition_types.UserError) {
+  case string.starts_with(value, "gid://shopify/MetaobjectDefinition/") {
+    True -> []
+    False -> [
+      validations_user_error(
+        "Validations must be a valid metaobject definition belonging to your shop.",
+        "INVALID_OPTION",
+      ),
+    ]
+  }
+}
+
+fn validate_required_validation_options(
+  records: List(Dict(String, root_field.ResolvedValue)),
+  type_name: String,
+) -> List(definition_types.UserError) {
+  let names = validation_option_names(records)
+  let base = scalar_definition_type_name(type_name)
+  case base {
+    "metaobject_reference" ->
+      case list.contains(names, "metaobject_definition_id") {
+        True -> []
+        False -> [
+          validations_user_error(
+            "Validations require that you select a metaobject.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+    "rating" -> {
+      let max_error = case list.contains(names, "scale_max") {
+        True -> []
+        False -> [
+          validations_user_error(
+            "Validations requires 'scale_max' to be provided.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+      let min_error = case list.contains(names, "scale_min") {
+        True -> []
+        False -> [
+          validations_user_error(
+            "Validations requires 'scale_min' to be provided.",
+            "INVALID_OPTION",
+          ),
+        ]
+      }
+      list.append(max_error, min_error)
+    }
+    _ -> []
+  }
+}
+
+fn validation_option_names(
+  records: List(Dict(String, root_field.ResolvedValue)),
+) -> List(String) {
+  list.filter_map(records, fn(record) {
+    case definition_types.read_optional_string(record, "name") {
+      Some(name) -> Ok(name)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn validate_min_max_validation_options(
+  records: List(Dict(String, root_field.ResolvedValue)),
+  type_name: String,
+) -> List(definition_types.UserError) {
+  let base = scalar_definition_type_name(type_name)
+  case min_max_values(records, base) {
+    Some(#(min, max)) ->
+      case min >. max {
+        True -> [
+          validations_user_error(
+            "Validations contains an invalid value: 'min' must be less than 'max'.",
+            "INVALID_OPTION",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn min_max_values(
+  records: List(Dict(String, root_field.ResolvedValue)),
+  type_name: String,
+) -> Option(#(Float, Float)) {
+  case
+    validation_record_value(records, "min"),
+    validation_record_value(records, "max")
+  {
+    Some(min_raw), Some(max_raw) -> {
+      case
+        parse_min_max_float(type_name, min_raw),
+        parse_min_max_float(type_name, max_raw)
+      {
+        Some(min), Some(max) -> Some(#(min, max))
+        _, _ -> None
+      }
+    }
+    _, _ -> None
+  }
+}
+
+fn validation_record_value(
+  records: List(Dict(String, root_field.ResolvedValue)),
+  name: String,
+) -> Option(String) {
+  case records {
+    [] -> None
+    [record, ..rest] -> {
+      case definition_types.read_optional_string(record, "name") {
+        Some(record_name) if record_name == name ->
+          definition_types.read_optional_string(record, "value")
+        _ -> validation_record_value(rest, name)
+      }
+    }
+  }
+}
+
+fn parse_min_max_float(type_name: String, value: String) -> Option(Float) {
+  case type_name {
+    "dimension" | "volume" | "weight" | "money" ->
+      parse_json_measurement_float(value)
+    _ -> parse_validation_float(value)
+  }
+}
+
+fn parse_json_measurement_float(value: String) -> Option(Float) {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(commit.JsonObject(fields)) ->
+      case definition_types.json_number_string_field(fields, "value") {
+        Some(number) -> parse_validation_float(number)
+        None ->
+          case definition_types.json_number_string_field(fields, "amount") {
+            Some(number) -> parse_validation_float(number)
+            None -> None
+          }
+      }
+    _ -> None
+  }
+}
+
+fn parse_validation_float(value: String) -> Option(Float) {
+  case float.parse(value) {
+    Ok(value) -> Some(value)
+    Error(_) ->
+      case int.parse(value) {
+        Ok(value) -> Some(int.to_float(value))
+        Error(_) -> None
+      }
+  }
+}
+
+fn validate_metaobject_definition_id_immutability(
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> List(definition_types.UserError) {
+  let base = scalar_definition_type_name(definition.type_.name)
+  case base {
+    "metaobject_reference" -> {
+      let current =
+        definition.validations
+        |> list.find(fn(validation) {
+          validation.name == "metaobject_definition_id"
+        })
+        |> option.from_result
+        |> option.map(fn(validation) { validation.value })
+        |> option.flatten
+      let requested =
+        read_validation_records(input)
+        |> list.find(fn(validation) {
+          validation.name == "metaobject_definition_id"
+        })
+        |> option.from_result
+        |> option.map(fn(validation) { validation.value })
+        |> option.flatten
+      case current, requested {
+        Some(current), Some(requested) if current != requested -> [
+          definition_types.UserError(
+            field: Some(["definition", "validations"]),
+            message: "Validations must not change the existing metaobject definition value",
+            code: "METAOBJECT_DEFINITION_CHANGED",
+          ),
+        ]
+        _, _ -> []
+      }
+    }
+    _ -> []
   }
 }
 

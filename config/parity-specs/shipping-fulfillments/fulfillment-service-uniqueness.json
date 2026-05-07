@@ -1,0 +1,162 @@
+{
+  "scenarioId": "fulfillment-service-uniqueness",
+  "operationNames": ["fulfillmentServiceCreate", "fulfillmentServiceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-uniqueness.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "variablesCapturePath": "$.createA.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that fulfillmentServiceCreate rejects duplicate names case-insensitively, rejects generated-handle collisions by returning the same name userError, and fulfillmentServiceUpdate rejects renaming to another active service's name. The public Admin API exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field in this capture; focused runtime tests cover null code projection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-create-a-payload",
+        "capturePath": "$.createA.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "same-name-duplicate-create",
+        "capturePath": "$.sameNameDuplicateCreate.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.sameNameDuplicateCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "case-variant-duplicate-create",
+        "capturePath": "$.caseVariantDuplicateCreate.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.caseVariantDuplicateCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "setup-spaced-name-create-payload",
+        "capturePath": "$.createSpaced.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.createSpaced.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "handle-collision-duplicate-create",
+        "capturePath": "$.handleCollisionDuplicateCreate.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.handleCollisionDuplicateCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "setup-update-source-create-payload",
+        "capturePath": "$.createUpdateSource.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.createUpdateSource.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "setup-update-target-create-payload",
+        "capturePath": "$.createUpdateTarget.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.createUpdateTarget.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "update-to-existing-name",
+        "capturePath": "$.updateToExistingName.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-update-target-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "name": {
+              "fromCapturePath": "$.updateToExistingName.variables.name"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

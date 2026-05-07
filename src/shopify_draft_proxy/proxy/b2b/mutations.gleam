@@ -48,6 +48,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 
+import shopify_draft_proxy/proxy/phone_numbers
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -302,7 +303,23 @@ pub fn prepare_contact_create_input(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
-  prepare_contact_input(store, ensure_contact_locale(store, input), None, True)
+  prepare_contact_create_input_with_prefix(store, input, ["input"])
+}
+
+@internal
+pub fn prepare_contact_create_input_with_prefix(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  prepare_contact_input(
+    store,
+    ensure_contact_locale(store, input),
+    None,
+    True,
+    prefix,
+    "Email is invalid",
+  )
 }
 
 @internal
@@ -311,7 +328,14 @@ pub fn prepare_contact_update_input(
   input: Dict(String, root_field.ResolvedValue),
   contact_id: String,
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
-  prepare_contact_input(store, input, Some(contact_id), False)
+  prepare_contact_input(
+    store,
+    input,
+    Some(contact_id),
+    False,
+    ["input"],
+    "Email address is invalid",
+  )
 }
 
 @internal
@@ -320,6 +344,8 @@ pub fn prepare_contact_input(
   input: Dict(String, root_field.ResolvedValue),
   exclude_contact_id: Option(String),
   default_locale: Bool,
+  prefix: List(String),
+  email_error_message: String,
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   let input = case default_locale {
     True -> ensure_contact_locale(store, input)
@@ -330,6 +356,11 @@ pub fn prepare_contact_input(
   let errors =
     []
     |> list.append(phone_errors)
+    |> list.append(validate_contact_email_input(
+      input,
+      prefix,
+      email_error_message,
+    ))
     |> list.append(validate_contact_locale_input(input))
     |> list.append(validate_contact_notes_input(input))
     |> list.append(validate_contact_duplicate_email(
@@ -343,6 +374,28 @@ pub fn prepare_contact_input(
       exclude_contact_id,
     ))
   #(input, errors)
+}
+
+@internal
+pub fn validate_contact_email_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  message: String,
+) -> List(b2b_types.UserError) {
+  case read_string(input, "email") {
+    Some(email) ->
+      case valid_email_address(email) {
+        True -> []
+        False -> [
+          user_error(
+            Some(field_path(prefix, "email")),
+            message,
+            user_error_code.invalid,
+          ),
+        ]
+      }
+    None -> []
+  }
 }
 
 @internal
@@ -603,89 +656,7 @@ pub fn contact_phone_exists(
 
 @internal
 pub fn normalize_phone(store: Store, phone: String) -> Result(String, Nil) {
-  let trimmed = string.trim(phone)
-  let digits = digits_only(trimmed)
-  case string.starts_with(trimmed, "+") {
-    True -> validate_e164_digits(digits)
-    False -> {
-      let calling_code = country_calling_code(shop_country_code(store))
-      let local_digits = case
-        string.starts_with(digits, calling_code) && string.length(digits) > 10
-      {
-        True -> digits
-        False -> calling_code <> digits
-      }
-      validate_e164_digits(local_digits)
-    }
-  }
-}
-
-@internal
-pub fn validate_e164_digits(digits: String) -> Result(String, Nil) {
-  let length = string.length(digits)
-  case length >= 8 && length <= 15 && all_digits(digits) {
-    True -> Ok("+" <> digits)
-    False -> Error(Nil)
-  }
-}
-
-@internal
-pub fn shop_country_code(store: Store) -> String {
-  case store.get_effective_shop(store) {
-    Some(shop) ->
-      shop.shop_address.country_code_v2
-      |> option.map(string.uppercase)
-      |> option.unwrap("US")
-    None -> "US"
-  }
-}
-
-@internal
-pub fn country_calling_code(country_code: String) -> String {
-  case country_code {
-    "US" | "CA" -> "1"
-    "GB" | "GG" | "IM" | "JE" -> "44"
-    "AU" -> "61"
-    "NZ" -> "64"
-    "FR" -> "33"
-    "DE" -> "49"
-    "ES" -> "34"
-    "IT" -> "39"
-    "NL" -> "31"
-    "BE" -> "32"
-    "CH" -> "41"
-    "AT" -> "43"
-    "DK" -> "45"
-    "FI" -> "358"
-    "IE" -> "353"
-    "NO" -> "47"
-    "SE" -> "46"
-    "BR" -> "55"
-    "MX" -> "52"
-    "JP" -> "81"
-    "SG" -> "65"
-    _ -> "1"
-  }
-}
-
-@internal
-pub fn digits_only(value: String) -> String {
-  case string.pop_grapheme(value) {
-    Error(_) -> ""
-    Ok(#(grapheme, rest)) ->
-      case is_digit_string(grapheme) {
-        True -> grapheme <> digits_only(rest)
-        False -> digits_only(rest)
-      }
-  }
-}
-
-@internal
-pub fn all_digits(value: String) -> Bool {
-  case string.pop_grapheme(value) {
-    Error(_) -> True
-    Ok(#(grapheme, rest)) -> is_digit_string(grapheme) && all_digits(rest)
-  }
+  phone_numbers.normalize_for_store(store, phone)
 }
 
 @internal
@@ -741,6 +712,38 @@ pub fn is_alpha(grapheme: String) -> Bool {
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
     grapheme,
   )
+}
+
+@internal
+pub fn valid_email_address(email: String) -> Bool {
+  let trimmed = string.trim(email)
+  trimmed == email
+  && !contains_email_whitespace(email)
+  && case string.split(email, on: "@") {
+    [local, domain] ->
+      local != ""
+      && domain != ""
+      && string.contains(domain, ".")
+      && !string.starts_with(domain, ".")
+      && !string.ends_with(domain, ".")
+      && !string.contains(domain, "..")
+    _ -> False
+  }
+}
+
+@internal
+pub fn contains_email_whitespace(email: String) -> Bool {
+  email
+  |> string.to_utf_codepoints
+  |> list.any(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    code == 0x09
+    || code == 0x0a
+    || code == 0x0b
+    || code == 0x0c
+    || code == 0x0d
+    || code == 0x20
+  })
 }
 
 @internal
@@ -1025,7 +1028,10 @@ pub fn handle_company_create(
   {
     Ok(root_field.ObjectVal(raw_contact_input)) -> {
       let #(prepared, prepare_errors) =
-        prepare_contact_create_input(store, raw_contact_input)
+        prepare_contact_create_input_with_prefix(store, raw_contact_input, [
+          "input",
+          "companyContact",
+        ])
       let #(validated, validation_errors) =
         validate_contact_input(prepared, ["input", "companyContact"])
       #(Some(validated), list.append(prepare_errors, validation_errors))
@@ -1272,15 +1278,43 @@ pub fn not_found_result(
         company: None,
       )
     "companyContact" ->
-      b2b_types.Payload(
-        ..empty_payload([resource_not_found(field_path)]),
-        company_contact: None,
-      )
+      case field_path {
+        ["companyContactId"] ->
+          b2b_types.Payload(
+            ..empty_payload([
+              user_error(
+                Some(field_path),
+                "The company contact doesn't exist.",
+                user_error_code.resource_not_found,
+              ),
+            ]),
+            company_contact: None,
+          )
+        _ ->
+          b2b_types.Payload(
+            ..empty_payload([resource_not_found(field_path)]),
+            company_contact: None,
+          )
+      }
     "companyLocation" ->
-      b2b_types.Payload(
-        ..empty_payload([resource_not_found(field_path)]),
-        company_location: None,
-      )
+      case field_path {
+        ["companyLocationId"] ->
+          b2b_types.Payload(
+            ..empty_payload([
+              user_error(
+                Some(["input"]),
+                "The company location doesn't exist",
+                user_error_code.resource_not_found,
+              ),
+            ]),
+            company_location: None,
+          )
+        _ ->
+          b2b_types.Payload(
+            ..empty_payload([resource_not_found(field_path)]),
+            company_location: None,
+          )
+      }
     _ -> empty_payload([resource_not_found(field_path)])
   }
   b2b_types.RootResult(payload, store, identity, [])

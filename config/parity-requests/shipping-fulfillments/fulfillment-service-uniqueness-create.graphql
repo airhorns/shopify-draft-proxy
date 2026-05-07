@@ -1,0 +1,30 @@
+mutation FulfillmentServiceUniquenessCreate($name: String!) {
+  fulfillmentServiceCreate(
+    name: $name
+    trackingSupport: true
+    inventoryManagement: true
+    requiresShippingMethod: true
+  ) {
+    fulfillmentService {
+      id
+      handle
+      serviceName
+      callbackUrl
+      trackingSupport
+      inventoryManagement
+      requiresShippingMethod
+      type
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

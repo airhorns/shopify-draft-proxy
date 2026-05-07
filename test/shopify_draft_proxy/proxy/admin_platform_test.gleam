@@ -537,6 +537,7 @@ fn make_shop() -> ShopRecord {
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
       discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,
@@ -846,6 +847,106 @@ pub fn flow_validation_branches_do_not_stage_test() {
   assert string.contains(body, "Invalid handle 'har-374-missing'.")
   assert outcome.staged_resource_ids == []
   assert store.get_log(outcome.store) == []
+}
+
+pub fn flow_generate_signature_required_arguments_do_not_stage_test() {
+  let missing_both =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowGenerateSignature { signature } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_both_body = json.to_string(missing_both.data)
+  assert string.contains(missing_both_body, "\"flowGenerateSignature\":null")
+  assert string.contains(
+    missing_both_body,
+    "Field 'flowGenerateSignature' is missing required arguments: id, payload",
+  )
+  assert string.contains(
+    missing_both_body,
+    "\"code\":\"missingRequiredArguments\"",
+  )
+  assert string.contains(missing_both_body, "\"arguments\":\"id, payload\"")
+  assert !string.contains(missing_both_body, "RESOURCE_NOT_FOUND")
+  assert missing_both.staged_resource_ids == []
+  assert store.get_log(missing_both.store) == []
+
+  let missing_payload =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\") { signature payload userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_payload_body = json.to_string(missing_payload.data)
+  assert string.contains(missing_payload_body, "\"flowGenerateSignature\":null")
+  assert string.contains(
+    missing_payload_body,
+    "Field 'flowGenerateSignature' is missing required arguments: payload",
+  )
+  assert string.contains(
+    missing_payload_body,
+    "\"code\":\"missingRequiredArguments\"",
+  )
+  assert string.contains(missing_payload_body, "\"arguments\":\"payload\"")
+  assert !string.contains(missing_payload_body, "\"signature\"")
+  assert missing_payload.staged_resource_ids == []
+  assert store.get_log(missing_payload.store) == []
+}
+
+pub fn flow_generate_signature_null_arguments_do_not_stage_test() {
+  let null_id =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowGenerateSignature(id: null, payload: \"{}\") { signature } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let null_id_body = json.to_string(null_id.data)
+  assert string.contains(null_id_body, "\"flowGenerateSignature\":null")
+  assert string.contains(
+    null_id_body,
+    "Argument 'id' on Field 'flowGenerateSignature' has an invalid value (null). Expected type 'ID!'.",
+  )
+  assert string.contains(
+    null_id_body,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(null_id_body, "\"argumentName\":\"id\"")
+  assert !string.contains(null_id_body, "RESOURCE_NOT_FOUND")
+  assert null_id.staged_resource_ids == []
+  assert store.get_log(null_id.store) == []
+
+  let null_payload =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\", payload: null) { signature } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let null_payload_body = json.to_string(null_payload.data)
+  assert string.contains(null_payload_body, "\"flowGenerateSignature\":null")
+  assert string.contains(
+    null_payload_body,
+    "Argument 'payload' on Field 'flowGenerateSignature' has an invalid value (null). Expected type 'String!'.",
+  )
+  assert string.contains(
+    null_payload_body,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(null_payload_body, "\"argumentName\":\"payload\"")
+  assert !string.contains(null_payload_body, "\"signature\"")
+  assert null_payload.staged_resource_ids == []
+  assert store.get_log(null_payload.store) == []
 }
 
 pub fn flow_trigger_receive_validation_matches_shopify_test() {

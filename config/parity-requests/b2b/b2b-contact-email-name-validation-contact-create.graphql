@@ -1,0 +1,18 @@
+mutation B2BContactEmailNameValidationContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  companyContactCreate(companyId: $companyId, input: $input) {
+    companyContact {
+      id
+      customer {
+        id
+        email
+        firstName
+        lastName
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
