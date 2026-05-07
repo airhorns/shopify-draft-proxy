@@ -1931,6 +1931,10 @@ pub type StoreCreditAccountTransactionRecord {
     balance_after_transaction: Money,
     created_at: String,
     event: String,
+    notify: Option(Bool),
+    attribution_user_id: Option(String),
+    attribution_point_of_sale_device_id: Option(String),
+    attribution_location_id: Option(String),
   )
 }
 

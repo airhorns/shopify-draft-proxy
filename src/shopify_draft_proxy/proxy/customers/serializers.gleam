@@ -871,10 +871,36 @@ pub fn store_credit_transaction_source(
     #("createdAt", SrcString(transaction.created_at)),
     #("event", SrcString(transaction.event)),
     #("origin", SrcNull),
+    #("notify", case transaction.notify {
+      Some(value) -> SrcBool(value)
+      None -> SrcNull
+    }),
+    #("attribution", store_credit_attribution_source(transaction)),
     #("account", case account {
       Some(a) -> store_credit_account_shallow_source(store, a)
       None -> SrcNull
     }),
+  ])
+}
+
+fn store_credit_attribution_source(
+  transaction: StoreCreditAccountTransactionRecord,
+) -> SourceValue {
+  src_object([
+    #(
+      "userId",
+      graphql_helpers.option_string_source(transaction.attribution_user_id),
+    ),
+    #(
+      "pointOfSaleDeviceId",
+      graphql_helpers.option_string_source(
+        transaction.attribution_point_of_sale_device_id,
+      ),
+    ),
+    #(
+      "locationId",
+      graphql_helpers.option_string_source(transaction.attribution_location_id),
+    ),
   ])
 }
 
