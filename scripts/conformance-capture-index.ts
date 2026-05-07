@@ -2176,6 +2176,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-handle-translation-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-handle-translation-validation-conformance.mts',
+    purpose:
+      'translationsRegister handle translation normalization, too-long validation, and downstream read behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-handle-translation-validation.json`,
+      'config/parity-specs/localization/localization-handle-translation-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enables French only when needed, captures normalized and too-long handle translation branches, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-shop-locale-enable-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-shop-locale-enable-validation-conformance.mts',

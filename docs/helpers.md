@@ -13,6 +13,17 @@ Shared helpers for GraphQL Admin proxy serializers.
 
 Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
 
+## `src/shopify_draft_proxy/proxy/handles.gleam`
+
+Shared helpers for Shopify-like handle normalization.
+
+- lowercases and dash-collapses captured separator runs
+- preserves Shopify-accepted non-Latin handle graphemes and underscores
+- applies captured Latin transliterations for localization handle translations
+- exposes the captured fallback handle used by punctuation-only handle translations
+
+Use this module before adding product-, collection-, localization-, or other resource-local handle slugification helpers. Resource-specific fallback families and uniqueness validation should stay in the owning mutation handler.
+
 ## `src/shopify_draft_proxy/proxy/app_identity.gleam`
 
 Shared helper for request-owned app identity.

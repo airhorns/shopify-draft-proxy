@@ -5,12 +5,14 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_api_versions
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_document_fragments, get_field_response_key,
 }
+import shopify_draft_proxy/proxy/handles
 import shopify_draft_proxy/proxy/localization/serializers
 import shopify_draft_proxy/proxy/localization/types.{
   type AnyUserError, type TranslatableResource, type TranslationErrorCode,
@@ -837,7 +839,7 @@ fn validate_and_build_translations(
       let value = graphql_helpers.read_arg_string(input, "value")
       let value_errors = case value {
         Some(v) ->
-          case v {
+          case string.trim(v) {
             "" -> [
               translation_error(
                 list.append(prefix, ["value"]),
@@ -845,7 +847,19 @@ fn validate_and_build_translations(
                 FailsResourceValidation,
               ),
             ]
-            _ -> []
+            _ ->
+              case
+                key == "handle" && string.length(v) > handles.handle_max_length
+              {
+                True -> [
+                  translation_error(
+                    list.append(prefix, ["value"]),
+                    "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
+                    FailsResourceValidation,
+                  ),
+                ]
+                False -> []
+              }
           }
         None -> [
           translation_error(
@@ -888,6 +902,10 @@ fn validate_and_build_translations(
       }
       case can_record, maybe_locale, value, content {
         True, Some(loc), Some(v), Ok(c) -> {
+          let stored_value = case key {
+            "handle" -> handles.normalize_translation_handle(v)
+            _ -> v
+          }
           let #(timestamp, identity_next) =
             synthetic_identity.make_synthetic_timestamp(identity_acc)
           let supplied_digest_value = case supplied_digest {
@@ -903,7 +921,7 @@ fn validate_and_build_translations(
               resource_id: resource.resource_id,
               key: key,
               locale: loc,
-              value: v,
+              value: stored_value,
               translatable_content_digest: supplied_digest_value,
               market_id: market_id,
               updated_at: timestamp,
