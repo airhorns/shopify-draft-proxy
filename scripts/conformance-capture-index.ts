@@ -2714,6 +2714,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-update-currency-and-tactic-guards',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-activity-update-currency-and-tactic-guards-conformance.mts',
+    purpose:
+      'External marketing activity update and upsert currency mismatch plus STOREFRONT_APP tactic transition userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-update-currency-and-tactic-guards.json`,
+      'config/parity-specs/marketing/marketing-activity-update-currency-and-tactic-guards.json',
+      'config/parity-requests/marketing/marketing-activity-update-currency-and-tactic-guards-read.graphql',
+      'config/parity-requests/marketing/marketing-activity-update-currency-and-tactic-guards.graphql',
+      'config/parity-requests/marketing/marketing-activity-update-from-storefront-guard.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable baseline and STOREFRONT_APP external marketing activities, captures rejected update/upsert guard branches and readbacks, then deletes remaining activities by remote ID and ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-delete-external-guards',
     scriptPath: 'scripts/capture-marketing-activity-delete-external-guards-conformance.mts',
     purpose:
