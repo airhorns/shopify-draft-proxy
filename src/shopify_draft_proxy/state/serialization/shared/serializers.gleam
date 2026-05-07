@@ -1223,6 +1223,12 @@ pub fn metaobject_definition_json(
         metaobject_standard_template_json,
       ),
     ),
+    #("standardTemplateId", optional_string(record.standard_template_id)),
+    #(
+      "standardTemplateDependentOnApp",
+      json.bool(record.standard_template_dependent_on_app),
+    ),
+    #("appConfigManaged", json.bool(record.app_config_managed)),
     #(
       "linkedMetafields",
       json.array(

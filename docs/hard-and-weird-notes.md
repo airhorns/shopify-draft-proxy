@@ -1468,9 +1468,14 @@ HAR-675 live parity work replaces the old local definition-delete associated-ent
 HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
 
 - `metaobjectDefinitionCreate` resolves `$app:<rest>` to the requesting app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`, and local parity replays provide that app identity through `x-shopify-draft-proxy-api-client-id`.
+- reserved create handling for an existing standard-template type (`shopify--qa-pair`) and an unresolved `shopify--*` type returns public GraphQL `NOT_AUTHORIZED` on `["definition"]` with message `Not authorized. This type is reserved for use by another application.` The internal service path may call this reserved-name handling, but do not emit `RESERVED_NAME` for the captured public 2026-04 shape without a newer live capture proving that code.
 - definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
 - uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
 - Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
+
+Delete guard caveat:
+
+- public Admin GraphQL 2026-04 does not expose the internal `app_config_managed?`, `standard_template_id`, or standard-template `dependent_on_app?` metadata needed to safely discover protected delete candidates. The current conformance shop's visible definitions are created by the conformance app, so `APP_CONFIG_MANAGED` and `STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP` delete responses remain runtime-test-backed until an eligible shop/app setup is available.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
