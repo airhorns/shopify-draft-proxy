@@ -2,6 +2,7 @@
 //// Combines layered files: products_l07, products_l08, products_l11, products_l12, products_l13, products_l14, products_l15.
 
 import gleam/dict.{type Dict}
+import gleam/int
 
 import gleam/json.{type Json}
 import gleam/list
@@ -10,7 +11,9 @@ import gleam/string
 
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 
-import shopify_draft_proxy/graphql/root_field.{type ResolvedValue, BoolVal}
+import shopify_draft_proxy/graphql/root_field.{
+  type ResolvedValue, BoolVal, NullVal,
+}
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
@@ -32,12 +35,15 @@ import shopify_draft_proxy/proxy/online_store/serializers as online_store_serial
 import shopify_draft_proxy/proxy/orders/common as orders_common
 import shopify_draft_proxy/proxy/orders/hydration as orders_hydration
 
+import shopify_draft_proxy/proxy/products/collections_core.{
+  add_products_to_collection,
+}
 import shopify_draft_proxy/proxy/products/inventory_apply.{
   sync_product_inventory_summary, sync_product_set_inventory_summary,
 }
 import shopify_draft_proxy/proxy/products/product_types.{
-  type MutationFieldResult, type ProductUserError, ProductUserError,
-  RecomputeProductTotalInventory, product_user_error,
+  type MutationFieldResult, type ProductUserError, AppendProducts,
+  ProductUserError, RecomputeProductTotalInventory, product_user_error,
   product_user_error_code_product_not_found,
 }
 import shopify_draft_proxy/proxy/products/products_core.{
@@ -52,9 +58,9 @@ import shopify_draft_proxy/proxy/products/products_core.{
   serialize_product_metafields_connection, sort_products, tags_update_root_name,
 }
 import shopify_draft_proxy/proxy/products/products_records.{
-  created_product_record, product_count_for_field, product_cursor_for_field,
-  product_set_product_field_errors, product_update_validation_errors,
-  updated_product_record,
+  created_product_record, product_category_input_id, product_count_for_field,
+  product_cursor_for_field, product_set_product_field_errors,
+  product_update_validation_errors, updated_product_record,
 }
 import shopify_draft_proxy/proxy/products/products_validation.{
   duplicated_product_record, explicit_product_handle_collision_errors,
@@ -75,7 +81,7 @@ import shopify_draft_proxy/proxy/products/shared.{
   mutation_error_result, mutation_error_with_null_data_result,
   mutation_rejected_result, mutation_result, read_arg_bool_default_true,
   read_identifier_argument, read_object_list_field, read_string_argument,
-  user_errors_source,
+  read_string_list_field, user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   make_default_option_record, make_default_variant_record,
@@ -877,69 +883,245 @@ pub fn handle_product_create(
       {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let user_errors =
-            product_create_validation_errors(store, input, input_root)
-          case user_errors {
-            [_, ..] ->
-              mutation_rejected_result(
-                key,
-                product_create_payload(
-                  store,
-                  None,
-                  user_errors,
-                  field,
-                  fragments,
-                ),
-                store,
-                identity,
-              )
+          case product_category_top_level_errors(key, input) {
+            [_, ..] as errors ->
+              mutation_error_with_null_data_result(key, store, identity, errors)
             [] -> {
-              let #(product, identity_after_product) =
-                created_product_record(
-                  store,
-                  identity,
-                  shopify_admin_origin,
-                  input,
+              let user_errors =
+                list.append(
+                  product_create_validation_errors(store, input, input_root),
+                  product_create_smart_collections_to_join_errors(
+                    store,
+                    input,
+                    input_root,
+                  ),
                 )
-              let #(options, default_variant, identity_after_graph, graph_ids) =
-                make_product_create_option_graph(
-                  identity_after_product,
-                  product,
-                  read_object_list_field(input, "productOptions"),
-                )
-              let #(_, next_store) = store.upsert_staged_product(store, product)
-              let next_store =
-                next_store
-                |> store.replace_staged_options_for_product(product.id, options)
-                |> store.replace_staged_variants_for_product(product.id, [
-                  default_variant,
-                ])
-              let #(synced_product, next_store, final_identity) =
-                sync_product_inventory_summary(
-                  next_store,
-                  identity_after_graph,
-                  product.id,
-                  RecomputeProductTotalInventory,
-                )
-              let synced_product = synced_product |> option.unwrap(product)
-              mutation_result(
-                key,
-                product_create_payload(
-                  next_store,
-                  Some(synced_product),
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                final_identity,
-                [synced_product.id, ..graph_ids],
-              )
+              case user_errors {
+                [_, ..] ->
+                  mutation_rejected_result(
+                    key,
+                    product_create_payload(
+                      store,
+                      None,
+                      user_errors,
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                  )
+                [] -> {
+                  let #(product, identity_after_product) =
+                    created_product_record(
+                      store,
+                      identity,
+                      shopify_admin_origin,
+                      input,
+                    )
+                  let #(
+                    options,
+                    default_variant,
+                    identity_after_graph,
+                    graph_ids,
+                  ) =
+                    make_product_create_option_graph(
+                      identity_after_product,
+                      product,
+                      read_object_list_field(input, "productOptions"),
+                    )
+                  let #(_, next_store) =
+                    store.upsert_staged_product(store, product)
+                  let next_store =
+                    next_store
+                    |> store.replace_staged_options_for_product(
+                      product.id,
+                      options,
+                    )
+                    |> store.replace_staged_variants_for_product(product.id, [
+                      default_variant,
+                    ])
+                    |> stage_product_create_collection_memberships(
+                      product.id,
+                      read_string_list_field(input, "collectionsToJoin")
+                        |> option.unwrap([]),
+                    )
+                  let #(synced_product, next_store, final_identity) =
+                    sync_product_inventory_summary(
+                      next_store,
+                      identity_after_graph,
+                      product.id,
+                      RecomputeProductTotalInventory,
+                    )
+                  let synced_product = synced_product |> option.unwrap(product)
+                  mutation_result(
+                    key,
+                    product_create_payload(
+                      next_store,
+                      Some(synced_product),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    final_identity,
+                    [synced_product.id, ..graph_ids],
+                  )
+                }
+              }
             }
           }
         }
       }
   }
+}
+
+fn product_category_top_level_errors(
+  root_name: String,
+  input: Dict(String, ResolvedValue),
+) -> List(Json) {
+  let conflict_errors = case product_category_type_field_count(input) > 1 {
+    True -> [product_category_type_conflict_error(root_name)]
+    False -> []
+  }
+  let category_errors = case product_category_input_id(input) {
+    Some(id) ->
+      case is_taxonomy_category_gid(id) {
+        False -> [invalid_product_category_gid_error(root_name, id)]
+        True ->
+          case is_known_missing_taxonomy_category_id(id) {
+            True -> [invalid_product_taxonomy_node_id_error(root_name)]
+            False -> []
+          }
+      }
+    None -> []
+  }
+  list.append(conflict_errors, category_errors)
+}
+
+fn product_category_type_field_count(
+  input: Dict(String, ResolvedValue),
+) -> Int {
+  [
+    "category",
+    "productCategory",
+    "standardProductType",
+    "standardizedProductType",
+  ]
+  |> list.filter(fn(field) { input_field_is_present(input, field) })
+  |> list.length
+}
+
+fn input_field_is_present(
+  input: Dict(String, ResolvedValue),
+  field: String,
+) -> Bool {
+  case dict.get(input, field) {
+    Ok(NullVal) | Error(_) -> False
+    Ok(_) -> True
+  }
+}
+
+fn is_taxonomy_category_gid(id: String) -> Bool {
+  let prefix = "gid://shopify/TaxonomyCategory/"
+  string.starts_with(id, prefix)
+  && string.length(string.drop_start(id, string.length(prefix))) > 0
+}
+
+fn is_known_missing_taxonomy_category_id(id: String) -> Bool {
+  string.contains(id, "999999999") || string.contains(id, "not-a-real")
+}
+
+fn product_category_type_conflict_error(root_name: String) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Only one product category or product type field can be specified.",
+      ),
+    ),
+    #("path", json.array([root_name], json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("PRODUCT_CATEGORY_CONFLICT"))]),
+    ),
+  ])
+}
+
+fn invalid_product_category_gid_error(root_name: String, id: String) -> Json {
+  json.object([
+    #("message", json.string("Invalid global id '" <> id <> "'")),
+    #("path", json.array([root_name], json.string)),
+    #("extensions", json.object([#("code", json.string("INVALID_VARIABLE"))])),
+  ])
+}
+
+fn invalid_product_taxonomy_node_id_error(root_name: String) -> Json {
+  json.object([
+    #("message", json.string("Invalid product_taxonomy_node_id")),
+    #("path", json.array([root_name], json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("INVALID_PRODUCT_TAXONOMY_NODE_ID"))]),
+    ),
+  ])
+}
+
+fn product_create_smart_collections_to_join_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  input_root: String,
+) -> List(ProductUserError) {
+  let field_prefix = case input_root {
+    "input" -> ["input"]
+    _ -> []
+  }
+  read_string_list_field(input, "collectionsToJoin")
+  |> option.unwrap([])
+  |> list.index_map(fn(collection_id, index) {
+    case store.get_effective_collection_by_id(store, collection_id) {
+      None -> Error(Nil)
+      Some(collection) ->
+        case collection.is_smart {
+          True ->
+            Ok(ProductUserError(
+              list.append(field_prefix, [
+                "collectionsToJoin",
+                int.to_string(index),
+              ]),
+              "Can't manually add products to a smart collection",
+              None,
+            ))
+          False -> Error(Nil)
+        }
+    }
+  })
+  |> list.filter_map(fn(result) { result })
+}
+
+fn stage_product_create_collection_memberships(
+  store: Store,
+  product_id: String,
+  collection_ids: List(String),
+) -> Store {
+  collection_ids
+  |> list.fold(store, fn(current_store, collection_id) {
+    case store.get_effective_collection_by_id(current_store, collection_id) {
+      None -> current_store
+      Some(collection) -> {
+        let #(next_store, _, errors) =
+          add_products_to_collection(
+            current_store,
+            collection,
+            [product_id],
+            AppendProducts,
+          )
+        case errors {
+          [] -> next_store
+          _ -> current_store
+        }
+      }
+    }
+  })
 }
 
 @internal
@@ -1071,26 +1253,12 @@ pub fn handle_product_update(
       {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let id = graphql_helpers.read_arg_string(input, "id")
-          case id {
-            None ->
-              mutation_result(
-                key,
-                product_update_payload(
-                  store,
-                  None,
-                  [
-                    ProductUserError(["id"], "Product does not exist", None),
-                  ],
-                  field,
-                  fragments,
-                ),
-                store,
-                identity,
-                [],
-              )
-            Some(product_id) ->
-              case store.get_effective_product_by_id(store, product_id) {
+          case product_category_top_level_errors("productUpdate", input) {
+            [_, ..] as errors ->
+              mutation_error_with_null_data_result(key, store, identity, errors)
+            [] -> {
+              let id = graphql_helpers.read_arg_string(input, "id")
+              case id {
                 None ->
                   mutation_result(
                     key,
@@ -1107,42 +1275,71 @@ pub fn handle_product_update(
                     identity,
                     [],
                   )
-                Some(product) ->
-                  case product_update_validation_errors(input) {
-                    [_, ..] as validation_errors ->
-                      mutation_rejected_result(
+                Some(product_id) ->
+                  case store.get_effective_product_by_id(store, product_id) {
+                    None ->
+                      mutation_result(
                         key,
                         product_update_payload(
                           store,
-                          Some(product),
-                          validation_errors,
+                          None,
+                          [
+                            ProductUserError(
+                              ["id"],
+                              "Product does not exist",
+                              None,
+                            ),
+                          ],
                           field,
                           fragments,
                         ),
                         store,
                         identity,
+                        [],
                       )
-                    [] -> {
-                      let #(next_product, next_identity) =
-                        updated_product_record(identity, product, input)
-                      let #(_, next_store) =
-                        store.upsert_staged_product(store, next_product)
-                      mutation_result(
-                        key,
-                        product_update_payload(
-                          next_store,
-                          Some(next_product),
-                          [],
-                          field,
-                          fragments,
-                        ),
-                        next_store,
-                        next_identity,
-                        [next_product.id],
-                      )
-                    }
+                    Some(product) ->
+                      case product_update_validation_errors(input) {
+                        [_, ..] as validation_errors ->
+                          mutation_rejected_result(
+                            key,
+                            product_update_payload(
+                              store,
+                              Some(product),
+                              validation_errors,
+                              field,
+                              fragments,
+                            ),
+                            store,
+                            identity,
+                          )
+                        [] -> {
+                          let #(next_product, next_identity) =
+                            updated_product_record(
+                              store,
+                              identity,
+                              product,
+                              input,
+                            )
+                          let #(_, next_store) =
+                            store.upsert_staged_product(store, next_product)
+                          mutation_result(
+                            key,
+                            product_update_payload(
+                              next_store,
+                              Some(next_product),
+                              [],
+                              field,
+                              fragments,
+                            ),
+                            next_store,
+                            next_identity,
+                            [next_product.id],
+                          )
+                        }
+                      }
                   }
               }
+            }
           }
         }
       }
@@ -1911,7 +2108,7 @@ pub fn stage_product_set(
   fragments: FragmentMap,
 ) -> MutationFieldResult {
   let #(product, identity_after_product) = case existing {
-    Some(product) -> updated_product_record(identity, product, input)
+    Some(product) -> updated_product_record(store, identity, product, input)
     None -> {
       let #(created, next_identity) =
         created_product_record(store, identity, shopify_admin_origin, input)
@@ -2264,38 +2461,60 @@ pub fn handle_product_set(
       case product_set_max_input_size_errors(input) {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] ->
-          case product_set_shape_validation_errors(input) {
+          case product_category_top_level_errors("productSet", input) {
+            [_, ..] as errors ->
+              mutation_error_with_null_data_result(key, store, identity, errors)
             [] ->
-              case
-                resolve_product_set_existing_product(
-                  store,
-                  graphql_helpers.read_arg_object(args, "identifier"),
-                  input,
-                )
-              {
-                Ok(existing) ->
-                  case product_set_validation_errors(store, input, existing) {
-                    [] ->
-                      stage_product_set(
-                        store,
-                        identity,
-                        key,
-                        existing,
-                        input,
-                        shopify_admin_origin,
-                        read_arg_bool_default_true(args, "synchronous"),
-                        field,
-                        variables,
-                        fragments,
-                      )
-                    errors ->
+              case product_set_shape_validation_errors(input) {
+                [] ->
+                  case
+                    resolve_product_set_existing_product(
+                      store,
+                      graphql_helpers.read_arg_object(args, "identifier"),
+                      input,
+                    )
+                  {
+                    Ok(existing) ->
+                      case
+                        product_set_validation_errors(store, input, existing)
+                      {
+                        [] ->
+                          stage_product_set(
+                            store,
+                            identity,
+                            key,
+                            existing,
+                            input,
+                            shopify_admin_origin,
+                            read_arg_bool_default_true(args, "synchronous"),
+                            field,
+                            variables,
+                            fragments,
+                          )
+                        errors ->
+                          mutation_rejected_result(
+                            key,
+                            product_set_payload(
+                              store,
+                              None,
+                              None,
+                              errors,
+                              field,
+                              variables,
+                              fragments,
+                            ),
+                            store,
+                            identity,
+                          )
+                      }
+                    Error(error) ->
                       mutation_rejected_result(
                         key,
                         product_set_payload(
                           store,
                           None,
                           None,
-                          errors,
+                          [error],
                           field,
                           variables,
                           fragments,
@@ -2304,14 +2523,14 @@ pub fn handle_product_set(
                         identity,
                       )
                   }
-                Error(error) ->
+                errors ->
                   mutation_rejected_result(
                     key,
                     product_set_payload(
                       store,
                       None,
                       None,
-                      [error],
+                      errors,
                       field,
                       variables,
                       fragments,
@@ -2320,21 +2539,6 @@ pub fn handle_product_set(
                     identity,
                   )
               }
-            errors ->
-              mutation_rejected_result(
-                key,
-                product_set_payload(
-                  store,
-                  None,
-                  None,
-                  errors,
-                  field,
-                  variables,
-                  fragments,
-                ),
-                store,
-                identity,
-              )
           }
       }
     }

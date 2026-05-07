@@ -391,6 +391,7 @@ pub fn product_json(record: types.ProductRecord) -> Json {
     #("templateSuffix", optional_string(record.template_suffix)),
     #("seo", product_seo_json(record.seo)),
     #("category", optional_to_json(record.category, product_category_json)),
+    #("requiresSellingPlan", optional_bool(record.requires_selling_plan)),
     #("publicationIds", json.array(record.publication_ids, json.string)),
     #(
       "contextualPricing",

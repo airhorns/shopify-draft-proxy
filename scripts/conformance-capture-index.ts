@@ -663,6 +663,34 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-create-input-fields',
+    scriptPath: 'scripts/capture-product-create-input-fields-conformance.ts',
+    purpose:
+      'productCreate category, requiresSellingPlan, and collectionsToJoin staging with immediate downstream readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productCreate-category-parity.json`,
+      `${CAPTURE_ROOT}productCreate-requires-selling-plan-parity.json`,
+      `${CAPTURE_ROOT}productCreate-collections-to-join-parity.json`,
+      'config/parity-specs/products/productCreate-category-parity.json',
+      'config/parity-specs/products/productCreate-requires-selling-plan-parity.json',
+      'config/parity-specs/products/productCreate-collections-to-join-parity.json',
+      'config/parity-requests/products/productCreate-category-parity.graphql',
+      'config/parity-requests/products/productCreate-category-downstream-read.graphql',
+      'config/parity-requests/products/productCreate-requires-selling-plan-parity.graphql',
+      'config/parity-requests/products/productCreate-requires-selling-plan-downstream-read.graphql',
+      'config/parity-requests/products/productCreate-collections-to-join-collection-create.graphql',
+      'config/parity-requests/products/productCreate-collections-to-join-parity.graphql',
+      'config/parity-requests/products/productCreate-collections-to-join-downstream-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products and two disposable custom collections, captures validation probes, then deletes created products and collections in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Current public 2025-01 accepts productType alongside category and ignores unknown collectionsToJoin IDs; the recorder preserves that observed behavior in validation captures.',
+  },
+  {
+    domain: 'products',
     captureId: 'product-user-error-shapes',
     scriptPath: 'scripts/capture-product-user-error-shape-conformance.ts',
     purpose:

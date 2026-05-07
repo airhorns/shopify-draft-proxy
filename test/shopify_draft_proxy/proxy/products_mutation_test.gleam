@@ -2641,6 +2641,31 @@ pub fn product_update_stages_fields_and_downstream_reads_test() {
     == 1
 }
 
+pub fn product_update_stages_category_and_requires_selling_plan_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", requiresSellingPlan: true }) { product { id category { id fullName } requiresSellingPlan } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id category { id fullName } requiresSellingPlan } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true}}}"
+}
+
 pub fn product_update_normalizes_tags_like_shopify_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -2788,6 +2813,28 @@ pub fn product_create_and_set_normalize_tags_like_shopify_test() {
   assert set_status == 200
   assert json.to_string(set_body)
     == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_stages_category_and_requires_selling_plan_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Set Category Probe\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", requiresSellingPlan: true }, synchronous: true) { product { id category { id fullName } requiresSellingPlan } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id category { id fullName } requiresSellingPlan } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true}}}"
 }
 
 pub fn product_set_variable_log_replays_product_set_input_type_test() {
@@ -2970,6 +3017,31 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
     == 1
 }
 
+pub fn product_create_stages_category_requires_selling_plan_and_collections_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let query =
+    "mutation { productCreate(product: { title: \\\"Subscription Board\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", requiresSellingPlan: true, collectionsToJoin: [\\\"gid://shopify/Collection/custom\\\"] }) { product { id category { id fullName } requiresSellingPlan collections(first: 10) { nodes { id title handle } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true,\"collections\":{\"nodes\":[{\"id\":\"gid://shopify/Collection/custom\",\"title\":\"Custom\",\"handle\":\"custom\"}]}},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { collection(id: \\\"gid://shopify/Collection/custom\\\") { id products(first: 10) { nodes { id title handle } } productsCount { count precision } hasProduct(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") } product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id category { id fullName } requiresSellingPlan collections(first: 10) { nodes { id title handle } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"collection\":{\"id\":\"gid://shopify/Collection/custom\",\"products\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Subscription Board\",\"handle\":\"subscription-board\"}]},\"productsCount\":{\"count\":2,\"precision\":\"EXACT\"},\"hasProduct\":true},\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true,\"collections\":{\"nodes\":[{\"id\":\"gid://shopify/Collection/custom\",\"title\":\"Custom\",\"handle\":\"custom\"}]}}}}"
+}
+
 pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
   let proxy =
     draft_proxy.with_config(Config(
@@ -2990,6 +3062,54 @@ pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
     == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Origin Vendor\",\"vendor\":\"acme\"},\"userErrors\":[]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Staged
+}
+
+pub fn product_create_category_validation_errors_are_top_level_test() {
+  let invalid_gid_query =
+    "mutation { productCreate(product: { title: \\\"Bad Category\\\", category: \\\"not-a-gid\\\" }) { product { id } userErrors { field message code } } }"
+  let #(Response(status: invalid_status, body: invalid_body, ..), invalid_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(invalid_gid_query),
+    )
+  assert invalid_status == 200
+  assert json.to_string(invalid_body)
+    == "{\"errors\":[{\"message\":\"Invalid global id 'not-a-gid'\",\"path\":[\"productCreate\"],\"extensions\":{\"code\":\"INVALID_VARIABLE\"}}],\"data\":{\"productCreate\":null}}"
+  assert store.get_log(invalid_proxy.store) == []
+
+  let unknown_taxonomy_query =
+    "mutation { productCreate(product: { title: \\\"Unknown Category\\\", category: \\\"gid://shopify/TaxonomyCategory/not-a-real-node\\\" }) { product { id } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), unknown_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(unknown_taxonomy_query),
+    )
+  assert unknown_status == 200
+  assert json.to_string(unknown_body)
+    == "{\"errors\":[{\"message\":\"Invalid product_taxonomy_node_id\",\"path\":[\"productCreate\"],\"extensions\":{\"code\":\"INVALID_PRODUCT_TAXONOMY_NODE_ID\"}}],\"data\":{\"productCreate\":null}}"
+  assert store.get_log(unknown_proxy.store) == []
+}
+
+pub fn product_create_keeps_category_and_product_type_like_shopify_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Category Type Probe\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", productType: \\\"Boards\\\" }) { product { id category { id fullName } productType } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"productType\":\"Boards\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_create_ignores_unknown_collections_to_join_like_shopify_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Unknown Collection Probe\\\", collectionsToJoin: [\\\"gid://shopify/Collection/not-a-real-node\\\"] }) { product { id collections(first: 10) { nodes { id } } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"collections\":{\"nodes\":[]}},\"userErrors\":[]}}}"
 }
 
 pub fn product_variant_mutations_recompute_product_derived_fields_test() {
@@ -6347,6 +6467,7 @@ fn default_product() -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    requires_selling_plan: None,
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
