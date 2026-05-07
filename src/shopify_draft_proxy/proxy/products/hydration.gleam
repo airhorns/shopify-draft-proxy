@@ -62,12 +62,14 @@ pub fn hydrate_products_for_live_hybrid_mutation(
   store: Store,
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
+  skip_ids: List(String),
 ) -> Store {
   let product_ids =
     variables
     |> dict.values
     |> list.flat_map(collect_gid_strings)
     |> dedupe_hydration_ids
+    |> list.filter(fn(id) { !list.contains(skip_ids, id) })
     |> list.filter(fn(id) { product_domain_hydratable_gid(id) })
     |> list.filter(fn(id) { !product_domain_has_effective_id(store, id) })
     |> list.sort(by: resource_ids.compare_shopify_resource_ids)

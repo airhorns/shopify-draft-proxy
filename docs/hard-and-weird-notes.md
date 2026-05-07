@@ -79,6 +79,24 @@ new version-specific capture proves Shopify changed the public API branch. The
 checked-in anchor is
 `config/parity-specs/payments/payment-terms-create-order-eligibility.json`.
 
+## Current: productCreate legacy ProductInput key guard differs from internal notes
+
+A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed
+that public Admin GraphQL still accepts the deprecated `input: ProductInput`
+argument even though mutation introspection lists only `productCreate(product:)`.
+For that legacy branch, `input.id` returns a payload `userErrors` entry with
+`field: ["input"]` and message `id cannot be specified during creation`; it is
+not a top-level GraphQL error on this store. The same public schema rejects
+`input.variants` before resolver execution because `ProductInput` does not
+define `variants`, so variant `productId` never reaches a product-create
+resolver guard through that shape.
+
+Practical rule: for this proxy, follow the captured public Admin behavior:
+reject legacy `input.id` before scalar validation without staging a product, and
+let schema validation reject unknown `ProductInput` fields such as `variants`.
+The checked-in anchor is
+`config/parity-specs/products/product-create-no-key-on-create.json`.
+
 ## Current: Customer address Atlas validation normalizes some apparent conflicts
 
 HAR-776 captured Admin GraphQL 2025-01 customer address validation against
@@ -2042,7 +2060,7 @@ Observed behavior from live writes:
 Practical rule for the proxy:
 
 - `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
-- HAR-568 updates this older note for `inventoryAdjustQuantities`: real Shopify accepts direct `on_hand` and `committed` adjustment names in addition to the previously captured non-available names, so adjust/move/set validators must stay split by mutation root instead of sharing one inventory quantity-name union.
+- Fresh 2026-04 evidence corrects older notes for `inventoryAdjustQuantities`: Admin GraphQL rejects direct `on_hand` and `committed` public adjust names with the valid-values message `available, damaged, incoming, quality_control, reserved, safety_stock`. Public adjust and move validators share that six-name allowlist; `inventorySetQuantities` remains a separate `available` / `on_hand` set path.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
@@ -3039,6 +3057,7 @@ Captured facts:
 - a successful available set with `ignoreCompareQuantity: true` returned `available` changes plus mirrored `on_hand` changes, left `quantityAfterChange` null, and echoed `referenceDocumentUri`
 - HAR-568 live validation captures refined the set-name boundary: `inventorySetQuantities` accepts only `available` and `on_hand`; broader read names such as `damaged` and `committed` return `INVALID_NAME` at `["input", "name"]` with the exact message `The quantity name must be either 'available' or 'on_hand'.`
 - Direct `name: "on_hand"` set writes are valid and returned paired `available` and `on_hand` change rows in the mutation payload.
+- Fresh 2026-04 evidence refined the public adjust/move boundary: `inventoryAdjustQuantities(name: "on_hand")`, `inventoryAdjustQuantities(name: "committed")`, and same-location `inventoryMoveQuantities` terminal names `on_hand` / `committed` all return payload `userErrors` with `inventoryAdjustmentGroup: null` and no quantity changes. The deprecated `inventorySetOnHandQuantities` root still accepts a set-on-hand write with `@idempotent(key:)`, but it remains captured upstream context rather than local supported-operation coverage.
 - `quantity: 1_000_000_001` returns `INVALID_QUANTITY_TOO_HIGH`; duplicate `inventoryItemId` + `locationId` rows return one `NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR` userError per duplicate row at each row's `locationId`.
 - immediate downstream `inventoryItem.variant.inventoryQuantity` summed available quantities across the active levels, but `product.totalInventory` stayed at the prior value
 - `inventoryMoveQuantities` is not a cross-location transfer primitive: moving between different locations returned `The quantities can't be moved between different locations.`
