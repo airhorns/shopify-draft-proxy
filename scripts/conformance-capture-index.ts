@@ -3052,6 +3052,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-currency-settings',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-market-currency-settings-conformance.mts',
+    purpose:
+      'marketCreate currencySettings localCurrencies and roundingEnabled accepted shapes, read-after-write, and baseCurrencyManualRate positive-value validation.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-currency-settings.json`,
+      'config/parity-specs/markets/market-create-currency-settings-flags.json',
+      'config/parity-specs/markets/market-create-currency-settings-manual-rate-validation.json',
+      'config/parity-requests/markets/market-create-currency-settings.graphql',
+      'config/parity-requests/markets/market-create-currency-settings-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable Markets Home markets with currencySettings flags, reads them back, captures a validation-only manual-rate branch, then deletes created markets in reverse order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-context-update-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-context-update-conformance.ts',

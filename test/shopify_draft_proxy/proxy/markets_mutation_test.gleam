@@ -2125,6 +2125,26 @@ pub fn market_create_skips_plan_limit_for_draft_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"status\":\"DRAFT\",\"enabled\":false},\"userErrors\":[]}}}"
 }
 
+pub fn market_create_currency_settings_flags_read_after_write_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      markets_home_proxy(0),
+      "mutation { marketCreate(input: { name: \"Currency Flags\", status: ACTIVE, enabled: true, currencySettings: { baseCurrency: USD, localCurrencies: true, roundingEnabled: true } }) { market { id currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ market(id: \"gid://shopify/Market/1\") { id currencySettings { baseCurrency { currencyCode currencyName } localCurrencies roundingEnabled } } }",
+    )
+
+  assert create_status == 200
+  assert read_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"currencySettings\":{\"baseCurrency\":{\"currencyCode\":\"USD\",\"currencyName\":\"US Dollar\"},\"localCurrencies\":true,\"roundingEnabled\":true}},\"userErrors\":[]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"currencySettings\":{\"baseCurrency\":{\"currencyCode\":\"USD\",\"currencyName\":\"US Dollar\"},\"localCurrencies\":true,\"roundingEnabled\":true}}}}"
+}
+
 pub fn market_create_plan_limit_counts_only_enabled_legacy_markets_test() {
   let proxy = legacy_markets_proxy(2)
   let seeded_store =
@@ -2170,6 +2190,24 @@ pub fn market_create_rejects_invalid_base_currency_test() {
   assert unsupported_status == 200
   assert json.to_string(unsupported_body)
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"currencySettings\",\"baseCurrency\"],\"message\":\"Base currency is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn market_create_rejects_non_positive_manual_fx_rate_test() {
+  let #(Response(status: zero_status, body: zero_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Manual Rate\", currencySettings: { baseCurrency: USD, baseCurrencyManualRate: 0 } }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: negative_status, body: negative_body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Manual Rate\", currencySettings: { baseCurrency: USD, baseCurrencyManualRate: -1.5 } }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert zero_status == 200
+  assert negative_status == 200
+  assert json.to_string(zero_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"currencySettings\",\"baseCurrencyManualRate\"],\"message\":\"Enter a rate above 0.\",\"code\":null}]}}}"
+  assert json.to_string(negative_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"currencySettings\",\"baseCurrencyManualRate\"],\"message\":\"Enter a rate above 0.\",\"code\":null}]}}}"
 }
 
 pub fn market_create_rejects_duplicate_region_country_test() {

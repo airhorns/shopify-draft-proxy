@@ -38,8 +38,8 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   read_price_list_catalog_input, read_price_list_id, result_to_option,
   string_array, translation_user_error, upsert_fixed_price_nodes,
   upsert_quantity_price_break_nodes, upsert_quantity_rule_nodes, user_error,
-  user_error_with_typename, valid_currency, variant_payloads,
-  web_presence_connection_from_ids,
+  user_error_null_code, user_error_with_typename, valid_currency,
+  variant_payloads, web_presence_connection_from_ids,
 }
 import shopify_draft_proxy/proxy/markets/unsupported_country_regions
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -711,27 +711,59 @@ fn market_create_currency_errors(
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_object(input, "currencySettings") {
     Some(currency_settings) ->
-      case
-        graphql_helpers.read_arg_string_nonempty(
-          currency_settings,
-          "baseCurrency",
-        )
-      {
-        Some(currency) ->
-          case valid_market_base_currency(store, currency) {
-            True -> []
-            False -> [
-              user_error(
-                ["input", "currencySettings", "baseCurrency"],
-                "Base currency is invalid",
-                "INVALID",
-              ),
-            ]
-          }
-        None -> []
+      combine_error_lists([
+        market_create_base_currency_errors(store, currency_settings),
+        market_create_manual_rate_errors(currency_settings),
+      ])
+    None -> []
+  }
+}
+
+fn market_create_base_currency_errors(
+  store: Store,
+  currency_settings: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case
+    graphql_helpers.read_arg_string_nonempty(currency_settings, "baseCurrency")
+  {
+    Some(currency) ->
+      case valid_market_base_currency(store, currency) {
+        True -> []
+        False -> [
+          user_error(
+            ["input", "currencySettings", "baseCurrency"],
+            "Base currency is invalid",
+            "INVALID",
+          ),
+        ]
       }
     None -> []
   }
+}
+
+fn market_create_manual_rate_errors(
+  currency_settings: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case dict.get(currency_settings, "baseCurrencyManualRate") {
+    Ok(root_field.IntVal(value)) ->
+      case value <= 0 {
+        True -> [base_currency_manual_rate_positive_error()]
+        False -> []
+      }
+    Ok(root_field.FloatVal(value)) ->
+      case value <=. 0.0 {
+        True -> [base_currency_manual_rate_positive_error()]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn base_currency_manual_rate_positive_error() -> CapturedJsonValue {
+  user_error_null_code(
+    ["input", "currencySettings", "baseCurrencyManualRate"],
+    "Enter a rate above 0.",
+  )
 }
 
 fn valid_market_base_currency(store: Store, currency: String) -> Bool {
