@@ -1357,8 +1357,7 @@ pub fn inventory_quantity_mutation_result(
   fragments: FragmentMap,
   staged_ids: List(String),
 ) -> MutationFieldResult {
-  mutation_result(
-    key,
+  let payload =
     inventory_quantity_payload(
       typename,
       store,
@@ -1366,11 +1365,11 @@ pub fn inventory_quantity_mutation_result(
       user_errors,
       field,
       fragments,
-    ),
-    store,
-    identity,
-    staged_ids,
-  )
+    )
+  case group, user_errors {
+    None, [_, ..] -> mutation_rejected_result(key, payload, store, identity)
+    _, _ -> mutation_result(key, payload, store, identity, staged_ids)
+  }
 }
 
 @internal

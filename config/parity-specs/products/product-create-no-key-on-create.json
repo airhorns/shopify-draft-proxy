@@ -1,0 +1,56 @@
+{
+  "scenarioId": "product-create-no-key-on-create",
+  "operationNames": ["productCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-create-no-key-on-create.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-create-no-key-on-create.graphql",
+    "variablesCapturePath": "$.scenarios.inputId.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live public Admin GraphQL 2026-04 accepts the deprecated productCreate(input:) spelling but returns a payload userError for input.id, not the top-level no_key_on_create shape described by internal source notes. The same live schema rejects input.variants before resolver execution because ProductInput does not define variants. Local parity follows the captured public API behavior and rejects both branches without staging products.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "legacy-input-id-user-error",
+        "capturePath": "$.scenarios.inputId.response.data.productCreate",
+        "proxyPath": "$.data.productCreate"
+      },
+      {
+        "name": "legacy-input-id-precedes-blank-title",
+        "capturePath": "$.scenarios.inputIdBeforeBlankTitle.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-create-no-key-on-create.graphql",
+          "variablesCapturePath": "$.scenarios.inputIdBeforeBlankTitle.variables"
+        }
+      },
+      {
+        "name": "legacy-input-variants-product-id-variable-error",
+        "capturePath": "$.scenarios.variantProductId.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-create-no-key-on-create.graphql",
+          "variablesCapturePath": "$.scenarios.variantProductId.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$[0].locations[0].line",
+            "matcher": "any-number",
+            "reason": "GraphQL source locations depend on the recorded document formatting and are not part of the no-write validation semantics."
+          },
+          {
+            "path": "$[0].locations[0].column",
+            "matcher": "any-number",
+            "reason": "GraphQL source locations depend on the recorded document formatting and are not part of the no-write validation semantics."
+          }
+        ]
+      }
+    ]
+  }
+}

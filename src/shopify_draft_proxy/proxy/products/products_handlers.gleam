@@ -247,19 +247,55 @@ pub fn product_create_validation_errors(
     "input" -> ["input"]
     _ -> []
   }
-  let handle_errors =
-    explicit_product_handle_collision_errors(store, input, None)
-    |> list.map(fn(error) {
-      let ProductUserError(field: path, message: message, code: code) = error
-      ProductUserError(field: ["input", ..path], message: message, code: code)
-    })
-  list.append(
-    product_scalar_validation_errors(input, field_prefix, require_title: True),
-    list.append(
-      product_tags_validation_errors(input),
-      list.append(product_create_variant_errors(input), handle_errors),
-    ),
-  )
+  case product_create_key_on_create_errors(input, input_root) {
+    [_, ..] as errors -> errors
+    [] -> {
+      let handle_errors =
+        explicit_product_handle_collision_errors(store, input, None)
+        |> list.map(fn(error) {
+          let ProductUserError(field: path, message: message, code: code) =
+            error
+          ProductUserError(
+            field: ["input", ..path],
+            message: message,
+            code: code,
+          )
+        })
+      list.append(
+        product_scalar_validation_errors(
+          input,
+          field_prefix,
+          require_title: True,
+        ),
+        list.append(
+          product_tags_validation_errors(input),
+          list.append(product_create_variant_errors(input), handle_errors),
+        ),
+      )
+    }
+  }
+}
+
+fn product_create_key_on_create_errors(
+  input: Dict(String, ResolvedValue),
+  input_root: String,
+) -> List(ProductUserError) {
+  case dict.has_key(input, "id") {
+    True -> {
+      let field = case input_root {
+        "input" -> ["input"]
+        root -> [root]
+      }
+      [
+        ProductUserError(
+          field: field,
+          message: "id cannot be specified during creation",
+          code: None,
+        ),
+      ]
+    }
+    False -> []
+  }
 }
 
 // ===== from products_l11 =====

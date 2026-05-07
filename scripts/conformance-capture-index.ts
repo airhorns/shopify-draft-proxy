@@ -614,6 +614,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-create-no-key-on-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-create-no-key-on-create-conformance.ts',
+    purpose:
+      'productCreate legacy ProductInput key-on-create guardrails for input.id precedence and ProductInput variants rejection.',
+    requiredAuthScopes: ['write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-no-key-on-create.json`,
+      'config/parity-specs/products/product-create-no-key-on-create.json',
+      'config/parity-requests/products/product-create-no-key-on-create.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; input.id and input.variants branches must not create Shopify products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin 2026-04 returns a productCreate.userErrors payload for legacy input.id and rejects input.variants during input coercion because ProductInput does not define variants.',
+  },
+  {
+    domain: 'products',
     captureId: 'combined-listing-update-validation',
     scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
     purpose:
@@ -709,8 +727,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-set-shape-validator-parity.json`,
       `${CAPTURE_ROOT}product-set-async-operation-parity.json`,
+      `${CAPTURE_ROOT}product-set-id-not-allowed.json`,
       'config/parity-specs/products/productSet-shape-validator-parity.json',
       'config/parity-specs/products/productSet-async-operation-parity.json',
+      'config/parity-specs/products/product-set-id-not-allowed.json',
     ],
     cleanupBehavior:
       'Validation branches create no products; async productSet creates one disposable product and deletes it in cleanup.',
@@ -2116,6 +2136,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, records accepted and invalid inventory reason branches, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-adjust-name-allowlist',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-adjust-name-allowlist-conformance.ts',
+    purpose:
+      'inventoryAdjustQuantities and inventoryMoveQuantities public quantity-name allowlist validation plus deprecated set-on-hand acceptance evidence.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-adjust-name-allowlist.json`,
+      'config/parity-specs/products/inventory-adjust-name-allowlist.json',
+      'config/parity-requests/products/inventory-adjust-name-allowlist-adjust.graphql',
+      'config/parity-requests/products/inventory-adjust-name-allowlist-move.graphql',
+      'config/parity-requests/products/inventory-adjust-name-allowlist-set-on-hand.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable tracked product, records invalid adjust/move branches and a deprecated set-on-hand success branch, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3733,6 +3772,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable CAD test order, begins an order edit, records validation and happy-path branches, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-quantity-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-quantity-validation-conformance.ts',
+    purpose:
+      'orderEditSetQuantity negative quantity and orderEditAddVariant zero/negative quantity validation against a disposable order-edit session.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderEdit-quantity-validation.json`,
+      'config/parity-specs/orders/orderEdit-quantity-validation.json',
+      'config/parity-requests/orders/orderEdit-quantity-validation-addVariant.graphql',
+      'config/parity-requests/orders/orderEdit-quantity-validation-begin.graphql',
+      'config/parity-requests/orders/orderEdit-quantity-validation-setQuantity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable CAD test order, begins an order edit, records rejected quantity branches and a read-after-reject addVariant baseline, then cancels the order with restock.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
