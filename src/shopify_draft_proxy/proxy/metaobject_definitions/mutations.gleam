@@ -510,7 +510,8 @@ fn handle_definition_create(
   }
   case user_errors {
     [_, ..] -> {
-      let payload = definition_payload(field, fragments, None, user_errors)
+      let payload =
+        definition_payload(store, field, fragments, None, user_errors)
       #(MutationFieldResult(key, payload, [], [], []), store, identity)
     }
     [] -> {
@@ -522,7 +523,8 @@ fn handle_definition_create(
         )
       let #(staged, next_store) =
         upsert_staged_metaobject_definition(store, definition)
-      let payload = definition_payload(field, fragments, Some(staged), [])
+      let payload =
+        definition_payload(next_store, field, fragments, Some(staged), [])
       #(
         MutationFieldResult(key, payload, [staged.id], [], [
           metaobject_definition_types.log_draft("metaobjectDefinitionCreate", [
@@ -551,7 +553,7 @@ fn handle_definition_update(
   case id {
     None -> {
       let payload =
-        definition_payload(field, fragments, None, [
+        definition_payload(store, field, fragments, None, [
           metaobject_definition_types.record_not_found_user_error(["id"]),
         ])
       #(MutationFieldResult(key, payload, [], [], []), store, identity)
@@ -560,7 +562,7 @@ fn handle_definition_update(
       case get_effective_metaobject_definition_by_id(store, definition_id) {
         None -> {
           let payload =
-            definition_payload(field, fragments, None, [
+            definition_payload(store, field, fragments, None, [
               metaobject_definition_types.record_not_found_user_error(["id"]),
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
@@ -588,23 +590,43 @@ fn handle_definition_update(
           case user_errors {
             [_, ..] -> {
               let payload =
-                definition_payload(field, fragments, None, user_errors)
+                definition_payload(store, field, fragments, None, user_errors)
               #(MutationFieldResult(key, payload, [], [], []), store, identity)
             }
             [] -> {
               let #(staged, next_store) =
                 upsert_staged_metaobject_definition(store, updated)
+              let create_redirects =
+                metaobject_definition_types.read_definition_online_store_create_redirects(
+                  metaobject_definition_types.read_object(input, "capabilities"),
+                  Some(False),
+                )
+                |> option.unwrap(False)
+              let #(final_store, final_identity, staged_ids) =
+                maybe_stage_definition_url_handle_redirects(
+                  next_store,
+                  next_identity,
+                  existing,
+                  staged,
+                  create_redirects,
+                )
               let payload =
-                definition_payload(field, fragments, Some(staged), [])
+                definition_payload(
+                  final_store,
+                  field,
+                  fragments,
+                  Some(staged),
+                  [],
+                )
               #(
-                MutationFieldResult(key, payload, [staged.id], [], [
+                MutationFieldResult(key, payload, staged_ids, [], [
                   metaobject_definition_types.log_draft(
                     "metaobjectDefinitionUpdate",
-                    [staged.id],
+                    staged_ids,
                   ),
                 ]),
-                next_store,
-                next_identity,
+                final_store,
+                final_identity,
               )
             }
           }
@@ -708,7 +730,7 @@ fn handle_standard_definition_enable(
   case metaobject_definition_types.read_string(args, "type") {
     None -> {
       let payload =
-        definition_payload(field, fragments, None, [
+        definition_payload(store, field, fragments, None, [
           standard_template_record_not_found_error(),
         ])
       #(MutationFieldResult(key, payload, [], [], []), store, identity)
@@ -717,7 +739,7 @@ fn handle_standard_definition_enable(
       case metaobject_definition_types.standard_template(type_) {
         None -> {
           let payload =
-            definition_payload(field, fragments, None, [
+            definition_payload(store, field, fragments, None, [
               standard_template_record_not_found_error(),
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
@@ -726,7 +748,7 @@ fn handle_standard_definition_enable(
           case find_effective_metaobject_definition_by_type(store, type_) {
             Some(existing) -> {
               let payload =
-                definition_payload(field, fragments, Some(existing), [])
+                definition_payload(store, field, fragments, Some(existing), [])
               #(MutationFieldResult(key, payload, [], [], []), store, identity)
             }
             None -> {
@@ -739,7 +761,13 @@ fn handle_standard_definition_enable(
               let #(staged, next_store) =
                 upsert_staged_metaobject_definition(store, definition)
               let payload =
-                definition_payload(field, fragments, Some(staged), [])
+                definition_payload(
+                  next_store,
+                  field,
+                  fragments,
+                  Some(staged),
+                  [],
+                )
               #(
                 MutationFieldResult(key, payload, [staged.id], [], [
                   metaobject_definition_types.log_draft(
@@ -1085,6 +1113,85 @@ fn maybe_stage_metaobject_handle_redirect(
         }
         _, _ -> #(store, identity, base_ids)
       }
+  }
+}
+
+fn maybe_stage_definition_url_handle_redirects(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  before: MetaobjectDefinitionRecord,
+  after: MetaobjectDefinitionRecord,
+  create_redirects: Bool,
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let base_ids = [after.id]
+  case
+    create_redirects,
+    before.online_store_url_handle,
+    after.online_store_url_handle
+  {
+    True, Some(old_handle), Some(new_handle) ->
+      case
+        old_handle != new_handle
+        && definition_capability_enabled(after.capabilities.online_store)
+      {
+        True -> {
+          let active_rows =
+            store
+            |> list_effective_metaobjects_by_type(after.type_)
+            |> list.filter(metaobject_has_active_publishable_status)
+          list.fold(
+            active_rows,
+            #(store, identity, base_ids),
+            fn(acc, metaobject) {
+              let #(current_store, current_identity, ids) = acc
+              let #(next_store, next_identity, redirect_id) =
+                stage_definition_url_handle_redirect(
+                  current_store,
+                  current_identity,
+                  old_handle,
+                  new_handle,
+                  metaobject,
+                )
+              #(next_store, next_identity, list.append(ids, [redirect_id]))
+            },
+          )
+        }
+        False -> #(store, identity, base_ids)
+      }
+    _, _, _ -> #(store, identity, base_ids)
+  }
+}
+
+fn stage_definition_url_handle_redirect(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  old_handle: String,
+  new_handle: String,
+  metaobject: MetaobjectRecord,
+) -> #(Store, SyntheticIdentityRegistry, String) {
+  let #(id, after_id) =
+    synthetic_identity.make_proxy_synthetic_gid(identity, "UrlRedirect")
+  let #(now, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(after_id)
+  let redirect =
+    UrlRedirectRecord(
+      id: id,
+      path: "/pages/" <> old_handle <> "/" <> metaobject.handle,
+      target: "/pages/" <> new_handle <> "/" <> metaobject.handle,
+      cursor: None,
+      created_at: Some(now),
+      updated_at: Some(now),
+    )
+  let #(staged, next_store) = upsert_staged_url_redirect(store, redirect)
+  #(next_store, next_identity, staged.id)
+}
+
+fn metaobject_has_active_publishable_status(
+  metaobject: MetaobjectRecord,
+) -> Bool {
+  case metaobject.capabilities.publishable {
+    Some(MetaobjectPublishableCapabilityRecord(status: Some("ACTIVE"))) -> True
+    _ -> False
   }
 }
 
@@ -1995,6 +2102,9 @@ fn definition_from_json(
     online_store_url_handle: definition_online_store_url_handle_from_json(
       json_get(value, "capabilities"),
     ),
+    online_store_create_redirects: definition_online_store_create_redirects_from_json(
+      json_get(value, "capabilities"),
+    ),
     has_thumbnail_field: json_get_bool(value, "hasThumbnailField"),
     metaobjects_count: json_get_int(value, "metaobjectsCount"),
     standard_template: standard_template_from_json(json_get(
@@ -2132,6 +2242,23 @@ fn definition_online_store_url_handle_from_json(
           }
         None -> None
       }
+  }
+}
+
+fn definition_online_store_create_redirects_from_json(
+  value: Option(commit.JsonValue),
+) -> Option(Bool) {
+  case value {
+    Some(commit.JsonObject(_)) ->
+      case json_get(option.unwrap(value, commit.JsonNull), "onlineStore") {
+        Some(online_store) ->
+          case json_get(online_store, "data") {
+            Some(data) -> json_get_bool(data, "createRedirects")
+            None -> None
+          }
+        None -> None
+      }
+    _ -> None
   }
 }
 
@@ -2401,6 +2528,7 @@ fn option_to_result(value: Option(a)) -> Result(a, Nil) {
 }
 
 fn definition_payload(
+  store: Store,
   field: Selection,
   fragments: FragmentMap,
   definition: Option(MetaobjectDefinitionRecord),
@@ -2409,7 +2537,7 @@ fn definition_payload(
   let source =
     src_object([
       #("metaobjectDefinition", case definition {
-        Some(defn) -> metaobject_definition_source(defn)
+        Some(defn) -> metaobject_definition_source(store, defn)
         None -> SrcNull
       }),
       #("userErrors", SrcList(list.map(user_errors, user_error_source))),

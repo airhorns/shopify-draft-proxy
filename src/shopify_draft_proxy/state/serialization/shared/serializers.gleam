@@ -16,6 +16,7 @@ pub fn file_json(record: types.FileRecord) -> Json {
     #("alt", optional_string(record.alt)),
     #("contentType", optional_string(record.content_type)),
     #("createdAt", json.string(record.created_at)),
+    #("updatedAt", json.string(record.updated_at)),
     #("fileStatus", json.string(record.file_status)),
     #("filename", optional_string(record.filename)),
     #("originalSource", json.string(record.original_source)),
@@ -1211,6 +1212,10 @@ pub fn metaobject_definition_json(
     #("description", optional_string(record.description)),
     #("displayNameKey", optional_string(record.display_name_key)),
     #("onlineStoreUrlHandle", optional_string(record.online_store_url_handle)),
+    #(
+      "onlineStoreCreateRedirects",
+      optional_bool(record.online_store_create_redirects),
+    ),
     #("access", dict_to_json(record.access, optional_string)),
     #(
       "capabilities",

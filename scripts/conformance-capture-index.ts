@@ -1026,6 +1026,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-interface-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-interface-fields-conformance.mts',
+    purpose:
+      'Files API File interface non-null fields and type-specific MediaImage/GenericFile field projection for fileCreate plus files read-after-write.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-interface-fields.json`,
+      'config/parity-specs/media/media-file-interface-fields.json',
+      'config/parity-requests/media/media-file-interface-fields-create.graphql',
+      'config/parity-requests/media/media-file-interface-fields-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable image file and one disposable generic file, then deletes both.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
@@ -1788,6 +1805,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-app-namespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-app-namespace-conformance.ts',
+    purpose:
+      'SavedSearch create/update query-input $app metafield namespace resolution before staging, payload serialization, and downstream saved-search reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-app-namespace.json`,
+      'config/parity-specs/saved-searches/saved-search-app-namespace.json',
+      'config/parity-requests/saved-searches/saved-search-app-namespace-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-app-namespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product saved search with a $app metafield query, reads it, updates it with a second $app metafield query, reads it again, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-filter-projection',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-filter-projection-conformance.ts',
@@ -2374,6 +2409,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable metaobject definitions and rows for each branch, deletes any redirect row observed from the redirect-true branch, then deletes rows and definitions.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-definition-update-url-handle-redirect',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-update-url-handle-redirect-conformance.ts',
+    purpose:
+      'metaobjectDefinitionUpdate onlineStore.data.urlHandle change with createRedirects true, two published row redirects, URL redirect downstream reads, and canCreateRedirects definition readback.',
+    requiredAuthScopes: [
+      'read_metaobjects',
+      'write_metaobjects',
+      'read_online_store_navigation',
+      'write_online_store_navigation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinitionUpdate-url-handle-redirect.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-url-handle-redirect.json',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-definition-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirect.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirects.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable online-store metaobject definition and two ACTIVE rows, updates the definition URL handle with createRedirects true, deletes observed URL redirects, then deletes rows and the definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4127,6 +4189,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-address-code-derivation',
+    scriptPath: 'scripts/capture-location-address-code-derivation-conformance.mts',
+    purpose:
+      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode plus immediate read-after-write behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-address-code-derivation.json`,
+      'config/parity-specs/store-properties/location-address-code-derivation.json',
+      'config/parity-requests/store-properties/location-address-code-derivation-add.graphql',
+      'config/parity-requests/store-properties/location-address-code-derivation-edit.graphql',
+      'config/parity-requests/store-properties/location-address-code-derivation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable non-online-fulfilling GB, AU, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-edit-fields-and-state-machine',
     scriptPath: 'scripts/capture-location-edit-fields-and-state-machine-conformance.mts',
     purpose:
@@ -4475,6 +4555,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-update-localization-and-staff',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-localization-and-staff-conformance.ts',
+    purpose:
+      'orderUpdate localizedFields/localizationExtensions read-after-write parity plus public-schema evidence that staffMemberId is unavailable on the configured conformance store.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-localization-and-staff.json`,
+      'config/parity-specs/orders/orderUpdate-localization-and-staff.json',
+      'config/parity-requests/orders/orderUpdate-localization-and-staff.graphql',
+      'config/parity-requests/orders/orderUpdate-localization-and-staff-read.graphql',
+      'config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The staffMemberId NOT_FOUND branch is runtime-test-backed because the public 2026-04 schema for the configured conformance store rejects OrderInput.staffMemberId before resolver execution.',
   },
   {
     domain: 'orders',
@@ -4946,9 +5046,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql',
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-create.graphql',
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-creation-read.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-validation-existing-read.graphql',
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-read.graphql',
     ],
-    cleanupBehavior: 'Creates a disposable code discount and deletes it after validation probes.',
+    cleanupBehavior: 'Creates two disposable code discounts and deletes them after validation probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5848,6 +5949,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-refund-transactions-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-refund-transactions-validation-conformance.mts',
+    purpose:
+      'refundCreate transaction kind, parent transaction, gateway mismatch, and matching-parent happy path validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}refund-create-transactions-validation.json`,
+      'config/parity-specs/orders/refundCreate-transactions-validation.json',
+      'config/parity-requests/orders/refundCreate-transactions-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable paid orders, captures rejected refundCreate transaction kind and parent validation, captures current public gateway-normalization behavior, captures one accepted baseline, then attempts orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-refunds',
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
     purpose: 'Order refund calculation/create behavior against disposable orders.',
@@ -6494,6 +6612,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Records current public Admin GraphQL userErrors, including generic URI errors emitted alongside the structural validator messages.',
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-dedicated-cloud-destinations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-dedicated-cloud-destinations-conformance.ts',
+    purpose:
+      'Dedicated Pub/Sub and EventBridge webhook subscription create/update lifecycle, downstream reads, and typed-input validation branches.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-dedicated-cloud-destinations.json`,
+      'config/parity-specs/webhooks/webhook-subscription-dedicated-cloud-destinations.json',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql',
+      'config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql',
+      'config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql',
+      'config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates temporary Pub/Sub and EventBridge SHOP_UPDATE subscriptions, records validation branches, then deletes the temporary subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records deprecated dedicated roots that synthesize cloud destination addresses before delegating to the shared webhook subscription resolver path.',
   },
   {
     domain: 'webhooks',

@@ -229,6 +229,37 @@
         ]
       },
       {
+        "name": "segment-node-read-after-update",
+        "capturePath": "$.cases[7].response.payload.data.segmentUpdate.segment",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-update-customer-countries-accept",
+              "path": "$.data.segmentUpdate.segment.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy resolves the locally staged updated segment ID through generic Node dispatch."
+          },
+          {
+            "path": "$.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy preserves its deterministic local creation timestamp while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local update timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
         "name": "segment-create-malformed-rejected",
         "capturePath": "$.cases[8].response.payload.data",
         "proxyPath": "$.data",

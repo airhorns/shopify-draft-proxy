@@ -1,23 +1,53 @@
 {
   "variables": {
-    "discountId": "gid://shopify/DiscountCodeNode/1640468513074",
-    "seedCode": "HAR784BASE1778020880726",
+    "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
+    "crossDiscountId": "gid://shopify/DiscountCodeNode/1640746254642",
+    "seedCode": "HAR784BASE1778166762181",
+    "crossDiscountCode": "HAR784CROSS1778166762181",
+    "existingFreshCode": "HAR784FRESH1778166762181",
     "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
-    "duplicateCode": "HAR784DUP1778020880726",
-    "validCode": "HAR784OK1778020880726",
-    "newlineCode": "HAR784NL1778020880726\nBAD",
-    "carriageReturnCode": "HAR784CR1778020880726\rBAD",
+    "duplicateCode": "HAR784DUP1778166762181",
+    "validCode": "HAR784OK1778166762181",
+    "newlineCode": "HAR784NL1778166762181\nBAD",
+    "carriageReturnCode": "HAR784CR1778166762181\rBAD",
     "longCode": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "invalidBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/792032149810"
+    "invalidBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/792087363890",
+    "existingConflictBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/792087396658"
   },
   "requests": {
     "create": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      codeDiscountNode {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-784 redeem code validation 1778020880726",
-          "code": "HAR784BASE1778020880726",
-          "startsAt": "2026-05-05T22:40:20.726Z",
+          "title": "HAR-784 redeem code validation 1778166762181",
+          "code": "HAR784BASE1778166762181",
+          "startsAt": "2026-05-07T15:11:42.181Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "crossCreate": {
+      "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      codeDiscountNode {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "HAR-784 redeem code cross discount 1778166762181",
+          "code": "HAR784CROSS1778166762181",
+          "startsAt": "2026-05-07T15:11:42.181Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -51,760 +81,760 @@
     "tooMany": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640468513074",
+        "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
         "codes": [
           {
-            "code": "HAR784MAX1778020880726-0"
+            "code": "HAR784MAX1778166762181-0"
           },
           {
-            "code": "HAR784MAX1778020880726-1"
+            "code": "HAR784MAX1778166762181-1"
           },
           {
-            "code": "HAR784MAX1778020880726-2"
+            "code": "HAR784MAX1778166762181-2"
           },
           {
-            "code": "HAR784MAX1778020880726-3"
+            "code": "HAR784MAX1778166762181-3"
           },
           {
-            "code": "HAR784MAX1778020880726-4"
+            "code": "HAR784MAX1778166762181-4"
           },
           {
-            "code": "HAR784MAX1778020880726-5"
+            "code": "HAR784MAX1778166762181-5"
           },
           {
-            "code": "HAR784MAX1778020880726-6"
+            "code": "HAR784MAX1778166762181-6"
           },
           {
-            "code": "HAR784MAX1778020880726-7"
+            "code": "HAR784MAX1778166762181-7"
           },
           {
-            "code": "HAR784MAX1778020880726-8"
+            "code": "HAR784MAX1778166762181-8"
           },
           {
-            "code": "HAR784MAX1778020880726-9"
+            "code": "HAR784MAX1778166762181-9"
           },
           {
-            "code": "HAR784MAX1778020880726-10"
+            "code": "HAR784MAX1778166762181-10"
           },
           {
-            "code": "HAR784MAX1778020880726-11"
+            "code": "HAR784MAX1778166762181-11"
           },
           {
-            "code": "HAR784MAX1778020880726-12"
+            "code": "HAR784MAX1778166762181-12"
           },
           {
-            "code": "HAR784MAX1778020880726-13"
+            "code": "HAR784MAX1778166762181-13"
           },
           {
-            "code": "HAR784MAX1778020880726-14"
+            "code": "HAR784MAX1778166762181-14"
           },
           {
-            "code": "HAR784MAX1778020880726-15"
+            "code": "HAR784MAX1778166762181-15"
           },
           {
-            "code": "HAR784MAX1778020880726-16"
+            "code": "HAR784MAX1778166762181-16"
           },
           {
-            "code": "HAR784MAX1778020880726-17"
+            "code": "HAR784MAX1778166762181-17"
           },
           {
-            "code": "HAR784MAX1778020880726-18"
+            "code": "HAR784MAX1778166762181-18"
           },
           {
-            "code": "HAR784MAX1778020880726-19"
+            "code": "HAR784MAX1778166762181-19"
           },
           {
-            "code": "HAR784MAX1778020880726-20"
+            "code": "HAR784MAX1778166762181-20"
           },
           {
-            "code": "HAR784MAX1778020880726-21"
+            "code": "HAR784MAX1778166762181-21"
           },
           {
-            "code": "HAR784MAX1778020880726-22"
+            "code": "HAR784MAX1778166762181-22"
           },
           {
-            "code": "HAR784MAX1778020880726-23"
+            "code": "HAR784MAX1778166762181-23"
           },
           {
-            "code": "HAR784MAX1778020880726-24"
+            "code": "HAR784MAX1778166762181-24"
           },
           {
-            "code": "HAR784MAX1778020880726-25"
+            "code": "HAR784MAX1778166762181-25"
           },
           {
-            "code": "HAR784MAX1778020880726-26"
+            "code": "HAR784MAX1778166762181-26"
           },
           {
-            "code": "HAR784MAX1778020880726-27"
+            "code": "HAR784MAX1778166762181-27"
           },
           {
-            "code": "HAR784MAX1778020880726-28"
+            "code": "HAR784MAX1778166762181-28"
           },
           {
-            "code": "HAR784MAX1778020880726-29"
+            "code": "HAR784MAX1778166762181-29"
           },
           {
-            "code": "HAR784MAX1778020880726-30"
+            "code": "HAR784MAX1778166762181-30"
           },
           {
-            "code": "HAR784MAX1778020880726-31"
+            "code": "HAR784MAX1778166762181-31"
           },
           {
-            "code": "HAR784MAX1778020880726-32"
+            "code": "HAR784MAX1778166762181-32"
           },
           {
-            "code": "HAR784MAX1778020880726-33"
+            "code": "HAR784MAX1778166762181-33"
           },
           {
-            "code": "HAR784MAX1778020880726-34"
+            "code": "HAR784MAX1778166762181-34"
           },
           {
-            "code": "HAR784MAX1778020880726-35"
+            "code": "HAR784MAX1778166762181-35"
           },
           {
-            "code": "HAR784MAX1778020880726-36"
+            "code": "HAR784MAX1778166762181-36"
           },
           {
-            "code": "HAR784MAX1778020880726-37"
+            "code": "HAR784MAX1778166762181-37"
           },
           {
-            "code": "HAR784MAX1778020880726-38"
+            "code": "HAR784MAX1778166762181-38"
           },
           {
-            "code": "HAR784MAX1778020880726-39"
+            "code": "HAR784MAX1778166762181-39"
           },
           {
-            "code": "HAR784MAX1778020880726-40"
+            "code": "HAR784MAX1778166762181-40"
           },
           {
-            "code": "HAR784MAX1778020880726-41"
+            "code": "HAR784MAX1778166762181-41"
           },
           {
-            "code": "HAR784MAX1778020880726-42"
+            "code": "HAR784MAX1778166762181-42"
           },
           {
-            "code": "HAR784MAX1778020880726-43"
+            "code": "HAR784MAX1778166762181-43"
           },
           {
-            "code": "HAR784MAX1778020880726-44"
+            "code": "HAR784MAX1778166762181-44"
           },
           {
-            "code": "HAR784MAX1778020880726-45"
+            "code": "HAR784MAX1778166762181-45"
           },
           {
-            "code": "HAR784MAX1778020880726-46"
+            "code": "HAR784MAX1778166762181-46"
           },
           {
-            "code": "HAR784MAX1778020880726-47"
+            "code": "HAR784MAX1778166762181-47"
           },
           {
-            "code": "HAR784MAX1778020880726-48"
+            "code": "HAR784MAX1778166762181-48"
           },
           {
-            "code": "HAR784MAX1778020880726-49"
+            "code": "HAR784MAX1778166762181-49"
           },
           {
-            "code": "HAR784MAX1778020880726-50"
+            "code": "HAR784MAX1778166762181-50"
           },
           {
-            "code": "HAR784MAX1778020880726-51"
+            "code": "HAR784MAX1778166762181-51"
           },
           {
-            "code": "HAR784MAX1778020880726-52"
+            "code": "HAR784MAX1778166762181-52"
           },
           {
-            "code": "HAR784MAX1778020880726-53"
+            "code": "HAR784MAX1778166762181-53"
           },
           {
-            "code": "HAR784MAX1778020880726-54"
+            "code": "HAR784MAX1778166762181-54"
           },
           {
-            "code": "HAR784MAX1778020880726-55"
+            "code": "HAR784MAX1778166762181-55"
           },
           {
-            "code": "HAR784MAX1778020880726-56"
+            "code": "HAR784MAX1778166762181-56"
           },
           {
-            "code": "HAR784MAX1778020880726-57"
+            "code": "HAR784MAX1778166762181-57"
           },
           {
-            "code": "HAR784MAX1778020880726-58"
+            "code": "HAR784MAX1778166762181-58"
           },
           {
-            "code": "HAR784MAX1778020880726-59"
+            "code": "HAR784MAX1778166762181-59"
           },
           {
-            "code": "HAR784MAX1778020880726-60"
+            "code": "HAR784MAX1778166762181-60"
           },
           {
-            "code": "HAR784MAX1778020880726-61"
+            "code": "HAR784MAX1778166762181-61"
           },
           {
-            "code": "HAR784MAX1778020880726-62"
+            "code": "HAR784MAX1778166762181-62"
           },
           {
-            "code": "HAR784MAX1778020880726-63"
+            "code": "HAR784MAX1778166762181-63"
           },
           {
-            "code": "HAR784MAX1778020880726-64"
+            "code": "HAR784MAX1778166762181-64"
           },
           {
-            "code": "HAR784MAX1778020880726-65"
+            "code": "HAR784MAX1778166762181-65"
           },
           {
-            "code": "HAR784MAX1778020880726-66"
+            "code": "HAR784MAX1778166762181-66"
           },
           {
-            "code": "HAR784MAX1778020880726-67"
+            "code": "HAR784MAX1778166762181-67"
           },
           {
-            "code": "HAR784MAX1778020880726-68"
+            "code": "HAR784MAX1778166762181-68"
           },
           {
-            "code": "HAR784MAX1778020880726-69"
+            "code": "HAR784MAX1778166762181-69"
           },
           {
-            "code": "HAR784MAX1778020880726-70"
+            "code": "HAR784MAX1778166762181-70"
           },
           {
-            "code": "HAR784MAX1778020880726-71"
+            "code": "HAR784MAX1778166762181-71"
           },
           {
-            "code": "HAR784MAX1778020880726-72"
+            "code": "HAR784MAX1778166762181-72"
           },
           {
-            "code": "HAR784MAX1778020880726-73"
+            "code": "HAR784MAX1778166762181-73"
           },
           {
-            "code": "HAR784MAX1778020880726-74"
+            "code": "HAR784MAX1778166762181-74"
           },
           {
-            "code": "HAR784MAX1778020880726-75"
+            "code": "HAR784MAX1778166762181-75"
           },
           {
-            "code": "HAR784MAX1778020880726-76"
+            "code": "HAR784MAX1778166762181-76"
           },
           {
-            "code": "HAR784MAX1778020880726-77"
+            "code": "HAR784MAX1778166762181-77"
           },
           {
-            "code": "HAR784MAX1778020880726-78"
+            "code": "HAR784MAX1778166762181-78"
           },
           {
-            "code": "HAR784MAX1778020880726-79"
+            "code": "HAR784MAX1778166762181-79"
           },
           {
-            "code": "HAR784MAX1778020880726-80"
+            "code": "HAR784MAX1778166762181-80"
           },
           {
-            "code": "HAR784MAX1778020880726-81"
+            "code": "HAR784MAX1778166762181-81"
           },
           {
-            "code": "HAR784MAX1778020880726-82"
+            "code": "HAR784MAX1778166762181-82"
           },
           {
-            "code": "HAR784MAX1778020880726-83"
+            "code": "HAR784MAX1778166762181-83"
           },
           {
-            "code": "HAR784MAX1778020880726-84"
+            "code": "HAR784MAX1778166762181-84"
           },
           {
-            "code": "HAR784MAX1778020880726-85"
+            "code": "HAR784MAX1778166762181-85"
           },
           {
-            "code": "HAR784MAX1778020880726-86"
+            "code": "HAR784MAX1778166762181-86"
           },
           {
-            "code": "HAR784MAX1778020880726-87"
+            "code": "HAR784MAX1778166762181-87"
           },
           {
-            "code": "HAR784MAX1778020880726-88"
+            "code": "HAR784MAX1778166762181-88"
           },
           {
-            "code": "HAR784MAX1778020880726-89"
+            "code": "HAR784MAX1778166762181-89"
           },
           {
-            "code": "HAR784MAX1778020880726-90"
+            "code": "HAR784MAX1778166762181-90"
           },
           {
-            "code": "HAR784MAX1778020880726-91"
+            "code": "HAR784MAX1778166762181-91"
           },
           {
-            "code": "HAR784MAX1778020880726-92"
+            "code": "HAR784MAX1778166762181-92"
           },
           {
-            "code": "HAR784MAX1778020880726-93"
+            "code": "HAR784MAX1778166762181-93"
           },
           {
-            "code": "HAR784MAX1778020880726-94"
+            "code": "HAR784MAX1778166762181-94"
           },
           {
-            "code": "HAR784MAX1778020880726-95"
+            "code": "HAR784MAX1778166762181-95"
           },
           {
-            "code": "HAR784MAX1778020880726-96"
+            "code": "HAR784MAX1778166762181-96"
           },
           {
-            "code": "HAR784MAX1778020880726-97"
+            "code": "HAR784MAX1778166762181-97"
           },
           {
-            "code": "HAR784MAX1778020880726-98"
+            "code": "HAR784MAX1778166762181-98"
           },
           {
-            "code": "HAR784MAX1778020880726-99"
+            "code": "HAR784MAX1778166762181-99"
           },
           {
-            "code": "HAR784MAX1778020880726-100"
+            "code": "HAR784MAX1778166762181-100"
           },
           {
-            "code": "HAR784MAX1778020880726-101"
+            "code": "HAR784MAX1778166762181-101"
           },
           {
-            "code": "HAR784MAX1778020880726-102"
+            "code": "HAR784MAX1778166762181-102"
           },
           {
-            "code": "HAR784MAX1778020880726-103"
+            "code": "HAR784MAX1778166762181-103"
           },
           {
-            "code": "HAR784MAX1778020880726-104"
+            "code": "HAR784MAX1778166762181-104"
           },
           {
-            "code": "HAR784MAX1778020880726-105"
+            "code": "HAR784MAX1778166762181-105"
           },
           {
-            "code": "HAR784MAX1778020880726-106"
+            "code": "HAR784MAX1778166762181-106"
           },
           {
-            "code": "HAR784MAX1778020880726-107"
+            "code": "HAR784MAX1778166762181-107"
           },
           {
-            "code": "HAR784MAX1778020880726-108"
+            "code": "HAR784MAX1778166762181-108"
           },
           {
-            "code": "HAR784MAX1778020880726-109"
+            "code": "HAR784MAX1778166762181-109"
           },
           {
-            "code": "HAR784MAX1778020880726-110"
+            "code": "HAR784MAX1778166762181-110"
           },
           {
-            "code": "HAR784MAX1778020880726-111"
+            "code": "HAR784MAX1778166762181-111"
           },
           {
-            "code": "HAR784MAX1778020880726-112"
+            "code": "HAR784MAX1778166762181-112"
           },
           {
-            "code": "HAR784MAX1778020880726-113"
+            "code": "HAR784MAX1778166762181-113"
           },
           {
-            "code": "HAR784MAX1778020880726-114"
+            "code": "HAR784MAX1778166762181-114"
           },
           {
-            "code": "HAR784MAX1778020880726-115"
+            "code": "HAR784MAX1778166762181-115"
           },
           {
-            "code": "HAR784MAX1778020880726-116"
+            "code": "HAR784MAX1778166762181-116"
           },
           {
-            "code": "HAR784MAX1778020880726-117"
+            "code": "HAR784MAX1778166762181-117"
           },
           {
-            "code": "HAR784MAX1778020880726-118"
+            "code": "HAR784MAX1778166762181-118"
           },
           {
-            "code": "HAR784MAX1778020880726-119"
+            "code": "HAR784MAX1778166762181-119"
           },
           {
-            "code": "HAR784MAX1778020880726-120"
+            "code": "HAR784MAX1778166762181-120"
           },
           {
-            "code": "HAR784MAX1778020880726-121"
+            "code": "HAR784MAX1778166762181-121"
           },
           {
-            "code": "HAR784MAX1778020880726-122"
+            "code": "HAR784MAX1778166762181-122"
           },
           {
-            "code": "HAR784MAX1778020880726-123"
+            "code": "HAR784MAX1778166762181-123"
           },
           {
-            "code": "HAR784MAX1778020880726-124"
+            "code": "HAR784MAX1778166762181-124"
           },
           {
-            "code": "HAR784MAX1778020880726-125"
+            "code": "HAR784MAX1778166762181-125"
           },
           {
-            "code": "HAR784MAX1778020880726-126"
+            "code": "HAR784MAX1778166762181-126"
           },
           {
-            "code": "HAR784MAX1778020880726-127"
+            "code": "HAR784MAX1778166762181-127"
           },
           {
-            "code": "HAR784MAX1778020880726-128"
+            "code": "HAR784MAX1778166762181-128"
           },
           {
-            "code": "HAR784MAX1778020880726-129"
+            "code": "HAR784MAX1778166762181-129"
           },
           {
-            "code": "HAR784MAX1778020880726-130"
+            "code": "HAR784MAX1778166762181-130"
           },
           {
-            "code": "HAR784MAX1778020880726-131"
+            "code": "HAR784MAX1778166762181-131"
           },
           {
-            "code": "HAR784MAX1778020880726-132"
+            "code": "HAR784MAX1778166762181-132"
           },
           {
-            "code": "HAR784MAX1778020880726-133"
+            "code": "HAR784MAX1778166762181-133"
           },
           {
-            "code": "HAR784MAX1778020880726-134"
+            "code": "HAR784MAX1778166762181-134"
           },
           {
-            "code": "HAR784MAX1778020880726-135"
+            "code": "HAR784MAX1778166762181-135"
           },
           {
-            "code": "HAR784MAX1778020880726-136"
+            "code": "HAR784MAX1778166762181-136"
           },
           {
-            "code": "HAR784MAX1778020880726-137"
+            "code": "HAR784MAX1778166762181-137"
           },
           {
-            "code": "HAR784MAX1778020880726-138"
+            "code": "HAR784MAX1778166762181-138"
           },
           {
-            "code": "HAR784MAX1778020880726-139"
+            "code": "HAR784MAX1778166762181-139"
           },
           {
-            "code": "HAR784MAX1778020880726-140"
+            "code": "HAR784MAX1778166762181-140"
           },
           {
-            "code": "HAR784MAX1778020880726-141"
+            "code": "HAR784MAX1778166762181-141"
           },
           {
-            "code": "HAR784MAX1778020880726-142"
+            "code": "HAR784MAX1778166762181-142"
           },
           {
-            "code": "HAR784MAX1778020880726-143"
+            "code": "HAR784MAX1778166762181-143"
           },
           {
-            "code": "HAR784MAX1778020880726-144"
+            "code": "HAR784MAX1778166762181-144"
           },
           {
-            "code": "HAR784MAX1778020880726-145"
+            "code": "HAR784MAX1778166762181-145"
           },
           {
-            "code": "HAR784MAX1778020880726-146"
+            "code": "HAR784MAX1778166762181-146"
           },
           {
-            "code": "HAR784MAX1778020880726-147"
+            "code": "HAR784MAX1778166762181-147"
           },
           {
-            "code": "HAR784MAX1778020880726-148"
+            "code": "HAR784MAX1778166762181-148"
           },
           {
-            "code": "HAR784MAX1778020880726-149"
+            "code": "HAR784MAX1778166762181-149"
           },
           {
-            "code": "HAR784MAX1778020880726-150"
+            "code": "HAR784MAX1778166762181-150"
           },
           {
-            "code": "HAR784MAX1778020880726-151"
+            "code": "HAR784MAX1778166762181-151"
           },
           {
-            "code": "HAR784MAX1778020880726-152"
+            "code": "HAR784MAX1778166762181-152"
           },
           {
-            "code": "HAR784MAX1778020880726-153"
+            "code": "HAR784MAX1778166762181-153"
           },
           {
-            "code": "HAR784MAX1778020880726-154"
+            "code": "HAR784MAX1778166762181-154"
           },
           {
-            "code": "HAR784MAX1778020880726-155"
+            "code": "HAR784MAX1778166762181-155"
           },
           {
-            "code": "HAR784MAX1778020880726-156"
+            "code": "HAR784MAX1778166762181-156"
           },
           {
-            "code": "HAR784MAX1778020880726-157"
+            "code": "HAR784MAX1778166762181-157"
           },
           {
-            "code": "HAR784MAX1778020880726-158"
+            "code": "HAR784MAX1778166762181-158"
           },
           {
-            "code": "HAR784MAX1778020880726-159"
+            "code": "HAR784MAX1778166762181-159"
           },
           {
-            "code": "HAR784MAX1778020880726-160"
+            "code": "HAR784MAX1778166762181-160"
           },
           {
-            "code": "HAR784MAX1778020880726-161"
+            "code": "HAR784MAX1778166762181-161"
           },
           {
-            "code": "HAR784MAX1778020880726-162"
+            "code": "HAR784MAX1778166762181-162"
           },
           {
-            "code": "HAR784MAX1778020880726-163"
+            "code": "HAR784MAX1778166762181-163"
           },
           {
-            "code": "HAR784MAX1778020880726-164"
+            "code": "HAR784MAX1778166762181-164"
           },
           {
-            "code": "HAR784MAX1778020880726-165"
+            "code": "HAR784MAX1778166762181-165"
           },
           {
-            "code": "HAR784MAX1778020880726-166"
+            "code": "HAR784MAX1778166762181-166"
           },
           {
-            "code": "HAR784MAX1778020880726-167"
+            "code": "HAR784MAX1778166762181-167"
           },
           {
-            "code": "HAR784MAX1778020880726-168"
+            "code": "HAR784MAX1778166762181-168"
           },
           {
-            "code": "HAR784MAX1778020880726-169"
+            "code": "HAR784MAX1778166762181-169"
           },
           {
-            "code": "HAR784MAX1778020880726-170"
+            "code": "HAR784MAX1778166762181-170"
           },
           {
-            "code": "HAR784MAX1778020880726-171"
+            "code": "HAR784MAX1778166762181-171"
           },
           {
-            "code": "HAR784MAX1778020880726-172"
+            "code": "HAR784MAX1778166762181-172"
           },
           {
-            "code": "HAR784MAX1778020880726-173"
+            "code": "HAR784MAX1778166762181-173"
           },
           {
-            "code": "HAR784MAX1778020880726-174"
+            "code": "HAR784MAX1778166762181-174"
           },
           {
-            "code": "HAR784MAX1778020880726-175"
+            "code": "HAR784MAX1778166762181-175"
           },
           {
-            "code": "HAR784MAX1778020880726-176"
+            "code": "HAR784MAX1778166762181-176"
           },
           {
-            "code": "HAR784MAX1778020880726-177"
+            "code": "HAR784MAX1778166762181-177"
           },
           {
-            "code": "HAR784MAX1778020880726-178"
+            "code": "HAR784MAX1778166762181-178"
           },
           {
-            "code": "HAR784MAX1778020880726-179"
+            "code": "HAR784MAX1778166762181-179"
           },
           {
-            "code": "HAR784MAX1778020880726-180"
+            "code": "HAR784MAX1778166762181-180"
           },
           {
-            "code": "HAR784MAX1778020880726-181"
+            "code": "HAR784MAX1778166762181-181"
           },
           {
-            "code": "HAR784MAX1778020880726-182"
+            "code": "HAR784MAX1778166762181-182"
           },
           {
-            "code": "HAR784MAX1778020880726-183"
+            "code": "HAR784MAX1778166762181-183"
           },
           {
-            "code": "HAR784MAX1778020880726-184"
+            "code": "HAR784MAX1778166762181-184"
           },
           {
-            "code": "HAR784MAX1778020880726-185"
+            "code": "HAR784MAX1778166762181-185"
           },
           {
-            "code": "HAR784MAX1778020880726-186"
+            "code": "HAR784MAX1778166762181-186"
           },
           {
-            "code": "HAR784MAX1778020880726-187"
+            "code": "HAR784MAX1778166762181-187"
           },
           {
-            "code": "HAR784MAX1778020880726-188"
+            "code": "HAR784MAX1778166762181-188"
           },
           {
-            "code": "HAR784MAX1778020880726-189"
+            "code": "HAR784MAX1778166762181-189"
           },
           {
-            "code": "HAR784MAX1778020880726-190"
+            "code": "HAR784MAX1778166762181-190"
           },
           {
-            "code": "HAR784MAX1778020880726-191"
+            "code": "HAR784MAX1778166762181-191"
           },
           {
-            "code": "HAR784MAX1778020880726-192"
+            "code": "HAR784MAX1778166762181-192"
           },
           {
-            "code": "HAR784MAX1778020880726-193"
+            "code": "HAR784MAX1778166762181-193"
           },
           {
-            "code": "HAR784MAX1778020880726-194"
+            "code": "HAR784MAX1778166762181-194"
           },
           {
-            "code": "HAR784MAX1778020880726-195"
+            "code": "HAR784MAX1778166762181-195"
           },
           {
-            "code": "HAR784MAX1778020880726-196"
+            "code": "HAR784MAX1778166762181-196"
           },
           {
-            "code": "HAR784MAX1778020880726-197"
+            "code": "HAR784MAX1778166762181-197"
           },
           {
-            "code": "HAR784MAX1778020880726-198"
+            "code": "HAR784MAX1778166762181-198"
           },
           {
-            "code": "HAR784MAX1778020880726-199"
+            "code": "HAR784MAX1778166762181-199"
           },
           {
-            "code": "HAR784MAX1778020880726-200"
+            "code": "HAR784MAX1778166762181-200"
           },
           {
-            "code": "HAR784MAX1778020880726-201"
+            "code": "HAR784MAX1778166762181-201"
           },
           {
-            "code": "HAR784MAX1778020880726-202"
+            "code": "HAR784MAX1778166762181-202"
           },
           {
-            "code": "HAR784MAX1778020880726-203"
+            "code": "HAR784MAX1778166762181-203"
           },
           {
-            "code": "HAR784MAX1778020880726-204"
+            "code": "HAR784MAX1778166762181-204"
           },
           {
-            "code": "HAR784MAX1778020880726-205"
+            "code": "HAR784MAX1778166762181-205"
           },
           {
-            "code": "HAR784MAX1778020880726-206"
+            "code": "HAR784MAX1778166762181-206"
           },
           {
-            "code": "HAR784MAX1778020880726-207"
+            "code": "HAR784MAX1778166762181-207"
           },
           {
-            "code": "HAR784MAX1778020880726-208"
+            "code": "HAR784MAX1778166762181-208"
           },
           {
-            "code": "HAR784MAX1778020880726-209"
+            "code": "HAR784MAX1778166762181-209"
           },
           {
-            "code": "HAR784MAX1778020880726-210"
+            "code": "HAR784MAX1778166762181-210"
           },
           {
-            "code": "HAR784MAX1778020880726-211"
+            "code": "HAR784MAX1778166762181-211"
           },
           {
-            "code": "HAR784MAX1778020880726-212"
+            "code": "HAR784MAX1778166762181-212"
           },
           {
-            "code": "HAR784MAX1778020880726-213"
+            "code": "HAR784MAX1778166762181-213"
           },
           {
-            "code": "HAR784MAX1778020880726-214"
+            "code": "HAR784MAX1778166762181-214"
           },
           {
-            "code": "HAR784MAX1778020880726-215"
+            "code": "HAR784MAX1778166762181-215"
           },
           {
-            "code": "HAR784MAX1778020880726-216"
+            "code": "HAR784MAX1778166762181-216"
           },
           {
-            "code": "HAR784MAX1778020880726-217"
+            "code": "HAR784MAX1778166762181-217"
           },
           {
-            "code": "HAR784MAX1778020880726-218"
+            "code": "HAR784MAX1778166762181-218"
           },
           {
-            "code": "HAR784MAX1778020880726-219"
+            "code": "HAR784MAX1778166762181-219"
           },
           {
-            "code": "HAR784MAX1778020880726-220"
+            "code": "HAR784MAX1778166762181-220"
           },
           {
-            "code": "HAR784MAX1778020880726-221"
+            "code": "HAR784MAX1778166762181-221"
           },
           {
-            "code": "HAR784MAX1778020880726-222"
+            "code": "HAR784MAX1778166762181-222"
           },
           {
-            "code": "HAR784MAX1778020880726-223"
+            "code": "HAR784MAX1778166762181-223"
           },
           {
-            "code": "HAR784MAX1778020880726-224"
+            "code": "HAR784MAX1778166762181-224"
           },
           {
-            "code": "HAR784MAX1778020880726-225"
+            "code": "HAR784MAX1778166762181-225"
           },
           {
-            "code": "HAR784MAX1778020880726-226"
+            "code": "HAR784MAX1778166762181-226"
           },
           {
-            "code": "HAR784MAX1778020880726-227"
+            "code": "HAR784MAX1778166762181-227"
           },
           {
-            "code": "HAR784MAX1778020880726-228"
+            "code": "HAR784MAX1778166762181-228"
           },
           {
-            "code": "HAR784MAX1778020880726-229"
+            "code": "HAR784MAX1778166762181-229"
           },
           {
-            "code": "HAR784MAX1778020880726-230"
+            "code": "HAR784MAX1778166762181-230"
           },
           {
-            "code": "HAR784MAX1778020880726-231"
+            "code": "HAR784MAX1778166762181-231"
           },
           {
-            "code": "HAR784MAX1778020880726-232"
+            "code": "HAR784MAX1778166762181-232"
           },
           {
-            "code": "HAR784MAX1778020880726-233"
+            "code": "HAR784MAX1778166762181-233"
           },
           {
-            "code": "HAR784MAX1778020880726-234"
+            "code": "HAR784MAX1778166762181-234"
           },
           {
-            "code": "HAR784MAX1778020880726-235"
+            "code": "HAR784MAX1778166762181-235"
           },
           {
-            "code": "HAR784MAX1778020880726-236"
+            "code": "HAR784MAX1778166762181-236"
           },
           {
-            "code": "HAR784MAX1778020880726-237"
+            "code": "HAR784MAX1778166762181-237"
           },
           {
-            "code": "HAR784MAX1778020880726-238"
+            "code": "HAR784MAX1778166762181-238"
           },
           {
-            "code": "HAR784MAX1778020880726-239"
+            "code": "HAR784MAX1778166762181-239"
           },
           {
-            "code": "HAR784MAX1778020880726-240"
+            "code": "HAR784MAX1778166762181-240"
           },
           {
-            "code": "HAR784MAX1778020880726-241"
+            "code": "HAR784MAX1778166762181-241"
           },
           {
-            "code": "HAR784MAX1778020880726-242"
+            "code": "HAR784MAX1778166762181-242"
           },
           {
-            "code": "HAR784MAX1778020880726-243"
+            "code": "HAR784MAX1778166762181-243"
           },
           {
-            "code": "HAR784MAX1778020880726-244"
+            "code": "HAR784MAX1778166762181-244"
           },
           {
-            "code": "HAR784MAX1778020880726-245"
+            "code": "HAR784MAX1778166762181-245"
           },
           {
-            "code": "HAR784MAX1778020880726-246"
+            "code": "HAR784MAX1778166762181-246"
           },
           {
-            "code": "HAR784MAX1778020880726-247"
+            "code": "HAR784MAX1778166762181-247"
           },
           {
-            "code": "HAR784MAX1778020880726-248"
+            "code": "HAR784MAX1778166762181-248"
           },
           {
-            "code": "HAR784MAX1778020880726-249"
+            "code": "HAR784MAX1778166762181-249"
           },
           {
-            "code": "HAR784MAX1778020880726-250"
+            "code": "HAR784MAX1778166762181-250"
           }
         ]
       }
@@ -812,35 +842,35 @@
     "emptyCodes": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640468513074",
+        "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
         "codes": []
       }
     },
     "invalidCodes": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640468513074",
+        "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
         "codes": [
           {
             "code": ""
           },
           {
-            "code": "HAR784NL1778020880726\nBAD"
+            "code": "HAR784NL1778166762181\nBAD"
           },
           {
-            "code": "HAR784CR1778020880726\rBAD"
+            "code": "HAR784CR1778166762181\rBAD"
           },
           {
             "code": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
           },
           {
-            "code": "HAR784DUP1778020880726"
+            "code": "HAR784DUP1778166762181"
           },
           {
-            "code": "HAR784DUP1778020880726"
+            "code": "HAR784DUP1778166762181"
           },
           {
-            "code": "HAR784OK1778020880726"
+            "code": "HAR784OK1778166762181"
           }
         ]
       }
@@ -848,21 +878,71 @@
     "invalidCodesFinalRead": {
       "query": "#graphql\n  query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) {\n    discountRedeemCodeBulkCreation(id: $id) {\n      done\n      codesCount\n      importedCount\n      failedCount\n      codes(first: 10) {\n        nodes {\n          code\n          errors {\n            field\n            message\n            code\n            extraInfo\n          }\n          discountRedeemCode {\n            code\n          }\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/792032149810"
+        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/792087363890"
       }
     },
     "invalidCodesReadAfter": {
       "query": "#graphql\n  query DiscountRedeemCodeBulkValidationRead($discountId: ID!, $duplicateCode: String!, $validCode: String!) {\n    codeDiscountNode(id: $discountId) {\n      codeDiscount {\n        ... on DiscountCodeBasic {\n          codes(first: 10) {\n            nodes {\n              code\n            }\n          }\n          codesCount {\n            count\n            precision\n          }\n        }\n      }\n    }\n    duplicate: codeDiscountNodeByCode(code: $duplicateCode) {\n      id\n    }\n    valid: codeDiscountNodeByCode(code: $validCode) {\n      id\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640468513074",
-        "duplicateCode": "HAR784DUP1778020880726",
-        "validCode": "HAR784OK1778020880726"
+        "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
+        "duplicateCode": "HAR784DUP1778166762181",
+        "validCode": "HAR784OK1778166762181"
+      }
+    },
+    "crossCodeUniquenessCheck": {
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "variables": {
+        "code": "HAR784CROSS1778166762181"
+      }
+    },
+    "freshCodeUniquenessCheck": {
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "variables": {
+        "code": "HAR784FRESH1778166762181"
+      }
+    },
+    "existingCodeConflicts": {
+      "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
+        "codes": [
+          {
+            "code": "HAR784BASE1778166762181"
+          },
+          {
+            "code": "HAR784CROSS1778166762181"
+          },
+          {
+            "code": "HAR784FRESH1778166762181"
+          }
+        ]
+      }
+    },
+    "existingCodeConflictsFinalRead": {
+      "query": "#graphql\n  query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) {\n    discountRedeemCodeBulkCreation(id: $id) {\n      done\n      codesCount\n      importedCount\n      failedCount\n      codes(first: 10) {\n        nodes {\n          code\n          errors {\n            field\n            message\n            code\n            extraInfo\n          }\n          discountRedeemCode {\n            code\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/792087396658"
+      }
+    },
+    "existingCodeConflictsReadAfter": {
+      "query": "#graphql\n  query DiscountRedeemCodeBulkValidationExistingRead(\n    $discountId: ID!\n    $sameDiscountCode: String!\n    $crossDiscountCode: String!\n    $freshCode: String!\n  ) {\n    codeDiscountNode(id: $discountId) {\n      codeDiscount {\n        ... on DiscountCodeBasic {\n          codes(first: 10) {\n            nodes {\n              code\n            }\n          }\n          codesCount {\n            count\n            precision\n          }\n        }\n      }\n    }\n    sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) {\n      id\n    }\n    crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) {\n      id\n    }\n    fresh: codeDiscountNodeByCode(code: $freshCode) {\n      id\n    }\n  }\n",
+      "variables": {
+        "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
+        "sameDiscountCode": "HAR784BASE1778166762181",
+        "crossDiscountCode": "HAR784CROSS1778166762181",
+        "freshCode": "HAR784FRESH1778166762181"
+      }
+    },
+    "crossCleanup": {
+      "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640746254642"
       }
     },
     "cleanup": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1640468513074"
+        "id": "gid://shopify/DiscountCodeNode/1640746221874"
       }
     }
   },
@@ -975,7 +1055,31 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640468513074"
+            "id": "gid://shopify/DiscountCodeNode/1640746221874"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "crossCreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640746254642"
           },
           "userErrors": []
         }
@@ -1075,7 +1179,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1976,
+            "currentlyAvailable": 1974,
             "restoreRate": 100
           }
         }
@@ -1089,7 +1193,7 @@
         "data": {
           "discountRedeemCodeBulkAdd": {
             "bulkCreation": {
-              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/792032149810",
+              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/792087363890",
               "done": false,
               "codesCount": 7,
               "importedCount": 0,
@@ -1102,12 +1206,12 @@
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784NL1778020880726\nBAD",
+                    "code": "HAR784NL1778166762181\nBAD",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784CR1778020880726\rBAD",
+                    "code": "HAR784CR1778166762181\rBAD",
                     "errors": [],
                     "discountRedeemCode": null
                   },
@@ -1117,17 +1221,17 @@
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784DUP1778020880726",
+                    "code": "HAR784DUP1778166762181",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784DUP1778020880726",
+                    "code": "HAR784DUP1778166762181",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784OK1778020880726",
+                    "code": "HAR784OK1778166762181",
                     "errors": [],
                     "discountRedeemCode": null
                   }
@@ -1143,7 +1247,7 @@
             "actualQueryCost": 21,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1967,
+              "currentlyAvailable": 1964,
               "restoreRate": 100
             }
           }
@@ -1174,7 +1278,7 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784NL1778020880726\nBAD",
+                  "code": "HAR784NL1778166762181\nBAD",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1186,7 +1290,7 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784CR1778020880726\rBAD",
+                  "code": "HAR784CR1778166762181\rBAD",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1210,14 +1314,14 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784DUP1778020880726",
+                  "code": "HAR784DUP1778166762181",
                   "errors": [],
                   "discountRedeemCode": {
-                    "code": "HAR784DUP1778020880726"
+                    "code": "HAR784DUP1778166762181"
                   }
                 },
                 {
-                  "code": "HAR784DUP1778020880726",
+                  "code": "HAR784DUP1778166762181",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1229,10 +1333,10 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784OK1778020880726",
+                  "code": "HAR784OK1778166762181",
                   "errors": [],
                   "discountRedeemCode": {
-                    "code": "HAR784OK1778020880726"
+                    "code": "HAR784OK1778166762181"
                   }
                 }
               ]
@@ -1261,13 +1365,13 @@
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR784BASE1778020880726"
+                    "code": "HAR784BASE1778166762181"
                   },
                   {
-                    "code": "HAR784DUP1778020880726"
+                    "code": "HAR784DUP1778166762181"
                   },
                   {
-                    "code": "HAR784OK1778020880726"
+                    "code": "HAR784OK1778166762181"
                   }
                 ]
               },
@@ -1278,10 +1382,10 @@
             }
           },
           "duplicate": {
-            "id": "gid://shopify/DiscountCodeNode/1640468513074"
+            "id": "gid://shopify/DiscountCodeNode/1640746221874"
           },
           "valid": {
-            "id": "gid://shopify/DiscountCodeNode/1640468513074"
+            "id": "gid://shopify/DiscountCodeNode/1640746221874"
           }
         },
         "extensions": {
@@ -1290,9 +1394,190 @@
             "actualQueryCost": 9,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
+          }
+        }
+      }
+    }
+  },
+  "existingCodeConflicts": {
+    "add": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountRedeemCodeBulkAdd": {
+            "bulkCreation": {
+              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/792087396658",
+              "done": false,
+              "codesCount": 3,
+              "importedCount": 0,
+              "failedCount": 0,
+              "codes": {
+                "nodes": [
+                  {
+                    "code": "HAR784BASE1778166762181",
+                    "errors": [],
+                    "discountRedeemCode": null
+                  },
+                  {
+                    "code": "HAR784CROSS1778166762181",
+                    "errors": [],
+                    "discountRedeemCode": null
+                  },
+                  {
+                    "code": "HAR784FRESH1778166762181",
+                    "errors": [],
+                    "discountRedeemCode": null
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 24,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "finalRead": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountRedeemCodeBulkCreation": {
+            "done": true,
+            "codesCount": 3,
+            "importedCount": 1,
+            "failedCount": 2,
+            "codes": {
+              "nodes": [
+                {
+                  "code": "HAR784BASE1778166762181",
+                  "errors": [
+                    {
+                      "field": ["code"],
+                      "message": "must be unique. Please try a different code.",
+                      "code": null,
+                      "extraInfo": null
+                    }
+                  ],
+                  "discountRedeemCode": null
+                },
+                {
+                  "code": "HAR784CROSS1778166762181",
+                  "errors": [
+                    {
+                      "field": ["code"],
+                      "message": "must be unique. Please try a different code.",
+                      "code": null,
+                      "extraInfo": null
+                    }
+                  ],
+                  "discountRedeemCode": null
+                },
+                {
+                  "code": "HAR784FRESH1778166762181",
+                  "errors": [],
+                  "discountRedeemCode": {
+                    "code": "HAR784FRESH1778166762181"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfter": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "codeDiscountNode": {
+            "codeDiscount": {
+              "codes": {
+                "nodes": [
+                  {
+                    "code": "HAR784BASE1778166762181"
+                  },
+                  {
+                    "code": "HAR784DUP1778166762181"
+                  },
+                  {
+                    "code": "HAR784OK1778166762181"
+                  },
+                  {
+                    "code": "HAR784FRESH1778166762181"
+                  }
+                ]
+              },
+              "codesCount": {
+                "count": 4,
+                "precision": "EXACT"
+              }
+            }
+          },
+          "sameDiscount": {
+            "id": "gid://shopify/DiscountCodeNode/1640746221874"
+          },
+          "crossDiscount": {
+            "id": "gid://shopify/DiscountCodeNode/1640746254642"
+          },
+          "fresh": {
+            "id": "gid://shopify/DiscountCodeNode/1640746221874"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "crossCleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640746254642",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
           }
         }
       }
@@ -1303,7 +1588,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640468513074",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640746221874",
           "userErrors": []
         }
       },
@@ -1333,6 +1618,60 @@
           "data": {
             "codeNode": null,
             "automaticNode": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR784CROSS1778166762181"
+      },
+      "query": "sha:DiscountUniquenessCheck",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": {
+              "id": "gid://shopify/DiscountCodeNode/1640746254642"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "HAR784FRESH1778166762181"
+      },
+      "query": "sha:DiscountUniquenessCheck",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

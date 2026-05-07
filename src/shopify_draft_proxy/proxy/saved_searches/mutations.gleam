@@ -11,6 +11,7 @@ import shopify_draft_proxy/graphql/ast.{
 }
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
   get_document_fragments, get_field_response_key, project_graphql_value,
@@ -56,7 +57,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-  _upstream: UpstreamContext,
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -72,6 +73,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        app_identity.read_requesting_api_client_id(upstream.headers),
       )
     }
   }
@@ -86,6 +88,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let validation_errors =
     validate_required_saved_search_input_fields(
@@ -113,6 +116,7 @@ fn handle_mutation_fields(
         fields,
         fragments,
         variables,
+        requesting_api_client_id,
       )
   }
 }
@@ -125,6 +129,7 @@ fn handle_valid_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial =
     MutationOutcome(
@@ -150,6 +155,7 @@ fn handle_valid_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  requesting_api_client_id,
                 )
               let merged =
                 MutationOutcome(
@@ -168,6 +174,7 @@ fn handle_valid_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  requesting_api_client_id,
                 )
               let merged =
                 MutationOutcome(
@@ -447,13 +454,18 @@ fn handle_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let args = case root_field.get_field_arguments(field, variables) {
     Ok(d) -> d
     Error(_) -> dict.new()
   }
-  let input = read_input(args)
+  let input =
+    read_input(args)
+    |> option.map(fn(input) {
+      rewrite_saved_search_query_input(input, requesting_api_client_id)
+    })
   let base_errors =
     validate_saved_search_input(input, RequireResourceType(True))
   let name_errors =
@@ -508,13 +520,18 @@ fn handle_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let args = case root_field.get_field_arguments(field, variables) {
     Ok(d) -> d
     Error(_) -> dict.new()
   }
-  let input = read_input(args)
+  let input =
+    read_input(args)
+    |> option.map(fn(input) {
+      rewrite_saved_search_query_input(input, requesting_api_client_id)
+    })
   let id_from_input = case input {
     Some(d) -> read_optional_string(d, "id")
     None -> None
@@ -929,6 +946,95 @@ fn read_input(
 // `read_optional_string` is now imported from `proxy/mutation_helpers`
 // (Pass 14 lift).
 
+fn rewrite_saved_search_query_input(
+  input: dict.Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> dict.Dict(String, root_field.ResolvedValue) {
+  case read_optional_string(input, "query") {
+    Some(query) ->
+      dict.insert(
+        input,
+        "query",
+        root_field.StringVal(resolve_app_metafield_query(
+          query,
+          requesting_api_client_id,
+        )),
+      )
+    None -> input
+  }
+}
+
+fn resolve_app_metafield_query(
+  query: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  case string.split(query, on: "metafields.$app") {
+    [] -> query
+    [head, ..tails] ->
+      head <> resolve_app_metafield_query_tails(tails, requesting_api_client_id)
+  }
+}
+
+fn resolve_app_metafield_query_tails(
+  tails: List(String),
+  requesting_api_client_id: Option(String),
+) -> String {
+  case tails {
+    [] -> ""
+    [tail, ..rest] ->
+      resolve_app_metafield_query_tail(tail, requesting_api_client_id)
+      <> resolve_app_metafield_query_tails(rest, requesting_api_client_id)
+  }
+}
+
+fn resolve_app_metafield_query_tail(
+  tail: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  let #(suffix, rest, matched) =
+    split_app_metafield_namespace_suffix(string.to_graphemes(tail), [])
+  case matched {
+    True ->
+      "metafields."
+      <> app_identity.resolve_metafield_app_namespace(
+        "$app" <> suffix,
+        requesting_api_client_id,
+      )
+      <> rest
+    False -> "metafields.$app" <> tail
+  }
+}
+
+fn split_app_metafield_namespace_suffix(
+  chars: List(String),
+  suffix_rev: List(String),
+) -> #(String, String, Bool) {
+  case chars {
+    [".", ..rest] -> #(
+      string.join(list.reverse(suffix_rev), ""),
+      "." <> string.join(rest, ""),
+      True,
+    )
+    [ch, ..rest] ->
+      case is_app_namespace_suffix_grapheme(ch) {
+        True -> split_app_metafield_namespace_suffix(rest, [ch, ..suffix_rev])
+        False -> #("", string.join(chars, ""), False)
+      }
+    _ -> #("", string.join(chars, ""), False)
+  }
+}
+
+fn is_app_namespace_suffix_grapheme(ch: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:",
+    ch,
+  )
+}
+
+fn is_metafield_filter_key(key: String) -> Bool {
+  string.starts_with(string.lowercase(key), "metafields.")
+}
+
 fn validate_saved_search_input(
   input: Option(dict.Dict(String, root_field.ResolvedValue)),
   require_resource_type: RequireResourceType,
@@ -1117,6 +1223,7 @@ fn unknown_filter_errors(
       |> dedupe_strings
       |> list.filter(fn(key) {
         !list.contains(valid_fields, string.lowercase(key))
+        && !is_metafield_filter_key(key)
       })
       |> list.sort(by: string.compare)
       |> list.map(unknown_filter_error)

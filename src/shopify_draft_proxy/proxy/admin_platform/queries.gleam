@@ -11,13 +11,18 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Selection, Argument, Field, FragmentDefinition, FragmentSpread,
-  InlineFragment, IntValue, Location, NamedType, SelectionSet,
+  InlineFragment, IntValue, Location, Name, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
+import shopify_draft_proxy/proxy/b2b/serializers as b2b_serializers
+import shopify_draft_proxy/proxy/bulk_operations/serializers as bulk_operation_serializers
 import shopify_draft_proxy/proxy/customers
+import shopify_draft_proxy/proxy/customers/serializers as customer_serializers
+import shopify_draft_proxy/proxy/functions/serializers as function_serializers
+import shopify_draft_proxy/proxy/gift_cards/queries as gift_card_queries
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
@@ -27,14 +32,22 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, src_object,
 }
+import shopify_draft_proxy/proxy/marketing/queries as marketing_queries
+import shopify_draft_proxy/proxy/markets/serializers as market_serializers
 import shopify_draft_proxy/proxy/metafield_definitions/serializers as metafield_definition_serializers
 import shopify_draft_proxy/proxy/metafields
+import shopify_draft_proxy/proxy/metaobject_definitions/serializers as metaobject_serializers
+import shopify_draft_proxy/proxy/online_store/serializers as online_store_serializers
 import shopify_draft_proxy/proxy/passthrough
+import shopify_draft_proxy/proxy/payments/serializers as payment_serializers
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/saved_searches/queries as saved_search_queries
+import shopify_draft_proxy/proxy/segments/serializers as segment_serializers
 import shopify_draft_proxy/proxy/store_properties
+import shopify_draft_proxy/proxy/webhooks/serializers as webhook_serializers
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
   type AdminPlatformTaxonomyCategoryRecord, type BackupRegionRecord,
@@ -50,10 +63,17 @@ pub fn list_supported_admin_platform_node_types() -> List(String) {
     "AppPurchaseOneTime",
     "AppSubscription",
     "AppUsageRecord",
+    "BulkOperation",
     "Collection",
+    "Company",
     "CompanyAddress",
+    "CompanyContact",
+    "CompanyContactRole",
     "CompanyContactRoleAssignment",
+    "CompanyLocation",
     "Customer",
+    "CustomerAccountNativePage",
+    "CustomerPaymentMethod",
     "DeliveryCondition",
     "DeliveryCountry",
     "DeliveryLocationGroup",
@@ -63,19 +83,41 @@ pub fn list_supported_admin_platform_node_types() -> List(String) {
     "DeliveryRateDefinition",
     "DeliveryZone",
     "Domain",
+    "GiftCard",
     "Location",
+    "Market",
+    "MarketCatalog",
     "MarketRegionCountry",
     "MarketWebPresence",
     "Metafield",
     "MetafieldDefinition",
+    "Metaobject",
+    "MetaobjectDefinition",
+    "MarketingActivity",
+    "MarketingEvent",
+    "PaymentCustomization",
+    "PaymentSchedule",
+    "PaymentTerms",
+    "PriceList",
     "Product",
+    "ProductBundleOperation",
+    "ProductDeleteOperation",
+    "ProductDuplicateOperation",
     "ProductOption",
     "ProductOptionValue",
+    "ProductSetOperation",
+    "ProductVariant",
+    "SavedSearch",
+    "Segment",
     "SellingPlan",
     "Shop",
     "ShopAddress",
     "ShopPolicy",
+    "StoreCreditAccount",
     "TaxonomyCategory",
+    "UrlRedirect",
+    "Validation",
+    "WebhookSubscription",
   ]
   |> list.sort(by: string.compare)
 }
@@ -797,6 +839,360 @@ fn serialize_node_by_id(
           )
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
+    "ProductVariant" ->
+      case store.get_effective_variant_by_id(store, id) {
+        Some(record) ->
+          project_graphql_value(
+            products.product_variant_source(store, record),
+            admin_node_selected_fields(selections, "ProductVariant", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "BulkOperation" ->
+      case store.get_effective_bulk_operation_by_id(store, id) {
+        Some(record) ->
+          bulk_operation_serializers.project_bulk_operation(
+            record,
+            synthetic_node_field(
+              "BulkOperation",
+              admin_node_selected_fields(selections, "BulkOperation", fragments),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "GiftCard" ->
+      case store.get_effective_gift_card_by_id(store, id) {
+        Some(record) ->
+          gift_card_queries.project_gift_card(
+            record,
+            synthetic_node_field(
+              "GiftCard",
+              admin_node_selected_fields(selections, "GiftCard", fragments),
+            ),
+            fragments,
+            variables,
+          )
+        None -> json.null()
+      }
+    "MetaobjectDefinition" ->
+      case store.get_effective_metaobject_definition_by_id(store, id) {
+        Some(record) ->
+          metaobject_serializers.serialize_definition_selection(
+            store,
+            record,
+            synthetic_node_field(
+              "MetaobjectDefinition",
+              admin_node_selected_fields(
+                selections,
+                "MetaobjectDefinition",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "Metaobject" ->
+      case store.get_effective_metaobject_by_id(store, id) {
+        Some(record) ->
+          metaobject_serializers.serialize_metaobject_selection(
+            store,
+            record,
+            synthetic_node_field(
+              "Metaobject",
+              admin_node_selected_fields(selections, "Metaobject", fragments),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "Market" ->
+      case store.get_effective_market_by_id(store, id) {
+        Some(record) ->
+          project_graphql_value(
+            market_serializers.market_record_source(record),
+            admin_node_selected_fields(selections, "Market", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "MarketCatalog" ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(record) ->
+          project_graphql_value(
+            market_serializers.catalog_record_source(record),
+            admin_node_selected_fields(selections, "MarketCatalog", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "PriceList" ->
+      case store.get_effective_price_list_by_id(store, id) {
+        Some(record) ->
+          project_graphql_value(
+            market_serializers.price_list_record_source(record),
+            admin_node_selected_fields(selections, "PriceList", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "WebhookSubscription" ->
+      case store.get_effective_webhook_subscription_by_id(store, id) {
+        Some(record) ->
+          webhook_serializers.project_webhook_subscription(
+            record,
+            synthetic_node_field(
+              "WebhookSubscription",
+              admin_node_selected_fields(
+                selections,
+                "WebhookSubscription",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "SavedSearch" ->
+      case saved_search_queries.get_effective_saved_search_by_id(store, id) {
+        Some(record) ->
+          saved_search_queries.project_saved_search(
+            record,
+            synthetic_node_field(
+              "SavedSearch",
+              admin_node_selected_fields(selections, "SavedSearch", fragments),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "Segment" ->
+      case store.get_effective_segment_by_id(store, id) {
+        Some(record) ->
+          segment_serializers.project_segment(
+            record,
+            synthetic_node_field(
+              "Segment",
+              admin_node_selected_fields(selections, "Segment", fragments),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "PaymentCustomization" ->
+      case store.get_effective_payment_customization_by_id(store, id) {
+        Some(record) ->
+          payment_serializers.project_payment_customization(
+            record,
+            synthetic_node_field(
+              "PaymentCustomization",
+              admin_node_selected_fields(
+                selections,
+                "PaymentCustomization",
+                fragments,
+              ),
+            ),
+            fragments,
+            variables,
+          )
+        None -> json.null()
+      }
+    "PaymentTerms" ->
+      case store.get_effective_payment_terms_by_id(store, id) {
+        Some(record) ->
+          project_graphql_value(
+            payment_serializers.payment_terms_source(record),
+            admin_node_selected_fields(selections, "PaymentTerms", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "PaymentSchedule" ->
+      case store.get_effective_payment_schedule_by_id(store, id) {
+        Some(#(_, record)) ->
+          project_graphql_value(
+            payment_serializers.payment_schedule_source(record),
+            admin_node_selected_fields(selections, "PaymentSchedule", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "CustomerPaymentMethod" ->
+      case store.get_effective_customer_payment_method_by_id(store, id, True) {
+        Some(record) ->
+          project_graphql_value(
+            payment_serializers.payment_method_source(store, record),
+            admin_node_selected_fields(
+              selections,
+              "CustomerPaymentMethod",
+              fragments,
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "StoreCreditAccount" ->
+      case store.get_effective_store_credit_account_by_id(store, id) {
+        Some(record) ->
+          project_graphql_value(
+            customer_serializers.store_credit_account_source(store, record),
+            admin_node_selected_fields(
+              selections,
+              "StoreCreditAccount",
+              fragments,
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "CustomerAccountNativePage" ->
+      case store.get_effective_customer_account_page_by_id(store, id) {
+        Some(record) ->
+          customer_serializers.project_account_page(
+            record,
+            synthetic_node_field(
+              "CustomerAccountNativePage",
+              admin_node_selected_fields(
+                selections,
+                "CustomerAccountNativePage",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "Company" ->
+      case store.get_effective_b2b_company_by_id(store, id) {
+        Some(record) ->
+          b2b_serializers.serialize_company(
+            store,
+            record,
+            synthetic_node_field(
+              "Company",
+              admin_node_selected_fields(selections, "Company", fragments),
+            ),
+            fragments,
+            variables,
+          )
+        None -> json.null()
+      }
+    "CompanyContact" ->
+      case store.get_effective_b2b_company_contact_by_id(store, id) {
+        Some(record) ->
+          b2b_serializers.serialize_contact(
+            store,
+            record,
+            synthetic_node_field(
+              "CompanyContact",
+              admin_node_selected_fields(
+                selections,
+                "CompanyContact",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "CompanyContactRole" ->
+      case store.get_effective_b2b_company_contact_role_by_id(store, id) {
+        Some(record) ->
+          b2b_serializers.project_source(
+            b2b_serializers.role_source(record),
+            synthetic_node_field(
+              "CompanyContactRole",
+              admin_node_selected_fields(
+                selections,
+                "CompanyContactRole",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "CompanyLocation" ->
+      case store.get_effective_b2b_company_location_by_id(store, id) {
+        Some(record) ->
+          b2b_serializers.serialize_location(
+            store,
+            record,
+            synthetic_node_field(
+              "CompanyLocation",
+              admin_node_selected_fields(
+                selections,
+                "CompanyLocation",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "Validation" ->
+      case store.get_effective_validation_by_id(store, id) {
+        Some(record) ->
+          function_serializers.project_validation(
+            store,
+            record,
+            synthetic_node_field(
+              "Validation",
+              admin_node_selected_fields(selections, "Validation", fragments),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "MarketingActivity" ->
+      case store.get_effective_marketing_activity_record_by_id(store, id) {
+        Some(record) ->
+          marketing_queries.project_marketing_record(
+            record,
+            synthetic_node_field(
+              "MarketingActivity",
+              admin_node_selected_fields(
+                selections,
+                "MarketingActivity",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "MarketingEvent" ->
+      case store.get_effective_marketing_event_record_by_id(store, id) {
+        Some(record) ->
+          marketing_queries.project_marketing_record(
+            record,
+            synthetic_node_field(
+              "MarketingEvent",
+              admin_node_selected_fields(
+                selections,
+                "MarketingEvent",
+                fragments,
+              ),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
+    "UrlRedirect" ->
+      case store.get_effective_url_redirect_by_id(store, id) {
+        Some(record) ->
+          online_store_serializers.project_url_redirect_record(
+            record,
+            synthetic_node_field(
+              "UrlRedirect",
+              admin_node_selected_fields(selections, "UrlRedirect", fragments),
+            ),
+            fragments,
+          )
+        None -> json.null()
+      }
     "Job" ->
       case store.get_effective_admin_platform_generic_node_by_id(store, id) {
         Some(record) ->
@@ -963,6 +1359,20 @@ fn serialize_node_by_id(
       )
     _ -> json.null()
   }
+}
+
+fn synthetic_node_field(
+  name: String,
+  selections: List(Selection),
+) -> Selection {
+  Field(
+    alias: None,
+    name: Name(value: name, loc: None),
+    arguments: [],
+    directives: [],
+    selection_set: Some(SelectionSet(selections: selections, loc: None)),
+    loc: None,
+  )
 }
 
 fn serialize_domain_node_by_id(

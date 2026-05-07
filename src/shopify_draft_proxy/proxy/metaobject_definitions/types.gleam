@@ -890,6 +890,10 @@ pub fn build_definition_from_create_input(
         read_object(input, "capabilities"),
         None,
       ),
+      online_store_create_redirects: read_definition_online_store_create_redirects(
+        read_object(input, "capabilities"),
+        None,
+      ),
       access: build_definition_access(
         read_object(input, "access"),
         default_definition_access(),
@@ -1001,6 +1005,14 @@ fn apply_mutable_definition_update(
             existing.online_store_url_handle,
           )
         None -> existing.online_store_url_handle
+      },
+      online_store_create_redirects: case read_object(input, "capabilities") {
+        Some(capabilities) ->
+          read_definition_online_store_create_redirects(
+            Some(capabilities),
+            existing.online_store_create_redirects,
+          )
+        None -> existing.online_store_create_redirects
       },
       access: case read_object(input, "access") {
         Some(access) -> build_definition_access(Some(access), existing.access)
@@ -1483,6 +1495,7 @@ pub fn build_standard_definition(
       description: template.description,
       display_name_key: Some(template.display_name_key),
       online_store_url_handle: None,
+      online_store_create_redirects: None,
       access: template.access,
       capabilities: template.capabilities,
       field_definitions: template.field_definitions,
@@ -3401,6 +3414,26 @@ pub fn read_definition_online_store_url_handle(
         Some(online_store) ->
           case read_object(online_store, "data") {
             Some(data) -> read_string(data, "urlHandle") |> option.or(base)
+            None -> base
+          }
+        None -> base
+      }
+  }
+}
+
+@internal
+pub fn read_definition_online_store_create_redirects(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  base: Option(Bool),
+) -> Option(Bool) {
+  case raw {
+    None -> base
+    Some(capabilities) ->
+      case read_object(capabilities, "onlineStore") {
+        Some(online_store) ->
+          case read_object(online_store, "data") {
+            Some(data) ->
+              read_bool(data, "createRedirects") |> option.or(Some(False))
             None -> base
           }
         None -> base

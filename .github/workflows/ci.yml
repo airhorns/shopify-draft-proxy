@@ -58,8 +58,6 @@ jobs:
         with:
           path: build
           key: ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-${{ hashFiles('gleam.toml', 'manifest.toml', 'src/**/*.gleam', 'test/**/*.gleam') }}
-          restore-keys: |
-            ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-
 
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile

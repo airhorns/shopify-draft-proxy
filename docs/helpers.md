@@ -31,6 +31,7 @@ Shared helper for request-owned app identity.
 - reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
 - trims blank values to `None`
 - resolves `$app:<suffix>` namespace shorthands to `app--<api_client_id>--<suffix>` when a request-owned API client ID is available, preserving the suffix bytes captured for webhook subscription namespace allowlists
+- resolves saved-search metafield query namespace shorthands matching Shopify's `$app` input preparation: bare `$app` becomes `app--<api_client_id>`, `$app:<suffix>` becomes `app--<api_client_id>--<suffix>`, and missing API client identity falls back to the deterministic `app--shopify-draft-proxy-local-app` namespace
 - reads the `x-shopify-draft-proxy-internal-visibility` header case-insensitively for local branches that emulate Shopify internal Admin visibility
 
 Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
@@ -45,6 +46,16 @@ Shared helper for Shopify-like phone number normalization.
 - uses the effective shop country as the default territory, falling back to `US`
 
 Use this module when Admin API domain input accepts phone numbers and should stage or compare the normalized value instead of raw input text.
+
+## `src/shopify_draft_proxy/proxy/address_names.gleam`
+
+Shared helper for Shopify-like address country/province name derivation.
+
+- maps Shopify `CountryCode` values to English country names for local address staging
+- maps known province/region codes for US states/territories, Canadian provinces/territories, Australian states/territories, UK regions, and German states
+- falls back to the supplied code when a country or province mapping is not known locally
+
+Use this module when a domain stages Admin address inputs that carry `countryCode` / `provinceCode` but downstream reads expose human-readable `country` / `province` fields.
 
 ## `src/shopify_draft_proxy/proxy/admin_api_versions.gleam`
 

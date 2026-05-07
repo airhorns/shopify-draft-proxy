@@ -1,0 +1,159 @@
+{
+  "scenarioId": "metaobjectDefinitionUpdate-url-handle-redirect",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobjectDefinitionUpdate",
+    "urlRedirects",
+    "urlRedirect"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "runtime-staging", "mutation-field-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinitionUpdate-url-handle-redirect.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-definition-create.graphql",
+    "variablesCapturePath": "$.cases.urlHandleRedirect.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create",
+        "capturePath": "$.cases.urlHandleRedirect.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.displayNameKey",
+          "$.metaobjectDefinition.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "first-entry-create",
+        "capturePath": "$.cases.urlHandleRedirect.firstMetaobjectCreate.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-entry-create.graphql",
+          "variablesCapturePath": "$.cases.urlHandleRedirect.firstMetaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobject.handle",
+          "$.metaobject.type",
+          "$.metaobject.displayName",
+          "$.metaobject.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "second-entry-create",
+        "capturePath": "$.cases.urlHandleRedirect.secondMetaobjectCreate.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-entry-create.graphql",
+          "variablesCapturePath": "$.cases.urlHandleRedirect.secondMetaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobject.handle",
+          "$.metaobject.type",
+          "$.metaobject.displayName",
+          "$.metaobject.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "definition-update",
+        "capturePath": "$.cases.urlHandleRedirect.definitionUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "definition-create",
+              "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.cases.urlHandleRedirect.definitionUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.capabilities.onlineStore",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "first-url-redirects",
+        "capturePath": "$.cases.urlHandleRedirect.firstUrlRedirects.response.data.urlRedirects",
+        "proxyPath": "$.data.urlRedirects",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirects.graphql",
+          "variablesCapturePath": "$.cases.urlHandleRedirect.firstUrlRedirects.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.nodes[0].path", "$.nodes[0].target"]
+      },
+      {
+        "name": "second-url-redirects",
+        "capturePath": "$.cases.urlHandleRedirect.secondUrlRedirects.response.data.urlRedirects",
+        "proxyPath": "$.data.urlRedirects",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirects.graphql",
+          "variablesCapturePath": "$.cases.urlHandleRedirect.secondUrlRedirects.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.nodes[0].path", "$.nodes[0].target"]
+      },
+      {
+        "name": "first-url-redirect",
+        "capturePath": "$.cases.urlHandleRedirect.firstUrlRedirect.response.data.urlRedirect",
+        "proxyPath": "$.data.urlRedirect",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirect.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "first-url-redirects",
+              "path": "$.data.urlRedirects.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.path", "$.target"]
+      },
+      {
+        "name": "definition-read",
+        "capturePath": "$.cases.urlHandleRedirect.definitionRead.response.data.metaobjectDefinition",
+        "proxyPath": "$.data.metaobjectDefinition",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-definition-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "definition-create",
+              "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.type", "$.capabilities.onlineStore"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectDefinitionUpdate `capabilities.onlineStore.data.urlHandle` changes with `createRedirects: true`. A definition with two ACTIVE rows stages one URL redirect per row from `/pages/<old-url-handle>/<row-handle>` to `/pages/<new-url-handle>/<row-handle>`, and definition reads expose `capabilities.onlineStore.data.canCreateRedirects`."
+}

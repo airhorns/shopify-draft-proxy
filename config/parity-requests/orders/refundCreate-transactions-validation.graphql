@@ -1,0 +1,54 @@
+#graphql
+mutation RefundCreateTransactionsValidation($input: RefundInput!, $idempotencyKey: String!) {
+  refundCreate(input: $input) @idempotent(key: $idempotencyKey) {
+    refund {
+      id
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      transactions(first: 5) {
+        nodes {
+          id
+          kind
+          status
+          gateway
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    order {
+      id
+      displayFinancialStatus
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

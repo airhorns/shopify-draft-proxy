@@ -6027,6 +6027,7 @@ fn product_option_metaobject_definition(
     description: None,
     display_name_key: Some("label"),
     online_store_url_handle: None,
+    online_store_create_redirects: None,
     access: dict.new(),
     capabilities: MetaobjectDefinitionCapabilitiesRecord(
       publishable: Some(MetaobjectDefinitionCapabilityRecord(False)),

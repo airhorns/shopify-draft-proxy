@@ -459,6 +459,7 @@ fn definition_record(
     description: None,
     display_name_key: Some("title"),
     online_store_url_handle: None,
+    online_store_create_redirects: None,
     access: dict.new(),
     capabilities: state_types.MetaobjectDefinitionCapabilitiesRecord(
       publishable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
@@ -2186,6 +2187,185 @@ pub fn metaobject_update_redirect_new_handle_non_renderable_noops_test() {
       "gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic",
     ]
   assert store.list_effective_url_redirects(update_outcome.store) == []
+}
+
+pub fn metaobject_definition_update_url_handle_create_redirects_stages_active_row_redirects_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(_, proxy) =
+    run_graphql_proxy(
+      proxy,
+      create_renderable_definition_query("codex_definition_redirects"),
+    )
+  let #(_, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        first: metaobjectCreate(metaobject: {
+          type: \"codex_definition_redirects\",
+          handle: \"first-row\",
+          capabilities: { publishable: { status: \"ACTIVE\" }, onlineStore: { templateSuffix: \"\" } },
+          fields: [{ key: \"title\", value: \"First title\" }]
+        }) { metaobject { id } userErrors { field message code } }
+        second: metaobjectCreate(metaobject: {
+          type: \"codex_definition_redirects\",
+          handle: \"second-row\",
+          capabilities: { publishable: { status: \"ACTIVE\" }, onlineStore: { templateSuffix: \"\" } },
+          fields: [{ key: \"title\", value: \"Second title\" }]
+        }) { metaobject { id } userErrors { field message code } }
+        draft: metaobjectCreate(metaobject: {
+          type: \"codex_definition_redirects\",
+          handle: \"draft-row\",
+          fields: [{ key: \"title\", value: \"Draft title\" }]
+        }) { metaobject { id } userErrors { field message code } }
+      }",
+    )
+
+  let #(update_body, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            capabilities: {
+              onlineStore: {
+                enabled: true,
+                data: { urlHandle: \"fresh-title\", createRedirects: true }
+              }
+            }
+          }
+        ) {
+          metaobjectDefinition {
+            id
+            capabilities {
+              onlineStore {
+                enabled
+                data { urlHandle canCreateRedirects }
+              }
+            }
+          }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert update_body
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"capabilities\":{\"onlineStore\":{\"enabled\":true,\"data\":{\"urlHandle\":\"fresh-title\",\"canCreateRedirects\":true}}}},\"userErrors\":[]}}}"
+
+  let #(first_redirects_body, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "{ urlRedirects(first: 5, query: \"path:/pages/title/first-row\") { nodes { id path target } } }",
+    )
+  assert first_redirects_body
+    == "{\"data\":{\"urlRedirects\":{\"nodes\":[{\"id\":\"gid://shopify/UrlRedirect/9?shopify-draft-proxy=synthetic\",\"path\":\"/pages/title/first-row\",\"target\":\"/pages/fresh-title/first-row\"}]}}}"
+
+  let #(second_redirects_body, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "{ urlRedirects(first: 5, query: \"path:/pages/title/second-row\") { nodes { id path target } } }",
+    )
+  assert second_redirects_body
+    == "{\"data\":{\"urlRedirects\":{\"nodes\":[{\"id\":\"gid://shopify/UrlRedirect/10?shopify-draft-proxy=synthetic\",\"path\":\"/pages/title/second-row\",\"target\":\"/pages/fresh-title/second-row\"}]}}}"
+
+  let #(draft_redirects_body, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "{ urlRedirects(first: 5, query: \"path:/pages/title/draft-row\") { nodes { id path target } } }",
+    )
+  assert draft_redirects_body == "{\"data\":{\"urlRedirects\":{\"nodes\":[]}}}"
+
+  let #(redirect_body, _) =
+    run_graphql_proxy(
+      proxy,
+      "{ urlRedirect(id: \"gid://shopify/UrlRedirect/9?shopify-draft-proxy=synthetic\") { id path target } }",
+    )
+  assert redirect_body
+    == "{\"data\":{\"urlRedirect\":{\"id\":\"gid://shopify/UrlRedirect/9?shopify-draft-proxy=synthetic\",\"path\":\"/pages/title/first-row\",\"target\":\"/pages/fresh-title/first-row\"}}}"
+}
+
+pub fn metaobject_definition_update_url_handle_create_redirects_false_stages_no_redirects_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(_, proxy) =
+    run_graphql_proxy(
+      proxy,
+      create_renderable_definition_query("codex_definition_redirects_false"),
+    )
+  let #(_, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_definition_redirects_false\",
+          handle: \"first-row\",
+          capabilities: { publishable: { status: \"ACTIVE\" }, onlineStore: { templateSuffix: \"\" } },
+          fields: [{ key: \"title\", value: \"First title\" }]
+        }) { metaobject { id } userErrors { field message code } }
+      }",
+    )
+
+  let #(update_body, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            capabilities: {
+              onlineStore: {
+                enabled: true,
+                data: { urlHandle: \"fresh-title\", createRedirects: false }
+              }
+            }
+          }
+        ) {
+          metaobjectDefinition {
+            capabilities { onlineStore { enabled data { urlHandle canCreateRedirects } } }
+          }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert update_body
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"capabilities\":{\"onlineStore\":{\"enabled\":true,\"data\":{\"urlHandle\":\"fresh-title\",\"canCreateRedirects\":true}}}},\"userErrors\":[]}}}"
+
+  let #(redirects_body, _) =
+    run_graphql_proxy(
+      proxy,
+      "{ urlRedirects(first: 5, query: \"path:/pages/title/first-row\") { nodes { id path target } } }",
+    )
+  assert redirects_body == "{\"data\":{\"urlRedirects\":{\"nodes\":[]}}}"
+}
+
+pub fn metaobject_definition_update_disable_online_store_stages_no_redirects_test() {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry()
+  let #(_, proxy) =
+    run_graphql_proxy(
+      proxy,
+      create_renderable_definition_query("codex_definition_disable_empty"),
+    )
+
+  let #(update_body, proxy) =
+    run_graphql_proxy(
+      proxy,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { capabilities: { onlineStore: { enabled: false } } }
+        ) {
+          metaobjectDefinition { id capabilities { onlineStore { enabled data { urlHandle canCreateRedirects } } } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert update_body
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"capabilities\":{\"onlineStore\":{\"enabled\":false,\"data\":null}}},\"userErrors\":[]}}}"
+
+  let #(redirects_body, _) =
+    run_graphql_proxy(
+      proxy,
+      "{ urlRedirects(first: 5, query: \"path:/pages/title/anything\") { nodes { id path target } } }",
+    )
+  assert redirects_body == "{\"data\":{\"urlRedirects\":{\"nodes\":[]}}}"
 }
 
 pub fn metaobject_capabilities_require_enabled_definition_capability_test() {
