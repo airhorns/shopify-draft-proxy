@@ -6075,6 +6075,39 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'return-decline-request-validation',
+    scriptPath: 'scripts/capture-return-decline-request-validation-conformance.ts',
+    purpose:
+      'Public Admin GraphQL returnDeclineRequest declineReason enum validation evidence and public-schema boundary evidence for tmp_notify_customer notification payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-decline-request-validation.json`,
+      'config/parity-specs/orders/return-request-decline-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Validation-only capture uses unknown Return/Order IDs and GraphQL variable coercion failures; it creates no live Shopify objects.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public Admin schema rejects tmp_notify_customer as an unknown field on returnDeclineRequest, returnApproveRequest, and returnRequest. Hidden-payload email validation remains executable local-runtime evidence.',
+  },
+  {
+    domain: 'orders',
+    captureId: 'return-decline-request-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-decline-request-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for returnDeclineRequest valid decline, invalid declineReason, and hidden tmp_notify_customer email validation branches.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}return-lifecycle-local-staging.json`,
+      'config/parity-specs/orders/return-request-decline-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime with a deterministic order-hydration cassette; no Shopify cleanup required.',
+    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+  },
+  {
+    domain: 'orders',
     captureId: 'return-status-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',

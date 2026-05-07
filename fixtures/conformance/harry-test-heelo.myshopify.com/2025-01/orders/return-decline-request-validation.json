@@ -1,0 +1,314 @@
+{
+  "capturedAt": "2026-05-07T18:19:25.405Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Public Admin GraphQL evidence for return decline/request payload validation. The public schema exposes declineReason as ReturnDeclineReason and rejects unknown enum variables before resolver execution. The current public schema does not expose tmp_notify_customer/NotifyCustomerInput on returnDeclineRequest, returnApproveRequest, or returnRequest; executable hidden-payload behavior is therefore local-runtime backed in fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json.",
+  "schema": {
+    "data": {
+      "returnDeclineRequestInput": {
+        "inputFields": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "declineReason",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "ReturnDeclineReason",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "notifyCustomer",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          },
+          {
+            "name": "declineNote",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "returnApproveRequestInput": {
+        "inputFields": [
+          {
+            "name": "id",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "notifyCustomer",
+            "type": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "returnRequestInput": {
+        "inputFields": [
+          {
+            "name": "orderId",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "returnLineItems",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null
+                }
+              }
+            }
+          },
+          {
+            "name": "returnShippingFee",
+            "type": {
+              "kind": "INPUT_OBJECT",
+              "name": "ReturnShippingFeeInput",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "notifyCustomerInput": null,
+      "returnDeclineReason": {
+        "enumValues": [
+          {
+            "name": "RETURN_PERIOD_ENDED"
+          },
+          {
+            "name": "FINAL_SALE"
+          },
+          {
+            "name": "OTHER"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 21,
+        "actualQueryCost": 18,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1982,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "invalidDeclineReason": {
+    "query": "mutation ReturnDeclineRequestInvalidReason($input: ReturnDeclineRequestInput!) {\n    returnDeclineRequest(input: $input) {\n      return {\n        id\n        status\n        decline {\n          reason\n          note\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Return/999999999",
+        "declineReason": "BANANAS",
+        "notifyCustomer": false
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type ReturnDeclineRequestInput! was provided invalid value for declineReason (Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 46
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "id": "gid://shopify/Return/999999999",
+              "declineReason": "BANANAS",
+              "notifyCustomer": false
+            },
+            "problems": [
+              {
+                "path": ["declineReason"],
+                "explanation": "Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "hiddenNotifyPayloadPublicSchema": {
+    "decline": {
+      "query": "mutation ReturnDeclineRequestUnknownNotifyPayload($input: ReturnDeclineRequestInput!) {\n    returnDeclineRequest(input: $input) {\n      return {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/999999999",
+          "declineReason": "OTHER",
+          "notifyCustomer": true,
+          "tmp_notify_customer": {
+            "email_address": "not-an-email"
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ReturnDeclineRequestInput! was provided invalid value for tmp_notify_customer (Field is not defined on ReturnDeclineRequestInput)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 53
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "id": "gid://shopify/Return/999999999",
+                "declineReason": "OTHER",
+                "notifyCustomer": true,
+                "tmp_notify_customer": {
+                  "email_address": "not-an-email"
+                }
+              },
+              "problems": [
+                {
+                  "path": ["tmp_notify_customer"],
+                  "explanation": "Field is not defined on ReturnDeclineRequestInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "approve": {
+      "query": "mutation ReturnApproveRequestUnknownNotifyPayload($input: ReturnApproveRequestInput!) {\n    returnApproveRequest(input: $input) {\n      return {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Return/999999999",
+          "notifyCustomer": true,
+          "tmp_notify_customer": {
+            "email_address": "not-an-email"
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ReturnApproveRequestInput! was provided invalid value for tmp_notify_customer (Field is not defined on ReturnApproveRequestInput)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 53
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "id": "gid://shopify/Return/999999999",
+                "notifyCustomer": true,
+                "tmp_notify_customer": {
+                  "email_address": "not-an-email"
+                }
+              },
+              "problems": [
+                {
+                  "path": ["tmp_notify_customer"],
+                  "explanation": "Field is not defined on ReturnApproveRequestInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "request": {
+      "query": "mutation ReturnRequestUnknownNotifyPayload($input: ReturnRequestInput!) {\n    returnRequest(input: $input) {\n      return {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "orderId": "gid://shopify/Order/999999999",
+          "returnLineItems": [],
+          "notifyCustomer": true,
+          "tmp_notify_customer": {
+            "email_address": "not-an-email"
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ReturnRequestInput! was provided invalid value for notifyCustomer (Field is not defined on ReturnRequestInput), tmp_notify_customer (Field is not defined on ReturnRequestInput)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 46
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "orderId": "gid://shopify/Order/999999999",
+                "returnLineItems": [],
+                "notifyCustomer": true,
+                "tmp_notify_customer": {
+                  "email_address": "not-an-email"
+                }
+              },
+              "problems": [
+                {
+                  "path": ["notifyCustomer"],
+                  "explanation": "Field is not defined on ReturnRequestInput"
+                },
+                {
+                  "path": ["tmp_notify_customer"],
+                  "explanation": "Field is not defined on ReturnRequestInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

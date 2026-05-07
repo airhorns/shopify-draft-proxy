@@ -11,6 +11,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 
 import shopify_draft_proxy/graphql/ast.{type Selection}
 
@@ -24,9 +25,9 @@ import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft}
 
 import shopify_draft_proxy/proxy/orders/common.{
   captured_field_or_null, captured_int_field, captured_string_field,
-  field_arguments, inferred_user_error, optional_captured_string, read_int,
-  read_object, read_object_list, read_string, read_string_argument,
-  replace_captured_object_fields, user_error,
+  field_arguments, inferred_user_error, optional_captured_string, read_bool,
+  read_int, read_object, read_object_list, read_string, read_string_argument,
+  replace_captured_object_fields, user_error, valid_email_address,
 }
 
 import shopify_draft_proxy/proxy/orders/hydration.{maybe_hydrate_order_by_id}
@@ -387,60 +388,178 @@ pub fn apply_return_create(
         inferred_user_error(["input"], "Input is required."),
       ])
     Some(input) -> {
-      case read_string(input, "orderId") {
-        None ->
-          ReturnMutationResult(None, None, store, identity, [
-            inferred_user_error(["orderId"], "Order does not exist."),
-          ])
-        Some(order_id) ->
-          case store.get_order_by_id(store, order_id) {
+      let payload_user_errors = case status {
+        "REQUESTED" -> validate_return_notify_customer(input)
+        _ -> []
+      }
+      case payload_user_errors {
+        [_, ..] ->
+          ReturnMutationResult(None, None, store, identity, payload_user_errors)
+        [] -> {
+          case read_string(input, "orderId") {
             None ->
               ReturnMutationResult(None, None, store, identity, [
                 inferred_user_error(["orderId"], "Order does not exist."),
               ])
-            Some(order) -> {
-              let line_item_result =
-                build_return_line_items(identity, order, input)
-              case line_item_result {
-                Error(user_errors) ->
-                  ReturnMutationResult(
-                    Some(order),
-                    None,
-                    store,
-                    identity,
-                    user_errors,
-                  )
-                Ok(line_item_pack) -> {
-                  let #(line_items, identity_after_line_items) = line_item_pack
-                  let #(order_return, identity_after_return) =
-                    build_order_return(
-                      identity_after_line_items,
-                      order,
-                      line_items,
-                      input,
-                      status,
-                    )
-                  let #(next_store, next_identity, updated_order) =
-                    stage_order_with_returns(
-                      store,
-                      identity_after_return,
-                      order,
-                      [order_return, ..order_returns(order.data)],
-                    )
-                  ReturnMutationResult(
-                    Some(updated_order),
-                    Some(order_return),
-                    next_store,
-                    next_identity,
-                    [],
-                  )
+            Some(order_id) ->
+              case store.get_order_by_id(store, order_id) {
+                None ->
+                  ReturnMutationResult(None, None, store, identity, [
+                    inferred_user_error(["orderId"], "Order does not exist."),
+                  ])
+                Some(order) -> {
+                  let line_item_result =
+                    build_return_line_items(identity, order, input)
+                  case line_item_result {
+                    Error(user_errors) ->
+                      ReturnMutationResult(
+                        Some(order),
+                        None,
+                        store,
+                        identity,
+                        user_errors,
+                      )
+                    Ok(line_item_pack) -> {
+                      let #(line_items, identity_after_line_items) =
+                        line_item_pack
+                      let #(order_return, identity_after_return) =
+                        build_order_return(
+                          identity_after_line_items,
+                          order,
+                          line_items,
+                          input,
+                          status,
+                        )
+                      let #(next_store, next_identity, updated_order) =
+                        stage_order_with_returns(
+                          store,
+                          identity_after_return,
+                          order,
+                          [order_return, ..order_returns(order.data)],
+                        )
+                      ReturnMutationResult(
+                        Some(updated_order),
+                        Some(order_return),
+                        next_store,
+                        next_identity,
+                        [],
+                      )
+                    }
+                  }
                 }
               }
-            }
           }
+        }
       }
     }
   }
+}
+
+fn validate_return_notify_customer(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case read_bool(input, "notifyCustomer", False) {
+    False -> []
+    True -> {
+      case notify_customer_email(input) {
+        Some(email) ->
+          case valid_email_address(email) {
+            True -> []
+            False -> [
+              user_error(
+                ["input", "tmp_notify_customer", "email_address"],
+                "Email address is invalid",
+                Some(user_error_codes.invalid),
+              ),
+            ]
+          }
+        None -> []
+      }
+    }
+  }
+}
+
+fn notify_customer_email(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  read_object(input, "tmp_notify_customer")
+  |> option.or(read_object(input, "tmpNotifyCustomer"))
+  |> option.then(fn(notify_input) {
+    read_string(notify_input, "email_address")
+    |> option.or(read_string(notify_input, "emailAddress"))
+  })
+}
+
+fn validate_return_decline_reason(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Result(String, #(List(String), String, Option(String))) {
+  case read_string(input, "declineReason") {
+    Some(raw_reason) -> {
+      let reason = string.uppercase(raw_reason)
+      case reason {
+        "RETURN_PERIOD_ENDED" | "FINAL_SALE" | "OTHER" -> Ok(reason)
+        _ ->
+          Error(user_error(
+            ["declineReason"],
+            "Expected \""
+              <> raw_reason
+              <> "\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER",
+            Some(user_error_codes.invalid),
+          ))
+      }
+    }
+    None ->
+      Error(user_error(
+        ["declineReason"],
+        "Expected value to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER",
+        Some(user_error_codes.invalid),
+      ))
+  }
+}
+
+fn validate_return_decline_note(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case read_string(input, "declineNote") {
+    Some(note) ->
+      case string.length(note) > 500 {
+        True -> [
+          user_error(
+            ["input", "declineNote"],
+            "Decline note is too long (maximum is 500 characters)",
+            Some(user_error_codes.too_long),
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_return_decline_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Result(String, List(#(List(String), String, Option(String)))) {
+  let user_errors =
+    list.append(
+      validate_return_decline_note(input),
+      validate_return_notify_customer(input),
+    )
+  case validate_return_decline_reason(input) {
+    Error(error) -> Error([error])
+    Ok(reason) ->
+      case user_errors {
+        [] -> Ok(reason)
+        _ -> Error(user_errors)
+      }
+  }
+}
+
+fn return_decline_request_user_error_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  user_errors: List(#(List(String), String, Option(String))),
+) -> ReturnMutationResult {
+  ReturnMutationResult(None, None, store, identity, user_errors)
 }
 
 @internal
@@ -811,48 +930,53 @@ pub fn apply_return_decline_request(
           case captured_string_field(order_return, "status") {
             Some("REQUESTED") -> {
               let input_fields = input |> option.unwrap(dict.new())
-              let declined_return =
-                replace_captured_object_fields(order_return, [
-                  #("status", CapturedString("DECLINED")),
-                  #(
-                    "decline",
-                    CapturedObject([
+              case validate_return_decline_input(input_fields) {
+                Error(user_errors) ->
+                  return_decline_request_user_error_result(
+                    store,
+                    identity,
+                    user_errors,
+                  )
+                Ok(decline_reason) -> {
+                  let declined_return =
+                    replace_captured_object_fields(order_return, [
+                      #("status", CapturedString("DECLINED")),
                       #(
-                        "reason",
-                        optional_captured_string(read_string(
-                          input_fields,
-                          "declineReason",
-                        )),
+                        "decline",
+                        CapturedObject([
+                          #("reason", CapturedString(decline_reason)),
+                          #(
+                            "note",
+                            optional_captured_string(read_string(
+                              input_fields,
+                              "declineNote",
+                            )),
+                          ),
+                        ]),
                       ),
-                      #(
-                        "note",
-                        optional_captured_string(read_string(
-                          input_fields,
-                          "declineNote",
-                        )),
-                      ),
-                    ]),
-                  ),
-                ])
-              let returns =
-                order_returns(order.data)
-                |> list.map(fn(candidate) {
-                  case
-                    captured_string_field(candidate, "id") == Some(return_id)
-                  {
-                    True -> declined_return
-                    False -> candidate
-                  }
-                })
-              let #(next_store, next_identity, updated_order) =
-                stage_order_with_returns(store, identity, order, returns)
-              ReturnMutationResult(
-                Some(updated_order),
-                Some(declined_return),
-                next_store,
-                next_identity,
-                [],
-              )
+                    ])
+                  let returns =
+                    order_returns(order.data)
+                    |> list.map(fn(candidate) {
+                      case
+                        captured_string_field(candidate, "id")
+                        == Some(return_id)
+                      {
+                        True -> declined_return
+                        False -> candidate
+                      }
+                    })
+                  let #(next_store, next_identity, updated_order) =
+                    stage_order_with_returns(store, identity, order, returns)
+                  ReturnMutationResult(
+                    Some(updated_order),
+                    Some(declined_return),
+                    next_store,
+                    next_identity,
+                    [],
+                  )
+                }
+              }
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
@@ -893,31 +1017,38 @@ pub fn apply_return_approve_request(
           let #(order, order_return) = match
           case captured_string_field(order_return, "status") {
             Some("REQUESTED") -> {
-              let open_return =
-                replace_captured_object_fields(order_return, [
-                  #("status", CapturedString("OPEN")),
-                  #("decline", CapturedNull),
-                ])
-              let #(approved_return, next_identity) =
-                ensure_return_reverse_fulfillment_orders(
-                  identity,
-                  order,
-                  open_return,
-                )
-              let #(next_store, staged_identity, updated_order) =
-                stage_order_with_return(
-                  store,
-                  next_identity,
-                  order,
-                  approved_return,
-                )
-              ReturnMutationResult(
-                Some(updated_order),
-                Some(approved_return),
-                next_store,
-                staged_identity,
-                [],
-              )
+              let input_fields = input |> option.unwrap(dict.new())
+              case validate_return_notify_customer(input_fields) {
+                [_, ..] as user_errors ->
+                  ReturnMutationResult(None, None, store, identity, user_errors)
+                [] -> {
+                  let open_return =
+                    replace_captured_object_fields(order_return, [
+                      #("status", CapturedString("OPEN")),
+                      #("decline", CapturedNull),
+                    ])
+                  let #(approved_return, next_identity) =
+                    ensure_return_reverse_fulfillment_orders(
+                      identity,
+                      order,
+                      open_return,
+                    )
+                  let #(next_store, staged_identity, updated_order) =
+                    stage_order_with_return(
+                      store,
+                      next_identity,
+                      order,
+                      approved_return,
+                    )
+                  ReturnMutationResult(
+                    Some(updated_order),
+                    Some(approved_return),
+                    next_store,
+                    staged_identity,
+                    [],
+                  )
+                }
+              }
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
