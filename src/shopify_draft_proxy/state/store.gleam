@@ -408,6 +408,8 @@ pub const upsert_staged_price_list = markets.upsert_staged_price_list
 
 pub const delete_staged_price_list = markets.delete_staged_price_list
 
+pub const clear_price_list_fixed_prices = markets.clear_price_list_fixed_prices
+
 pub const upsert_base_web_presences = markets.upsert_base_web_presences
 
 pub const get_effective_web_presence_by_id = markets.get_effective_web_presence_by_id
