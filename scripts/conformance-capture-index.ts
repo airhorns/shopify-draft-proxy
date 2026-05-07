@@ -3380,6 +3380,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-required-argument-validation',
+    scriptPath: 'scripts/capture-segment-required-argument-validation-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate/segmentDelete omitted and literal-null required top-level argument GraphQL coercion envelopes.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-mutations-required-argument-validation.json`,
+      'config/parity-specs/segments/segment-mutations-required-argument-validation.json',
+      'config/parity-requests/segments/segment-create-required-args-missing-both.graphql',
+      'config/parity-requests/segments/segment-create-required-args-missing-name.graphql',
+      'config/parity-requests/segments/segment-create-required-args-missing-query.graphql',
+      'config/parity-requests/segments/segment-create-required-args-null-name.graphql',
+      'config/parity-requests/segments/segment-create-required-args-null-query.graphql',
+      'config/parity-requests/segments/segment-delete-required-id-missing.graphql',
+      'config/parity-requests/segments/segment-delete-required-id-null.graphql',
+      'config/parity-requests/segments/segment-update-required-id-missing.graphql',
+      'config/parity-requests/segments/segment-update-required-id-null.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no live segment setup or cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'customer-segment-members-query-create-validation-and-shape',
     scriptPath: 'scripts/capture-customer-segment-members-query-create-conformance.ts',
     purpose:

@@ -442,14 +442,24 @@ pub fn segment_create_blank_name_emits_user_error_test() {
     == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"name\"],\"code\":null,\"message\":\"Name can't be blank\"}]}}}"
 }
 
-pub fn segment_create_missing_query_emits_user_error_test() {
+pub fn segment_create_missing_query_is_top_level_error_test() {
   let body =
     run_mutation(
       store.new(),
       "mutation { segmentCreate(name: \"VIPs\") { segment { id } userErrors { field message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query can't be blank\"}]}}}"
+    == "{\"errors\":[{\"message\":\"Field 'segmentCreate' is missing required arguments: query\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"segmentCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"segmentCreate\",\"arguments\":\"query\"}}]}"
+}
+
+pub fn segment_create_null_name_is_top_level_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentCreate(name: null, query: \"number_of_orders >= 5\") { segment { id } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Argument 'name' on Field 'segmentCreate' has an invalid value (null). Expected type 'String!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"segmentCreate\",\"name\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"name\"}}]}"
 }
 
 pub fn segment_create_invalid_query_emits_filter_error_test() {
@@ -717,6 +727,26 @@ pub fn segment_update_without_changes_emits_user_error_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn segment_update_missing_id_is_top_level_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentUpdate(name: \"X\") { segment { id } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Field 'segmentUpdate' is missing required arguments: id\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"segmentUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"segmentUpdate\",\"arguments\":\"id\"}}]}"
+}
+
+pub fn segment_update_null_id_is_top_level_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentUpdate(id: null, name: \"X\") { segment { id } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'segmentUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"segmentUpdate\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
+}
+
 pub fn segment_update_blank_name_emits_user_error_test() {
   let existing =
     segment_record("gid://shopify/Segment/102", "Keep", "number_of_orders >= 2")
@@ -836,7 +866,7 @@ pub fn segment_delete_returns_deleted_id_test() {
     == None
 }
 
-pub fn segment_delete_missing_id_emits_user_error_test() {
+pub fn segment_delete_unknown_id_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
@@ -844,6 +874,26 @@ pub fn segment_delete_missing_id_emits_user_error_test() {
     )
   assert body
     == "{\"data\":{\"segmentDelete\":{\"deletedSegmentId\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
+}
+
+pub fn segment_delete_missing_id_is_top_level_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentDelete { deletedSegmentId userErrors { field message } } }",
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Field 'segmentDelete' is missing required arguments: id\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"segmentDelete\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"segmentDelete\",\"arguments\":\"id\"}}]}"
+}
+
+pub fn segment_delete_null_id_is_top_level_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentDelete(id: null) { deletedSegmentId userErrors { field message } } }",
+    )
+  assert body
+    == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'segmentDelete' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"segmentDelete\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
 }
 
 pub fn segment_delete_malformed_gid_variable_is_top_level_error_test() {
