@@ -1,0 +1,215 @@
+{
+  "scenarioId": "location-add-edit-uniqueness-and-required-fields",
+  "operationNames": ["locationAdd", "locationEdit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-edit-uniqueness-and-required-fields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+    "variablesCapturePath": "$.setup.primaryCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Admin GraphQL 2026-04 locationAdd/locationEdit duplicate-name and length validation against disposable locations, plus observed public API behavior for incomplete address and nonstandard US ZIP inputs. The live capture shows locationAdd accepts omitted address1/city/zip, blank zip, and a nonstandard US ZIP string in this store/API path; those accepted branches are compared as successful payloads rather than forced into userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-create",
+        "capturePath": "$.setup.primaryCreate.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "backup-create",
+        "capturePath": "$.setup.backupCreate.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.setup.backupCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-add",
+        "capturePath": "$.cases.duplicateAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.duplicateAdd.variables"
+        }
+      },
+      {
+        "name": "duplicate-edit",
+        "capturePath": "$.cases.duplicateEdit.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-edit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "backup-create",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.duplicateEdit.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-required-add-observed-success",
+        "capturePath": "$.cases.missingRequiredAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.missingRequiredAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "blank-zip-add-observed-success",
+        "capturePath": "$.cases.blankZipAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.blankZipAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "too-long-name-add",
+        "capturePath": "$.cases.tooLongNameAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.tooLongNameAdd.variables"
+        }
+      },
+      {
+        "name": "too-long-address-add",
+        "capturePath": "$.cases.tooLongAddressAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.tooLongAddressAdd.variables"
+        }
+      },
+      {
+        "name": "too-long-zip-add",
+        "capturePath": "$.cases.tooLongZipAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.tooLongZipAdd.variables"
+        }
+      },
+      {
+        "name": "too-long-name-edit",
+        "capturePath": "$.cases.tooLongNameEdit.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-edit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "backup-create",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.tooLongNameEdit.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-city-edit",
+        "capturePath": "$.cases.tooLongCityEdit.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-edit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "backup-create",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.tooLongCityEdit.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-zip-edit",
+        "capturePath": "$.cases.tooLongZipEdit.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-edit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "backup-create",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.tooLongZipEdit.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "invalid-us-zip-add-observed-success",
+        "capturePath": "$.cases.invalidUsZipAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-edit-validation-add.graphql",
+          "variablesCapturePath": "$.cases.invalidUsZipAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      }
+    ]
+  }
+}

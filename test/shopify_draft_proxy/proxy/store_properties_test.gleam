@@ -717,6 +717,23 @@ pub fn location_add_honors_explicit_fulfills_online_orders_false_test() {
   )
 }
 
+pub fn location_add_accepts_missing_address_components_like_shopify_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Partial\\\", address: { countryCode: US } }) { location { id name fulfillsOnlineOrders address { address1 city countryCode zip } } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"name\":\"Partial\"")
+  assert string.contains(serialized, "\"fulfillsOnlineOrders\":true")
+  assert string.contains(serialized, "\"address1\":null")
+  assert string.contains(serialized, "\"city\":null")
+  assert string.contains(serialized, "\"countryCode\":\"US\"")
+  assert string.contains(serialized, "\"zip\":null")
+}
+
 pub fn location_add_blank_name_user_error_includes_code_test() {
   let body =
     "{\"query\":\"mutation { locationAdd(input: { name: \\\"\\\", address: { countryCode: CA } }) { location { id } userErrors { field message code } } }\"}"
@@ -729,6 +746,92 @@ pub fn location_add_blank_name_user_error_includes_code_test() {
   assert string.contains(
     serialized,
     "\"field\":[\"input\",\"name\"],\"message\":\"Add a location name\",\"code\":\"BLANK\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_rejects_duplicate_and_too_long_fields_without_staging_test() {
+  let existing =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Existing")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(False)),
+      #(
+        "address",
+        location_address(
+          "1 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02110",
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, existing),
+    )
+  let duplicate_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Existing\\\", fulfillsOnlineOrders: false, address: { address1: \\\"2 Test St\\\", city: \\\"Boston\\\", countryCode: US, provinceCode: \\\"MA\\\", zip: \\\"02111\\\" } }) { location { id name } userErrors { field message code } } }\"}"
+  let #(
+    proxy_state.Response(status: duplicate_status, body: duplicate_json, ..),
+    duplicate_proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(duplicate_body))
+  let duplicate = json.to_string(duplicate_json)
+
+  assert duplicate_status == 200
+  assert duplicate
+    == "{\"data\":{\"locationAdd\":{\"location\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"You already have a location with this name\",\"code\":\"TAKEN\"}]}}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(duplicate_proxy))
+    == "{\"entries\":[]}"
+  assert !string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(duplicate_proxy)),
+    "\"2 Test St\"",
+  )
+
+  let long = string.repeat("A", 256)
+  let too_long_body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id name } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"New\",\"fulfillsOnlineOrders\":false,\"address\":{\"address1\":\""
+    <> long
+    <> "\",\"city\":\"Boston\",\"countryCode\":\"US\",\"zip\":\"02112\"}}}}"
+  let #(
+    proxy_state.Response(status: too_long_status, body: too_long_json, ..),
+    too_long_proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(too_long_body))
+  let too_long = json.to_string(too_long_json)
+
+  assert too_long_status == 200
+  assert too_long
+    == "{\"data\":{\"locationAdd\":{\"location\":null,\"userErrors\":[{\"field\":[\"input\",\"address\",\"address1\"],\"message\":\"Use a shorter name for the street (up to 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(too_long_proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_rejects_too_long_name_and_zip_test() {
+  let long_name = string.repeat("N", 101)
+  let long_zip = string.repeat("9", 256)
+  let body =
+    "{\"query\":\"mutation($name: String!, $zip: String!) { tooLongName: locationAdd(input: { name: $name, fulfillsOnlineOrders: false, address: { address1: \\\"1 Test St\\\", city: \\\"Boston\\\", countryCode: US, zip: \\\"02110\\\" } }) { location { id } userErrors { field message code } } tooLongZip: locationAdd(input: { name: \\\"Zip\\\", fulfillsOnlineOrders: false, address: { address1: \\\"1 Test St\\\", city: \\\"Boston\\\", countryCode: US, zip: $zip } }) { location { id } userErrors { field message code } } }\",\"variables\":{\"name\":\""
+    <> long_name
+    <> "\",\"zip\":\""
+    <> long_zip
+    <> "\"}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"name\"],\"message\":\"Use a shorter location name (up to 100 characters)\",\"code\":\"TOO_LONG\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"address\",\"zip\"],\"message\":\"Use a shorter postal / ZIP code (up to 255 characters)\",\"code\":\"TOO_LONG\"",
   )
   assert json.to_string(draft_proxy.get_log_snapshot(proxy))
     == "{\"entries\":[]}"
@@ -919,6 +1022,120 @@ pub fn location_edit_updates_address_fulfillment_and_metafields_test() {
   assert string.contains(read, "\"fulfillsOnlineOrders\":false")
   assert string.contains(read, "\"city\":\"Toronto\"")
   assert string.contains(read, "\"value\":\"1\"")
+}
+
+pub fn location_edit_rejects_duplicate_name_without_staging_test() {
+  let target =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Target")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(False)),
+      #(
+        "address",
+        location_address(
+          "1 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02110",
+        ),
+      ),
+    ])
+  let other =
+    make_raw_record("gid://shopify/Location/2", "Location", [
+      #("name", StorePropertyString("Existing")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(False)),
+      #(
+        "address",
+        location_address(
+          "2 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02111",
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let store =
+    proxy.store
+    |> store.upsert_base_store_property_location(target)
+    |> store.upsert_base_store_property_location(other)
+  let proxy = proxy_state.DraftProxy(..proxy, store: store)
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id name } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"name\":\"Existing\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert serialized
+    == "{\"data\":{\"locationEdit\":{\"location\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"You already have a location with this name\",\"code\":\"TAKEN\"}]}}}"
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+  assert !string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(proxy)),
+    "\"name\":\"Existing\",\"isActive\":true,\"fulfillsOnlineOrders\":false,\"address\":{\"address1\":\"1 Test St\"",
+  )
+}
+
+pub fn location_edit_rejects_too_long_name_city_and_zip_test() {
+  let target =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Target")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(False)),
+      #(
+        "address",
+        location_address(
+          "1 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02110",
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, target),
+    )
+  let long_name = string.repeat("N", 101)
+  let long_city = string.repeat("C", 256)
+  let long_zip = string.repeat("9", 256)
+  let body =
+    "{\"query\":\"mutation($id: ID!, $name: String!, $city: String!, $zip: String!) { tooLongName: locationEdit(id: $id, input: { name: $name }) { location { id } userErrors { field message code } } tooLongCity: locationEdit(id: $id, input: { address: { city: $city } }) { location { id } userErrors { field message code } } tooLongZip: locationEdit(id: $id, input: { address: { zip: $zip } }) { location { id } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"name\":\""
+    <> long_name
+    <> "\",\"city\":\""
+    <> long_city
+    <> "\",\"zip\":\""
+    <> long_zip
+    <> "\"}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"name\"],\"message\":\"Use a shorter location name (up to 100 characters)\",\"code\":\"TOO_LONG\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"address\",\"city\"],\"message\":\"Use a shorter city name (up to 255 characters)\",\"code\":\"TOO_LONG\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"address\",\"zip\"],\"message\":\"Use a shorter postal / ZIP code (up to 255 characters)\",\"code\":\"TOO_LONG\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
 }
 
 pub fn location_edit_invalid_metafield_type_returns_typed_error_test() {

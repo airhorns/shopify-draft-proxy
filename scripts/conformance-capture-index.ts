@@ -3423,6 +3423,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-add-edit-uniqueness-and-required-fields',
+    scriptPath: 'scripts/capture-location-add-edit-uniqueness-and-required-fields-conformance.mts',
+    purpose:
+      'locationAdd/locationEdit duplicate-name and length validation, plus observed locationAdd incomplete-address and US ZIP behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-add-edit-uniqueness-and-required-fields.json`,
+      'config/parity-specs/store-properties/location-add-edit-uniqueness-and-required-fields.json',
+      'config/parity-requests/store-properties/location-add-edit-validation-add.graphql',
+      'config/parity-requests/store-properties/location-add-edit-validation-edit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable locations for setup and for observed successful incomplete-address/ZIP branches, then deactivates and deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-activate-deactivate-lifecycle',
     scriptPath: 'scripts/capture-location-activate-deactivate-lifecycle-conformance.mts',
     purpose:
