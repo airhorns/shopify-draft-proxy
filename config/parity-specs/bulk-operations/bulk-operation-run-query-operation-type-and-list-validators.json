@@ -1,0 +1,50 @@
+{
+  "scenarioId": "bulk-operation-run-query-operation-type-and-list-validators",
+  "operationNames": ["bulkOperationRunQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-validators.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+    "variablesCapturePath": "$.validations.invalidOperationType.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery validation for submitted non-query operation documents and connections nested under list-returning fields. These validation-only branches do not require proxy upstream reads, so the cassette is intentionally empty. Live Admin API evidence returns BulkOperationUserError.code INVALID when that field is selected, matching the existing runQuery validator code-selection evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-operation-type.userErrors",
+        "capturePath": "$.validations.invalidOperationType.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
+      },
+      {
+        "name": "invalid-operation-type.bulkOperation",
+        "capturePath": "$.validations.invalidOperationType.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation"
+      },
+      {
+        "name": "connection-within-list.userErrors",
+        "capturePath": "$.validations.connectionWithinList.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.connectionWithinList.variables"
+        }
+      },
+      {
+        "name": "connection-within-list.bulkOperation",
+        "capturePath": "$.validations.connectionWithinList.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.connectionWithinList.variables"
+        }
+      }
+    ]
+  }
+}

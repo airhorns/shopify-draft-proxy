@@ -62,7 +62,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductRecord, type PublicationRecord, PublicationRecord,
+  type CapturedJsonValue, type ProductRecord, type PublicationRecord,
+  type SellingPlanGroupRecord, CapturedBool, CapturedObject, PublicationRecord,
 }
 
 // ===== from publications_l06 =====
@@ -539,6 +540,13 @@ pub fn product_source_with_store_and_publication(
   product: ProductRecord,
   publication_id: Option(String),
 ) -> SourceValue {
+  let product_selling_plan_groups =
+    store.list_effective_selling_plan_groups_visible_for_product(
+      store,
+      product.id,
+    )
+  let direct_product_selling_plan_groups =
+    store.list_effective_selling_plan_groups_for_product(store, product.id)
   product_source_with_relationships(
     product,
     product_collections_connection_source(store, product),
@@ -548,21 +556,51 @@ pub fn product_source_with_store_and_publication(
       store,
       product.id,
     )),
-    selling_plan_group_connection_source(
-      store.list_effective_selling_plan_groups_visible_for_product(
-        store,
-        product.id,
-      ),
-    ),
-    count_source(
-      list.length(store.list_effective_selling_plan_groups_for_product(
-        store,
-        product.id,
-      )),
+    selling_plan_group_connection_source(product_selling_plan_groups),
+    count_source(list.length(direct_product_selling_plan_groups)),
+    effective_product_requires_selling_plan(
+      product,
+      direct_product_selling_plan_groups,
     ),
     product_currency_code(store),
     publication_id,
   )
+}
+
+fn effective_product_requires_selling_plan(
+  product: ProductRecord,
+  direct_groups: List(SellingPlanGroupRecord),
+) -> Bool {
+  case product.requires_selling_plan {
+    Some(value) -> value
+    None ->
+      list.any(direct_groups, fn(group) {
+        selling_plan_group_requires_selling_plan(group)
+      })
+  }
+}
+
+fn selling_plan_group_requires_selling_plan(
+  group: SellingPlanGroupRecord,
+) -> Bool {
+  group.selling_plans
+  |> list.any(fn(plan) {
+    captured_bool_field(plan.data, "sellingPlansRequired")
+    |> option.or(captured_bool_field(plan.data, "selling_plans_required"))
+    |> option.or(captured_bool_field(plan.data, "requiresSellingPlan"))
+    |> option.unwrap(False)
+  })
+}
+
+fn captured_bool_field(value: CapturedJsonValue, key: String) -> Option(Bool) {
+  case value {
+    CapturedObject(fields) ->
+      case list.find(fields, fn(pair) { pair.0 == key }) {
+        Ok(#(_, CapturedBool(value))) -> Some(value)
+        _ -> None
+      }
+    _ -> None
+  }
 }
 
 // ===== from publications_l11 =====

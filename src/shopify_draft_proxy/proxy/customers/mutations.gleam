@@ -650,6 +650,7 @@ pub fn handle_validated_mutation_fields(
         final_identity,
         request_path,
         document,
+        variables,
         staged_ids,
         roots,
       )

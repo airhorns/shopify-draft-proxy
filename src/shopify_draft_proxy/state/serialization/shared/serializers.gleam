@@ -198,6 +198,7 @@ pub fn shop_features_json(record: types.ShopFeaturesRecord) -> Json {
       json.string(record.paypal_express_subscription_gateway_status),
     ),
     #("reports", json.bool(record.reports)),
+    #("b2bDepositsEnabled", json.bool(record.b2b_deposits_enabled)),
     #("discountsByMarketEnabled", json.bool(record.discounts_by_market_enabled)),
     #("marketsGranted", json.int(record.markets_granted)),
     #("sellsSubscriptions", json.bool(record.sells_subscriptions)),
@@ -391,6 +392,7 @@ pub fn product_json(record: types.ProductRecord) -> Json {
     #("templateSuffix", optional_string(record.template_suffix)),
     #("seo", product_seo_json(record.seo)),
     #("category", optional_to_json(record.category, product_category_json)),
+    #("requiresSellingPlan", optional_bool(record.requires_selling_plan)),
     #("publicationIds", json.array(record.publication_ids, json.string)),
     #(
       "contextualPricing",
@@ -2221,6 +2223,18 @@ pub fn store_credit_account_transaction_json(
     #("balanceAfterTransaction", money_json(record.balance_after_transaction)),
     #("createdAt", json.string(record.created_at)),
     #("event", json.string(record.event)),
+    #("notify", optional_bool(record.notify)),
+    #(
+      "attribution",
+      json.object([
+        #("userId", optional_string(record.attribution_user_id)),
+        #(
+          "pointOfSaleDeviceId",
+          optional_string(record.attribution_point_of_sale_device_id),
+        ),
+        #("locationId", optional_string(record.attribution_location_id)),
+      ]),
+    ),
   ])
 }
 

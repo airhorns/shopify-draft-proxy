@@ -1,0 +1,29 @@
+mutation B2BBuyerExperienceCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      locations(first: 5) {
+        nodes {
+          id
+          name
+          buyerExperienceConfiguration {
+            editableShippingAddress
+            checkoutToDraft
+            paymentTermsTemplate {
+              id
+            }
+            deposit {
+              __typename
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

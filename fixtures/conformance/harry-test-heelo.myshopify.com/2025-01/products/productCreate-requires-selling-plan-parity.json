@@ -1,0 +1,76 @@
+{
+  "scenarioId": "productCreate-requires-selling-plan-parity",
+  "capturedAt": "2026-05-07T14:09:48.271Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "mutation": {
+    "query": "mutation ProductCreateRequiresSellingPlanParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      requiresSellingPlan\n      category {\n        id\n        fullName\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Product Requires Selling Plan 1778162985783",
+        "status": "DRAFT",
+        "requiresSellingPlan": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10179876946226",
+              "title": "Hermes Product Requires Selling Plan 1778162985783",
+              "handle": "hermes-product-requires-selling-plan-1778162985783",
+              "requiresSellingPlan": true,
+              "category": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ProductCreateRequiresSellingPlanDownstreamRead($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    requiresSellingPlan\n    category {\n      id\n      fullName\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10179876946226"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10179876946226",
+            "title": "Hermes Product Requires Selling Plan 1778162985783",
+            "handle": "hermes-product-requires-selling-plan-1778162985783",
+            "requiresSellingPlan": true,
+            "category": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
