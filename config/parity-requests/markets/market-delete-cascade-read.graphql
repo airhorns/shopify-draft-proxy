@@ -1,0 +1,25 @@
+query MarketDeleteCascadeRead($marketId: ID!, $catalogId: ID!, $webPresencesFirst: Int!) {
+  webPresences(first: $webPresencesFirst) {
+    nodes {
+      id
+      markets(first: 10) {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+  market(id: $marketId) {
+    id
+  }
+  catalog(id: $catalogId) {
+    id
+    ... on MarketCatalog {
+      markets(first: 10) {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+}

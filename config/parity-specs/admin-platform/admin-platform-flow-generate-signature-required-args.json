@@ -1,0 +1,68 @@
+{
+  "scenarioId": "admin-platform-flow-generate-signature-required-args",
+  "operationNames": ["flowGenerateSignature"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape", "side-effect-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-flow-generate-signature-required-args.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-missing-both.graphql",
+    "documentCapturePath": "$.cases.missingBoth.query"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin GraphQL 2026-04 pre-resolver coercion for flowGenerateSignature omitted and literal-null required arguments. These branches do not reach the resolver or mutate Flow state; local parity compares each complete top-level GraphQL error envelope with no expected differences.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-both-payload",
+        "capturePath": "$.cases.missingBoth.response",
+        "proxyPath": "$"
+      },
+      {
+        "name": "missing-id-payload",
+        "capturePath": "$.cases.missingId.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-missing-id.graphql",
+          "documentCapturePath": "$.cases.missingId.query"
+        }
+      },
+      {
+        "name": "missing-payload-payload",
+        "capturePath": "$.cases.missingPayload.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-missing-payload.graphql",
+          "documentCapturePath": "$.cases.missingPayload.query"
+        }
+      },
+      {
+        "name": "null-id-payload",
+        "capturePath": "$.cases.nullId.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-null-id.graphql",
+          "documentCapturePath": "$.cases.nullId.query"
+        }
+      },
+      {
+        "name": "null-payload-payload",
+        "capturePath": "$.cases.nullPayload.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-generate-signature-required-args-null-payload.graphql",
+          "documentCapturePath": "$.cases.nullPayload.query"
+        }
+      }
+    ]
+  }
+}

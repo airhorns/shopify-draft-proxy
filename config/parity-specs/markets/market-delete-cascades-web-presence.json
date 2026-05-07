@@ -1,0 +1,43 @@
+{
+  "scenarioId": "market-delete-cascades-web-presence",
+  "operationNames": ["marketDelete", "market", "webPresences", "catalog"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "delete-cascade", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/delete-cascades-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-delete-cascade-setup-read.graphql",
+    "variablesCapturePath": "$.marketDeleteCascade.setupRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Admin GraphQL 2026-04 capture creates a disposable web presence, market with region condition and attached web presence, and market catalog context. After live marketDelete, Shopify returns the deleted market as null, removes the dependent web presence from webPresences, and removes the deleted market from the catalog context. The proxy replay hydrates the captured setup state from cassette, stages marketDelete locally without runtime Shopify writes, and compares the same downstream read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-delete-payload",
+        "capturePath": "$.marketDeleteCascade.delete.response.payload.data.marketDelete",
+        "proxyPath": "$.data.marketDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-delete.graphql",
+          "variablesCapturePath": "$.marketDeleteCascade.delete.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "market-delete-cascade-downstream-read",
+        "capturePath": "$.marketDeleteCascade.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-read.graphql",
+          "variablesCapturePath": "$.marketDeleteCascade.downstreamRead.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

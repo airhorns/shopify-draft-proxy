@@ -60,8 +60,11 @@ function requireSuccessfulGraphql(result: ConformanceGraphqlResult, label: strin
   }
 }
 
-async function capture(documentPath: string, variables: Record<string, unknown>): Promise<CapturedRequest> {
-  const document = await readText(documentPath);
+async function captureDocument(
+  documentPath: string,
+  document: string,
+  variables: Record<string, unknown>,
+): Promise<CapturedRequest> {
   const response = await runGraphqlRequest(document, variables);
   requireSuccessfulGraphql(response, documentPath);
 
@@ -70,6 +73,10 @@ async function capture(documentPath: string, variables: Record<string, unknown>)
     variables,
     response,
   };
+}
+
+async function capture(documentPath: string, variables: Record<string, unknown>): Promise<CapturedRequest> {
+  return captureDocument(documentPath, await readText(documentPath), variables);
 }
 
 async function captureGraphqlValidation(documentPath: string): Promise<CapturedRequest> {
@@ -105,6 +112,31 @@ function readCreatedWebhookId(createCapture: CapturedRequest): string | null {
 
   const id = webhookSubscription['id'];
   return typeof id === 'string' ? id : null;
+}
+
+function readCreatedCustomerId(createCapture: CapturedRequest): string | null {
+  const data = createCapture.response.payload.data;
+  if (!isObject(data)) {
+    return null;
+  }
+
+  const payload = data['customerCreate'];
+  if (!isObject(payload)) {
+    return null;
+  }
+
+  const customer = payload['customer'];
+  if (!isObject(customer)) {
+    return null;
+  }
+
+  const id = customer['id'];
+  return typeof id === 'string' ? id : null;
+}
+
+function gidNumericTail(id: string): string {
+  const tail = id.split('/').at(-1);
+  return typeof tail === 'string' ? tail : id;
 }
 
 function withWebhookUri(
@@ -169,6 +201,33 @@ const schemaAndAccessQuery = `#graphql
   }
 `;
 
+const filterValidationCustomerCreate = `#graphql
+  mutation WebhookFilterValidationCustomerCreate($input: CustomerInput!) {
+    customerCreate(input: $input) {
+      customer {
+        id
+        email
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const filterValidationCustomerDelete = `#graphql
+  mutation WebhookFilterValidationCustomerDelete($input: CustomerDeleteInput!) {
+    customerDelete(input: $input) {
+      deletedCustomerId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const schemaAndAccess = await runGraphqlRequest(schemaAndAccessQuery);
 requireSuccessfulGraphql(schemaAndAccess, 'Webhook subscription schema/access probe');
 
@@ -177,7 +236,11 @@ const createUri = `https://example.com/hermes-webhook-conformance-${suffix}`;
 const updateUri = `${createUri}-updated`;
 const filterDefaultUri = `${createUri}-filter-default`;
 const filterDefaultEmptyUri = `${createUri}-filter-empty`;
+const filterValidationValidUri = `${createUri}-filter-validation-valid`;
+const filterValidationUpdateUri = `${createUri}-filter-validation-update`;
+const filterValidationInvalidUri = `${createUri}-filter-validation-invalid`;
 const unknownId = 'gid://shopify/WebhookSubscription/999999999999';
+const invalidFilter = 'totally bogus syntax';
 
 const catalogVariables = await readVariables(catalogVariablesPath);
 const createVariables = withWebhookUri(await readVariables(createVariablesPath), createUri);
@@ -189,6 +252,9 @@ let cleanup: CapturedRequest | null = null;
 let updateValidationCreatedId: string | null = null;
 let filterDefaultWithoutId: string | null = null;
 let filterDefaultEmptyId: string | null = null;
+let filterValidationValidId: string | null = null;
+let filterValidationUpdateId: string | null = null;
+let filterValidationCustomerId: string | null = null;
 const lifecycle: {
   create: CapturedRequest | null;
   detailAfterCreate: CapturedRequest | null;
@@ -220,6 +286,35 @@ const filterDefault: {
   deleteWithEmptyFilter: null,
   cleanupWithoutFilter: null,
   cleanupWithEmptyFilter: null,
+};
+const filterValidation: {
+  setupCustomer: CapturedRequest | null;
+  createValidFilter: CapturedRequest | null;
+  detailValidFilter: CapturedRequest | null;
+  deleteValidFilter: CapturedRequest | null;
+  createUpdateBase: CapturedRequest | null;
+  updateValidFilter: CapturedRequest | null;
+  detailAfterValidUpdate: CapturedRequest | null;
+  updateInvalidFilter: CapturedRequest | null;
+  deleteUpdateBase: CapturedRequest | null;
+  createInvalidFilter: CapturedRequest | null;
+  cleanupValidFilter: CapturedRequest | null;
+  cleanupUpdateBase: CapturedRequest | null;
+  cleanupCustomer: CapturedRequest | null;
+} = {
+  setupCustomer: null,
+  createValidFilter: null,
+  detailValidFilter: null,
+  deleteValidFilter: null,
+  createUpdateBase: null,
+  updateValidFilter: null,
+  detailAfterValidUpdate: null,
+  updateInvalidFilter: null,
+  deleteUpdateBase: null,
+  createInvalidFilter: null,
+  cleanupValidFilter: null,
+  cleanupUpdateBase: null,
+  cleanupCustomer: null,
 };
 const updateValidation: {
   create: CapturedRequest | null;
@@ -295,6 +390,95 @@ try {
 } finally {
   if (filterDefaultEmptyId !== null && filterDefault.deleteWithEmptyFilter === null) {
     filterDefault.cleanupWithEmptyFilter = await capture(deleteRequestPath, { id: filterDefaultEmptyId });
+  }
+}
+
+try {
+  filterValidation.setupCustomer = await captureDocument(
+    'inline:webhook-filter-validation-customer-create',
+    filterValidationCustomerCreate,
+    {
+      input: {
+        email: `hermes-webhook-filter-${suffix}@example.com`,
+        firstName: 'Hermes',
+        lastName: 'WebhookFilter',
+      },
+    },
+  );
+  filterValidationCustomerId = readCreatedCustomerId(filterValidation.setupCustomer);
+  if (filterValidationCustomerId === null) {
+    throw new Error('filter-validation customer setup did not return a customer.id.');
+  }
+
+  const validCustomerIdFilter = `customer_id:${gidNumericTail(filterValidationCustomerId)}`;
+
+  try {
+    filterValidation.createValidFilter = await capture(
+      createRequestPath,
+      withWebhookUri({ ...createVariables, topic: 'CUSTOMERS_UPDATE' }, filterValidationValidUri, {
+        filter: validCustomerIdFilter,
+      }),
+    );
+    filterValidationValidId = readCreatedWebhookId(filterValidation.createValidFilter);
+    if (filterValidationValidId === null) {
+      throw new Error('filter-validation valid create did not return a webhookSubscription.id.');
+    }
+
+    filterValidation.detailValidFilter = await capture(detailRequestPath, { id: filterValidationValidId });
+    filterValidation.deleteValidFilter = await capture(deleteRequestPath, { id: filterValidationValidId });
+  } finally {
+    if (filterValidationValidId !== null && filterValidation.deleteValidFilter === null) {
+      filterValidation.cleanupValidFilter = await capture(deleteRequestPath, { id: filterValidationValidId });
+    }
+  }
+
+  try {
+    filterValidation.createUpdateBase = await capture(
+      createRequestPath,
+      withWebhookUri({ ...createVariables, topic: 'CUSTOMERS_UPDATE' }, filterValidationUpdateUri, {}, ['filter']),
+    );
+    filterValidationUpdateId = readCreatedWebhookId(filterValidation.createUpdateBase);
+    if (filterValidationUpdateId === null) {
+      throw new Error('filter-validation update setup did not return a webhookSubscription.id.');
+    }
+
+    filterValidation.updateValidFilter = await capture(
+      updateRequestPath,
+      withWebhookUri({ ...updateVariablesTemplate, id: filterValidationUpdateId }, filterValidationUpdateUri, {
+        filter: validCustomerIdFilter,
+        includeFields: ['id'],
+        metafieldNamespaces: [],
+      }),
+    );
+    filterValidation.detailAfterValidUpdate = await capture(detailRequestPath, { id: filterValidationUpdateId });
+    filterValidation.updateInvalidFilter = await capture(
+      updateRequestPath,
+      withWebhookUri({ ...updateVariablesTemplate, id: filterValidationUpdateId }, filterValidationUpdateUri, {
+        filter: invalidFilter,
+        includeFields: ['id'],
+        metafieldNamespaces: [],
+      }),
+    );
+    filterValidation.deleteUpdateBase = await capture(deleteRequestPath, { id: filterValidationUpdateId });
+  } finally {
+    if (filterValidationUpdateId !== null && filterValidation.deleteUpdateBase === null) {
+      filterValidation.cleanupUpdateBase = await capture(deleteRequestPath, { id: filterValidationUpdateId });
+    }
+  }
+
+  filterValidation.createInvalidFilter = await capture(
+    createRequestPath,
+    withWebhookUri({ ...createVariables, topic: 'CUSTOMERS_UPDATE' }, filterValidationInvalidUri, {
+      filter: invalidFilter,
+    }),
+  );
+} finally {
+  if (filterValidationCustomerId !== null) {
+    filterValidation.cleanupCustomer = await captureDocument(
+      'inline:webhook-filter-validation-customer-delete',
+      filterValidationCustomerDelete,
+      { input: { id: filterValidationCustomerId } },
+    );
   }
 }
 
@@ -375,6 +559,7 @@ await writeFile(
       catalog,
       lifecycle,
       filterDefault,
+      filterValidation,
       updateValidation,
       validation,
       graphqlValidation,

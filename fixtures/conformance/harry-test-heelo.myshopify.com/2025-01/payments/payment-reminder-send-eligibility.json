@@ -1,22 +1,22 @@
 {
-  "capturedAt": "2026-05-05T10:07:32.891Z",
+  "capturedAt": "2026-05-06T22:27:23.422Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "scenarioId": "payment-reminder-send-eligibility",
-  "notes": "HAR-671 live capture on disposable payment-terms orders. Success uses an overdue payment-pending order schedule; unknown and paid branches confirm Shopify returns success null with PAYMENT_REMINDER_SEND_UNSUCCESSFUL for ineligible schedules. Runtime replay uses hydrate cassettes only; supported paymentReminderSend never writes upstream at runtime.",
-  "requestDocument": "mutation PaymentReminderSendEligibility($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field code message } }\n}",
-  "hydrateDocument": "query PaymentScheduleReminderHydrate($id: ID!) {\n  paymentSchedule: node(id: $id) {\n    ... on PaymentSchedule {\n      id dueAt issuedAt completedAt\n      paymentTerms {\n        id overdue dueInDays paymentTermsName paymentTermsType translatedName\n        order { id closed closedAt cancelledAt displayFinancialStatus }\n        draftOrder { id status completedAt }\n        paymentSchedules(first: 10) { nodes { id dueAt issuedAt completedAt } }\n      }\n    }\n  }\n}",
+  "notes": "Live capture on disposable payment-terms orders. Success uses an overdue payment-pending order schedule; unknown and paid branches confirm Shopify userErrors for ineligible schedules.",
+  "requestDocument": "mutation PaymentReminderSendEligibility($paymentScheduleId: ID!) { paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field code message } } }",
+  "hydrateDocument": "query PaymentScheduleReminderHydrate($id: ID!) { paymentSchedule: node(id: $id) { ... on PaymentSchedule { id dueAt issuedAt completedAt paymentTerms { id overdue dueInDays paymentTermsName paymentTermsType translatedName order { id closed closedAt cancelledAt displayFinancialStatus } draftOrder { id status completedAt } paymentSchedules(first: 10) { nodes { id dueAt issuedAt completedAt } } } } } }",
   "setup": {
     "success": {
       "draftOrderCreate": {
         "variables": {
           "input": {
-            "email": "har671-success-1777975647489-81078@example.com",
-            "note": "HAR-671 payment reminder success",
-            "tags": ["har-671", "payment-reminder", "success"],
+            "email": "payment-reminder-success-1778106437865@example.com",
+            "note": "payment reminder success capture",
+            "tags": ["payment-reminder", "success"],
             "lineItems": [
               {
-                "title": "HAR-671 success",
+                "title": "Payment reminder success",
                 "quantity": 1,
                 "originalUnitPrice": "18.50"
               }
@@ -27,29 +27,40 @@
           "data": {
             "draftOrderCreate": {
               "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1250543632690",
-                "name": "#D79",
+                "id": "gid://shopify/DraftOrder/1250897789234",
+                "name": "#D153",
                 "status": "OPEN",
-                "email": "har671-success-1777975647489-81078@example.com"
+                "email": "payment-reminder-success-1778106437865@example.com"
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1926,
+                "restoreRate": 100
+              }
             }
           }
         }
       },
       "draftOrderComplete": {
         "variables": {
-          "id": "gid://shopify/DraftOrder/1250543632690"
+          "id": "gid://shopify/DraftOrder/1250897789234"
         },
         "response": {
           "data": {
             "draftOrderComplete": {
               "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1250543632690",
+                "id": "gid://shopify/DraftOrder/1250897789234",
                 "status": "COMPLETED",
                 "order": {
-                  "id": "gid://shopify/Order/8729095504178",
-                  "name": "#1134",
+                  "id": "gid://shopify/Order/8733140877618",
+                  "name": "#1307",
                   "displayFinancialStatus": "PENDING",
                   "cancelledAt": null,
                   "closedAt": null,
@@ -58,12 +69,23 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
           }
         }
       },
       "paymentTermsCreate": {
         "variables": {
-          "referenceId": "gid://shopify/Order/8729095504178",
+          "referenceId": "gid://shopify/Order/8733140877618",
           "attrs": {
             "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
             "paymentSchedules": [
@@ -77,21 +99,21 @@
           "data": {
             "paymentTermsCreate": {
               "paymentTerms": {
-                "id": "gid://shopify/PaymentTerms/145644388658",
+                "id": "gid://shopify/PaymentTerms/145986683186",
                 "overdue": true,
                 "dueInDays": 30,
                 "paymentTermsName": "Net 30",
                 "paymentTermsType": "NET",
                 "translatedName": "Net 30",
                 "order": {
-                  "id": "gid://shopify/Order/8729095504178",
+                  "id": "gid://shopify/Order/8733140877618",
                   "displayFinancialStatus": "PENDING"
                 },
                 "draftOrder": null,
                 "paymentSchedules": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/PaymentSchedule/177609146674",
+                      "id": "gid://shopify/PaymentSchedule/178408784178",
                       "dueAt": "2025-01-31T00:00:00Z",
                       "issuedAt": "2025-01-01T00:00:00Z",
                       "completedAt": null
@@ -100,6 +122,17 @@
                 }
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -109,12 +142,12 @@
       "draftOrderCreate": {
         "variables": {
           "input": {
-            "email": "har671-paid-1777975649793-41503@example.com",
-            "note": "HAR-671 payment reminder paid",
-            "tags": ["har-671", "payment-reminder", "paid"],
+            "email": "payment-reminder-paid-1778106437865@example.com",
+            "note": "payment reminder paid capture",
+            "tags": ["payment-reminder", "paid"],
             "lineItems": [
               {
-                "title": "HAR-671 paid",
+                "title": "Payment reminder paid",
                 "quantity": 1,
                 "originalUnitPrice": "18.50"
               }
@@ -125,29 +158,40 @@
           "data": {
             "draftOrderCreate": {
               "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1250543665458",
-                "name": "#D80",
+                "id": "gid://shopify/DraftOrder/1250897822002",
+                "name": "#D154",
                 "status": "OPEN",
-                "email": "har671-paid-1777975649793-41503@example.com"
+                "email": "payment-reminder-paid-1778106437865@example.com"
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
       },
       "draftOrderComplete": {
         "variables": {
-          "id": "gid://shopify/DraftOrder/1250543665458"
+          "id": "gid://shopify/DraftOrder/1250897822002"
         },
         "response": {
           "data": {
             "draftOrderComplete": {
               "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1250543665458",
+                "id": "gid://shopify/DraftOrder/1250897822002",
                 "status": "COMPLETED",
                 "order": {
-                  "id": "gid://shopify/Order/8729095536946",
-                  "name": "#1135",
+                  "id": "gid://shopify/Order/8733140975922",
+                  "name": "#1308",
                   "displayFinancialStatus": "PENDING",
                   "cancelledAt": null,
                   "closedAt": null,
@@ -156,12 +200,23 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
           }
         }
       },
       "paymentTermsCreate": {
         "variables": {
-          "referenceId": "gid://shopify/Order/8729095536946",
+          "referenceId": "gid://shopify/Order/8733140975922",
           "attrs": {
             "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
             "paymentSchedules": [
@@ -175,21 +230,21 @@
           "data": {
             "paymentTermsCreate": {
               "paymentTerms": {
-                "id": "gid://shopify/PaymentTerms/145644421426",
+                "id": "gid://shopify/PaymentTerms/145986715954",
                 "overdue": true,
                 "dueInDays": 30,
                 "paymentTermsName": "Net 30",
                 "paymentTermsType": "NET",
                 "translatedName": "Net 30",
                 "order": {
-                  "id": "gid://shopify/Order/8729095536946",
+                  "id": "gid://shopify/Order/8733140975922",
                   "displayFinancialStatus": "PENDING"
                 },
                 "draftOrder": null,
                 "paymentSchedules": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/PaymentSchedule/177609179442",
+                      "id": "gid://shopify/PaymentSchedule/178408816946",
                       "dueAt": "2025-01-31T00:00:00Z",
                       "issuedAt": "2025-01-01T00:00:00Z",
                       "completedAt": null
@@ -199,23 +254,45 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
           }
         }
       },
       "orderMarkAsPaid": {
         "variables": {
           "input": {
-            "id": "gid://shopify/Order/8729095536946"
+            "id": "gid://shopify/Order/8733140975922"
           }
         },
         "response": {
           "data": {
             "orderMarkAsPaid": {
               "order": {
-                "id": "gid://shopify/Order/8729095536946",
+                "id": "gid://shopify/Order/8733140975922",
                 "displayFinancialStatus": "PAID"
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -226,7 +303,7 @@
     "success": {
       "request": {
         "variables": {
-          "paymentScheduleId": "gid://shopify/PaymentSchedule/177609146674"
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/178408784178"
         }
       },
       "response": {
@@ -234,6 +311,17 @@
           "paymentReminderSend": {
             "success": true,
             "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
           }
         }
       }
@@ -256,13 +344,24 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     "paid": {
       "request": {
         "variables": {
-          "paymentScheduleId": "gid://shopify/PaymentSchedule/177609179442"
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/178408816946"
         }
       },
       "response": {
@@ -277,6 +376,17 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     }
@@ -286,9 +396,20 @@
       "data": {
         "orderCancel": {
           "job": {
-            "id": "gid://shopify/Job/bd41d3d7-cb67-4b8a-bb4d-a7799aee5535"
+            "id": "gid://shopify/Job/24fa0bab-0acb-4886-ba4a-99b5fa6dbfdb"
           },
           "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
         }
       }
     },
@@ -296,9 +417,20 @@
       "data": {
         "orderCancel": {
           "job": {
-            "id": "gid://shopify/Job/bd41d3d7-cb67-4b8a-bb4d-a7799aee5535"
+            "id": "gid://shopify/Job/24fa0bab-0acb-4886-ba4a-99b5fa6dbfdb"
           },
           "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
         }
       }
     }
@@ -307,7 +439,7 @@
     {
       "operationName": "PaymentScheduleReminderHydrate",
       "variables": {
-        "id": "gid://shopify/PaymentSchedule/177609146674"
+        "id": "gid://shopify/PaymentSchedule/178408784178"
       },
       "query": "captured live hydrate for eligible overdue order schedule",
       "response": {
@@ -315,19 +447,19 @@
         "body": {
           "data": {
             "paymentSchedule": {
-              "id": "gid://shopify/PaymentSchedule/177609146674",
+              "id": "gid://shopify/PaymentSchedule/178408784178",
               "dueAt": "2025-01-31T00:00:00Z",
               "issuedAt": "2025-01-01T00:00:00Z",
               "completedAt": null,
               "paymentTerms": {
-                "id": "gid://shopify/PaymentTerms/145644388658",
+                "id": "gid://shopify/PaymentTerms/145986683186",
                 "overdue": true,
                 "dueInDays": 30,
                 "paymentTermsName": "Net 30",
                 "paymentTermsType": "NET",
                 "translatedName": "Net 30",
                 "order": {
-                  "id": "gid://shopify/Order/8729095504178",
+                  "id": "gid://shopify/Order/8733140877618",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
@@ -337,13 +469,24 @@
                 "paymentSchedules": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/PaymentSchedule/177609146674",
+                      "id": "gid://shopify/PaymentSchedule/178408784178",
                       "dueAt": "2025-01-31T00:00:00Z",
                       "issuedAt": "2025-01-01T00:00:00Z",
                       "completedAt": null
                     }
                   ]
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
               }
             }
           }
@@ -361,6 +504,17 @@
         "body": {
           "data": {
             "paymentSchedule": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -368,7 +522,7 @@
     {
       "operationName": "PaymentScheduleReminderHydrate",
       "variables": {
-        "id": "gid://shopify/PaymentSchedule/177609179442"
+        "id": "gid://shopify/PaymentSchedule/178408816946"
       },
       "query": "captured live hydrate for paid order schedule",
       "response": {
@@ -376,19 +530,19 @@
         "body": {
           "data": {
             "paymentSchedule": {
-              "id": "gid://shopify/PaymentSchedule/177609179442",
+              "id": "gid://shopify/PaymentSchedule/178408816946",
               "dueAt": "2025-01-31T00:00:00Z",
               "issuedAt": "2025-01-01T00:00:00Z",
-              "completedAt": "2026-05-05T10:07:32Z",
+              "completedAt": "2026-05-06T22:27:22Z",
               "paymentTerms": {
-                "id": "gid://shopify/PaymentTerms/145644421426",
+                "id": "gid://shopify/PaymentTerms/145986715954",
                 "overdue": false,
                 "dueInDays": 30,
                 "paymentTermsName": "Net 30",
                 "paymentTermsType": "NET",
                 "translatedName": "Net 30",
                 "order": {
-                  "id": "gid://shopify/Order/8729095536946",
+                  "id": "gid://shopify/Order/8733140975922",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
@@ -398,13 +552,24 @@
                 "paymentSchedules": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/PaymentSchedule/177609179442",
+                      "id": "gid://shopify/PaymentSchedule/178408816946",
                       "dueAt": "2025-01-31T00:00:00Z",
                       "issuedAt": "2025-01-01T00:00:00Z",
-                      "completedAt": "2026-05-05T10:07:32Z"
+                      "completedAt": "2026-05-06T22:27:22Z"
                     }
                   ]
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
               }
             }
           }

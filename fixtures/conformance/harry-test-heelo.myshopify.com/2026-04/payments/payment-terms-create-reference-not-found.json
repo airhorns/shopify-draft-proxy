@@ -1,0 +1,142 @@
+{
+  "capturedAt": "2026-05-06T20:50:49.585Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/123"
+      },
+      "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n  order(id: $id) { id paymentTerms { id } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/999999"
+      },
+      "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n  draftOrder(id: $id) { id paymentTerms { id } subtotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cases": {
+    "missingOrder": {
+      "purpose": "Unknown Order reference returns a field-null paymentTermsCreate userError with the numeric GID tail.",
+      "query": "#graphql\n  mutation PaymentTermsReferenceNotFound($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/Order/123",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot find the specific Order with id 123.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingDraftOrder": {
+      "purpose": "Unknown DraftOrder reference returns a field-null paymentTermsCreate userError with the numeric GID tail.",
+      "query": "#graphql\n  mutation PaymentTermsReferenceNotFound($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/999999",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot find the specific Draft order with id 999999.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": "Live Shopify capture for paymentTermsCreate reference-not-found branches. Unknown Order and DraftOrder GIDs return PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors with field: null, type-specific messages, and paymentTerms: null."
+}

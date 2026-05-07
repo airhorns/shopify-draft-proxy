@@ -1,77 +1,30 @@
 {
+  "scenarioId": "b2b-company-roots-read",
+  "capturedAt": "2026-05-06T23:22:53.623Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "variables": {
+    "first": 5,
+    "companyId": "gid://shopify/Company/5443846450",
+    "contactId": "gid://shopify/CompanyContact/10163192114",
+    "roleId": "gid://shopify/CompanyContactRole/10678993202",
+    "locationId": "gid://shopify/CompanyLocation/8270872882",
+    "unknownCompanyId": "gid://shopify/Company/999999999999",
+    "unknownContactId": "gid://shopify/CompanyContact/999999999999",
+    "unknownRoleId": "gid://shopify/CompanyContactRole/999999999999",
+    "unknownLocationId": "gid://shopify/CompanyLocation/999999999999",
+    "companyQuery": "name:\"Recorder B2B roots 1778109772770\""
+  },
   "data": {
     "companies": {
       "nodes": [
         {
-          "id": "gid://shopify/Company/2983133490",
-          "name": "Powderbound",
-          "note": null,
-          "externalId": null,
-          "createdAt": "2025-03-26T19:51:37Z",
-          "updatedAt": "2025-03-26T19:51:37Z",
-          "contactsCount": {
-            "count": 0
-          },
-          "locationsCount": {
-            "count": 1
-          },
-          "mainContact": null,
-          "defaultRole": {
-            "id": "gid://shopify/CompanyContactRole/5888442674",
-            "name": "Location admin",
-            "note": "System-defined Location admin role"
-          },
-          "contactRoles": {
-            "nodes": [
-              {
-                "id": "gid://shopify/CompanyContactRole/5888442674",
-                "name": "Location admin",
-                "note": "System-defined Location admin role"
-              },
-              {
-                "id": "gid://shopify/CompanyContactRole/5888475442",
-                "name": "Ordering only",
-                "note": "System-defined Ordering only role"
-              }
-            ],
-            "pageInfo": {
-              "hasNextPage": false,
-              "hasPreviousPage": false
-            }
-          },
-          "locations": {
-            "nodes": [
-              {
-                "id": "gid://shopify/CompanyLocation/3926425906",
-                "name": "Powderbound",
-                "externalId": null,
-                "locale": "en",
-                "phone": null,
-                "note": null,
-                "createdAt": "2025-03-26T19:51:37Z",
-                "updatedAt": "2025-03-26T19:51:37Z"
-              }
-            ],
-            "pageInfo": {
-              "hasNextPage": false,
-              "hasPreviousPage": false
-            }
-          },
-          "contacts": {
-            "nodes": [],
-            "pageInfo": {
-              "hasNextPage": false,
-              "hasPreviousPage": false
-            }
-          }
-        },
-        {
-          "id": "gid://shopify/Company/2983166258",
-          "name": "Snowdevil",
-          "note": "This is a company that was created with all the fields present",
-          "externalId": "1234",
-          "createdAt": "2025-03-26T19:51:37Z",
-          "updatedAt": "2025-03-26T19:51:38Z",
+          "id": "gid://shopify/Company/5443846450",
+          "name": "Recorder B2B roots 1778109772770",
+          "note": "B2B roots read recorder fixture",
+          "externalId": "recorder-b2b-roots-1778109772770",
+          "createdAt": "2026-05-06T23:22:52Z",
+          "updatedAt": "2026-05-06T23:22:52Z",
           "contactsCount": {
             "count": 1
           },
@@ -79,25 +32,25 @@
             "count": 1
           },
           "mainContact": {
-            "id": "gid://shopify/CompanyContact/3321004338",
-            "title": null,
+            "id": "gid://shopify/CompanyContact/10163192114",
+            "title": "Buyer",
             "locale": "en",
             "isMainContact": true
           },
           "defaultRole": {
-            "id": "gid://shopify/CompanyContactRole/5888508210",
-            "name": "Location admin",
-            "note": "System-defined Location admin role"
+            "id": "gid://shopify/CompanyContactRole/10679025970",
+            "name": "Ordering only",
+            "note": "System-defined Ordering only role"
           },
           "contactRoles": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRole/5888508210",
+                "id": "gid://shopify/CompanyContactRole/10678993202",
                 "name": "Location admin",
                 "note": "System-defined Location admin role"
               },
               {
-                "id": "gid://shopify/CompanyContactRole/5888540978",
+                "id": "gid://shopify/CompanyContactRole/10679025970",
                 "name": "Ordering only",
                 "note": "System-defined Ordering only role"
               }
@@ -110,14 +63,14 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/3926458674",
-                "name": "Snowdevil",
+                "id": "gid://shopify/CompanyLocation/8270872882",
+                "name": "Recorder B2B roots 1778109772770 HQ",
                 "externalId": null,
-                "locale": "CA",
-                "phone": "+16135550114",
-                "note": "This Company has a location in Calgary",
-                "createdAt": "2025-03-26T19:51:37Z",
-                "updatedAt": "2025-03-26T19:51:38Z"
+                "locale": "en",
+                "phone": "+16135550101",
+                "note": null,
+                "createdAt": "2026-05-06T23:22:52Z",
+                "updatedAt": "2026-05-06T23:22:52Z"
               }
             ],
             "pageInfo": {
@@ -128,12 +81,12 @@
           "contacts": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContact/3321004338",
-                "title": null,
+                "id": "gid://shopify/CompanyContact/10163192114",
+                "title": "Buyer",
                 "locale": "en",
                 "isMainContact": true,
-                "createdAt": "2025-03-26T19:51:38Z",
-                "updatedAt": "2025-03-26T19:51:38Z"
+                "createdAt": "2026-05-06T23:22:52Z",
+                "updatedAt": "2026-05-06T23:22:52Z"
               }
             ],
             "pageInfo": {
@@ -149,71 +102,39 @@
       }
     },
     "companiesCount": {
-      "count": 2
+      "count": 5
     },
     "company": {
-      "id": "gid://shopify/Company/2983166258",
-      "name": "Snowdevil",
-      "note": "This is a company that was created with all the fields present",
-      "externalId": "1234"
+      "id": "gid://shopify/Company/5443846450",
+      "name": "Recorder B2B roots 1778109772770",
+      "note": "B2B roots read recorder fixture",
+      "externalId": "recorder-b2b-roots-1778109772770"
     },
     "companyContact": {
-      "id": "gid://shopify/CompanyContact/3321004338",
-      "title": null,
+      "id": "gid://shopify/CompanyContact/10163192114",
+      "title": "Buyer",
       "locale": "en",
       "isMainContact": true,
       "company": {
-        "id": "gid://shopify/Company/2983166258",
-        "name": "Snowdevil"
+        "id": "gid://shopify/Company/5443846450",
+        "name": "Recorder B2B roots 1778109772770"
       }
     },
     "companyContactRole": {
-      "id": "gid://shopify/CompanyContactRole/5888540978",
-      "name": "Ordering only",
-      "note": "System-defined Ordering only role"
+      "id": "gid://shopify/CompanyContactRole/10678993202",
+      "name": "Location admin",
+      "note": "System-defined Location admin role"
     },
     "companyLocation": {
-      "id": "gid://shopify/CompanyLocation/3926458674",
-      "name": "Snowdevil",
+      "id": "gid://shopify/CompanyLocation/8270872882",
+      "name": "Recorder B2B roots 1778109772770 HQ",
       "externalId": null,
-      "locale": "CA",
-      "phone": "+16135550114",
-      "note": "This Company has a location in Calgary",
+      "locale": "en",
+      "phone": "+16135550101",
+      "note": null,
       "company": {
-        "id": "gid://shopify/Company/2983166258",
-        "name": "Snowdevil"
-      }
-    },
-    "companyLocations": {
-      "nodes": [
-        {
-          "id": "gid://shopify/CompanyLocation/3926425906",
-          "name": "Powderbound",
-          "externalId": null,
-          "locale": "en",
-          "phone": null,
-          "note": null,
-          "company": {
-            "id": "gid://shopify/Company/2983133490",
-            "name": "Powderbound"
-          }
-        },
-        {
-          "id": "gid://shopify/CompanyLocation/3926458674",
-          "name": "Snowdevil",
-          "externalId": null,
-          "locale": "CA",
-          "phone": "+16135550114",
-          "note": "This Company has a location in Calgary",
-          "company": {
-            "id": "gid://shopify/Company/2983166258",
-            "name": "Snowdevil"
-          }
-        }
-      ],
-      "pageInfo": {
-        "hasNextPage": false,
-        "hasPreviousPage": false
+        "id": "gid://shopify/Company/5443846450",
+        "name": "Recorder B2B roots 1778109772770"
       }
     },
     "unknownCompany": null,
@@ -221,21 +142,49 @@
     "unknownRole": null,
     "unknownLocation": null
   },
+  "cleanup": {
+    "request": {
+      "query": "#graphql\n    mutation B2BRootsReadCleanup($id: ID!) {\n      companyDelete(id: $id) {\n        deletedCompanyId\n        userErrors { field message code }\n      }\n    }\n  ",
+      "variables": {
+        "id": "gid://shopify/Company/5443846450"
+      }
+    },
+    "response": {
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5443846450",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1975,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "upstreamCalls": [
     {
       "operationName": "B2BCompanyRootsRead",
       "variables": {
         "first": 5,
-        "companyId": "gid://shopify/Company/2983166258",
-        "contactId": "gid://shopify/CompanyContact/3321004338",
-        "roleId": "gid://shopify/CompanyContactRole/5888540978",
-        "locationId": "gid://shopify/CompanyLocation/3926458674",
+        "companyId": "gid://shopify/Company/5443846450",
+        "contactId": "gid://shopify/CompanyContact/10163192114",
+        "roleId": "gid://shopify/CompanyContactRole/10678993202",
+        "locationId": "gid://shopify/CompanyLocation/8270872882",
         "unknownCompanyId": "gid://shopify/Company/999999999999",
         "unknownContactId": "gid://shopify/CompanyContact/999999999999",
         "unknownRoleId": "gid://shopify/CompanyContactRole/999999999999",
-        "unknownLocationId": "gid://shopify/CompanyLocation/999999999999"
+        "unknownLocationId": "gid://shopify/CompanyLocation/999999999999",
+        "companyQuery": "name:\"Recorder B2B roots 1778109772770\""
       },
-      "query": "hand-synthesized:b2b-company-roots-read",
+      "query": "query B2BCompanyRootsRead(\n  $first: Int!\n  $companyId: ID!\n  $contactId: ID!\n  $roleId: ID!\n  $locationId: ID!\n  $unknownCompanyId: ID!\n  $unknownContactId: ID!\n  $unknownRoleId: ID!\n  $unknownLocationId: ID!\n  $companyQuery: String!\n) {\n  companies(first: $first, query: $companyQuery) {\n    nodes {\n      id\n      name\n      note\n      externalId\n      createdAt\n      updatedAt\n      contactsCount {\n        count\n      }\n      locationsCount {\n        count\n      }\n      mainContact {\n        id\n        title\n        locale\n        isMainContact\n      }\n      defaultRole {\n        id\n        name\n        note\n      }\n      contactRoles(first: 5) {\n        nodes {\n          id\n          name\n          note\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n          locale\n          phone\n          note\n          createdAt\n          updatedAt\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n          createdAt\n          updatedAt\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  companiesCount {\n    count\n  }\n  company(id: $companyId) {\n    id\n    name\n    note\n    externalId\n  }\n  companyContact(id: $contactId) {\n    id\n    title\n    locale\n    isMainContact\n    company {\n      id\n      name\n    }\n  }\n  companyContactRole(id: $roleId) {\n    id\n    name\n    note\n  }\n  companyLocation(id: $locationId) {\n    id\n    name\n    externalId\n    locale\n    phone\n    note\n    company {\n      id\n      name\n    }\n  }\n  unknownCompany: company(id: $unknownCompanyId) {\n    id\n  }\n  unknownContact: companyContact(id: $unknownContactId) {\n    id\n  }\n  unknownRole: companyContactRole(id: $unknownRoleId) {\n    id\n  }\n  unknownLocation: companyLocation(id: $unknownLocationId) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -243,75 +192,12 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/2983133490",
-                  "name": "Powderbound",
-                  "note": null,
-                  "externalId": null,
-                  "createdAt": "2025-03-26T19:51:37Z",
-                  "updatedAt": "2025-03-26T19:51:37Z",
-                  "contactsCount": {
-                    "count": 0
-                  },
-                  "locationsCount": {
-                    "count": 1
-                  },
-                  "mainContact": null,
-                  "defaultRole": {
-                    "id": "gid://shopify/CompanyContactRole/5888442674",
-                    "name": "Location admin",
-                    "note": "System-defined Location admin role"
-                  },
-                  "contactRoles": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/CompanyContactRole/5888442674",
-                        "name": "Location admin",
-                        "note": "System-defined Location admin role"
-                      },
-                      {
-                        "id": "gid://shopify/CompanyContactRole/5888475442",
-                        "name": "Ordering only",
-                        "note": "System-defined Ordering only role"
-                      }
-                    ],
-                    "pageInfo": {
-                      "hasNextPage": false,
-                      "hasPreviousPage": false
-                    }
-                  },
-                  "locations": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/CompanyLocation/3926425906",
-                        "name": "Powderbound",
-                        "externalId": null,
-                        "locale": "en",
-                        "phone": null,
-                        "note": null,
-                        "createdAt": "2025-03-26T19:51:37Z",
-                        "updatedAt": "2025-03-26T19:51:37Z"
-                      }
-                    ],
-                    "pageInfo": {
-                      "hasNextPage": false,
-                      "hasPreviousPage": false
-                    }
-                  },
-                  "contacts": {
-                    "nodes": [],
-                    "pageInfo": {
-                      "hasNextPage": false,
-                      "hasPreviousPage": false
-                    }
-                  }
-                },
-                {
-                  "id": "gid://shopify/Company/2983166258",
-                  "name": "Snowdevil",
-                  "note": "This is a company that was created with all the fields present",
-                  "externalId": "1234",
-                  "createdAt": "2025-03-26T19:51:37Z",
-                  "updatedAt": "2025-03-26T19:51:38Z",
+                  "id": "gid://shopify/Company/5443846450",
+                  "name": "Recorder B2B roots 1778109772770",
+                  "note": "B2B roots read recorder fixture",
+                  "externalId": "recorder-b2b-roots-1778109772770",
+                  "createdAt": "2026-05-06T23:22:52Z",
+                  "updatedAt": "2026-05-06T23:22:52Z",
                   "contactsCount": {
                     "count": 1
                   },
@@ -319,25 +205,25 @@
                     "count": 1
                   },
                   "mainContact": {
-                    "id": "gid://shopify/CompanyContact/3321004338",
-                    "title": null,
+                    "id": "gid://shopify/CompanyContact/10163192114",
+                    "title": "Buyer",
                     "locale": "en",
                     "isMainContact": true
                   },
                   "defaultRole": {
-                    "id": "gid://shopify/CompanyContactRole/5888508210",
-                    "name": "Location admin",
-                    "note": "System-defined Location admin role"
+                    "id": "gid://shopify/CompanyContactRole/10679025970",
+                    "name": "Ordering only",
+                    "note": "System-defined Ordering only role"
                   },
                   "contactRoles": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyContactRole/5888508210",
+                        "id": "gid://shopify/CompanyContactRole/10678993202",
                         "name": "Location admin",
                         "note": "System-defined Location admin role"
                       },
                       {
-                        "id": "gid://shopify/CompanyContactRole/5888540978",
+                        "id": "gid://shopify/CompanyContactRole/10679025970",
                         "name": "Ordering only",
                         "note": "System-defined Ordering only role"
                       }
@@ -350,14 +236,14 @@
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/3926458674",
-                        "name": "Snowdevil",
+                        "id": "gid://shopify/CompanyLocation/8270872882",
+                        "name": "Recorder B2B roots 1778109772770 HQ",
                         "externalId": null,
-                        "locale": "CA",
-                        "phone": "+16135550114",
-                        "note": "This Company has a location in Calgary",
-                        "createdAt": "2025-03-26T19:51:37Z",
-                        "updatedAt": "2025-03-26T19:51:38Z"
+                        "locale": "en",
+                        "phone": "+16135550101",
+                        "note": null,
+                        "createdAt": "2026-05-06T23:22:52Z",
+                        "updatedAt": "2026-05-06T23:22:52Z"
                       }
                     ],
                     "pageInfo": {
@@ -368,12 +254,12 @@
                   "contacts": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyContact/3321004338",
-                        "title": null,
+                        "id": "gid://shopify/CompanyContact/10163192114",
+                        "title": "Buyer",
                         "locale": "en",
                         "isMainContact": true,
-                        "createdAt": "2025-03-26T19:51:38Z",
-                        "updatedAt": "2025-03-26T19:51:38Z"
+                        "createdAt": "2026-05-06T23:22:52Z",
+                        "updatedAt": "2026-05-06T23:22:52Z"
                       }
                     ],
                     "pageInfo": {
@@ -389,77 +275,56 @@
               }
             },
             "companiesCount": {
-              "count": 2
+              "count": 5
             },
             "company": {
-              "id": "gid://shopify/Company/2983166258",
-              "name": "Snowdevil",
-              "note": "This is a company that was created with all the fields present",
-              "externalId": "1234"
+              "id": "gid://shopify/Company/5443846450",
+              "name": "Recorder B2B roots 1778109772770",
+              "note": "B2B roots read recorder fixture",
+              "externalId": "recorder-b2b-roots-1778109772770"
             },
             "companyContact": {
-              "id": "gid://shopify/CompanyContact/3321004338",
-              "title": null,
+              "id": "gid://shopify/CompanyContact/10163192114",
+              "title": "Buyer",
               "locale": "en",
               "isMainContact": true,
               "company": {
-                "id": "gid://shopify/Company/2983166258",
-                "name": "Snowdevil"
+                "id": "gid://shopify/Company/5443846450",
+                "name": "Recorder B2B roots 1778109772770"
               }
             },
             "companyContactRole": {
-              "id": "gid://shopify/CompanyContactRole/5888540978",
-              "name": "Ordering only",
-              "note": "System-defined Ordering only role"
+              "id": "gid://shopify/CompanyContactRole/10678993202",
+              "name": "Location admin",
+              "note": "System-defined Location admin role"
             },
             "companyLocation": {
-              "id": "gid://shopify/CompanyLocation/3926458674",
-              "name": "Snowdevil",
+              "id": "gid://shopify/CompanyLocation/8270872882",
+              "name": "Recorder B2B roots 1778109772770 HQ",
               "externalId": null,
-              "locale": "CA",
-              "phone": "+16135550114",
-              "note": "This Company has a location in Calgary",
+              "locale": "en",
+              "phone": "+16135550101",
+              "note": null,
               "company": {
-                "id": "gid://shopify/Company/2983166258",
-                "name": "Snowdevil"
-              }
-            },
-            "companyLocations": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/CompanyLocation/3926425906",
-                  "name": "Powderbound",
-                  "externalId": null,
-                  "locale": "en",
-                  "phone": null,
-                  "note": null,
-                  "company": {
-                    "id": "gid://shopify/Company/2983133490",
-                    "name": "Powderbound"
-                  }
-                },
-                {
-                  "id": "gid://shopify/CompanyLocation/3926458674",
-                  "name": "Snowdevil",
-                  "externalId": null,
-                  "locale": "CA",
-                  "phone": "+16135550114",
-                  "note": "This Company has a location in Calgary",
-                  "company": {
-                    "id": "gid://shopify/Company/2983166258",
-                    "name": "Snowdevil"
-                  }
-                }
-              ],
-              "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false
+                "id": "gid://shopify/Company/5443846450",
+                "name": "Recorder B2B roots 1778109772770"
               }
             },
             "unknownCompany": null,
             "unknownContact": null,
             "unknownRole": null,
             "unknownLocation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 82,
+              "actualQueryCost": 32,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

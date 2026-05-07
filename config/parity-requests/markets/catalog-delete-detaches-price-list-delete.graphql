@@ -1,0 +1,10 @@
+mutation CatalogDeleteDetachesPriceListDelete($id: ID!) {
+  catalogDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

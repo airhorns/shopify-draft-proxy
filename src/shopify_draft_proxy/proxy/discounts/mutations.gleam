@@ -17,10 +17,11 @@ import shopify_draft_proxy/proxy/discounts/queries.{child_fields}
 
 import shopify_draft_proxy/proxy/discounts/serializers.{
   apply_bulk_effects, build_discount_record, fetch_taken_code_error,
-  maybe_hydrate_discount, maybe_hydrate_discount_subscription_capability,
-  maybe_hydrate_shopify_function, payload_json,
-  redeem_code_bulk_delete_target_ids, shopify_function_record_from_response,
-  validate_bulk_selector, validate_context_customer_selection_conflict,
+  maybe_hydrate_discount, maybe_hydrate_discount_markets_capability,
+  maybe_hydrate_discount_subscription_capability, maybe_hydrate_shopify_function,
+  payload_json, redeem_code_bulk_delete_target_ids,
+  shopify_function_record_from_response, validate_bulk_selector,
+  validate_context_customer_selection_conflict, validate_discount_create_input,
   validate_discount_input, validate_discount_top_level_errors,
   validate_discount_update_input, validate_redeem_code_bulk_delete_after_hydrate,
   validate_redeem_code_bulk_delete_selector_shape,
@@ -339,6 +340,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "basic",
         "basicCodeDiscount",
+        upstream,
       )
     "discountCodeBxgyCreate" ->
       create_discount(
@@ -366,6 +368,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "bxgy",
         "bxgyCodeDiscount",
+        upstream,
       )
     "discountCodeFreeShippingCreate" ->
       create_discount(
@@ -393,6 +396,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "free_shipping",
         "freeShippingCodeDiscount",
+        upstream,
       )
     "discountCodeAppCreate" ->
       create_discount(
@@ -420,6 +424,7 @@ pub fn handle_discount_mutation_field(
         "code",
         "app",
         "codeAppDiscount",
+        upstream,
       )
     "discountAutomaticBasicCreate" ->
       create_discount(
@@ -447,6 +452,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "basic",
         "automaticBasicDiscount",
+        upstream,
       )
     "discountAutomaticBxgyCreate" ->
       create_discount(
@@ -474,6 +480,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "bxgy",
         "automaticBxgyDiscount",
+        upstream,
       )
     "discountAutomaticFreeShippingCreate" ->
       create_discount(
@@ -501,6 +508,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "free_shipping",
         "freeShippingAutomaticDiscount",
+        upstream,
       )
     "discountAutomaticAppCreate" ->
       create_discount(
@@ -528,6 +536,7 @@ pub fn handle_discount_mutation_field(
         "automatic",
         "app",
         "automaticAppDiscount",
+        upstream,
       )
     "discountCodeActivate" | "discountAutomaticActivate" ->
       set_status(
@@ -666,6 +675,7 @@ pub fn create_discount_after_top_level_validation(
   key: String,
 ) -> MutationResult {
   // Local input validation first (structural / pure-function checks).
+  let store = maybe_hydrate_discount_markets_capability(store, input, upstream)
   let store =
     maybe_hydrate_discount_subscription_capability(
       store,
@@ -679,7 +689,7 @@ pub fn create_discount_after_top_level_validation(
     _ -> store
   }
   let user_errors =
-    validate_discount_input(
+    validate_discount_create_input(
       store,
       input_name,
       input,
@@ -769,6 +779,7 @@ pub fn update_discount(
   owner_kind: String,
   target_discount_type: String,
   input_name: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let id = discount_types.read_string_arg(field, variables, "id")
@@ -800,6 +811,7 @@ pub fn update_discount(
             id,
             input,
             key,
+            upstream,
           )
       }
     }
@@ -834,6 +846,7 @@ pub fn update_discount_after_top_level_validation(
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   key: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
   let early_user_errors =
     validate_context_customer_selection_conflict(input_name, input)
@@ -860,6 +873,7 @@ pub fn update_discount_after_top_level_validation(
         id,
         input,
         key,
+        upstream,
       )
   }
 }
@@ -877,7 +891,9 @@ pub fn update_discount_existing_record(
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   key: String,
+  upstream: UpstreamContext,
 ) -> MutationResult {
+  let store = maybe_hydrate_discount_markets_capability(store, input, upstream)
   let existing = store.get_effective_discount_by_id(store, id)
   case existing {
     None ->
@@ -905,6 +921,7 @@ pub fn update_discount_existing_record(
             input_name,
             input,
             target_discount_type,
+            False,
             False,
             Some(existing_record.id),
           )

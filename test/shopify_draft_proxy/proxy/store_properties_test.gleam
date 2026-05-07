@@ -124,6 +124,8 @@ fn make_shop(policies: List(ShopPolicyRecord)) -> ShopRecord {
       live_view: True,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
+      discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,
@@ -644,9 +646,31 @@ pub fn location_add_requires_address_top_level_error_test() {
     == "{\"entries\":[]}"
 }
 
-pub fn location_add_stages_address_defaults_and_capabilities_test() {
+pub fn location_add_variable_missing_address_returns_invalid_variable_test() {
+  let body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Warehouse\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "Variable $input of type LocationAddInput! was provided invalid value for address (Expected value to not be null)",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "\"problems\":[{\"path\":[\"address\"],\"explanation\":\"Expected value to not be null\"}]",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_stages_address_defaults_test() {
   let add_body =
-    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Main\\\", address: { address1: \\\"1 Spadina\\\", address2: \\\"Suite 2\\\", city: \\\"Toronto\\\", country: \\\"Canada\\\", countryCode: CA, province: \\\"Ontario\\\", provinceCode: \\\"ON\\\", zip: \\\"M5T 2C2\\\", phone: \\\"+14165550100\\\" }, capabilitiesToAdd: [PICKUP], capabilitiesToRemove: [SHIPPING] }) { location { id name fulfillsOnlineOrders address { address1 address2 city country countryCode province provinceCode zip phone } capabilities } userErrors { field message code } } }\"}"
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Main\\\", address: { address1: \\\"1 Spadina\\\", address2: \\\"Suite 2\\\", city: \\\"Toronto\\\", countryCode: CA, provinceCode: \\\"ON\\\", zip: \\\"M5T 2C2\\\", phone: \\\"+14165550100\\\" } }) { location { id name fulfillsOnlineOrders address { address1 address2 city countryCode provinceCode zip phone } } userErrors { field message code } } }\"}"
   let #(proxy_state.Response(status: add_status, body: add_json, ..), proxy) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(add_body))
   let add_serialized = json.to_string(add_json)
@@ -658,16 +682,13 @@ pub fn location_add_stages_address_defaults_and_capabilities_test() {
   assert string.contains(add_serialized, "\"address1\":\"1 Spadina\"")
   assert string.contains(add_serialized, "\"address2\":\"Suite 2\"")
   assert string.contains(add_serialized, "\"city\":\"Toronto\"")
-  assert string.contains(add_serialized, "\"country\":\"Canada\"")
   assert string.contains(add_serialized, "\"countryCode\":\"CA\"")
-  assert string.contains(add_serialized, "\"province\":\"Ontario\"")
   assert string.contains(add_serialized, "\"provinceCode\":\"ON\"")
   assert string.contains(add_serialized, "\"zip\":\"M5T 2C2\"")
   assert string.contains(add_serialized, "\"phone\":\"+14165550100\"")
-  assert string.contains(add_serialized, "\"capabilities\":[\"PICKUP\"]")
 
   let read_body =
-    "{\"query\":\"query { location { name fulfillsOnlineOrders address { countryCode city } capabilities } locations(first: 5) { nodes { name fulfillsOnlineOrders address { countryCode city } capabilities } } }\"}"
+    "{\"query\":\"query { location { name fulfillsOnlineOrders address { countryCode city } } locations(first: 5) { nodes { name fulfillsOnlineOrders address { countryCode city } } } }\"}"
   let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(read_body))
   let read_serialized = json.to_string(read_json)
@@ -678,7 +699,6 @@ pub fn location_add_stages_address_defaults_and_capabilities_test() {
     read_serialized,
     "\"address\":{\"countryCode\":\"CA\",\"city\":\"Toronto\"}",
   )
-  assert string.contains(read_serialized, "\"capabilities\":[\"PICKUP\"]")
 }
 
 pub fn location_add_honors_explicit_fulfills_online_orders_false_test() {
@@ -714,21 +734,122 @@ pub fn location_add_blank_name_user_error_includes_code_test() {
     == "{\"entries\":[]}"
 }
 
-pub fn location_add_invalid_country_code_returns_user_error_test() {
+pub fn location_add_variable_missing_country_code_returns_invalid_variable_test() {
   let body =
-    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Bad\\\", address: { countryCode: ZZ } }) { location { id } userErrors { field message code } } }\"}"
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Bad\",\"address\":{\"address1\":\"1 Infinite Loop\"}}}}"
   let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
   let serialized = json.to_string(response_body)
 
   assert status == 200
-  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(serialized, "\"errors\":[")
   assert string.contains(
     serialized,
-    "\"field\":[\"input\",\"address\",\"countryCode\"]",
+    "Variable $input of type LocationAddInput! was provided invalid value for address.countryCode (Expected value to not be null)",
   )
-  assert string.contains(serialized, "\"code\":\"INVALID\"")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "\"problems\":[{\"path\":[\"address\",\"countryCode\"],\"explanation\":\"Expected value to not be null\"}]",
+  )
   assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_inline_missing_country_code_returns_top_level_error_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Bad\\\", address: { address1: \\\"1 Infinite Loop\\\" } }) { location { id } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Argument 'countryCode' on InputObject 'LocationAddAddressInput' is required. Expected type CountryCode!\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"path\":[\"mutation\",\"locationAdd\",\"input\",\"address\",\"countryCode\"]",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_accepts_shopify_country_code_zz_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"ZZ\\\", address: { countryCode: ZZ }, fulfillsOnlineOrders: false }) { location { id name fulfillsOnlineOrders address { countryCode } } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"name\":\"ZZ\"")
+  assert string.contains(serialized, "\"fulfillsOnlineOrders\":false")
+  assert string.contains(serialized, "\"countryCode\":\"ZZ\"")
+}
+
+pub fn location_add_invalid_country_code_returns_invalid_variable_test() {
+  let body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Bad\",\"address\":{\"countryCode\":\"QQ\"}}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "Expected \\\"QQ\\\" to be one of:")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_rejects_capabilities_inputs_not_in_public_schema_test() {
+  let inline_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Cap\\\", address: { countryCode: CA }, capabilitiesToAdd: [PICKUP] }) { location { id } userErrors { field message code } } }\"}"
+  let #(
+    proxy_state.Response(status: inline_status, body: inline_json, ..),
+    inline_proxy,
+  ) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(inline_body))
+  let inline_serialized = json.to_string(inline_json)
+
+  assert inline_status == 200
+  assert string.contains(inline_serialized, "\"errors\":[")
+  assert string.contains(
+    inline_serialized,
+    "InputObject 'LocationAddInput' doesn't accept argument 'capabilitiesToAdd'",
+  )
+  assert string.contains(inline_serialized, "\"code\":\"argumentNotAccepted\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(inline_proxy))
+    == "{\"entries\":[]}"
+
+  let variable_body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Cap\",\"address\":{\"countryCode\":\"CA\"},\"capabilities\":{\"pickupEnabled\":true}}}}"
+  let #(
+    proxy_state.Response(status: variable_status, body: variable_json, ..),
+    variable_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(variable_body),
+    )
+  let variable_serialized = json.to_string(variable_json)
+
+  assert variable_status == 200
+  assert string.contains(variable_serialized, "\"errors\":[")
+  assert string.contains(
+    variable_serialized,
+    "Field is not defined on LocationAddInput",
+  )
+  assert string.contains(variable_serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(variable_proxy))
     == "{\"entries\":[]}"
 }
 

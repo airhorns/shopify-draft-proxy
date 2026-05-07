@@ -1,0 +1,116 @@
+{
+  "scenarioId": "customer-tag-note-limits-parity",
+  "operationNames": ["customerCreate", "customerUpdate", "customerSet", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-tag-note-limits-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-tag-note-limits-create.graphql",
+    "variablesCapturePath": "$.commaSplit.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL evidence for CustomerInput tag splitting, case-insensitive tag dedupe, the 250-tag cap, and note length cap validation. Public Admin API versions 2025-01 and 2026-04 expose these customer payload errors as generic UserError without a selectable code field, so compatibility code projection is covered by focused runtime tests. The primary create is replayed locally so the downstream read and rejected update/customerSet branches earn state through replayed requests instead of pre-seeding.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "comma-split-create",
+        "capturePath": "$.commaSplit.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.note",
+          "$.customerCreate.customer.tags",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "comma-split-downstream-read",
+        "capturePath": "$.commaSplit.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-tag-note-limits-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.customer.email", "$.customer.note", "$.customer.tags"]
+      },
+      {
+        "name": "case-dedupe-create",
+        "capturePath": "$.caseDedupe.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-tag-note-limits-create.graphql",
+          "variablesCapturePath": "$.caseDedupe.variables"
+        },
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.tags",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "too-many-tags-create",
+        "capturePath": "$.tooManyTags.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-tag-note-limits-create.graphql",
+          "variablesCapturePath": "$.tooManyTags.variables"
+        }
+      },
+      {
+        "name": "too-long-note-create",
+        "capturePath": "$.tooLongNoteCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-tag-note-limits-create.graphql",
+          "variablesCapturePath": "$.tooLongNoteCreate.variables"
+        }
+      },
+      {
+        "name": "too-long-note-update",
+        "capturePath": "$.tooLongNoteUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-tag-note-limits-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "note": {
+                "fromCapturePath": "$.tooLongNoteUpdate.variables.input.note"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-note-set",
+        "capturePath": "$.tooLongNoteSet.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-tag-note-limits-set.graphql",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "input": {
+              "note": {
+                "fromCapturePath": "$.tooLongNoteSet.variables.input.note"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

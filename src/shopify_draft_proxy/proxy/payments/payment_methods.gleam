@@ -286,6 +286,8 @@ fn shop_from_hydrate_node(
         live_view: False,
         paypal_express_subscription_gateway_status: "DISABLED",
         reports: False,
+        discounts_by_market_enabled: False,
+        markets_granted: 50,
         sells_subscriptions: False,
         show_metrics: False,
         storefront: False,

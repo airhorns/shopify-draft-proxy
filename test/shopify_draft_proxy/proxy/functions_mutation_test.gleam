@@ -345,6 +345,32 @@ pub fn validation_create_defaults_enable_and_block_test() {
     == "{\"data\":{\"validationCreate\":{\"validation\":{\"enable\":false,\"blockOnFailure\":false}}}}"
 }
 
+pub fn validation_create_title_falls_back_to_function_title_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/conformance-validation",
+      "conformance-validation",
+      "VALIDATION",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { omitted: validationCreate(validation: { functionHandle: \"conformance-validation\" }) { validation { id title } userErrors { field } } explicitNull: validationCreate(validation: { functionHandle: \"conformance-validation\", title: null }) { validation { id title } userErrors { field } } emptyString: validationCreate(validation: { functionHandle: \"conformance-validation\", title: \"\" }) { validation { id title } userErrors { field } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"omitted\":{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},\"userErrors\":[]},\"explicitNull\":{\"validation\":{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\"},\"userErrors\":[]},\"emptyString\":{\"validation\":{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\"},\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      outcome.store,
+      "{ validation(id: \"gid://shopify/Validation/2\") { id title } validations(first: 5) { nodes { id title } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"validation\":{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/2\",\"title\":\"Function conformance-validation\"},{\"id\":\"gid://shopify/Validation/3\",\"title\":\"Function conformance-validation\"},{\"id\":\"gid://shopify/Validation/4\",\"title\":\"\"}]}}"
+}
+
 pub fn validation_create_does_not_accept_enabled_alias_test() {
   let fn_record =
     shopify_fn("gid://shopify/ShopifyFunction/v", "v", "VALIDATION")

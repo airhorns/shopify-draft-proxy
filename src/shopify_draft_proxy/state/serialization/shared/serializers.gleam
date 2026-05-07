@@ -195,6 +195,8 @@ pub fn shop_features_json(record: types.ShopFeaturesRecord) -> Json {
       json.string(record.paypal_express_subscription_gateway_status),
     ),
     #("reports", json.bool(record.reports)),
+    #("discountsByMarketEnabled", json.bool(record.discounts_by_market_enabled)),
+    #("marketsGranted", json.int(record.markets_granted)),
     #("sellsSubscriptions", json.bool(record.sells_subscriptions)),
     #("showMetrics", json.bool(record.show_metrics)),
     #("storefront", json.bool(record.storefront)),

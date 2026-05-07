@@ -1,0 +1,82 @@
+{
+  "scenarioId": "functions-validation-create-title-fallback",
+  "operationNames": ["validationCreate", "validation", "validations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "function-title-fallback"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/validation-create-title-fallback-stage.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.createTitleFallback.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-title-fallback-data",
+        "capturePath": "$.createTitleFallback.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.omitted.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
+          },
+          {
+            "path": "$.explicitNull.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
+          },
+          {
+            "path": "$.emptyString.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
+          }
+        ]
+      },
+      {
+        "name": "validation-title-read-data",
+        "capturePath": "$.postCreateValidationRead.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy reads back the synthetic Validation id staged by the primary create."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/validation-create-title-fallback-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.omitted.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validations-title-connection-data",
+        "capturePath": "$.postCreateValidationsRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/validation-create-title-fallback-validations-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {}
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence that validationCreate falls back to the resolved ShopifyFunction title when title is omitted or explicitly null, while preserving an explicit empty string. The capture cleans disposable validations before and after the scenario, then verifies validation(id:) and validations(first: 3) read-after-write title behavior. No expectedDifferences allowlist applies to validation.title."
+}
