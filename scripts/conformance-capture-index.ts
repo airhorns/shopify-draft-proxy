@@ -4989,6 +4989,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-validation-metafields-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-metafields-input-validation-conformance.ts',
+    purpose:
+      'validationCreate and validationUpdate metafields input validation userError shapes and atomic no-write behavior.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for disposable validationCreate/update/delete lifecycle capture',
+      'released conformance-validation Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-metafields-input-validation.json`,
+      'config/parity-specs/functions/functions-validation-metafields-input-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable validation with a valid metafield, captures invalid validationUpdate no-write behavior, captures validationCreate invalid metafield branches, and deletes the disposable validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-validation-update-metafields-upsert',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-validation-update-metafields-upsert-conformance.ts',

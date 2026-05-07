@@ -1,0 +1,514 @@
+{
+  "scenarioId": "functions-validation-metafields-input-validation",
+  "capturedAt": "2026-05-07T09:50:36.499Z",
+  "source": "live-shopify-and-cassette-backed-local-runtime",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "validationCreate and validationUpdate metafield input rejection branches with per-index userErrors and atomic no-write behavior.",
+  "conformanceApp": {
+    "validationFunctionHandle": "conformance-validation",
+    "validationFunction": {
+      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+      "title": "conformance-validation",
+      "handle": "conformance-validation",
+      "apiType": "cart_checkout_validation",
+      "description": "conformance-validation",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    }
+  },
+  "functionLookup": {
+    "query": "#graphql\n  query ValidationMetafieldsInputValidationFunctionLookup {\n    shopifyFunctions(first: 20) {\n      nodes {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "createSetup": {
+    "query": "mutation ValidationMetafieldsSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "validation": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "type": "single_line_text_field",
+            "value": "strict"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationCreate": {
+            "validation": {
+              "id": "gid://shopify/Validation/88375602",
+              "title": "validation metafields input movb2lvq",
+              "metafields": {
+                "nodes": [
+                  {
+                    "namespace": "custom",
+                    "key": "mode",
+                    "type": "single_line_text_field",
+                    "value": "strict"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidUpdate": {
+    "query": "mutation ValidationMetafieldsInvalidUpdate(\n  $id: ID!\n  $validation: ValidationUpdateInput!\n) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/88375602",
+      "validation": {
+        "metafields": [
+          {
+            "namespace": "custom",
+            "type": "single_line_text_field",
+            "value": "loose"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationUpdate": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "presence",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "postRejectedUpdateRead": {
+    "query": "query ValidationMetafieldsPostRejectedUpdateRead($id: ID!) {\n  validation(id: $id) {\n    title\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/88375602"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validation": {
+            "title": "validation metafields input movb2lvq",
+            "metafields": {
+              "nodes": [
+                {
+                  "namespace": "custom",
+                  "key": "mode",
+                  "type": "single_line_text_field",
+                  "value": "strict"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidCreateBatch": {
+    "query": "mutation ValidationMetafieldsInvalidCreate(\n  $mixedMissingKey: ValidationCreateInput!\n  $missingType: ValidationCreateInput!\n  $blankType: ValidationCreateInput!\n  $missingValue: ValidationCreateInput!\n  $blankValue: ValidationCreateInput!\n  $invalidType: ValidationCreateInput!\n  $reservedShopify: ValidationCreateInput!\n  $invalidValue: ValidationCreateInput!\n) {\n  mixedMissingKey: validationCreate(validation: $mixedMissingKey) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  missingType: validationCreate(validation: $missingType) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  blankType: validationCreate(validation: $blankType) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  missingValue: validationCreate(validation: $missingValue) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  blankValue: validationCreate(validation: $blankValue) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  invalidType: validationCreate(validation: $invalidType) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  reservedShopify: validationCreate(validation: $reservedShopify) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  invalidValue: validationCreate(validation: $invalidValue) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "mixedMissingKey": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "type": "single_line_text_field",
+            "value": "strict"
+          },
+          {
+            "namespace": "custom",
+            "type": "single_line_text_field",
+            "value": "v"
+          }
+        ]
+      },
+      "missingType": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "value": "v"
+          }
+        ]
+      },
+      "blankType": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "type": "",
+            "value": "v"
+          }
+        ]
+      },
+      "missingValue": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "type": "single_line_text_field"
+          }
+        ]
+      },
+      "blankValue": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "type": "single_line_text_field",
+            "value": ""
+          }
+        ]
+      },
+      "invalidType": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "mode",
+            "type": "bogus_type",
+            "value": "v"
+          }
+        ]
+      },
+      "reservedShopify": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "shopify",
+            "key": "mode",
+            "type": "single_line_text_field",
+            "value": "v"
+          }
+        ]
+      },
+      "invalidValue": {
+        "functionHandle": "conformance-validation",
+        "title": "validation metafields input movb2lvq",
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "count",
+            "type": "number_integer",
+            "value": "not a number"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "mixedMissingKey": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "1"],
+                "message": "presence",
+                "code": null
+              }
+            ]
+          },
+          "missingType": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "One or more required inputs are blank.",
+                "code": "BLANK"
+              }
+            ]
+          },
+          "blankType": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "One or more required inputs are blank.",
+                "code": "BLANK"
+              }
+            ]
+          },
+          "missingValue": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "presence",
+                "code": null
+              }
+            ]
+          },
+          "blankValue": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "The value is invalid.",
+                "code": "INVALID_VALUE"
+              }
+            ]
+          },
+          "invalidType": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "The type is invalid.",
+                "code": "INVALID_TYPE"
+              }
+            ]
+          },
+          "reservedShopify": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "ApiPermission metafields can only be created or updated by the app owner.",
+                "code": "APP_NOT_AUTHORIZED"
+              }
+            ]
+          },
+          "invalidValue": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": ["validation", "metafields", "0"],
+                "message": "The value is invalid.",
+                "code": "INVALID_VALUE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 80,
+            "actualQueryCost": 80,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1920,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation ValidationMetafieldsCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/88375602"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationDelete": {
+            "deletedId": "gid://shopify/Validation/88375602",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "conformance-validation",
+        "apiType": "VALIDATION"
+      },
+      "query": "cassette-backed VALIDATION ShopifyFunction lookup captured from the live conformance app",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "lifecycle": "The script creates one disposable validation with a valid metafield, rejects an invalid validationUpdate metafield payload, verifies the original metafield is still readable, records validationCreate rejection branches, and deletes the disposable validation.",
+    "localRuntimeEvidence": "The upstream cassette contains only the ShopifyFunction lookup needed for local validationCreate staging; supported mutations stay local-only under the proxy."
+  }
+}
