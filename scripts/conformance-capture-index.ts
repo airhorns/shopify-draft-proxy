@@ -4705,6 +4705,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
+    captureId: 'admin-platform-flow-trigger-receive-body-schema-gaps',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-flow-trigger-body-schema-gaps-conformance.ts',
+    purpose:
+      'flowTriggerReceive body-only validation for missing trigger references, unknown trigger references, absolute resource URLs, unknown root fields, and accumulated schema errors.',
+    requiredAuthScopes: [
+      'active Admin API token; validation-only Flow trigger receive branches short-circuit before delivery',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-flow-trigger-receive-body-schema-gaps.json`,
+      'config/parity-specs/admin-platform/admin-platform-flow-trigger-receive-body-schema-gaps.json',
+      'config/parity-requests/admin-platform/admin-platform-flow-trigger-receive-body-schema-gaps.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no external Flow trigger delivery and no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'admin-platform-backup-region-update-extended',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',

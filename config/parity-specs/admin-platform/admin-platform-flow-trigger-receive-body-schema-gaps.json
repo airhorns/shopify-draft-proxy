@@ -1,0 +1,58 @@
+{
+  "scenarioId": "admin-platform-flow-trigger-receive-body-schema-gaps",
+  "operationNames": ["flowTriggerReceive"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "side-effect-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-flow-trigger-receive-body-schema-gaps.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-receive-body-schema-gaps.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for flowTriggerReceive body-only trigger reference lookup and BODY_SCHEMA gap validation branches. These validation-only requests short-circuit before external Flow trigger delivery.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-trigger-reference",
+        "capturePath": "$.result.payload.data.missingTriggerReference",
+        "proxyPath": "$.data.missingTriggerReference",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "unknown-trigger-id",
+        "capturePath": "$.result.payload.data.unknownTriggerId",
+        "proxyPath": "$.data.unknownTriggerId",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "unknown-trigger-title",
+        "capturePath": "$.result.payload.data.unknownTriggerTitle",
+        "proxyPath": "$.data.unknownTriggerTitle",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "non-absolute-resource-url",
+        "capturePath": "$.result.payload.data.nonAbsoluteResourceUrl",
+        "proxyPath": "$.data.nonAbsoluteResourceUrl",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "unknown-root-field",
+        "capturePath": "$.result.payload.data.unknownRootField",
+        "proxyPath": "$.data.unknownRootField",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "multiple-schema-errors",
+        "capturePath": "$.result.payload.data.multipleSchemaErrors",
+        "proxyPath": "$.data.multipleSchemaErrors",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

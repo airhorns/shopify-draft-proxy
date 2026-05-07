@@ -1,0 +1,75 @@
+{
+  "scenarioId": "admin-platform-flow-trigger-receive-body-schema-gaps",
+  "capturedAt": "2026-05-07T00:11:17.548Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "query": "#graphql\n  mutation FlowTriggerReceiveBodySchemaGaps {\n    missingTriggerReference: flowTriggerReceive(body: \"{\\\"properties\\\":{}}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n    unknownTriggerId: flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n    unknownTriggerTitle: flowTriggerReceive(body: \"{\\\"trigger_title\\\":\\\"foo\\\",\\\"properties\\\":{}}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n    nonAbsoluteResourceUrl: flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{},\\\"resources\\\":[{\\\"url\\\":\\\"not-a-url\\\",\\\"name\\\":\\\"x\\\"}]}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n    unknownRootField: flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{},\\\"unknown_root\\\":1}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n    multipleSchemaErrors: flowTriggerReceive(body: \"{\\\"properties\\\":{},\\\"resources\\\":[{\\\"url\\\":\\\"not-a-url\\\"}],\\\"unknown_root\\\":1}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+  "result": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "missingTriggerReference": {
+          "userErrors": [
+            {
+              "field": ["body"],
+              "message": "Errors validating schema:\n  Required field missing: 'trigger_id'.\n"
+            }
+          ]
+        },
+        "unknownTriggerId": {
+          "userErrors": [
+            {
+              "field": ["body"],
+              "message": "Errors validating schema:\n  Invalid trigger_id 'abc'.\n"
+            }
+          ]
+        },
+        "unknownTriggerTitle": {
+          "userErrors": [
+            {
+              "field": ["body"],
+              "message": "Errors validating schema:\n  Invalid trigger_title 'foo'.\n"
+            }
+          ]
+        },
+        "nonAbsoluteResourceUrl": {
+          "userErrors": [
+            {
+              "field": ["body"],
+              "message": "Errors validating schema:\n  Type error for field 'url': not-a-url is not an absolute URL.\n"
+            }
+          ]
+        },
+        "unknownRootField": {
+          "userErrors": [
+            {
+              "field": ["body"],
+              "message": "Errors validating schema:\n  Invalid field: 'unknown_root'.\n"
+            }
+          ]
+        },
+        "multipleSchemaErrors": {
+          "userErrors": [
+            {
+              "field": ["body"],
+              "message": "Errors validating schema:\n  Invalid field: 'unknown_root'.\n  Required field missing: 'name'.\n  Type error for field 'url': not-a-url is not an absolute URL.\n"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Validation-only Flow trigger body-schema branches captured against Shopify before external Flow trigger delivery."
+}
