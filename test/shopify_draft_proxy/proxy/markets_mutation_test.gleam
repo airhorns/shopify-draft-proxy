@@ -1858,6 +1858,71 @@ pub fn market_localizations_remove_returns_null_when_no_staged_records_match_tes
     == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\"}]}}}"
 }
 
+pub fn market_localizations_remove_unmatched_filters_noop_test() {
+  let proxy = market_localization_proxy()
+  let #(Response(status: empty_status, body: empty_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: key_status, body: key_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"value\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: market_status, body: market_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/missing\"]) { marketLocalizations { key } userErrors { __typename field code } } }",
+    )
+
+  assert empty_status == 200
+  assert json.to_string(empty_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+  assert key_status == 200
+  assert json.to_string(key_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+}
+
+pub fn market_localizations_remove_returns_removed_staged_rows_test() {
+  let #(Response(status: register_status, body: register_body, ..), proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value outdated market { id } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value outdated market { id } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizations { key value market { id } } } }",
+    )
+  let #(Response(status: noop_status, body: noop_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRemove(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizationKeys: [\"title\"], marketIds: [\"gid://shopify/Market/ca\"]) { marketLocalizations { key value outdated market { id } } userErrors { __typename field code } } }",
+    )
+
+  assert register_status == 200
+  assert json.to_string(register_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"outdated\":false,\"market\":{\"id\":\"gid://shopify/Market/ca\"}}],\"userErrors\":[]}}}"
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"outdated\":false,\"market\":{\"id\":\"gid://shopify/Market/ca\"}}],\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizations\":[]}}}"
+  assert noop_status == 200
+  assert json.to_string(noop_body)
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
+}
+
 fn too_many_market_localization_inputs() -> String {
   int.range(from: 1, to: 102, with: [], run: fn(acc, index) {
     [
