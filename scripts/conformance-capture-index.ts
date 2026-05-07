@@ -1874,6 +1874,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-lifecycle-invariants',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-lifecycle-invariants-conformance.ts',
+    purpose:
+      'metaobjectDefinitionCreate reserved standard-template and shopify-- namespace validation plus live discovery for unavailable app-managed/dependent-on-app delete guard candidates.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-lifecycle-invariants.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-lifecycle-invariants.json',
+      'config/parity-requests/metaobjects/metaobject-definition-lifecycle-invariants-create.graphql',
+    ],
+    cleanupBehavior:
+      'Runs validation-only create probes and read-only schema/catalog discovery; no records are created and no cleanup is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Delete guard branches remain runtime-test-backed until a conformance credential can reach an app-config-managed definition and an app-dependent standard definition.',
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-update-capability-invariants',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-capability-invariants-conformance.ts',
