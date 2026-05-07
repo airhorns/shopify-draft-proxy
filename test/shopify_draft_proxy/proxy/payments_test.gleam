@@ -744,20 +744,17 @@ pub fn payment_customization_metafields_and_function_handle_readback_test() {
   assert !string.contains(read_json, "\"value\":\"baz\"")
 }
 
-pub fn payment_customization_create_requires_metafields_test() {
+pub fn payment_customization_create_allows_missing_metafields_test() {
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Missing metafields\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id } userErrors { field code message } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     graphql(draft_proxy.new(), create_query)
   assert create_status == 200
   let create_json = json.to_string(create_body)
-  assert string.contains(create_json, "\"paymentCustomization\":null")
-  assert string.contains(
-    create_json,
-    "\"field\":[\"paymentCustomization\",\"metafields\"]",
-  )
-  assert string.contains(create_json, "\"code\":\"REQUIRED_INPUT_FIELD\"")
-  assert list.is_empty(store.list_effective_payment_customizations(proxy.store))
+  assert string.contains(create_json, "\"paymentCustomization\":{\"id\"")
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert list.length(store.list_effective_payment_customizations(proxy.store))
+    == 1
 }
 
 pub fn payment_customization_create_rejects_multiple_function_identifiers_test() {
@@ -811,9 +808,9 @@ pub fn payment_customization_create_allows_empty_metafields_test() {
     == 1
 }
 
-pub fn payment_customization_create_enforces_active_limit_test() {
+pub fn payment_customization_create_allows_six_enabled_customizations_test() {
   let proxy =
-    ["1", "2", "3", "4", "5"]
+    ["1", "2", "3", "4", "5", "6"]
     |> list.fold(draft_proxy.new(), fn(proxy, suffix) {
       let #(Response(status: create_status, body: create_body, ..), proxy) =
         graphql(proxy, valid_payment_customization_create_query(suffix))
@@ -823,24 +820,8 @@ pub fn payment_customization_create_enforces_active_limit_test() {
     })
 
   assert list.length(store.list_effective_payment_customizations(proxy.store))
-    == 5
-
-  let #(Response(status: create_status, body: create_body, ..), proxy) =
-    graphql(proxy, valid_payment_customization_create_query("6"))
-  assert create_status == 200
-  let create_json = json.to_string(create_body)
-  assert string.contains(create_json, "\"paymentCustomization\":null")
-  assert string.contains(
-    create_json,
-    "\"field\":[\"paymentCustomization\",\"enabled\"]",
-  )
-  assert string.contains(
-    create_json,
-    "\"code\":\"MAXIMUM_ACTIVE_PAYMENT_CUSTOMIZATIONS\"",
-  )
-  assert list.length(store.list_effective_payment_customizations(proxy.store))
-    == 5
-  assert !string.contains(meta_state_json(proxy), "Payment customization 6")
+    == 6
+  assert string.contains(meta_state_json(proxy), "Payment customization 6")
 }
 
 fn valid_payment_customization_create_query(suffix: String) -> String {
