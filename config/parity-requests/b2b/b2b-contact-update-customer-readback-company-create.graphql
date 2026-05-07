@@ -1,0 +1,13 @@
+mutation B2BContactUpdateCustomerReadbackCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

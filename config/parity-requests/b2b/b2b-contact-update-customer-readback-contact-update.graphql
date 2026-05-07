@@ -1,0 +1,19 @@
+mutation B2BContactUpdateCustomerReadbackContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+  companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+    companyContact {
+      id
+      customer {
+        id
+        email
+        firstName
+        lastName
+        phone
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
