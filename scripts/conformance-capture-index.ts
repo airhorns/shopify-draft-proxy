@@ -1596,12 +1596,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-unknown-filter-field-conformance.ts',
     purpose:
-      'SavedSearch per-resource unknown-filter validation for PRODUCT create plus known-filter positive control.',
+      'SavedSearch per-resource unknown-filter validation for PRODUCT create/update plus known-filter positive control.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-unknown-filter-field.json`,
       'config/parity-specs/saved-searches/saved-search-unknown-filter-field.json',
       'config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql',
+      'config/parity-requests/saved-searches/saved-search-unknown-filter-field-update.graphql',
     ],
     cleanupBehavior: 'Creates one disposable product saved search for positive-control validation and deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
