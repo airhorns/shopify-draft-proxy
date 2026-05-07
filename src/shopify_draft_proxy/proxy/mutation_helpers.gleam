@@ -1724,8 +1724,32 @@ fn scalar_value_problems(
 ) -> List(ValueProblem) {
   case type_name {
     "Decimal" -> decimal_value_problems(resolved, path)
+    "ID" -> id_value_problems(resolved, path)
     "URL" -> url_value_problems(resolved, path)
     _ -> []
+  }
+}
+
+fn id_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved, path_ends_with_publication_id(path) {
+    root_field.StringVal(""), True -> [
+      ValueProblem(
+        path: path,
+        explanation: "Invalid global id ''",
+        message: Some("Invalid global id ''"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn path_ends_with_publication_id(path: List(PathSegment)) -> Bool {
+  case list.reverse(path) {
+    [StringSegment("publicationId"), ..] -> True
+    _ -> False
   }
 }
 
