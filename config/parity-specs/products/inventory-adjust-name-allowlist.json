@@ -1,0 +1,68 @@
+{
+  "scenarioId": "inventory-adjust-name-allowlist",
+  "operationNames": ["inventoryAdjustQuantities", "inventoryMoveQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail", "deprecated-root-acceptance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-adjust-name-allowlist.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-adjust-name-allowlist-adjust.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.adjustOnHand.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "adjust-on-hand-user-errors",
+        "capturePath": "$.cases.adjustOnHand.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities"
+      },
+      {
+        "name": "adjust-committed-user-errors",
+        "capturePath": "$.cases.adjustCommitted.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-name-allowlist-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.adjustCommitted.variables"
+        }
+      },
+      {
+        "name": "move-on-hand-user-errors",
+        "capturePath": "$.cases.moveOnHand.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-name-allowlist-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.moveOnHand.variables"
+        }
+      },
+      {
+        "name": "move-committed-user-errors",
+        "capturePath": "$.cases.moveCommitted.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-name-allowlist-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.moveCommitted.variables"
+        }
+      },
+      {
+        "name": "set-on-hand-live-acceptance-record",
+        "capturePath": "$.cases.setOnHand.response.data.inventorySetOnHandQuantities",
+        "proxyPath": "$.data.inventorySetOnHandQuantities",
+        "upstreamCapturePath": "$.cases.setOnHand.response",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-name-allowlist-set-on-hand.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.setOnHand.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for inventory quantity-name allowlists. The public adjust root rejects on_hand and committed with the public six-name allowlist, move rejects those reserved quantity names on terminal inputs, and the deprecated inventorySetOnHandQuantities root still accepts an on-hand quantity set. The set-on-hand root is recorded here from upstream capture only and remains outside local operation coverage because it is not modeled as a supported staged mutation."
+}

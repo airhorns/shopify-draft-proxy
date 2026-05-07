@@ -48,6 +48,7 @@ import shopify_draft_proxy/proxy/products/products_core.{
   product_matches_search_text, product_searchable_status,
   product_searchable_tags, product_set_file_limit_errors,
   product_set_identifier_has_reference, product_set_identifier_reference_field,
+  product_set_input_id_not_allowed_error,
   product_set_product_does_not_exist_error, product_sort_cursor_payload,
   product_string_length_validation_errors, product_tag_identity_key,
   read_collision_checked_explicit_product_handle,
@@ -226,18 +227,22 @@ pub fn resolve_product_set_existing_product(
 ) -> Result(Option(ProductRecord), ProductOperationUserErrorRecord) {
   case identifier {
     Some(identifier) ->
-      case product_set_identifier_has_reference(identifier) {
-        True ->
-          case product_by_identifier(store, identifier) {
-            Some(product) -> validate_product_set_resolved_product(product)
-            None ->
-              Error(
-                product_set_product_does_not_exist_error(
-                  product_set_identifier_reference_field(identifier),
-                ),
-              )
+      case dict.has_key(input, "id") {
+        True -> Error(product_set_input_id_not_allowed_error())
+        False ->
+          case product_set_identifier_has_reference(identifier) {
+            True ->
+              case product_by_identifier(store, identifier) {
+                Some(product) -> validate_product_set_resolved_product(product)
+                None ->
+                  Error(
+                    product_set_product_does_not_exist_error(
+                      product_set_identifier_reference_field(identifier),
+                    ),
+                  )
+              }
+            False -> resolve_product_set_input_product(store, input)
           }
-        False -> resolve_product_set_input_product(store, input)
       }
     None -> resolve_product_set_input_product(store, input)
   }

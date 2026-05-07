@@ -1,0 +1,18 @@
+mutation ProductSetIdentifierIdNotAllowed(
+  $identifier: ProductSetIdentifiers
+  $input: ProductSetInput!
+  $synchronous: Boolean!
+) {
+  productSet(identifier: $identifier, input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

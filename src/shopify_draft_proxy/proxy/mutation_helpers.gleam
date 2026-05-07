@@ -1263,6 +1263,15 @@ fn collect_literal_unknown_field_errors(
                 {
                   None ->
                     case io.name {
+                      "ProductInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       "ValidationUpdateInput" -> [
                         build_unknown_input_object_field_error(
                           field_name.value,
@@ -1494,10 +1503,14 @@ fn invalid_variable_errors_for(
             Ok(def) -> def.loc
             Error(_) -> None
           }
+          let variable_type = case dict.get(var_defs, variable_name) {
+            Ok(def) -> def.declared_signature
+            Error(_) -> mutation_schema.render_signature(declared_type)
+          }
           [
             build_invalid_variable_problems_error(
               variable_name,
-              mutation_schema.render_signature(declared_type),
+              variable_type,
               resolved,
               problems,
               loc,
@@ -1841,6 +1854,12 @@ fn collect_unknown_variable_fields(
           message: None,
         ))
       "RefundInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "ProductInput", None ->
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
           explanation: "Field is not defined on " <> io.name,
@@ -2206,7 +2225,11 @@ fn path_segments_to_json(path: List(PathSegment)) -> Json {
 /// to the resolver — Shopify only rejects when the *declared* type
 /// is NON_NULL, regardless of the bound argument's nullability.
 type VariableDef {
-  VariableDef(loc: Option(Location), declared_non_null: Bool)
+  VariableDef(
+    loc: Option(Location),
+    declared_non_null: Bool,
+    declared_signature: String,
+  )
 }
 
 fn extract_variable_definitions(
@@ -2233,6 +2256,7 @@ fn extract_variable_definitions(
               VariableDef(
                 loc: loc,
                 declared_non_null: type_ref_is_non_null(type_ref),
+                declared_signature: type_ref_signature(type_ref),
               ),
             )
         }
@@ -2245,6 +2269,14 @@ fn type_ref_is_non_null(type_ref: ast.TypeRef) -> Bool {
   case type_ref {
     ast.NonNullType(..) -> True
     _ -> False
+  }
+}
+
+fn type_ref_signature(type_ref: ast.TypeRef) -> String {
+  case type_ref {
+    ast.NamedType(name: name, ..) -> name.value
+    ast.ListType(inner: inner, ..) -> "[" <> type_ref_signature(inner) <> "]"
+    ast.NonNullType(inner: inner, ..) -> type_ref_signature(inner) <> "!"
   }
 }
 

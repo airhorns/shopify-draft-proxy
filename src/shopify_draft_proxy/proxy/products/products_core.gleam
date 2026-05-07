@@ -554,6 +554,15 @@ pub fn product_set_product_does_not_exist_error(
 }
 
 @internal
+pub fn product_set_input_id_not_allowed_error() -> ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(
+    field: Some(["input"]),
+    message: "The id field is not allowed if identifier is provided.",
+    code: Some("ID_NOT_ALLOWED"),
+  )
+}
+
+@internal
 pub fn product_set_product_suspended_error() -> ProductOperationUserErrorRecord {
   ProductOperationUserErrorRecord(
     field: Some(["input"]),
