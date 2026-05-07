@@ -2259,6 +2259,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-collection-translations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-collection-translations-conformance.mts',
+    purpose: 'Collection translationsRegister/translationsRemove lifecycle and downstream translatable-resource reads.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-collection-translation-lifecycle.json`,
+      'config/parity-specs/localization/localization-collection-translation-lifecycle.json',
+      'config/parity-requests/localization/localization-collection-translation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable custom Collection, enables French only when needed, registers/removes one Collection title translation, deletes the Collection, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-payload-shapes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-payload-shapes-conformance.mts',

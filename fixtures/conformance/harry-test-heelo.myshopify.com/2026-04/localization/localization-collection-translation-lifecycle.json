@@ -1,0 +1,652 @@
+{
+  "scenarioId": "localization-collection-translation-lifecycle",
+  "capturedAt": "2026-05-07T08:40:48.439Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "disposableCollection": {
+      "id": "gid://shopify/Collection/512485261618",
+      "title": "Localization Collection z7gqqrjs",
+      "handle": "localization-collection-z7gqqrjs"
+    },
+    "localeWasInitiallyEnabled": false
+  },
+  "readBeforeRegister": {
+    "request": {
+      "variables": {
+        "first": 1,
+        "resourceType": "COLLECTION",
+        "ids": ["gid://shopify/Collection/512485261618"],
+        "resourceId": "gid://shopify/Collection/512485261618"
+      }
+    },
+    "response": {
+      "data": {
+        "allShopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false
+          }
+        ],
+        "resources": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/494967390514",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Home page",
+                  "digest": "11d58b08de98e05930a7f73b5f5d75367e4a58ac27335a420d55583cb16ad1ff",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "frontpage",
+                  "digest": "a80e4934a6f77731eb54b4a3030396bdfe91852466f412dbf7d8e63a2b9a7484",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            }
+          ]
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/512485261618",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization Collection z7gqqrjs",
+                  "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-collection-z7gqqrjs",
+                  "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            }
+          ]
+        },
+        "single": {
+          "resourceId": "gid://shopify/Collection/512485261618",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization Collection z7gqqrjs",
+              "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "localization-collection-z7gqqrjs",
+              "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+              "locale": "en",
+              "type": "URI"
+            }
+          ],
+          "translations": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "removeBeforeRegister": {
+    "request": {
+      "variables": {
+        "resourceId": "gid://shopify/Collection/512485261618",
+        "keys": ["title"],
+        "locales": ["fr"]
+      }
+    },
+    "response": {
+      "data": {
+        "translationsRemove": {
+          "translations": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "register": {
+    "request": {
+      "variables": {
+        "resourceId": "gid://shopify/Collection/512485261618",
+        "translations": [
+          {
+            "locale": "fr",
+            "key": "title",
+            "value": "Collection francaise z7gqqrjs",
+            "translatableContentDigest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Collection francaise z7gqqrjs",
+              "locale": "fr",
+              "outdated": false,
+              "market": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterRegister": {
+    "request": {
+      "variables": {
+        "first": 1,
+        "resourceType": "COLLECTION",
+        "ids": ["gid://shopify/Collection/512485261618"],
+        "resourceId": "gid://shopify/Collection/512485261618"
+      }
+    },
+    "response": {
+      "data": {
+        "allShopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false
+          }
+        ],
+        "resources": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/494967390514",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Home page",
+                  "digest": "11d58b08de98e05930a7f73b5f5d75367e4a58ac27335a420d55583cb16ad1ff",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "frontpage",
+                  "digest": "a80e4934a6f77731eb54b4a3030396bdfe91852466f412dbf7d8e63a2b9a7484",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            }
+          ]
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/512485261618",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization Collection z7gqqrjs",
+                  "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-collection-z7gqqrjs",
+                  "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": [
+                {
+                  "key": "title",
+                  "value": "Collection francaise z7gqqrjs",
+                  "locale": "fr",
+                  "outdated": false,
+                  "market": null
+                }
+              ]
+            }
+          ]
+        },
+        "single": {
+          "resourceId": "gid://shopify/Collection/512485261618",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization Collection z7gqqrjs",
+              "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "localization-collection-z7gqqrjs",
+              "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+              "locale": "en",
+              "type": "URI"
+            }
+          ],
+          "translations": [
+            {
+              "key": "title",
+              "value": "Collection francaise z7gqqrjs",
+              "locale": "fr",
+              "outdated": false,
+              "market": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "remove": {
+    "request": {
+      "variables": {
+        "resourceId": "gid://shopify/Collection/512485261618",
+        "keys": ["title"],
+        "locales": ["fr"]
+      }
+    },
+    "response": {
+      "data": {
+        "translationsRemove": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Collection francaise z7gqqrjs",
+              "locale": "fr"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterRemove": {
+    "request": {
+      "variables": {
+        "first": 1,
+        "resourceType": "COLLECTION",
+        "ids": ["gid://shopify/Collection/512485261618"],
+        "resourceId": "gid://shopify/Collection/512485261618"
+      }
+    },
+    "response": {
+      "data": {
+        "allShopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false
+          }
+        ],
+        "resources": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/494967390514",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Home page",
+                  "digest": "11d58b08de98e05930a7f73b5f5d75367e4a58ac27335a420d55583cb16ad1ff",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "frontpage",
+                  "digest": "a80e4934a6f77731eb54b4a3030396bdfe91852466f412dbf7d8e63a2b9a7484",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            }
+          ]
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/512485261618",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization Collection z7gqqrjs",
+                  "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-collection-z7gqqrjs",
+                  "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            }
+          ]
+        },
+        "single": {
+          "resourceId": "gid://shopify/Collection/512485261618",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization Collection z7gqqrjs",
+              "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "localization-collection-z7gqqrjs",
+              "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+              "locale": "en",
+              "type": "URI"
+            }
+          ],
+          "translations": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterRemoveSingle": {
+    "request": {
+      "variables": {
+        "resourceId": "gid://shopify/Collection/512485261618"
+      }
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Collection/512485261618",
+          "translations": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "translationsRemove": {
+      "data": {
+        "translationsRemove": {
+          "translations": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "collectionDelete": {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/512485261618",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "shopLocaleDisable": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": "fr",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationCollectionTranslationRead",
+      "variables": {
+        "first": 1,
+        "resourceType": "COLLECTION",
+        "ids": ["gid://shopify/Collection/512485261618"],
+        "resourceId": "gid://shopify/Collection/512485261618"
+      },
+      "query": "#graphql\n  query LocalizationCollectionTranslationRead(\n    $first: Int!\n    $resourceType: TranslatableResourceType!\n    $ids: [ID!]!\n    $resourceId: ID!\n  ) {\n    allShopLocales: shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    resources: translatableResources(first: $first, resourceType: $resourceType) {\n      nodes {\n        resourceId\n        translatableContent {\n          key\n          value\n          digest\n          locale\n          type\n        }\n        translations(locale: \"fr\") {\n          key\n          value\n          locale\n          outdated\n          market {\n            id\n          }\n        }\n      }\n    }\n    byIds: translatableResourcesByIds(first: $first, resourceIds: $ids) {\n      nodes {\n        resourceId\n        translatableContent {\n          key\n          value\n          digest\n          locale\n          type\n        }\n        translations(locale: \"fr\") {\n          key\n          value\n          locale\n          outdated\n          market {\n            id\n          }\n        }\n      }\n    }\n    single: translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"fr\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "allShopLocales": [
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true
+              },
+              {
+                "locale": "fr",
+                "name": "French",
+                "primary": false,
+                "published": false
+              }
+            ],
+            "resources": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Collection/494967390514",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Home page",
+                      "digest": "11d58b08de98e05930a7f73b5f5d75367e4a58ac27335a420d55583cb16ad1ff",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "frontpage",
+                      "digest": "a80e4934a6f77731eb54b4a3030396bdfe91852466f412dbf7d8e63a2b9a7484",
+                      "locale": "en",
+                      "type": "URI"
+                    }
+                  ],
+                  "translations": []
+                }
+              ]
+            },
+            "byIds": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Collection/512485261618",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Localization Collection z7gqqrjs",
+                      "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "localization-collection-z7gqqrjs",
+                      "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+                      "locale": "en",
+                      "type": "URI"
+                    }
+                  ],
+                  "translations": []
+                }
+              ]
+            },
+            "single": {
+              "resourceId": "gid://shopify/Collection/512485261618",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization Collection z7gqqrjs",
+                  "digest": "4bc17beac397fd5055b135de76b2fde0c177981f23e779bd76d35fea6e1cb9b1",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-collection-z7gqqrjs",
+                  "digest": "b49223c1406c77f84c36feeb19efd457475781b2c218e23c781a7ab590637a21",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

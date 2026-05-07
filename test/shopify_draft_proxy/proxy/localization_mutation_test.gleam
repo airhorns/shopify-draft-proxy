@@ -17,8 +17,8 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  CapturedObject, CapturedString, MarketRecord, ShopLocaleRecord,
-  TranslationRecord,
+  CapturedObject, CapturedString, CollectionRecord, MarketRecord,
+  ProductSeoRecord, ShopLocaleRecord, TranslationRecord,
 }
 
 fn run_outcome(
@@ -118,6 +118,36 @@ fn seed_source_content_marker(
       ),
     )
   s
+}
+
+fn seed_collection(
+  store_in: store.Store,
+  id: String,
+  title: String,
+  handle: String,
+) -> store.Store {
+  store.upsert_base_collections(store_in, [
+    CollectionRecord(
+      id: id,
+      legacy_resource_id: None,
+      title: title,
+      handle: handle,
+      publication_ids: [],
+      updated_at: None,
+      description: None,
+      description_html: Some(""),
+      image: None,
+      sort_order: None,
+      template_suffix: None,
+      seo: ProductSeoRecord(title: None, description: None),
+      rule_set: None,
+      products_count: None,
+      is_smart: False,
+      cursor: None,
+      title_cursor: None,
+      updated_at_cursor: None,
+    ),
+  ])
 }
 
 fn enable_locale(store_in: store.Store, locale: String) -> store.Store {
@@ -369,6 +399,71 @@ pub fn translations_register_unknown_resource_returns_error_test() {
     == "{\"data\":{\"translationsRegister\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource gid://shopify/Product/1 does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
 }
 
+pub fn translations_register_collection_stages_and_reads_back_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_collection(
+      "gid://shopify/Collection/1",
+      "Summer Hats",
+      "summer-hats",
+    )
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Collection/1\", translations: [{ locale: \"fr\", key: \"title\", value: \"Chapeaux\", translatableContentDigest: \"76ea81053fa568ea139bf950083fb6a073e6a2e123ae897fba5109c2cc6a8883\" }]) { translations { key value locale outdated market { id } } userErrors { field message code } } }",
+    )
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[{\"key\":\"title\",\"value\":\"Chapeaux\",\"locale\":\"fr\",\"outdated\":false,\"market\":null}],\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    localization.handle_localization_query(
+      register.store,
+      "{ translatableResource(resourceId: \"gid://shopify/Collection/1\") { resourceId translatableContent { key value } translations(locale: \"fr\") { key value locale } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Collection/1\",\"translatableContent\":[{\"key\":\"title\",\"value\":\"Summer Hats\"},{\"key\":\"handle\",\"value\":\"summer-hats\"}],\"translations\":[{\"key\":\"title\",\"value\":\"Chapeaux\",\"locale\":\"fr\"}]}}"
+
+  let assert Ok(connection_data) =
+    localization.handle_localization_query(
+      register.store,
+      "{ translatableResources(first: 10, resourceType: COLLECTION) { nodes { resourceId translations(locale: \"fr\") { key value locale } } } translatableResourcesByIds(first: 10, resourceIds: [\"gid://shopify/Collection/1\"]) { nodes { resourceId translations(locale: \"fr\") { key value locale } } } }",
+      dict.new(),
+    )
+  assert json.to_string(connection_data)
+    == "{\"translatableResources\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Collection/1\",\"translations\":[{\"key\":\"title\",\"value\":\"Chapeaux\",\"locale\":\"fr\"}]}]},\"translatableResourcesByIds\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Collection/1\",\"translations\":[{\"key\":\"title\",\"value\":\"Chapeaux\",\"locale\":\"fr\"}]}]}}"
+}
+
+pub fn translations_register_collection_rejects_stale_digest_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_collection(
+      "gid://shopify/Collection/1",
+      "Summer Hats",
+      "summer-hats",
+    )
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Collection/1\", translations: [{ locale: \"fr\", key: \"title\", value: \"Chapeaux\", translatableContentDigest: \"wrong\" }]) { translations { key } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"translatableContentDigest\"],\"message\":\"Translatable content hash is invalid\",\"code\":\"INVALID_TRANSLATABLE_CONTENT\"}]}}}"
+}
+
+pub fn translations_register_unsupported_translatable_type_is_explicit_test() {
+  let s = seed_shop_locale(store.new(), "fr", False, True)
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Metaobject/1\", translations: [{ locale: \"fr\", key: \"display_name\", value: \"Bonjour\", translatableContentDigest: \"abc\" }]) { translations { key } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Translatable resource type Metaobject is not supported by the draft proxy yet\",\"code\":\"UNSUPPORTED_TRANSLATABLE_RESOURCE_TYPE\"}]}}}"
+}
+
 pub fn translations_register_against_seeded_source_marker_test() {
   let s =
     seed_shop_locale(store.new(), "fr", False, True)
@@ -600,6 +695,45 @@ pub fn translations_remove_noop_success_returns_null_translations_test() {
 
   assert json.to_string(remove.data)
     == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[]}}}"
+}
+
+pub fn translations_remove_collection_noop_and_removed_rows_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_collection(
+      "gid://shopify/Collection/1",
+      "Summer Hats",
+      "summer-hats",
+    )
+  let no_match =
+    run_outcome(
+      s,
+      "mutation { translationsRemove(resourceId: \"gid://shopify/Collection/1\", translationKeys: [\"title\"], locales: [\"fr\"]) { translations { key } userErrors { field message code } } }",
+    )
+  assert json.to_string(no_match.data)
+    == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[]}}}"
+
+  let register =
+    run_outcome(
+      no_match.store,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Collection/1\", translations: [{ locale: \"fr\", key: \"title\", value: \"Chapeaux\", translatableContentDigest: \"76ea81053fa568ea139bf950083fb6a073e6a2e123ae897fba5109c2cc6a8883\" }]) { translations { key } userErrors { code } } }",
+    )
+  let remove =
+    run_outcome(
+      register.store,
+      "mutation { translationsRemove(resourceId: \"gid://shopify/Collection/1\", translationKeys: [\"title\"], locales: [\"fr\"]) { translations { key value locale } userErrors { field message code } } }",
+    )
+  assert json.to_string(remove.data)
+    == "{\"data\":{\"translationsRemove\":{\"translations\":[{\"key\":\"title\",\"value\":\"Chapeaux\",\"locale\":\"fr\"}],\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    localization.handle_localization_query(
+      remove.store,
+      "{ translatableResourcesByIds(first: 10, resourceIds: [\"gid://shopify/Collection/1\"]) { nodes { resourceId translations(locale: \"fr\") { key value locale } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"translatableResourcesByIds\":{\"nodes\":[{\"resourceId\":\"gid://shopify/Collection/1\",\"translations\":[]}]}}"
 }
 
 pub fn translations_remove_unknown_key_noops_without_user_errors_test() {
