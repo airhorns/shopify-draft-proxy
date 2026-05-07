@@ -1,0 +1,21 @@
+mutation FulfillmentServiceRemovedArgumentValidation($name: String!) {
+  fulfillmentServiceCreate(
+    name: $name
+    permitsSkuSharing: false
+    trackingSupport: true
+    inventoryManagement: true
+    requiresShippingMethod: true
+  ) {
+    fulfillmentService {
+      id
+      serviceName
+      inventoryManagement
+      requiresShippingMethod
+      trackingSupport
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

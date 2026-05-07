@@ -583,14 +583,18 @@ fn prepare_article_parent_blog(
 ) -> Result(ArticleParent, graphql_helpers.SourceValue) {
   case serializers.input_string(article_input, "blogId") {
     Some(id) ->
-      Ok(
-        ArticleParent(
-          blog_id: id,
-          blog_record: None,
-          identity: outcome.identity,
-          staged_blog_ids: [],
-        ),
-      )
+      case blog_id_exists(outcome.store, id) {
+        True ->
+          Ok(
+            ArticleParent(
+              blog_id: id,
+              blog_record: None,
+              identity: outcome.identity,
+              staged_blog_ids: [],
+            ),
+          )
+        False -> Error(article_referenced_blog_not_found_error())
+      }
     None ->
       case
         serializers.resolve_content_handle(
@@ -1010,7 +1014,7 @@ fn content_update_validation_errors(
       list.append(
         article_update_author_errors(store, input),
         list.append(
-          article_update_blog_errors(input),
+          article_update_blog_errors(store, input),
           article_update_image_errors(input, existing),
         ),
       )
@@ -1114,9 +1118,11 @@ fn staff_member_exists(store: Store, staff_id: String) -> Bool {
 }
 
 fn article_update_blog_errors(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(graphql_helpers.SourceValue) {
-  let has_blog_id = option.is_some(serializers.input_string(input, "blogId"))
+  let blog_id = serializers.input_string(input, "blogId")
+  let has_blog_id = option.is_some(blog_id)
   let has_inline_blog =
     option.is_some(graphql_helpers.read_arg_object(input, "blog"))
   case has_blog_id, has_inline_blog {
@@ -1132,8 +1138,32 @@ fn article_update_blog_errors(
         "AMBIGUOUS_BLOG",
       ),
     ]
+    True, False ->
+      case blog_id {
+        Some(id) ->
+          case blog_id_exists(store, id) {
+            True -> []
+            False -> [article_referenced_blog_not_found_error()]
+          }
+        None -> []
+      }
     _, _ -> []
   }
+}
+
+fn blog_id_exists(store: Store, id: String) -> Bool {
+  case store.get_effective_online_store_content_by_id(store, id) {
+    Some(record) -> record.kind == "blog"
+    None -> False
+  }
+}
+
+fn article_referenced_blog_not_found_error() -> graphql_helpers.SourceValue {
+  serializers.user_error_with_code(
+    ["article"],
+    "Must reference an existing blog.",
+    "NOT_FOUND",
+  )
 }
 
 fn article_update_image_errors(

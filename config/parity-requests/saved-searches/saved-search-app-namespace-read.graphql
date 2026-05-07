@@ -1,0 +1,15 @@
+query SavedSearchAppNamespaceRead {
+  productSavedSearches(first: 1, reverse: true) {
+    nodes {
+      id
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+  }
+}

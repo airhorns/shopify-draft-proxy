@@ -1,0 +1,12 @@
+query DiscountBulkSearchEffectsReadCode($id: ID!) {
+  code: codeDiscountNode(id: $id) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+      }
+    }
+  }
+}

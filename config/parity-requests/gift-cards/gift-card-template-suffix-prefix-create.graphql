@@ -1,0 +1,12 @@
+mutation GiftCardTemplateSuffixPrefixCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

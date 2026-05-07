@@ -1,0 +1,16 @@
+query MarketCreateCurrencySettingsRead($id: ID!) {
+  market(id: $id) {
+    id
+    name
+    status
+    enabled
+    currencySettings {
+      baseCurrency {
+        currencyCode
+        currencyName
+      }
+      localCurrencies
+      roundingEnabled
+    }
+  }
+}

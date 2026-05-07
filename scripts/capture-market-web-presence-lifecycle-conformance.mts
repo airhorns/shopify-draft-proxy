@@ -121,6 +121,58 @@ const deleteMutation = `#graphql
   }
 `;
 
+const marketCreateMutation = `#graphql
+  mutation MarketWebPresenceSuffixMarketCreate($input: MarketCreateInput!) {
+    marketCreate(input: $input) {
+      market {
+        id
+        name
+        handle
+        status
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const marketUpdateMutation = `#graphql
+  mutation MarketWebPresenceSuffixMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+    marketUpdate(id: $id, input: $input) {
+      market {
+        id
+        webPresences(first: 5) {
+          nodes {
+            id
+            subfolderSuffix
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const marketDeleteMutation = `#graphql
+  mutation MarketWebPresenceSuffixMarketDelete($id: ID!) {
+    marketDelete(id: $id) {
+      deletedId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const shopLocalesQuery = `#graphql
   query MarketWebPresenceLocaleSetupRead {
     shopLocales {
@@ -198,6 +250,28 @@ function readUserErrors(payload: unknown, root: string): unknown[] {
   }
   const rootPayload = payload.data[root as keyof typeof payload.data] as { userErrors?: unknown };
   return Array.isArray(rootPayload.userErrors) ? rootPayload.userErrors : [];
+}
+
+function readMarketCreateId(payload: unknown, label: string): string {
+  const data = typeof payload === 'object' && payload !== null ? (payload as { data?: unknown }).data : undefined;
+  const marketCreate =
+    typeof data === 'object' && data !== null ? (data as { marketCreate?: unknown }).marketCreate : undefined;
+  const market =
+    typeof marketCreate === 'object' && marketCreate !== null
+      ? (marketCreate as { market?: unknown }).market
+      : undefined;
+  const id = typeof market === 'object' && market !== null ? (market as { id?: unknown }).id : undefined;
+  if (typeof id !== 'string') {
+    throw new Error(`${label} did not return a market id: ${JSON.stringify(payload)}`);
+  }
+  return id;
+}
+
+function assertNoUserErrors(payload: unknown, root: string, label: string): void {
+  const userErrors = readUserErrors(payload, root);
+  if (userErrors.length > 0) {
+    throw new Error(`${label} returned userErrors: ${JSON.stringify(userErrors)}`);
+  }
 }
 
 function normalizeHost(value: string): string {
@@ -302,18 +376,34 @@ const frenchCanadianSuffix = 'fr';
 const partialUpdateSuffix = `har${randomLetters(10)}`;
 const regionalLocaleSuffix = `har${randomLetters(10)}`;
 const caseInsensitiveSuffix = `har${randomLetters(10)}`;
+const duplicateCreateSuffix = `har${randomLetters(10)}`;
+const updateCollisionSourceSuffix = `har${randomLetters(10)}`;
+const updateCollisionTakenSuffix = `har${randomLetters(10)}`;
+const unique = Date.now().toString(36);
 let createdWebPresenceId: string | null = null;
 let multiLocaleWebPresenceId: string | null = null;
 let frenchCanadianWebPresenceId: string | null = null;
 let partialUpdateWebPresenceId: string | null = null;
 let regionalLocaleWebPresenceId: string | null = null;
 let caseInsensitiveWebPresenceId: string | null = null;
+let duplicateCreateWebPresenceId: string | null = null;
+let duplicateCreateUnexpectedWebPresenceId: string | null = null;
+let duplicateCreateMarketId: string | null = null;
+let updateCollisionSourceWebPresenceId: string | null = null;
+let updateCollisionTakenWebPresenceId: string | null = null;
+let updateCollisionMarketId: string | null = null;
 let cleanupResponse: unknown = null;
 let multiLocaleCleanupResponse: unknown = null;
 let frenchCanadianCleanupResponse: unknown = null;
 let partialUpdateCleanupResponse: unknown = null;
 let regionalLocaleCleanupResponse: unknown = null;
 let caseInsensitiveCleanupResponse: unknown = null;
+let duplicateCreateMarketCleanupResponse: unknown = null;
+let duplicateCreateCleanupResponse: unknown = null;
+let duplicateCreateUnexpectedCleanupResponse: unknown = null;
+let updateCollisionMarketCleanupResponse: unknown = null;
+let updateCollisionSourceCleanupResponse: unknown = null;
+let updateCollisionTakenCleanupResponse: unknown = null;
 const localeRestoreActions: LocaleRestoreAction[] = [];
 let localeCleanupResponses: Record<string, unknown> = {};
 
@@ -381,6 +471,120 @@ try {
   const primaryDeleteVariables = { id: primaryWebPresence.id };
   const primaryDeleteResponse = await runGraphql(deleteMutation, primaryDeleteVariables);
   const primaryReadAfterDelete = await runGraphql(webPresencesReadQuery, { first: 20 });
+
+  const duplicateCreateMarketVariables = {
+    input: {
+      name: `Web Presence Duplicate Source ${unique}`,
+    },
+  };
+  const duplicateCreateMarketResponse = await runGraphql(marketCreateMutation, duplicateCreateMarketVariables);
+  assertNoUserErrors(duplicateCreateMarketResponse, 'marketCreate', 'duplicate-source marketCreate');
+  duplicateCreateMarketId = readMarketCreateId(duplicateCreateMarketResponse, 'duplicate-source marketCreate');
+  const duplicateCreateSourceVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: duplicateCreateSuffix,
+    },
+  };
+  const duplicateCreateSourceResponse = await runGraphql(createMutation, duplicateCreateSourceVariables);
+  duplicateCreateWebPresenceId = duplicateCreateSourceResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!duplicateCreateWebPresenceId) {
+    throw new Error(
+      `duplicate-source webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        duplicateCreateSourceResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const duplicateCreateMarketLinkVariables = {
+    id: duplicateCreateMarketId,
+    input: {
+      webPresencesToAdd: [duplicateCreateWebPresenceId],
+    },
+  };
+  const duplicateCreateMarketLinkResponse = await runGraphql(marketUpdateMutation, duplicateCreateMarketLinkVariables);
+  assertNoUserErrors(duplicateCreateMarketLinkResponse, 'marketUpdate', 'duplicate-source marketUpdate');
+  const duplicateCreateTakenVariables = duplicateCreateSourceVariables;
+  const duplicateCreateTakenResponse = await runGraphql(createMutation, duplicateCreateTakenVariables);
+  duplicateCreateUnexpectedWebPresenceId =
+    duplicateCreateTakenResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+
+  const updateCollisionMarketVariables = {
+    input: {
+      name: `Web Presence Update Collision ${unique}`,
+    },
+  };
+  const updateCollisionMarketResponse = await runGraphql(marketCreateMutation, updateCollisionMarketVariables);
+  assertNoUserErrors(updateCollisionMarketResponse, 'marketCreate', 'update-collision marketCreate');
+  updateCollisionMarketId = readMarketCreateId(updateCollisionMarketResponse, 'update-collision marketCreate');
+  const updateCollisionSourceCreateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: updateCollisionSourceSuffix,
+    },
+  };
+  const updateCollisionSourceCreateResponse = await runGraphql(createMutation, updateCollisionSourceCreateVariables);
+  updateCollisionSourceWebPresenceId =
+    updateCollisionSourceCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!updateCollisionSourceWebPresenceId) {
+    throw new Error(
+      `update-collision source webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        updateCollisionSourceCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const updateCollisionTakenCreateVariables = {
+    input: {
+      defaultLocale: 'en',
+      alternateLocales: [],
+      subfolderSuffix: updateCollisionTakenSuffix,
+    },
+  };
+  const updateCollisionTakenCreateResponse = await runGraphql(createMutation, updateCollisionTakenCreateVariables);
+  updateCollisionTakenWebPresenceId =
+    updateCollisionTakenCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!updateCollisionTakenWebPresenceId) {
+    throw new Error(
+      `update-collision taken webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        updateCollisionTakenCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  const updateCollisionMarketLinkVariables = {
+    id: updateCollisionMarketId,
+    input: {
+      webPresencesToAdd: [updateCollisionTakenWebPresenceId],
+    },
+  };
+  const updateCollisionMarketLinkResponse = await runGraphql(marketUpdateMutation, updateCollisionMarketLinkVariables);
+  assertNoUserErrors(updateCollisionMarketLinkResponse, 'marketUpdate', 'update-collision marketUpdate');
+  const updateCollisionVariables = {
+    id: updateCollisionSourceWebPresenceId,
+    input: {
+      subfolderSuffix: updateCollisionTakenSuffix,
+    },
+  };
+  const updateCollisionResponse = await runGraphql(updateMutation, updateCollisionVariables);
+  updateCollisionSourceCleanupResponse = await runGraphql(deleteMutation, { id: updateCollisionSourceWebPresenceId });
+  updateCollisionTakenCleanupResponse = await runGraphql(deleteMutation, { id: updateCollisionTakenWebPresenceId });
+  updateCollisionMarketCleanupResponse = await runGraphql(marketDeleteMutation, { id: updateCollisionMarketId });
+  duplicateCreateCleanupResponse = await runGraphql(deleteMutation, { id: duplicateCreateWebPresenceId });
+  duplicateCreateMarketCleanupResponse = await runGraphql(marketDeleteMutation, { id: duplicateCreateMarketId });
+  if (
+    duplicateCreateUnexpectedWebPresenceId &&
+    duplicateCreateUnexpectedWebPresenceId !== duplicateCreateWebPresenceId
+  ) {
+    duplicateCreateUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateCreateUnexpectedWebPresenceId,
+    });
+  }
 
   const baselineRead = await runGraphql(webPresencesReadQuery, { first: 20 });
   const createVariables = {
@@ -541,9 +745,12 @@ try {
       partialUpdate: partialUpdateSuffix,
       regionalLocale: regionalLocaleSuffix,
       caseInsensitive: caseInsensitiveSuffix,
+      duplicateCreate: duplicateCreateSuffix,
+      updateCollisionSource: updateCollisionSourceSuffix,
+      updateCollisionTaken: updateCollisionTakenSuffix,
     },
     scope:
-      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, and primary-domain delete guard parity',
+      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, primary-domain delete guard parity, and duplicate subfolder suffix validation parity',
     data: {
       shop: primarySetupRead.data?.shop,
       webPresences: baselineRead.data?.webPresences,
@@ -735,6 +942,87 @@ try {
           payload: primaryReadAfterDelete,
         },
       },
+      {
+        name: 'webPresenceDuplicateSuffixMarketCreate',
+        query: marketCreateMutation,
+        variables: duplicateCreateMarketVariables,
+        response: {
+          status: 200,
+          payload: duplicateCreateMarketResponse,
+        },
+      },
+      {
+        name: 'webPresenceDuplicateSuffixSourceCreate',
+        query: createMutation,
+        variables: duplicateCreateSourceVariables,
+        response: {
+          status: 200,
+          payload: duplicateCreateSourceResponse,
+        },
+      },
+      {
+        name: 'webPresenceDuplicateSuffixMarketLink',
+        query: marketUpdateMutation,
+        variables: duplicateCreateMarketLinkVariables,
+        response: {
+          status: 200,
+          payload: duplicateCreateMarketLinkResponse,
+        },
+      },
+      {
+        name: 'webPresenceDuplicateSuffixCreateTaken',
+        query: createMutation,
+        variables: duplicateCreateTakenVariables,
+        response: {
+          status: 200,
+          payload: duplicateCreateTakenResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateCollisionMarketCreate',
+        query: marketCreateMutation,
+        variables: updateCollisionMarketVariables,
+        response: {
+          status: 200,
+          payload: updateCollisionMarketResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateCollisionSourceCreate',
+        query: createMutation,
+        variables: updateCollisionSourceCreateVariables,
+        response: {
+          status: 200,
+          payload: updateCollisionSourceCreateResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateCollisionTakenCreate',
+        query: createMutation,
+        variables: updateCollisionTakenCreateVariables,
+        response: {
+          status: 200,
+          payload: updateCollisionTakenCreateResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateCollisionMarketLink',
+        query: marketUpdateMutation,
+        variables: updateCollisionMarketLinkVariables,
+        response: {
+          status: 200,
+          payload: updateCollisionMarketLinkResponse,
+        },
+      },
+      {
+        name: 'webPresenceUpdateSubfolderSuffixTaken',
+        query: updateMutation,
+        variables: updateCollisionVariables,
+        response: {
+          status: 200,
+          payload: updateCollisionResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -785,6 +1073,56 @@ try {
           payload: caseInsensitiveCleanupResponse,
         },
       },
+      duplicateCreateWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: duplicateCreateWebPresenceId },
+        response: {
+          status: 200,
+          payload: duplicateCreateCleanupResponse,
+        },
+      },
+      duplicateCreateMarketDelete: {
+        query: marketDeleteMutation,
+        variables: { id: duplicateCreateMarketId },
+        response: {
+          status: 200,
+          payload: duplicateCreateMarketCleanupResponse,
+        },
+      },
+      duplicateCreateUnexpectedWebPresenceDelete: duplicateCreateUnexpectedWebPresenceId
+        ? {
+            query: deleteMutation,
+            variables: { id: duplicateCreateUnexpectedWebPresenceId },
+            response: {
+              status: 200,
+              payload: duplicateCreateUnexpectedCleanupResponse,
+            },
+          }
+        : null,
+      updateCollisionMarketDelete: {
+        query: marketDeleteMutation,
+        variables: { id: updateCollisionMarketId },
+        response: {
+          status: 200,
+          payload: updateCollisionMarketCleanupResponse,
+        },
+      },
+      updateCollisionSourceWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: updateCollisionSourceWebPresenceId },
+        response: {
+          status: 200,
+          payload: updateCollisionSourceCleanupResponse,
+        },
+      },
+      updateCollisionTakenWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: updateCollisionTakenWebPresenceId },
+        response: {
+          status: 200,
+          payload: updateCollisionTakenCleanupResponse,
+        },
+      },
       enabledLocaleCleanup: localeCleanupResponses,
     },
     upstreamCalls: [
@@ -800,6 +1138,19 @@ try {
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: createVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: updateVariables,
         query: 'hand-synthesized from checked-in capture',
         response: {
           status: 200,
@@ -851,6 +1202,19 @@ try {
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
+        variables: partialUpdateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
         variables: regionalLocaleCreateVariables,
         query: 'hand-synthesized from checked-in capture',
         response: {
@@ -878,6 +1242,71 @@ try {
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: invalidAlternatesCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateCreateSourceVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: duplicateCreateTakenVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: updateCollisionSourceCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: updateCollisionTakenCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: updateCollisionVariables,
         query: 'hand-synthesized from checked-in capture',
         response: {
           status: 200,
@@ -920,6 +1349,54 @@ try {
   if (caseInsensitiveWebPresenceId && !caseInsensitiveCleanupResponse) {
     caseInsensitiveCleanupResponse = await runGraphql(deleteMutation, { id: caseInsensitiveWebPresenceId });
     console.error(JSON.stringify({ caseInsensitiveCleanupAfterFailure: caseInsensitiveCleanupResponse }, null, 2));
+  }
+  if (
+    duplicateCreateUnexpectedWebPresenceId &&
+    duplicateCreateUnexpectedWebPresenceId !== duplicateCreateWebPresenceId &&
+    !duplicateCreateUnexpectedCleanupResponse
+  ) {
+    duplicateCreateUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: duplicateCreateUnexpectedWebPresenceId,
+    });
+    console.error(
+      JSON.stringify(
+        { duplicateCreateUnexpectedCleanupAfterFailure: duplicateCreateUnexpectedCleanupResponse },
+        null,
+        2,
+      ),
+    );
+  }
+  if (duplicateCreateWebPresenceId && !duplicateCreateCleanupResponse) {
+    duplicateCreateCleanupResponse = await runGraphql(deleteMutation, { id: duplicateCreateWebPresenceId });
+    console.error(JSON.stringify({ duplicateCreateCleanupAfterFailure: duplicateCreateCleanupResponse }, null, 2));
+  }
+  if (duplicateCreateMarketId && !duplicateCreateMarketCleanupResponse) {
+    duplicateCreateMarketCleanupResponse = await runGraphql(marketDeleteMutation, { id: duplicateCreateMarketId });
+    console.error(
+      JSON.stringify({ duplicateCreateMarketCleanupAfterFailure: duplicateCreateMarketCleanupResponse }, null, 2),
+    );
+  }
+  if (updateCollisionSourceWebPresenceId && !updateCollisionSourceCleanupResponse) {
+    updateCollisionSourceCleanupResponse = await runGraphql(deleteMutation, {
+      id: updateCollisionSourceWebPresenceId,
+    });
+    console.error(
+      JSON.stringify({ updateCollisionSourceCleanupAfterFailure: updateCollisionSourceCleanupResponse }, null, 2),
+    );
+  }
+  if (updateCollisionTakenWebPresenceId && !updateCollisionTakenCleanupResponse) {
+    updateCollisionTakenCleanupResponse = await runGraphql(deleteMutation, {
+      id: updateCollisionTakenWebPresenceId,
+    });
+    console.error(
+      JSON.stringify({ updateCollisionTakenCleanupAfterFailure: updateCollisionTakenCleanupResponse }, null, 2),
+    );
+  }
+  if (updateCollisionMarketId && !updateCollisionMarketCleanupResponse) {
+    updateCollisionMarketCleanupResponse = await runGraphql(marketDeleteMutation, { id: updateCollisionMarketId });
+    console.error(
+      JSON.stringify({ updateCollisionMarketCleanupAfterFailure: updateCollisionMarketCleanupResponse }, null, 2),
+    );
   }
   if (localeRestoreActions.length > 0 && Object.keys(localeCleanupResponses).length === 0) {
     localeCleanupResponses = await restoreEnabledLocales();

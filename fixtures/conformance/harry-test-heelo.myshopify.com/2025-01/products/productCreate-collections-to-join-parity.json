@@ -1,0 +1,287 @@
+{
+  "scenarioId": "productCreate-collections-to-join-parity",
+  "capturedAt": "2026-05-07T14:09:50.320Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "firstCollection": {
+      "query": "mutation ProductCreateCollectionsToJoinCollectionCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n      products(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Hermes Product Join First 1778162985783"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "collectionCreate": {
+              "collection": {
+                "id": "gid://shopify/Collection/512507838770",
+                "title": "Hermes Product Join First 1778162985783",
+                "handle": "hermes-product-join-first-1778162985783",
+                "products": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondCollection": {
+      "query": "mutation ProductCreateCollectionsToJoinCollectionCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n      products(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Hermes Product Join Second 1778162985783"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "collectionCreate": {
+              "collection": {
+                "id": "gid://shopify/Collection/512507871538",
+                "title": "Hermes Product Join Second 1778162985783",
+                "handle": "hermes-product-join-second-1778162985783",
+                "products": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "query": "mutation ProductCreateCollectionsToJoinParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      collections(first: 10) {\n        nodes {\n          id\n          title\n          handle\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Product Collections To Join 1778162985783",
+        "status": "DRAFT",
+        "collectionsToJoin": ["gid://shopify/Collection/512507838770", "gid://shopify/Collection/512507871538"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10179876978994",
+              "title": "Hermes Product Collections To Join 1778162985783",
+              "handle": "hermes-product-collections-to-join-1778162985783",
+              "collections": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Collection/512507838770",
+                    "title": "Hermes Product Join First 1778162985783",
+                    "handle": "hermes-product-join-first-1778162985783"
+                  },
+                  {
+                    "id": "gid://shopify/Collection/512507871538",
+                    "title": "Hermes Product Join Second 1778162985783",
+                    "handle": "hermes-product-join-second-1778162985783"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ProductCreateCollectionsToJoinDownstreamRead($productId: ID!, $firstCollectionId: ID!, $secondCollectionId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    handle\n    collections(first: 10) {\n      nodes {\n        id\n        title\n        handle\n      }\n    }\n  }\n  firstCollection: collection(id: $firstCollectionId) {\n    id\n    title\n    handle\n    hasProduct(id: $productId)\n    productsCount {\n      count\n      precision\n    }\n    products(first: 10) {\n      nodes {\n        id\n        title\n        handle\n      }\n    }\n  }\n  secondCollection: collection(id: $secondCollectionId) {\n    id\n    title\n    handle\n    hasProduct(id: $productId)\n    productsCount {\n      count\n      precision\n    }\n    products(first: 10) {\n      nodes {\n        id\n        title\n        handle\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "productId": "gid://shopify/Product/10179876978994",
+      "firstCollectionId": "gid://shopify/Collection/512507838770",
+      "secondCollectionId": "gid://shopify/Collection/512507871538"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10179876978994",
+            "title": "Hermes Product Collections To Join 1778162985783",
+            "handle": "hermes-product-collections-to-join-1778162985783",
+            "collections": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Collection/512507838770",
+                  "title": "Hermes Product Join First 1778162985783",
+                  "handle": "hermes-product-join-first-1778162985783"
+                },
+                {
+                  "id": "gid://shopify/Collection/512507871538",
+                  "title": "Hermes Product Join Second 1778162985783",
+                  "handle": "hermes-product-join-second-1778162985783"
+                }
+              ]
+            }
+          },
+          "firstCollection": {
+            "id": "gid://shopify/Collection/512507838770",
+            "title": "Hermes Product Join First 1778162985783",
+            "handle": "hermes-product-join-first-1778162985783",
+            "hasProduct": true,
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10179876978994",
+                  "title": "Hermes Product Collections To Join 1778162985783",
+                  "handle": "hermes-product-collections-to-join-1778162985783"
+                }
+              ]
+            }
+          },
+          "secondCollection": {
+            "id": "gid://shopify/Collection/512507871538",
+            "title": "Hermes Product Join Second 1778162985783",
+            "handle": "hermes-product-join-second-1778162985783",
+            "hasProduct": true,
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10179876978994",
+                  "title": "Hermes Product Collections To Join 1778162985783",
+                  "handle": "hermes-product-collections-to-join-1778162985783"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "unknownCollectionsIgnored": {
+      "query": "mutation ProductCreateCollectionsToJoinParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      collections(first: 10) {\n        nodes {\n          id\n          title\n          handle\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Product Unknown Collections 1778162985783",
+          "status": "DRAFT",
+          "collectionsToJoin": ["gid://shopify/Collection/not-a-real-node", "gid://shopify/Collection/999999999999999"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10179877011762",
+                "title": "Hermes Product Unknown Collections 1778162985783",
+                "handle": "hermes-product-unknown-collections-1778162985783",
+                "collections": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownCollectionsCleanup": {
+      "query": "mutation ProductCreateInputFieldsCleanup($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10179877011762"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10179877011762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

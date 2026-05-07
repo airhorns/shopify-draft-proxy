@@ -1,0 +1,296 @@
+{
+  "scenarioId": "location_assign_address_preserves_id",
+  "capturedAt": "2026-05-07T04:53:29.958Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create a disposable B2B company, prove first assign creates a CompanyAddress id, prove later assign preserves that id, prove dual billing/shipping update preserves both prior ids, read back the dual location, then delete the company."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAssignAddressPreservesIdCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            billingAddress { id address1 }\n            shippingAddress { id address1 }\n          }\n        }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B assign address preserves id 1778129608275",
+            "note": "B2B location assign-address preserves CompanyAddress id parity",
+            "externalId": "b2b-assign-address-preserves-id-1778129608275"
+          },
+          "companyLocation": {
+            "name": "B2B assign address preserves id 1778129608275 first assign"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5444796722",
+            "name": "B2B assign address preserves id 1778129608275",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8271855922",
+                  "name": "B2B assign address preserves id 1778129608275 first assign",
+                  "billingAddress": null,
+                  "shippingAddress": null
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "firstBillingAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAssignAddressPreservesIdAssign(\n    $locationId: ID!\n    $address: CompanyAddressInput!\n    $addressTypes: [CompanyAddressType!]!\n  ) {\n    companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {\n      addresses { id address1 }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8271855922",
+        "address": {
+          "address1": "First Billing Anchor",
+          "countryCode": "CA"
+        },
+        "addressTypes": ["BILLING"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignAddress": {
+          "addresses": [
+            {
+              "id": "gid://shopify/CompanyAddress/9352282418",
+              "address1": "First Billing Anchor"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateBillingAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAssignAddressPreservesIdAssign(\n    $locationId: ID!\n    $address: CompanyAddressInput!\n    $addressTypes: [CompanyAddressType!]!\n  ) {\n    companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {\n      addresses { id address1 }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8271855922",
+        "address": {
+          "address1": "Updated Billing Anchor",
+          "countryCode": "CA"
+        },
+        "addressTypes": ["BILLING"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignAddress": {
+          "addresses": [
+            {
+              "id": "gid://shopify/CompanyAddress/9352282418",
+              "address1": "Updated Billing Anchor"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "dualLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAssignAddressPreservesIdLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        billingAddress { id address1 }\n        shippingAddress { id address1 }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5444796722",
+        "input": {
+          "name": "B2B assign address preserves id 1778129608275 dual prior",
+          "billingAddress": {
+            "address1": "Dual Old Billing",
+            "countryCode": "CA"
+          },
+          "shippingAddress": {
+            "address1": "Dual Old Shipping",
+            "countryCode": "CA"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8271888690",
+            "name": "B2B assign address preserves id 1778129608275 dual prior",
+            "billingAddress": {
+              "id": "gid://shopify/CompanyAddress/9352347954",
+              "address1": "Dual Old Billing"
+            },
+            "shippingAddress": {
+              "id": "gid://shopify/CompanyAddress/9352315186",
+              "address1": "Dual Old Shipping"
+            },
+            "company": {
+              "id": "gid://shopify/Company/5444796722",
+              "name": "B2B assign address preserves id 1778129608275"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "dualAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAssignAddressPreservesIdAssign(\n    $locationId: ID!\n    $address: CompanyAddressInput!\n    $addressTypes: [CompanyAddressType!]!\n  ) {\n    companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {\n      addresses { id address1 }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8271888690",
+        "address": {
+          "address1": "Dual Updated",
+          "countryCode": "CA"
+        },
+        "addressTypes": ["BILLING", "SHIPPING"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignAddress": {
+          "addresses": [
+            {
+              "id": "gid://shopify/CompanyAddress/9352315186",
+              "address1": "Dual Updated"
+            },
+            {
+              "id": "gid://shopify/CompanyAddress/9352347954",
+              "address1": "Dual Updated"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDualAssign": {
+    "request": {
+      "query": "#graphql\n  query B2BLocationAssignAddressPreservesIdRead($locationId: ID!) {\n    companyLocation(id: $locationId) {\n      id\n      billingAddress { id address1 }\n      shippingAddress { id address1 }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8271888690"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8271888690",
+          "billingAddress": {
+            "id": "gid://shopify/CompanyAddress/9352347954",
+            "address1": "Dual Updated"
+          },
+          "shippingAddress": {
+            "id": "gid://shopify/CompanyAddress/9352315186",
+            "address1": "Dual Updated"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAssignAddressPreservesIdCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5444796722"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5444796722",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

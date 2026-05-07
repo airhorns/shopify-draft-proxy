@@ -1,0 +1,71 @@
+{
+  "scenarioId": "metafield-definition-update-pin",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinition",
+    "metafieldDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-update-pin.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definitions/update-pin.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-pin-true-pins-definition",
+        "capturePath": "$.primary.response.data.updatePinTrue",
+        "proxyPath": "$.data.updatePinTrue",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "update-pin-false-unpins-definition",
+        "capturePath": "$.primary.response.data.updatePinFalse",
+        "proxyPath": "$.data.updatePinFalse",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "update-constrained-pin-user-errors",
+        "capturePath": "$.primary.response.data.updateConstrainedPin",
+        "proxyPath": "$.data.updateConstrainedPin"
+      },
+      {
+        "name": "update-pin-limit-user-errors",
+        "capturePath": "$.primary.response.data.updateOverCapPin",
+        "proxyPath": "$.data.updateOverCapPin"
+      },
+      {
+        "name": "update-pin-read-after-write",
+        "capturePath": "$.readAfter.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/update-pin-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 Shopify behavior for `metafieldDefinitionUpdate(definition: { pin })`: `pin: true` pins an unpinned product definition, `pin: false` unpins a pinned definition, constrained update pin returns the same `UNSUPPORTED_PINNING` user error shape as pinning, and owner-type pin-cap rejection returns `PINNED_LIMIT_REACHED`. The capture temporarily unpins existing product definitions, creates disposable product-owned definitions in a temporary namespace, deletes them, and restores original pins."
+}

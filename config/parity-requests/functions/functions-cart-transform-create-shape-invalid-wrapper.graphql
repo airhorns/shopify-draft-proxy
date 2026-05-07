@@ -1,0 +1,17 @@
+mutation CartTransformCreateInvalidWrapper {
+  cartTransformCreate(
+    cartTransform: { functionHandle: "conformance-cart-transform", title: "not accepted" }
+    title: "not accepted"
+  ) {
+    cartTransform {
+      id
+      functionId
+      blockOnFailure
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

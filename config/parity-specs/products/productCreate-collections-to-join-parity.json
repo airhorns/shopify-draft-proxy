@@ -1,0 +1,155 @@
+{
+  "scenarioId": "productCreate-collections-to-join-parity",
+  "operationNames": ["collectionCreate", "productCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-collections-to-join-collection-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.setup.firstCollection.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify productCreate with ProductCreateInput.collectionsToJoin after creating two disposable collections in the same scenario. The parity replay earns collection state through the replayed collectionCreate requests before staging the productCreate membership writes. The capture also stores Shopify behavior for unknown collection ids, which are ignored in public 2025-01 rather than returned as userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local staging registry allocate collection ids independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "first-collection-create-data",
+        "capturePath": "$.setup.firstCollection.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "second-collection-create-data",
+        "capturePath": "$.setup.secondCollection.response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-collections-to-join-collection-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.setup.secondCollection.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local staging registry allocate collection ids independently."
+          }
+        ]
+      },
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.payload.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-collections-to-join-parity.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "product": {
+              "title": {
+                "fromCapturePath": "$.mutation.variables.product.title"
+              },
+              "status": {
+                "fromCapturePath": "$.mutation.variables.product.status"
+              },
+              "collectionsToJoin": [
+                {
+                  "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id"
+                },
+                {
+                  "fromProxyResponse": "second-collection-create-data",
+                  "path": "$.data.collectionCreate.collection.id"
+                }
+              ]
+            }
+          }
+        },
+        "proxyPath": "$.data.productCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local staging registry allocate product ids independently."
+          },
+          {
+            "path": "$.product.collections.nodes[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The joined collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.product.collections.nodes[1].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The joined collection id differs between live capture and local replay."
+          }
+        ]
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-collections-to-join-downstream-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "mutation-data",
+              "path": "$.data.productCreate.product.id"
+            },
+            "firstCollectionId": {
+              "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id"
+            },
+            "secondCollectionId": {
+              "fromProxyResponse": "second-collection-create-data",
+              "path": "$.data.collectionCreate.collection.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The downstream product id differs between live capture and local replay."
+          },
+          {
+            "path": "$.product.collections.nodes[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The downstream joined collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.product.collections.nodes[1].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The downstream joined collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.firstCollection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The first collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.firstCollection.products.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The first collection product id differs between live capture and local replay."
+          },
+          {
+            "path": "$.secondCollection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The second collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.secondCollection.products.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The second collection product id differs between live capture and local replay."
+          }
+        ]
+      }
+    ]
+  }
+}

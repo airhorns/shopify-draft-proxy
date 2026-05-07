@@ -32,9 +32,8 @@ import shopify_draft_proxy/state/store.{
   list_effective_metaobjects_by_type,
 }
 import shopify_draft_proxy/state/types.{
-  type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
-  type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectDefinitionTypeRecord,
+  type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilityRecord,
+  type MetaobjectDefinitionRecord, type MetaobjectDefinitionTypeRecord,
   type MetaobjectFieldDefinitionCapabilitiesRecord,
   type MetaobjectFieldDefinitionRecord,
   type MetaobjectFieldDefinitionReferenceRecord,
@@ -44,6 +43,8 @@ import shopify_draft_proxy/state/types.{
   MetaobjectPublishableCapabilityRecord, MetaobjectRecord,
   MetaobjectStandardTemplateRecord, MetaobjectString,
 }
+
+const online_store_redirect_published_entries_limit = 1000
 
 pub fn wrap_data(data: Json) -> Json {
   graphql_helpers.wrap_data(data)
@@ -69,6 +70,7 @@ pub fn serialize_root_fields(
                   case get_effective_metaobject_definition_by_id(store, id) {
                     Some(definition) ->
                       serialize_definition_selection(
+                        store,
                         definition,
                         field,
                         fragments,
@@ -97,6 +99,7 @@ pub fn serialize_root_fields(
                   {
                     Some(definition) ->
                       serialize_definition_selection(
+                        store,
                         definition,
                         field,
                         fragments,
@@ -164,6 +167,7 @@ pub fn serialize_root_fields(
 }
 
 pub fn metaobject_definition_source(
+  store: Store,
   definition: MetaobjectDefinitionRecord,
 ) -> SourceValue {
   src_object([
@@ -180,7 +184,7 @@ pub fn metaobject_definition_source(
       graphql_helpers.option_string_source(definition.display_name_key),
     ),
     #("access", access_source(definition.access)),
-    #("capabilities", definition_capabilities_source(definition.capabilities)),
+    #("capabilities", definition_capabilities_source(store, definition)),
     #(
       "fieldDefinitions",
       SrcList(list.map(definition.field_definitions, field_definition_source)),
@@ -209,11 +213,16 @@ pub fn metaobject_definition_source(
 
 @internal
 pub fn serialize_definition_selection(
+  store: Store,
   definition: MetaobjectDefinitionRecord,
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
-  project_selection(metaobject_definition_source(definition), field, fragments)
+  project_selection(
+    metaobject_definition_source(store, definition),
+    field,
+    fragments,
+  )
 }
 
 @internal
@@ -256,7 +265,7 @@ pub fn serialize_definitions_connection(
       has_previous_page: has_previous_page,
       get_cursor_value: fn(item, _index) { item.id },
       serialize_node: fn(item, node_field, _index) {
-        serialize_definition_selection(item, node_field, fragments)
+        serialize_definition_selection(store, item, node_field, fragments)
       },
       selected_field_options: SelectedFieldOptions(
         include_inline_fragments: False,
@@ -301,7 +310,7 @@ fn metaobject_source_from_projected(
     ),
     #("fields", SrcList(list.map(projected.fields, metaobject_field_source))),
     #("definition", case definition {
-      Some(defn) -> metaobject_definition_source(defn)
+      Some(defn) -> metaobject_definition_source(store, defn)
       None -> SrcNull
     }),
   ])
@@ -1206,13 +1215,18 @@ pub fn access_source(access: Dict(String, Option(String))) -> SourceValue {
 
 @internal
 pub fn definition_capabilities_source(
-  capabilities: MetaobjectDefinitionCapabilitiesRecord,
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
 ) -> SourceValue {
+  let capabilities = definition.capabilities
   src_object([
     #("publishable", definition_capability_source(capabilities.publishable)),
     #("translatable", definition_capability_source(capabilities.translatable)),
     #("renderable", definition_capability_source(capabilities.renderable)),
-    #("onlineStore", definition_capability_source(capabilities.online_store)),
+    #(
+      "onlineStore",
+      definition_online_store_capability_source(store, definition),
+    ),
   ])
 }
 
@@ -1224,6 +1238,62 @@ pub fn definition_capability_source(
     Some(MetaobjectDefinitionCapabilityRecord(enabled: enabled)) ->
       src_object([#("enabled", SrcBool(enabled))])
     None -> SrcNull
+  }
+}
+
+@internal
+pub fn definition_online_store_capability_source(
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
+) -> SourceValue {
+  case definition.capabilities.online_store {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: enabled)) ->
+      src_object([
+        #("enabled", SrcBool(enabled)),
+        #("data", case enabled {
+          True -> definition_online_store_data_source(store, definition)
+          False -> SrcNull
+        }),
+      ])
+    None -> SrcNull
+  }
+}
+
+fn definition_online_store_data_source(
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
+) -> SourceValue {
+  src_object([
+    #(
+      "urlHandle",
+      graphql_helpers.option_string_source(definition.online_store_url_handle),
+    ),
+    #(
+      "canCreateRedirects",
+      SrcBool(definition_can_create_redirects(store, definition)),
+    ),
+  ])
+}
+
+fn definition_can_create_redirects(
+  store: Store,
+  definition: MetaobjectDefinitionRecord,
+) -> Bool {
+  active_published_rows_count(store, definition.type_)
+  <= online_store_redirect_published_entries_limit
+}
+
+fn active_published_rows_count(store: Store, type_: String) -> Int {
+  store
+  |> list_effective_metaobjects_by_type(type_)
+  |> list.filter(metaobject_publishable_active)
+  |> list.length
+}
+
+fn metaobject_publishable_active(metaobject: MetaobjectRecord) -> Bool {
+  case metaobject.capabilities.publishable {
+    Some(MetaobjectPublishableCapabilityRecord(status: Some("ACTIVE"))) -> True
+    _ -> False
   }
 }
 

@@ -70,9 +70,12 @@ Contacts created from `companyCreate(input.companyContact)` or
 `companyContactCreate(input.email)` keep a contact-local synthetic customer
 reference so downstream B2B `CompanyContact.customer { id }` reads match
 Shopify's company/customer-contact relationship without broadening customer
-catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
-as that contact reference only after resolving the customer from the effective
-local customer registry. It rejects unknown customers, customers without an
+catalog state. Successful `companyContactUpdate` calls refresh that embedded
+customer snapshot's mutable identity scalars (`firstName`, `lastName`, `email`,
+and `phone`) when those inputs are provided, while preserving the customer ID.
+`companyAssignCustomerAsContact` stores the provided customer ID as that contact
+reference only after resolving the customer from the effective local customer
+registry. It rejects unknown customers, customers without an
 email address, duplicate customer/contact assignments on the same company, and
 companies that have reached the 10,000-contact cap. Main-contact lifecycle
 stores a single `Company.mainContactId` pointer; returned
@@ -111,6 +114,20 @@ at `companyId` for a customer already assigned as a company contact, and
 `INVALID_INPUT` at `companyId` for an existing customer whose email is null.
 The public `BusinessCustomerUserError` schema rejects selecting `detail`, so
 the local `customer_email_must_exist` detail remains covered by runtime tests.
+
+Company location inputs use the same phone-normalization helper for supported
+local staging. `companyCreate(input.companyLocation)` and
+`companyLocationCreate` normalize valid local-format phone numbers to E.164
+with the effective shop country code and default omitted locales from the
+primary shop locale; invalid phone strings return `INVALID` at the nested
+`input.companyLocation.phone` path or the root `input.phone` path.
+`companyLocationUpdate` normalizes supplied phone values but preserves the
+existing locale when the update input omits `locale`. Public Admin 2026-04
+capture on the live conformance shop accepts malformed location locale strings
+such as `not_a_locale` on nested create, root create, and update, and stores
+the supplied value instead of returning a locale-format userError; the local
+runtime mirrors that captured public behavior for location roots while keeping
+the stricter contact locale validation described above.
 
 Empty-object B2B write inputs short-circuit before local staging. The
 2026-04 `b2b-no-input-validation` parity capture records the public Admin
@@ -266,17 +283,35 @@ resolver runs, an update with no tax settings knob returns `NO_INPUT` at
 Company location create/update input validation enforces HAR-612's
 `billingSameAsShipping` and `billingAddress` guardrails before local staging:
 `billingSameAsShipping: true` rejects a non-empty explicit `billingAddress`,
-`billingSameAsShipping: false` rejects a missing or blank `billingAddress`, and
-explicit `taxExempt: null` rejects with `INVALID_INPUT`. `companyCreate`
-applies the same checks to its nested `companyLocation` input. The 2026-04
+`billingSameAsShipping: true` rejects missing or explicit null
+`shippingAddress` on create inputs, `billingSameAsShipping: false` rejects a
+missing or blank `billingAddress`, and explicit `taxExempt: null` rejects with
+`INVALID_INPUT`. `companyCreate` applies the same create checks to its nested
+`companyLocation` input. The 2026-04
 `b2b-billing-same-as-shipping-validation` capture gives strict executable
 evidence for the live-reproduced payload userErrors: explicit billing while
+`billingSameAsShipping` is true, missing/null shipping while
 `billingSameAsShipping` is true, and `taxExempt: null`, on `companyCreate` and
 `companyLocationCreate`. That capture also records public-schema boundaries:
 the active live target accepts the `billingSameAsShipping: false` / no billing
 create branch, and does not expose these location fields on
 `CompanyLocationUpdateInput`; those ticket-required guardrails are therefore
 runtime-test-backed instead of parity-compared.
+
+`companyCreate(input.companyLocation)`, `companyLocationCreate`, and
+`companyLocationUpdate` now preserve
+`buyerExperienceConfiguration` on the normalized company-location record.
+Downstream `CompanyLocation.buyerExperienceConfiguration` reads project
+`editableShippingAddress`, `checkoutToDraft`, `paymentTermsTemplate { id }`,
+and `deposit { __typename }` from staged state, with Shopify-like default false
+booleans and null template/deposit values when the location has no explicit BEC
+input. The 2026-04 `b2b-buyer-experience-configuration` capture records real
+Shopify behavior for nested company create, location create, location update,
+read-after-write, empty BEC validation, and deposit-without-payment-terms
+validation. The same capture records that the current conformance shop accepts
+deposit when a valid `paymentTermsTemplateId` is present; the local
+`deposit_not_enabled` guard is runtime-test-backed through the synthetic shop
+capability helper because it depends on merchant feature posture.
 
 HAR-623 tightens B2B location/address lifecycle behavior. `companyLocationCreate`
 now derives an omitted or blank location name from
@@ -298,6 +333,17 @@ models the shared same-as-shipping anchor as a single address ID so the internal
 flag invariant can be tested directly; the parity spec documents the public
 readback difference for that single captured path while the focused runtime test
 covers the local shared-anchor cascade.
+
+`companyLocationAssignAddress` preserves the existing `CompanyAddress.id` when
+assigning a replacement address to a billing or shipping side that already has
+an address, matching Shopify's update-branch behavior. Empty sides still create
+a new address ID. The focused `location_assign_address_preserves_id` capture
+records first-assignment creation, subsequent billing update ID preservation,
+dual billing/shipping update ID preservation, and downstream `companyLocation`
+readback. The captured dual update also shows that the `addresses` payload
+contains both preserved IDs but should not be treated as the side-labeling
+source of truth; the follow-up `companyLocation.billingAddress` and
+`shippingAddress` read verifies each side's stable ID.
 
 Company location deletion applies Shopify's persistence-level
 failed-deletable checks before staging local deletes. `companyLocationDelete`

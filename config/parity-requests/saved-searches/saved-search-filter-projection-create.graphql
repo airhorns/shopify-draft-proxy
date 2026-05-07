@@ -1,0 +1,98 @@
+mutation SavedSearchFilterProjectionCreate(
+  $upperOnly: SavedSearchCreateInput!
+  $lowerOnly: SavedSearchCreateInput!
+  $boundedRange: SavedSearchCreateInput!
+  $existsFilter: SavedSearchCreateInput!
+  $negatedRange: SavedSearchCreateInput!
+) {
+  upperOnly: savedSearchCreate(input: $upperOnly) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  lowerOnly: savedSearchCreate(input: $lowerOnly) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  boundedRange: savedSearchCreate(input: $boundedRange) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  existsFilter: savedSearchCreate(input: $existsFilter) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  negatedRange: savedSearchCreate(input: $negatedRange) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

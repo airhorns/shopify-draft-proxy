@@ -341,6 +341,21 @@ pub fn serialize_definition_selection(
 ) -> Json {
   let selections =
     get_selected_child_fields(field, default_selected_field_options())
+  serialize_definition_selection_set(
+    store_in,
+    definition,
+    selections,
+    variables,
+  )
+}
+
+@internal
+pub fn serialize_definition_selection_set(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+  selections: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
   json.object(
     list.map(selections, fn(selection) {
       let key = get_field_response_key(selection)

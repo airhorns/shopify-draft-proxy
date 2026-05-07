@@ -13,11 +13,12 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type ShopRecord, PaymentSettingsRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductSeoRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
+  type ShopRecord, BulkOperationRecord, GiftCardRecord, Money,
+  PaymentSettingsRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 import simplifile
 
@@ -164,6 +165,81 @@ pub fn domain_node_reads_resolve_from_primary_shop_domain_test() {
     == "{\"data\":{\"node\":{\"__typename\":\"Domain\",\"id\":\"gid://shopify/Domain/93049946345\",\"host\":\"very-big-test-store.myshopify.com\",\"url\":\"https://very-big-test-store.myshopify.com\",\"sslEnabled\":true},\"nodes\":[{\"__typename\":\"Domain\",\"id\":\"gid://shopify/Domain/93049946345\",\"host\":\"very-big-test-store.myshopify.com\"},null]}}"
 }
 
+pub fn node_reads_resolve_modeled_bulk_operation_and_gift_card_test() {
+  let bulk =
+    BulkOperationRecord(
+      id: "gid://shopify/BulkOperation/1",
+      status: "COMPLETED",
+      type_: "QUERY",
+      error_code: None,
+      created_at: "2024-01-01T00:00:00.000Z",
+      completed_at: Some("2024-01-01T00:01:00.000Z"),
+      object_count: "3",
+      root_object_count: "1",
+      file_size: Some("120"),
+      url: Some("https://example.test/bulk.jsonl"),
+      partial_data_url: None,
+      query: Some("{ products { edges { node { id } } } }"),
+      cursor: None,
+      result_jsonl: None,
+    )
+  let gift_card =
+    GiftCardRecord(
+      id: "gid://shopify/GiftCard/1",
+      legacy_resource_id: "1",
+      last_characters: "4242",
+      masked_code: "**** **** **** 4242",
+      code: None,
+      enabled: True,
+      notify: True,
+      deactivated_at: None,
+      expires_on: None,
+      note: Some("node coverage"),
+      template_suffix: None,
+      created_at: "2024-02-01T00:00:00.000Z",
+      updated_at: "2024-02-02T00:00:00.000Z",
+      initial_value: Money(amount: "50.0", currency_code: "CAD"),
+      balance: Money(amount: "25.0", currency_code: "CAD"),
+      customer_id: None,
+      recipient_id: None,
+      source: None,
+      recipient_attributes: None,
+      transactions: [],
+    )
+  let source =
+    store.new()
+    |> store.upsert_base_bulk_operations([bulk])
+    |> store.upsert_base_gift_cards([gift_card])
+  let body =
+    run_query(
+      source,
+      "query {
+        nodes(ids: [
+          \"gid://shopify/BulkOperation/1\",
+          \"gid://shopify/GiftCard/1\",
+          \"gid://shopify/GiftCard/missing\"
+        ]) {
+          __typename
+          id
+          ... on BulkOperation {
+            status
+            type
+            objectCount
+            url
+          }
+          ... on GiftCard {
+            lastCharacters
+            enabled
+            balance { amount currencyCode }
+          }
+        }
+      }",
+    )
+
+  assert body
+    == "{\"data\":{\"nodes\":[{\"__typename\":\"BulkOperation\",\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\",\"objectCount\":\"3\",\"url\":\"https://example.test/bulk.jsonl\"},{\"__typename\":\"GiftCard\",\"id\":\"gid://shopify/GiftCard/1\",\"lastCharacters\":\"4242\",\"enabled\":true,\"balance\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},null]}}"
+}
+
 pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
   let possible_node_types = read_possible_node_types()
   let supported_node_types =
@@ -193,7 +269,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "Article",
       "BasicEvent",
       "Blog",
-      "BulkOperation",
       "BusinessEntity",
       "CalculatedOrder",
       "CartTransform",
@@ -212,17 +287,11 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "CheckoutProfile",
       "Comment",
       "CommentEvent",
-      "Company",
-      "CompanyContact",
-      "CompanyContactRole",
-      "CompanyLocation",
       "CompanyLocationCatalog",
       "CompanyLocationStaffMemberAssignment",
       "ConsentPolicy",
       "CurrencyExchangeAdjustment",
       "CustomerAccountAppExtensionPage",
-      "CustomerAccountNativePage",
-      "CustomerPaymentMethod",
       "CustomerSegmentMembersQuery",
       "CustomerVisit",
       "DeliveryCarrierService",
@@ -254,7 +323,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "FulfillmentOrderLineItem",
       "FulfillmentOrderMerchantRequest",
       "GenericFile",
-      "GiftCard",
       "GiftCardCreditTransaction",
       "GiftCardDebitTransaction",
       "InventoryAdjustmentGroup",
@@ -269,15 +337,8 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "LineItem",
       "LineItemGroup",
       "MailingAddress",
-      "Market",
-      "MarketCatalog",
-      "MarketingActivity",
-      "MarketingEvent",
       "MediaImage",
       "Menu",
-      "MetafieldDefinition",
-      "Metaobject",
-      "MetaobjectDefinition",
       "Model3d",
       "OnlineStoreTheme",
       "Order",
@@ -286,23 +347,14 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "OrderEditSession",
       "OrderTransaction",
       "Page",
-      "PaymentCustomization",
       "PaymentMandate",
-      "PaymentSchedule",
-      "PaymentTerms",
       "PaymentTermsTemplate",
       "PointOfSaleDevice",
       "PointOfSaleDevicePaymentSession",
-      "PriceList",
       "PriceRule",
       "PriceRuleDiscountCode",
-      "ProductBundleOperation",
-      "ProductDeleteOperation",
-      "ProductDuplicateOperation",
       "ProductFeed",
-      "ProductSetOperation",
       "ProductTaxonomyNode",
-      "ProductVariant",
       "ProductVariantComponent",
       "Publication",
       "PublicationResourceOperation",
@@ -319,9 +371,7 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "ReverseFulfillmentOrderDisposition",
       "ReverseFulfillmentOrderLineItem",
       "SaleAdditionalFee",
-      "SavedSearch",
       "ScriptTag",
-      "Segment",
       "SellingPlanGroup",
       "ServerPixel",
       "ShopifyPaymentsAccount",
@@ -334,7 +384,6 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "ShopifyPaymentsPayout",
       "StaffMember",
       "StandardMetafieldDefinitionTemplate",
-      "StoreCreditAccount",
       "StoreCreditAccountCreditTransaction",
       "StoreCreditAccountDebitRevertTransaction",
       "StoreCreditAccountDebitTransaction",
@@ -349,12 +398,9 @@ pub fn unsupported_node_implementors_match_introspection_snapshot_test() {
       "TenderTransaction",
       "TransactionFee",
       "UnverifiedReturnLineItem",
-      "UrlRedirect",
       "UrlRedirectImport",
-      "Validation",
       "Video",
       "WebPixel",
-      "WebhookSubscription",
     ]
 }
 
@@ -428,6 +474,7 @@ fn seeded_product_option_store() {
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      requires_selling_plan: None,
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
@@ -539,6 +586,7 @@ fn make_shop() -> ShopRecord {
       live_view: True,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
+      b2b_deposits_enabled: True,
       discounts_by_market_enabled: False,
       markets_granted: 50,
       sells_subscriptions: False,

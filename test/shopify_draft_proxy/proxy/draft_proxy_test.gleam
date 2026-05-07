@@ -353,6 +353,18 @@ fn graphql_request(body: String) -> Request {
   )
 }
 
+fn graphql_request_with_headers(
+  body: String,
+  headers: dict.Dict(String, String),
+) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: headers,
+    body: body,
+  )
+}
+
 fn graphql_request_for_version(version: String, body: String) -> Request {
   Request(
     method: "POST",
@@ -498,6 +510,57 @@ pub fn graphql_validation_update_rejects_unknown_function_handle_input_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"errors\":[{\"message\":\"Field 'functionHandle' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionHandle\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionHandle\"}}]}"
+}
+
+pub fn graphql_cart_transform_rejects_removed_read_fields_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"query { cartTransforms(first: 10) { nodes { id title functionHandle createdAt updatedAt } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'title' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'functionHandle' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'createdAt' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'updatedAt' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(serialized, "\"code\":\"undefinedField\"")
+}
+
+pub fn graphql_cart_transform_create_rejects_wrapper_and_title_args_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { cartTransformCreate(cartTransform: { functionHandle: \\\"cart-transformer\\\", title: \\\"x\\\" }, title: \\\"x\\\") { cartTransform { id functionId blockOnFailure } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'cartTransformCreate' doesn't accept argument 'cartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'cartTransformCreate' doesn't accept argument 'title'\"",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert dict.size(next_proxy.store.staged_state.cart_transforms) == 0
 }
 
 pub fn graphql_refund_create_variable_rejects_public_schema_attribution_fields_test() {
@@ -814,6 +877,29 @@ pub fn graphql_saved_search_create_allows_product_collection_id_alone_test() {
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"query\":\"collection_id:\\\"12345\\\"\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[]}}}"
 }
 
+pub fn graphql_saved_search_create_projects_range_and_exists_filters_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Advanced filters\\\", query: \\\"inventory_total:<10 inventory_total:>2 sku:* -inventory_total:<3\\\", resourceType: PRODUCT }) { savedSearch { query searchTerms filters { key value } } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"query\":\"inventory_total:<10 inventory_total:>2 sku:* -inventory_total:<3\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"inventory_total_max\",\"value\":\"10\"},{\"key\":\"inventory_total_min\",\"value\":\"3\"},{\"key\":\"sku\",\"value\":\"true\"}]},\"userErrors\":[]}}}"
+
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(first: 1, reverse: true) { nodes { name query searchTerms filters { key value } } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Advanced filters\",\"query\":\"inventory_total:<10 inventory_total:>=3 sku:*\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"inventory_total_max\",\"value\":\"10\"},{\"key\":\"inventory_total_min\",\"value\":\"3\"},{\"key\":\"sku\",\"value\":\"true\"}]}]}}}"
+}
+
 pub fn graphql_saved_search_create_rejects_unknown_product_filter_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -1125,6 +1211,29 @@ pub fn graphql_saved_search_create_allows_reserved_name_for_unscoped_resource_te
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"name\":\"All products\",\"query\":\"code:SUMMER\",\"resourceType\":\"DISCOUNT_REDEEM_CODE\"},\"userErrors\":[]}}}"
 }
 
+pub fn graphql_saved_search_create_resolves_app_metafield_query_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request_with_headers(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"App saved\\\", query: \\\"metafields.$app.tier:gold\\\", resourceType: PRODUCT }) { savedSearch { name query searchTerms filters { key value } } userErrors { field message } } }\"}",
+      dict.from_list([#("x-shopify-draft-proxy-api-client-id", "347082227713")]),
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"name\":\"App saved\",\"query\":\"metafields.app--347082227713.tier:gold\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"metafields.app--347082227713.tier\",\"value\":\"gold\"}]},\"userErrors\":[]}}}"
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(query: \\\"App saved\\\") { nodes { query searchTerms filters { key value } } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"query\":\"metafields.app--347082227713.tier:gold\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"metafields.app--347082227713.tier\",\"value\":\"gold\"}]}]}}}"
+}
+
 pub fn graphql_saved_search_update_rejects_reserved_resource_name_test() {
   let proxy = draft_proxy.new()
   let create =
@@ -1150,6 +1259,33 @@ pub fn graphql_saved_search_update_rejects_reserved_resource_name_test() {
     )
   assert json.to_string(read_body)
     == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Reserved update source\",\"query\":\"vendor:Acme\"}]}}}"
+}
+
+pub fn graphql_saved_search_update_resolves_app_metafield_query_with_fallback_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Fallback app saved\\\", query: \\\"vendor:Acme\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create)
+  let update =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\", query: \\\"metafields.$app.vip:true\\\" }) { savedSearch { query searchTerms filters { key value } } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, update)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"query\":\"metafields.app--shopify-draft-proxy-local-app.vip:true\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"metafields.app--shopify-draft-proxy-local-app.vip\",\"value\":\"true\"}]},\"userErrors\":[]}}}"
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(query: \\\"Fallback app saved\\\") { nodes { query searchTerms filters { key value } } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"query\":\"metafields.app--shopify-draft-proxy-local-app.vip:true\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"metafields.app--shopify-draft-proxy-local-app.vip\",\"value\":\"true\"}]}]}}}"
 }
 
 fn assert_reserved_create_name(resource_type: String, name: String) {

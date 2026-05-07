@@ -870,10 +870,7 @@ fn handle_gift_card_create(
                                 input,
                                 "note",
                               ),
-                              template_suffix: graphql_helpers.read_arg_string_nonempty(
-                                input,
-                                "templateSuffix",
-                              ),
+                              template_suffix: read_template_suffix(input),
                               created_at: now,
                               updated_at: now,
                               initial_value: initial_value,
@@ -1080,8 +1077,7 @@ fn handle_gift_card_update(
         False -> current.note
       }
       let new_template = case dict_has_key(input, "templateSuffix") {
-        True ->
-          graphql_helpers.read_arg_string_nonempty(input, "templateSuffix")
+        True -> read_template_suffix(input)
         False -> current.template_suffix
       }
       let new_expires = case dict_has_key(input, "expiresOn") {
@@ -1249,6 +1245,21 @@ fn handle_gift_card_update(
         identity,
       )
     }
+  }
+}
+
+fn read_template_suffix(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  graphql_helpers.read_arg_string_nonempty(input, "templateSuffix")
+  |> option.map(strip_template_suffix_prefix)
+}
+
+fn strip_template_suffix_prefix(template_suffix: String) -> String {
+  let prefix = "gift_card."
+  case string.starts_with(template_suffix, prefix) {
+    True -> string.drop_start(template_suffix, string.length(prefix))
+    False -> template_suffix
   }
 }
 

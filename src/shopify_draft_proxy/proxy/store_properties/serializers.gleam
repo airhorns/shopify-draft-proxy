@@ -1054,6 +1054,7 @@ fn shop_features_from_json(value: commit.JsonValue) -> ShopFeaturesRecord {
       "",
     ),
     reports: json_bool(value, "reports", False),
+    b2b_deposits_enabled: json_bool(value, "b2bDepositsEnabled", True),
     discounts_by_market_enabled: json_bool(
       value,
       "discountsByMarketEnabled",

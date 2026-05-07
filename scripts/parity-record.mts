@@ -47,6 +47,7 @@ type SpecTargetRequest = {
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
+  headers?: Record<string, string>;
 };
 
 type SpecTarget = {
@@ -134,10 +135,10 @@ async function findSpecForScenario(scenarioId: string): Promise<string> {
   throw new Error(`No parity spec with scenarioId "${scenarioId}" found under config/parity-specs/`);
 }
 
-function loadDocumentAndVariables(
+function loadDocumentVariablesAndHeaders(
   request: SpecTargetRequest | undefined,
   capture: unknown,
-): { document: string; variables: Record<string, unknown> } | null {
+): { document: string; variables: Record<string, unknown>; headers: Record<string, string> } | null {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
   let document: string;
   if (request.documentCapturePath) {
@@ -166,7 +167,7 @@ function loadDocumentAndVariables(
   } else if (request.variables) {
     variables = request.variables;
   }
-  return { document, variables };
+  return { document, variables, headers: request.headers ?? {} };
 }
 
 function resolveJsonPath(value: unknown, path: string): unknown {
@@ -465,7 +466,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
       calls,
     });
 
-    const primary = loadDocumentAndVariables(spec.proxyRequest, capture);
+    const primary = loadDocumentVariablesAndHeaders(spec.proxyRequest, capture);
     const targetsWithOwnRequest: { target: SpecTarget; requestName: string }[] = [];
     for (const target of spec.comparison?.targets ?? []) {
       if (target.proxyRequest && target.proxyRequest.documentPath) {
@@ -484,16 +485,19 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     let previousResponse: RecordedResponse | undefined;
     if (primary) {
       const variables = substituteVariables(primary.variables, { capture, responsesByName }) as Record<string, unknown>;
-      primaryResponse = (await proxy.processGraphQLRequest({
-        query: primary.document,
-        variables,
-      })) as RecordedResponse;
+      primaryResponse = (await proxy.processGraphQLRequest(
+        {
+          query: primary.document,
+          variables,
+        },
+        { headers: primary.headers },
+      )) as RecordedResponse;
       responsesByName.set('primary', primaryResponse);
       previousResponse = primaryResponse;
       logRecordedResponse('primary', primaryResponse);
     }
     for (const { target, requestName } of targetsWithOwnRequest) {
-      const loaded = loadDocumentAndVariables(target.proxyRequest, capture);
+      const loaded = loadDocumentVariablesAndHeaders(target.proxyRequest, capture);
       if (!loaded) continue;
       const variables = substituteVariables(loaded.variables, {
         capture,
@@ -501,10 +505,13 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
         previousResponse,
         responsesByName,
       }) as Record<string, unknown>;
-      const response = (await proxy.processGraphQLRequest({
-        query: loaded.document,
-        variables,
-      })) as RecordedResponse;
+      const response = (await proxy.processGraphQLRequest(
+        {
+          query: loaded.document,
+          variables,
+        },
+        { headers: loaded.headers },
+      )) as RecordedResponse;
       responsesByName.set(requestName, response);
       previousResponse = response;
       logRecordedResponse(requestName, response);

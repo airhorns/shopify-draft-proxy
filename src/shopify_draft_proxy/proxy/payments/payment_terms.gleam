@@ -33,6 +33,8 @@ import shopify_draft_proxy/state/types as state_types
 
 const order_paid_in_full_payment_terms_message = "Cannot create payment terms on an Order that has already been paid in full."
 
+const payment_reminder_send_limit_window_ms = 86_400_000
+
 fn payment_terms_error(
   field: List(String),
   message: String,
@@ -234,7 +236,10 @@ fn payment_schedule_reminder_hydrate_query() -> String {
   <> "      id dueAt issuedAt completedAt\n"
   <> "      paymentTerms {\n"
   <> "        id overdue dueInDays paymentTermsName paymentTermsType translatedName\n"
-  <> "        order { id closed closedAt cancelledAt displayFinancialStatus }\n"
+  <> "        order {\n"
+  <> "          id email closed closedAt cancelledAt displayFinancialStatus\n"
+  <> "          lineItems(first: 1) { nodes { sellingPlan { name } } }\n"
+  <> "        }\n"
   <> "        draftOrder { id status completedAt }\n"
   <> "        paymentSchedules(first: 10) { nodes { id dueAt issuedAt completedAt } }\n"
   <> "      }\n"
@@ -352,28 +357,54 @@ fn order_from_terms_node(
   node: commit.JsonValue,
 ) -> Option(state_types.OrderRecord) {
   use id <- option.then(json_get_string(node, "id"))
+  let optional_fields =
+    list.append(
+      captured_json_field_if_present(node, "email"),
+      captured_json_field_if_present(node, "lineItems"),
+    )
   Some(state_types.OrderRecord(
     id: id,
     cursor: None,
-    data: state_types.CapturedObject([
-      #("id", state_types.CapturedString(id)),
-      #(
-        "closed",
-        state_types.CapturedBool(
-          json_get_bool(node, "closed") |> option.unwrap(False),
+    data: state_types.CapturedObject(list.append(
+      [
+        #("id", state_types.CapturedString(id)),
+        #(
+          "closed",
+          state_types.CapturedBool(
+            json_get_bool(node, "closed") |> option.unwrap(False),
+          ),
         ),
-      ),
-      #("closedAt", optional_captured_string(json_get_string(node, "closedAt"))),
-      #(
-        "cancelledAt",
-        optional_captured_string(json_get_string(node, "cancelledAt")),
-      ),
-      #(
-        "displayFinancialStatus",
-        optional_captured_string(json_get_string(node, "displayFinancialStatus")),
-      ),
-    ]),
+        #(
+          "closedAt",
+          optional_captured_string(json_get_string(node, "closedAt")),
+        ),
+        #(
+          "cancelledAt",
+          optional_captured_string(json_get_string(node, "cancelledAt")),
+        ),
+        #(
+          "displayFinancialStatus",
+          optional_captured_string(json_get_string(
+            node,
+            "displayFinancialStatus",
+          )),
+        ),
+      ],
+      optional_fields,
+    )),
   ))
+}
+
+fn captured_json_field_if_present(
+  node: commit.JsonValue,
+  field_name: String,
+) -> List(#(String, state_types.CapturedJsonValue)) {
+  case json_get(node, field_name) {
+    Some(value) -> [
+      #(field_name, captured_json_from_commit(value)),
+    ]
+    None -> []
+  }
 }
 
 fn draft_order_from_terms_node(
@@ -1191,7 +1222,9 @@ pub fn send_payment_reminder(store, identity, field, fragments, variables) {
     True, Some(schedule_id) ->
       case store.get_effective_payment_schedule_by_id(store, schedule_id) {
         Some(#(terms, schedule)) ->
-          case payment_schedule_reminder_error(store, terms, schedule) {
+          case
+            payment_schedule_reminder_error(store, identity, terms, schedule)
+          {
             None -> {
               let #(id, identity_after_id) =
                 synthetic_identity.make_synthetic_gid(
@@ -1259,6 +1292,7 @@ pub fn send_payment_reminder(store, identity, field, fragments, variables) {
 
 fn payment_schedule_reminder_error(
   store: Store,
+  identity: SyntheticIdentityRegistry,
   terms: state_types.PaymentTermsRecord,
   schedule: state_types.PaymentScheduleRecord,
 ) -> Option(UserError) {
@@ -1267,25 +1301,64 @@ fn payment_schedule_reminder_error(
     None ->
       case terms.overdue {
         False -> Some(payment_reminder_unsuccessful_error())
-        True -> payment_terms_owner_error(store, terms.owner_id)
+        True -> payment_terms_owner_error(store, identity, terms.owner_id)
       }
   }
 }
 
 fn payment_terms_owner_error(
   store: Store,
+  identity: SyntheticIdentityRegistry,
   owner_id: String,
 ) -> Option(UserError) {
   case is_shopify_gid(Some(owner_id), "Order") {
     True ->
       case store.get_order_by_id(store, owner_id) {
-        Some(order) -> order_terminal_error(order)
+        Some(order) -> order_reminder_error(store, identity, owner_id, order)
         None -> Some(payment_reminder_unsuccessful_error())
       }
     False ->
       case is_shopify_gid(Some(owner_id), "DraftOrder") {
         True -> Some(payment_reminder_not_for_order_error())
         False -> Some(payment_reminder_unsuccessful_error())
+      }
+  }
+}
+
+fn order_reminder_error(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  order: state_types.OrderRecord,
+) -> Option(UserError) {
+  case order_terminal_error(order) {
+    Some(error) -> Some(error)
+    None ->
+      case order_has_selling_plan_item(order) {
+        True -> Some(payment_reminder_selling_plan_error())
+        False ->
+          case order_capture_at_fulfillment(order) {
+            True -> Some(payment_reminder_capture_at_fulfillment_error())
+            False ->
+              case order_missing_contact_email(order) {
+                True -> Some(payment_reminder_missing_contact_email_error())
+                False ->
+                  case order_payment_collection_request_not_sent(order) {
+                    True -> Some(payment_reminder_payment_collection_error())
+                    False ->
+                      case
+                        order_has_recent_payment_reminder_send(
+                          store,
+                          owner_id,
+                          identity.next_synthetic_time,
+                        )
+                      {
+                        True -> Some(payment_reminder_send_limit_error())
+                        False -> None
+                      }
+                  }
+              }
+          }
       }
   }
 }
@@ -1305,6 +1378,121 @@ fn order_terminal_error(order: state_types.OrderRecord) -> Option(UserError) {
         True -> Some(payment_reminder_unsuccessful_error())
         False -> None
       }
+  }
+}
+
+fn order_has_selling_plan_item(order: state_types.OrderRecord) -> Bool {
+  case
+    captured_bool_field(order.data, "hasSellingPlanItem"),
+    captured_bool_field(order.data, "hasSellingPlan")
+  {
+    Some(True), _ | _, Some(True) -> True
+    _, _ ->
+      case captured_object_field(order.data, "lineItems") {
+        Some(line_items) ->
+          captured_contains_non_null_field(line_items, "sellingPlan")
+          || captured_contains_non_null_field(line_items, "sellingPlanId")
+        None -> False
+      }
+  }
+}
+
+fn order_capture_at_fulfillment(order: state_types.OrderRecord) -> Bool {
+  case
+    captured_bool_field(order.data, "captureAtFulfillment"),
+    captured_bool_field(order.data, "capture_at_fulfillment")
+  {
+    Some(True), _ | _, Some(True) -> True
+    _, _ -> {
+      let intent =
+        captured_string_field(order.data, "paymentCollectionIntent")
+        |> option.or(captured_string_field(
+          order.data,
+          "payment_collection_intent",
+        ))
+        |> option.or(
+          captured_object_field(order.data, "paymentCollection")
+          |> option.then(fn(collection) {
+            captured_string_field(collection, "intent")
+          }),
+        )
+        |> option.unwrap("")
+        |> string.lowercase
+      intent == "capture_at_fulfillment"
+    }
+  }
+}
+
+fn order_missing_contact_email(order: state_types.OrderRecord) -> Bool {
+  let email_fields =
+    [
+      captured_object_field(order.data, "contactEmail"),
+      captured_object_field(order.data, "email"),
+    ]
+    |> list.filter_map(fn(value) {
+      case value {
+        Some(value) -> Ok(value)
+        None -> Error(Nil)
+      }
+    })
+  case email_fields {
+    [] -> False
+    fields -> !list.any(fields, captured_string_has_value)
+  }
+}
+
+fn order_payment_collection_request_not_sent(
+  order: state_types.OrderRecord,
+) -> Bool {
+  case captured_object_field(order.data, "paymentCollection") {
+    Some(state_types.CapturedObject(_)) ->
+      !case
+        captured_object_field(order.data, "paymentCollection")
+        |> option.then(fn(collection) {
+          captured_object_field(collection, "requestSentAt")
+        })
+      {
+        Some(value) -> captured_string_has_value(value)
+        None -> False
+      }
+    _ ->
+      case captured_object_field(order.data, "paymentCollectionRequestSentAt") {
+        Some(state_types.CapturedNull) -> True
+        _ -> False
+      }
+  }
+}
+
+fn order_has_recent_payment_reminder_send(
+  store: Store,
+  owner_id: String,
+  now_ms: Int,
+) -> Bool {
+  list.append(
+    dict.values(store.staged_state.payment_reminder_sends),
+    dict.values(store.base_state.payment_reminder_sends),
+  )
+  |> list.any(fn(record) {
+    case
+      store.get_effective_payment_schedule_by_id(
+        store,
+        record.payment_schedule_id,
+      )
+    {
+      Some(#(terms, _)) ->
+        terms.owner_id == owner_id
+        && payment_reminder_sent_within_window(record.sent_at, now_ms)
+      None -> False
+    }
+  })
+}
+
+fn payment_reminder_sent_within_window(sent_at: String, now_ms: Int) -> Bool {
+  case iso_timestamp.parse_iso(sent_at) {
+    Ok(sent_at_ms) ->
+      sent_at_ms <= now_ms
+      && sent_at_ms + payment_reminder_send_limit_window_ms > now_ms
+    Error(_) -> False
   }
 }
 
@@ -1328,10 +1516,76 @@ fn captured_bool_field(
   }
 }
 
+fn captured_string_has_value(value: state_types.CapturedJsonValue) -> Bool {
+  case value {
+    state_types.CapturedString(value) -> string.trim(value) != ""
+    _ -> False
+  }
+}
+
+fn captured_contains_non_null_field(
+  value: state_types.CapturedJsonValue,
+  key: String,
+) -> Bool {
+  case value {
+    state_types.CapturedObject(fields) ->
+      list.any(fields, fn(pair) {
+        case pair {
+          #(name, state_types.CapturedNull) if name == key -> False
+          #(name, _) if name == key -> True
+          #(_, child) -> captured_contains_non_null_field(child, key)
+        }
+      })
+    state_types.CapturedArray(items) ->
+      list.any(items, fn(item) { captured_contains_non_null_field(item, key) })
+    _ -> False
+  }
+}
+
 fn payment_reminder_unsuccessful_error() -> UserError {
   UserError(
     field: None,
     message: "Payment reminder could not be sent",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_selling_plan_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Order has a selling plan",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_capture_at_fulfillment_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Order has capture at fulfillment terms",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_missing_contact_email_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Order does not have a contact email",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_payment_collection_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Payment collection request has not been sent",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_send_limit_error() -> UserError {
+  UserError(
+    field: None,
+    message: "You cannot send more than 1 payment reminders for the same order in a 24hour period",
     code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
   )
 }

@@ -1,0 +1,14 @@
+query MediaFileUpdateSourceSemanticsGenericRead {
+  files(first: 2, reverse: true) {
+    nodes {
+      id
+      __typename
+      alt
+      createdAt
+      fileStatus
+      ... on GenericFile {
+        url
+      }
+    }
+  }
+}

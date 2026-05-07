@@ -21,5 +21,17 @@ query B2BContactLocationAssignmentsNodeRead($id: ID!) {
         name
       }
     }
+    ... on CompanyContact {
+      id
+      title
+    }
+    ... on CompanyContactRole {
+      id
+      name
+    }
+    ... on CompanyLocation {
+      id
+      name
+    }
   }
 }

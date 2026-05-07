@@ -1,0 +1,207 @@
+{
+  "scenarioId": "b2b-location-input-normalization",
+  "operationNames": ["companyCreate", "companyLocationCreate", "companyLocationUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "validation", "input-normalization"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-input-normalization.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-company-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for B2B company location phone/locale input behavior. The live fixture creates disposable company/location records with nested companyLocation phone in local formatting, records invalid nested phone validation, records Shopify's accepted malformed location locale behavior, records companyLocationCreate normalization/defaulting, records companyLocationCreate invalid phone validation, creates an explicit non-primary-locale location as update setup, records companyLocationUpdate normalization/defaulting with omitted locale, records companyLocationUpdate invalid phone validation, and cleans up created companies.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "nested-location-create-default-locale",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "nested-location-invalid-phone",
+        "capturePath": "$.invalidNestedPhone.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-company-create.graphql",
+          "variablesCapturePath": "$.invalidNestedPhone.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "nested-location-malformed-locale-passthrough",
+        "capturePath": "$.nestedMalformedLocale.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-company-create.graphql",
+          "variablesCapturePath": "$.nestedMalformedLocale.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-create-default-locale",
+        "capturePath": "$.locationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-create-invalid-phone",
+        "capturePath": "$.invalidLocationCreatePhone.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.invalidLocationCreatePhone.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-malformed-locale-passthrough",
+        "capturePath": "$.locationCreateMalformedLocale.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateMalformedLocale.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-create-update-setup",
+        "capturePath": "$.locationCreateForUpdate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationCreateForUpdate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-update-default-locale",
+        "capturePath": "$.locationUpdate.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-create-update-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "input": { "fromCapturePath": "$.locationUpdate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-update-invalid-phone",
+        "capturePath": "$.invalidLocationUpdatePhone.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-create-update-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "input": { "fromCapturePath": "$.invalidLocationUpdatePhone.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-update-malformed-locale-passthrough",
+        "capturePath": "$.locationUpdateMalformedLocale.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-input-normalization-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-create-update-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "input": { "fromCapturePath": "$.locationUpdateMalformedLocale.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable company location IDs."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,930 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "validationOrderCreate": {
+      "query": "#graphql\n  mutation RefundTransactionsValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        createdAt\n        updatedAt\n        displayFinancialStatus\n        displayFulfillmentStatus\n        presentmentCurrencyCode\n        paymentGatewayNames\n        totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        }\n        refunds {\n          id\n          note\n          totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          transactions(first: 10) {\n            nodes {\n              id\n              kind\n              status\n              gateway\n              amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n            }\n          }\n        }\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            currentQuantity\n            sku\n            originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "order": {
+          "email": "hermes-refund-transactions-validation-1778167412434@example.com",
+          "note": "refundCreate transactions validation validation seed order",
+          "tags": ["parity-probe", "refund-create", "transactions-validation"],
+          "test": true,
+          "lineItems": [
+            {
+              "title": "Hermes refundable transaction validation validation 1778167412434",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "hermes-refund-transactions-validation-1778167412434"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "bogus-parent-gateway",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8734397137202",
+              "name": "#1359",
+              "createdAt": "2026-05-07T15:23:32Z",
+              "updatedAt": "2026-05-07T15:23:32Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "paymentGatewayNames": ["bogus-parent-gateway"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10423094739250",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "bogus-parent-gateway",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19310618509618",
+                    "title": "Hermes refundable transaction validation validation 1778167412434",
+                    "name": "Hermes refundable transaction validation validation 1778167412434",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "hermes-refund-transactions-validation-1778167412434",
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 24,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "happyOrderCreate": {
+      "query": "#graphql\n  mutation RefundTransactionsValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        createdAt\n        updatedAt\n        displayFinancialStatus\n        displayFulfillmentStatus\n        presentmentCurrencyCode\n        paymentGatewayNames\n        totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        }\n        refunds {\n          id\n          note\n          totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          transactions(first: 10) {\n            nodes {\n              id\n              kind\n              status\n              gateway\n              amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n            }\n          }\n        }\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            currentQuantity\n            sku\n            originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "order": {
+          "email": "hermes-refund-transactions-happy-1778167412434@example.com",
+          "note": "refundCreate transactions validation happy seed order",
+          "tags": ["parity-probe", "refund-create", "transactions-validation"],
+          "test": true,
+          "lineItems": [
+            {
+              "title": "Hermes refundable transaction validation happy 1778167412434",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "hermes-refund-transactions-happy-1778167412434"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8734397202738",
+              "name": "#1360",
+              "createdAt": "2026-05-07T15:23:33Z",
+              "updatedAt": "2026-05-07T15:23:33Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10423094804786",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19310618542386",
+                    "title": "Hermes refundable transaction validation happy 1778167412434",
+                    "name": "Hermes refundable transaction validation happy 1778167412434",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "hermes-refund-transactions-happy-1778167412434",
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 24,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidKind": {
+    "query": "#graphql\n  mutation RefundCreateTransactionsValidation($input: RefundInput!, $idempotencyKey: String!) {\n    refundCreate(input: $input) @idempotent(key: $idempotencyKey) {\n      refund {\n        id\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        transactions(first: 5) {\n          nodes {\n            id\n            kind\n            status\n            gateway\n            amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          }\n        }\n      }\n      order {\n        id\n        displayFinancialStatus\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "idempotencyKey": "refund-transactions-invalid-kind-1778167412434",
+      "input": {
+        "orderId": "gid://shopify/Order/8734397137202",
+        "transactions": [
+          {
+            "amount": "1.00",
+            "gateway": "bogus-parent-gateway",
+            "kind": "AUTHORIZATION",
+            "orderId": "gid://shopify/Order/8734397137202",
+            "parentId": "gid://shopify/OrderTransaction/10423094739250"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "refundCreate": {
+          "refund": null,
+          "order": {
+            "id": "gid://shopify/Order/8734397137202",
+            "displayFinancialStatus": "PAID",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Kind authorization is not a valid transaction"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 25,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingParent": {
+    "query": "#graphql\n  mutation RefundCreateTransactionsValidation($input: RefundInput!, $idempotencyKey: String!) {\n    refundCreate(input: $input) @idempotent(key: $idempotencyKey) {\n      refund {\n        id\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        transactions(first: 5) {\n          nodes {\n            id\n            kind\n            status\n            gateway\n            amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          }\n        }\n      }\n      order {\n        id\n        displayFinancialStatus\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "idempotencyKey": "refund-transactions-missing-parent-1778167412434",
+      "input": {
+        "orderId": "gid://shopify/Order/8734397137202",
+        "transactions": [
+          {
+            "amount": "1.00",
+            "gateway": "bogus-parent-gateway",
+            "kind": "REFUND",
+            "orderId": "gid://shopify/Order/8734397137202",
+            "parentId": "gid://shopify/OrderTransaction/999999999999"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "refundCreate": {
+          "refund": null,
+          "order": {
+            "id": "gid://shopify/Order/8734397137202",
+            "displayFinancialStatus": "PAID",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": [
+            {
+              "field": ["transactions"],
+              "message": "Transactions require a parent_id associated with the order"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 25,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mismatchedGateway": {
+    "query": "#graphql\n  mutation RefundCreateTransactionsValidation($input: RefundInput!, $idempotencyKey: String!) {\n    refundCreate(input: $input) @idempotent(key: $idempotencyKey) {\n      refund {\n        id\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        transactions(first: 5) {\n          nodes {\n            id\n            kind\n            status\n            gateway\n            amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          }\n        }\n      }\n      order {\n        id\n        displayFinancialStatus\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "idempotencyKey": "refund-transactions-mismatched-gateway-1778167412434",
+      "input": {
+        "orderId": "gid://shopify/Order/8734397137202",
+        "transactions": [
+          {
+            "amount": "1.00",
+            "gateway": "manual",
+            "kind": "REFUND",
+            "orderId": "gid://shopify/Order/8734397137202",
+            "parentId": "gid://shopify/OrderTransaction/10423094739250"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "refundCreate": {
+          "refund": {
+            "id": "gid://shopify/Refund/1024309100850",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "transactions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10423094870322",
+                  "kind": "REFUND",
+                  "status": "SUCCESS",
+                  "gateway": "bogus-parent-gateway",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "1.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "1.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "order": {
+            "id": "gid://shopify/Order/8734397137202",
+            "displayFinancialStatus": "PARTIALLY_REFUNDED",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 25,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "happyPath": {
+    "query": "#graphql\n  mutation RefundCreateTransactionsValidation($input: RefundInput!, $idempotencyKey: String!) {\n    refundCreate(input: $input) @idempotent(key: $idempotencyKey) {\n      refund {\n        id\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n        transactions(first: 5) {\n          nodes {\n            id\n            kind\n            status\n            gateway\n            amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n          }\n        }\n      }\n      order {\n        id\n        displayFinancialStatus\n        totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }\n      }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "idempotencyKey": "refund-transactions-happy-1778167412434",
+      "input": {
+        "orderId": "gid://shopify/Order/8734397202738",
+        "transactions": [
+          {
+            "amount": "1.00",
+            "gateway": "manual",
+            "kind": "REFUND",
+            "orderId": "gid://shopify/Order/8734397202738",
+            "parentId": "gid://shopify/OrderTransaction/10423094804786"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "refundCreate": {
+          "refund": {
+            "id": "gid://shopify/Refund/1024309133618",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "transactions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10423094903090",
+                  "kind": "REFUND",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "1.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "1.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "order": {
+            "id": "gid://shopify/Order/8734397202738",
+            "displayFinancialStatus": "PARTIALLY_REFUNDED",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 25,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "validationOrderCancel": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/f737246b-1a24-4c55-8f49-c17d816c1f99",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "happyOrderCancel": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/f737246b-1a24-4c55-8f49-c17d816c1f99",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8734397137202"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for refundCreate transaction validation branch hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8734397137202",
+              "name": "#1359",
+              "createdAt": "2026-05-07T15:23:32Z",
+              "updatedAt": "2026-05-07T15:23:32Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "paymentGatewayNames": ["bogus-parent-gateway"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10423094739250",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "bogus-parent-gateway",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19310618509618",
+                    "title": "Hermes refundable transaction validation validation 1778167412434",
+                    "name": "Hermes refundable transaction validation validation 1778167412434",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "hermes-refund-transactions-validation-1778167412434",
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8734397202738"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for refundCreate transaction happy path hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8734397202738",
+              "name": "#1360",
+              "createdAt": "2026-05-07T15:23:33Z",
+              "updatedAt": "2026-05-07T15:23:33Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10423094804786",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19310618542386",
+                    "title": "Hermes refundable transaction validation happy 1778167412434",
+                    "name": "Hermes refundable transaction validation happy 1778167412434",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "hermes-refund-transactions-happy-1778167412434",
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

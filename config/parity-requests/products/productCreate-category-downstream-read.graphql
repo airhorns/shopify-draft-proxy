@@ -1,0 +1,13 @@
+query ProductCreateCategoryDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    productType
+    category {
+      id
+      fullName
+    }
+    requiresSellingPlan
+  }
+}

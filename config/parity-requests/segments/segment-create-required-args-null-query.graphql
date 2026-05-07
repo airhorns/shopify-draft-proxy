@@ -1,0 +1,11 @@
+mutation SegmentCreateNullQuery {
+  segmentCreate(name: "Required Arg Probe", query: null) {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
