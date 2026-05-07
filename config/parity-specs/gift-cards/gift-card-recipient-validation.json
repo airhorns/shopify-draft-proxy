@@ -1,0 +1,136 @@
+{
+  "scenarioId": "gift-card-recipient-validation",
+  "operationNames": ["customerCreate", "giftCardCreate", "giftCardUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-recipient-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation-customer-create.graphql",
+    "variablesCapturePath": "$.setup[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures giftCardCreate/giftCardUpdate recipientAttributes validation for missing required recipient id, text length caps, HTML-tag rejection, and sendNotificationAt range bounds. The public giftCardUpdate userErrors type in Admin API 2025-01 is generic UserError, so the live update request records public field/message evidence and replay expectations add the typed code contract used by the local model.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create setup customer user errors",
+        "capturePath": "$.setup[0].response.payload.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "create setup gift card user errors",
+        "capturePath": "$.setup[1].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[1].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[1].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[1].variables.input.note"
+              },
+              "customerId": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "create missing recipient id returns top-level error",
+        "capturePath": "$.operations.createMissingRecipientId.response.payload",
+        "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.errors[0].locations[0].line",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The committed replay file preserves the captured operation shape but has different leading whitespace than the recorder template."
+          },
+          {
+            "path": "$.errors[0].locations[0].column",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The committed replay file preserves the captured operation shape but has different leading whitespace than the recorder template."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation-create-missing-id.graphql"
+        }
+      },
+      {
+        "name": "update missing recipient id returns top-level error",
+        "capturePath": "$.operations.updateMissingRecipientId.response.payload",
+        "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.errors[0].locations[0].line",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The committed replay file preserves the captured operation shape but has different leading whitespace than the recorder template."
+          },
+          {
+            "path": "$.errors[0].locations[0].column",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The committed replay file preserves the captured operation shape but has different leading whitespace than the recorder template."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation-update-missing-id.graphql",
+          "variables": {
+            "activeId": {
+              "fromProxyResponse": "create setup gift card user errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "recipient attribute validation branches",
+        "capturePath": "$.expected.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-recipient-validation.graphql",
+          "variables": {
+            "activeId": {
+              "fromProxyResponse": "create setup gift card user errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "recipientId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "tooLongPreferredName": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.tooLongPreferredName"
+            },
+            "tooLongMessage": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.tooLongMessage"
+            },
+            "htmlPreferredName": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.htmlPreferredName"
+            },
+            "htmlMessage": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.htmlMessage"
+            },
+            "futureSendAt": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.futureSendAt"
+            },
+            "pastSendAt": {
+              "fromCapturePath": "$.proxyVariables.recipientValidation.pastSendAt"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

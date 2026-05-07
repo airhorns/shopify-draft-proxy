@@ -513,6 +513,120 @@ pub fn metafield_definition_update_validates_validation_options_test() {
   assert string.contains(json.to_string(read_body), "\"validations\":[]")
 }
 
+pub fn metafield_definition_update_validation_change_stages_job_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Validation job\",
+        namespace: \"validation_job\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id validations { name value } validationStatus }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let set_metafield =
+    "mutation {
+      metafieldsSet(metafields: [{
+        ownerId: \"gid://shopify/Product/1\",
+        namespace: \"validation_job\",
+        key: \"target\",
+        type: \"single_line_text_field\",
+        value: \"ABCDE\"
+      }]) {
+        metafields { id namespace key type value }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(proxy, set_metafield)
+  assert set_status == 200
+  assert string.contains(json.to_string(set_body), "\"userErrors\":[]")
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"validation_job\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        validations: [{ name: \"max\", value: \"8\" }]
+      }) {
+        updatedDefinition {
+          id
+          validations { name value }
+          validationStatus
+        }
+        validationJob { __typename id done query { __typename } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"validationStatus\":\"ALL_VALID\"")
+  assert string.contains(
+    update_json,
+    "\"validationJob\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null}",
+  )
+  assert string.contains(update_json, "\"userErrors\":[]")
+
+  let read =
+    "query {
+      job(id: \"gid://shopify/Job/5\") {
+        __typename
+        id
+        done
+        query { __typename }
+      }
+      jobNode: node(id: \"gid://shopify/Job/5\") {
+        __typename
+        id
+        ... on Job { done query { __typename } }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null}",
+  )
+  assert string.contains(
+    read_json,
+    "\"jobNode\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":false,\"query\":null}",
+  )
+
+  let rename =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"validation_job\",
+        key: \"target\",
+        ownerType: PRODUCT,
+        name: \"Validation job renamed\"
+      }) {
+        updatedDefinition { id name validationStatus }
+        validationJob { id done }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: rename_status, body: rename_body, ..), _) =
+    graphql(proxy, rename)
+  assert rename_status == 200
+  let rename_json = json.to_string(rename_body)
+  assert string.contains(rename_json, "\"validationJob\":null")
+  assert string.contains(rename_json, "\"validationStatus\":\"ALL_VALID\"")
+}
+
 pub fn metafield_definition_update_rejects_metaobject_definition_id_change_test() {
   let proxy = draft_proxy.new()
   let create =
@@ -681,6 +795,113 @@ pub fn metafield_definition_create_rejects_reserved_namespaces_test() {
     == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"namespace\"],\"message\":\"Namespace protected is reserved.\",\"code\":\"RESERVED\"}]}}}"
 }
 
+pub fn metafield_definition_create_rejects_merchant_read_admin_access_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "har1050_access",
+        "create_admin_read",
+        "Admin Read",
+        "single_line_text_field",
+        ", access: { admin: MERCHANT_READ }",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Setting this access control is not permitted. It must be one of [\\\"public_read_write\\\"].\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn metafield_definition_create_allows_merchant_read_write_admin_access_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Admin Read Write\",
+          namespace: \"har1050_access\",
+          key: \"create_admin_write\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\",
+          access: { admin: MERCHANT_READ_WRITE }
+        }) {
+          createdDefinition { access { admin storefront customerAccount } }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert result.staged_resource_ids == ["gid://shopify/MetafieldDefinition/1"]
+  assert json.to_string(result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":{\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\",\"customerAccount\":\"NONE\"}},\"userErrors\":[]}}}"
+}
+
+pub fn metafield_definition_create_rejects_inline_access_grants_by_schema_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation MetafieldDefinitionAccessValidationInlineGrants {
+      metafieldDefinitionCreate(definition: {
+        name: \"Explicit grants\",
+        namespace: \"har1050_grants\",
+        key: \"grant\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\",
+        access: { grants: [{ grantee: \"gid://shopify/App/1\", access: READ_WRITE }] }
+      }) {
+        createdDefinition { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, create)
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "InputObject 'MetafieldAccessInput' doesn't accept argument 'grants'",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(serialized, "\"argumentName\":\"grants\"")
+  assert string.contains(
+    serialized,
+    "\"path\":[\"mutation MetafieldDefinitionAccessValidationInlineGrants\",\"metafieldDefinitionCreate\",\"definition\",\"access\",\"grants\"]",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn metafield_definition_create_rejects_variable_access_grants_by_schema_test() {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"mutation Grants($definition: MetafieldDefinitionInput!) { metafieldDefinitionCreate(definition: $definition) { createdDefinition { id } userErrors { field message code } } }\",\"variables\":{\"definition\":{\"name\":\"Explicit grants\",\"namespace\":\"har1050_grants\",\"key\":\"grant\",\"ownerType\":\"PRODUCT\",\"type\":\"single_line_text_field\",\"access\":{\"grants\":[{\"grantee\":\"gid://shopify/App/1\",\"access\":\"READ_WRITE\"}]}}}}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), request)
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Variable $definition of type MetafieldDefinitionInput! was provided invalid value for access.grants",
+  )
+  assert string.contains(
+    serialized,
+    "\"explanation\":\"Field is not defined on MetafieldAccessInput\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
 fn create_admin_filterable(
   acc: #(store.Store, synthetic_identity.SyntheticIdentityRegistry, String),
   i: Int,
@@ -793,6 +1014,46 @@ pub fn metafield_definition_update_rejects_ineligible_unique_values_test() {
   assert string.contains(body, "\"updatedDefinition\":null")
   assert string.contains(body, "\"field\":[\"definition\"]")
   assert string.contains(body, "\"code\":\"INVALID_CAPABILITY\"")
+}
+
+pub fn metafield_definition_update_rejects_merchant_read_admin_access_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metafieldDefinitionCreate(definition: {
+          name: \"Access Update\",
+          namespace: \"har1050_access_update\",
+          key: \"flag\",
+          ownerType: PRODUCT,
+          type: \"single_line_text_field\"
+        }) {
+          createdDefinition { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let updated =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metafieldDefinitionUpdate(definition: {
+          namespace: \"har1050_access_update\",
+          key: \"flag\",
+          ownerType: PRODUCT,
+          access: { admin: MERCHANT_READ }
+        }) {
+          updatedDefinition { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert updated.staged_resource_ids == []
+  assert json.to_string(updated.data)
+    == "{\"data\":{\"metafieldDefinitionUpdate\":{\"updatedDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Setting this access control is not permitted. It must be one of [\\\"public_read_write\\\"].\",\"code\":\"INVALID_INPUT\"}]}}}"
 }
 
 pub fn metafield_definition_app_namespace_resolution_lifecycle_test() {
@@ -964,6 +1225,56 @@ pub fn metafield_definition_cross_app_namespace_rejected_test() {
     }"
   let #(Response(status: update_status, body: update_body, ..), _) =
     graphql_with_api_client(proxy, update)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(
+    update_json,
+    "\"message\":\"Access denied for metafieldDefinitionUpdate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\\n\"",
+  )
+  assert string.contains(update_json, "\"code\":\"ACCESS_DENIED\"")
+  assert string.contains(update_json, "\"metafieldDefinitionUpdate\":null")
+}
+
+pub fn metafield_definition_create_update_shopify_namespace_rejected_test() {
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Shopify Public\",
+        namespace: \"shopify\",
+        key: \"har1050_access\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\",
+        access: { storefront: PUBLIC_READ }
+      }) {
+        createdDefinition { namespace key }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    graphql(draft_proxy.new(), create)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(
+    create_json,
+    "\"message\":\"Access denied for metafieldDefinitionCreate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\\n\"",
+  )
+  assert string.contains(create_json, "\"code\":\"ACCESS_DENIED\"")
+  assert string.contains(create_json, "\"metafieldDefinitionCreate\":null")
+
+  let update =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"shopify\",
+        key: \"color-pattern\",
+        ownerType: PRODUCT,
+        access: { storefront: PUBLIC_READ }
+      }) {
+        updatedDefinition { namespace key }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql(draft_proxy.new(), update)
   assert update_status == 200
   let update_json = json.to_string(update_body)
   assert string.contains(
@@ -1850,7 +2161,30 @@ pub fn standard_metafield_definition_enable_rejects_admin_access_for_public_temp
 
   assert result.staged_resource_ids == []
   assert json.to_string(result.data)
-    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"access\"],\"message\":\"Admin access input is not allowed for this standard metafield definition.\",\"code\":\"ADMIN_ACCESS_INPUT_NOT_ALLOWED\"}]}}}"
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"access\"],\"message\":\"Setting this access control is not permitted. It must be one of [\\\"public_read_write\\\"].\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn standard_metafield_definition_enable_rejects_reserved_storefront_access_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        standardMetafieldDefinitionEnable(
+          ownerType: PRODUCT,
+          namespace: \"shopify\",
+          key: \"color-pattern\",
+          access: { storefront: PUBLIC_READ }
+        ) {
+          createdDefinition { id namespace key }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"access\"],\"message\":\"Setting access controls on a definition under this namespace is not permitted.\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn standard_metafield_definition_enable_translates_deprecated_access_and_filter_args_test() {

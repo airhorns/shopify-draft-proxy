@@ -1,0 +1,15 @@
+mutation AppDiscountInputValidatorCodeUpdate($id: ID!, $input: DiscountCodeAppInput!) {
+  discountCodeAppUpdate(id: $id, codeAppDiscount: $input) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

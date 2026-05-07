@@ -1,0 +1,17 @@
+mutation MetafieldDefinitionValidationJobMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      ownerType
+      namespace
+      key
+      type
+      value
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "scenarioId": "publishable-input-validation",
+  "operationNames": [
+    "publishablePublish",
+    "publishableUnpublish",
+    "publishablePublishToCurrentChannel",
+    "publishableUnpublishToCurrentChannel"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "store-property-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+    "variablesCapturePath": "$.cases.publishDuplicate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence, unknown publicationId, and current-channel id-only sibling behavior.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publish duplicate publication user errors",
+        "capturePath": "$.cases.publishDuplicate.response.payload.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors"
+      },
+      {
+        "name": "publish past publishDate user errors",
+        "capturePath": "$.cases.publishPastDate.response.payload.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+          "variablesCapturePath": "$.cases.publishPastDate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "publish omitted publication user errors",
+        "capturePath": "$.cases.publishBlankPublication.response.payload.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+          "variablesCapturePath": "$.cases.publishBlankPublication.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "publish empty string publication variable error",
+        "capturePath": "$.cases.publishEmptyStringPublication.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+          "variablesCapturePath": "$.cases.publishEmptyStringPublication.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$[0].extensions.code",
+          "$[0].extensions.problems[0].path",
+          "$[0].extensions.problems[0].message"
+        ]
+      },
+      {
+        "name": "publish unknown publication user errors",
+        "capturePath": "$.cases.publishUnknownPublication.response.payload.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+          "variablesCapturePath": "$.cases.publishUnknownPublication.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unpublish duplicate publication user errors",
+        "capturePath": "$.cases.unpublishDuplicate.response.payload.data.publishableUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishDuplicate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unpublish past publishDate user errors",
+        "capturePath": "$.cases.unpublishPastDate.response.payload.data.publishableUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishPastDate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unpublish omitted publication user errors",
+        "capturePath": "$.cases.unpublishBlankPublication.response.payload.data.publishableUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishBlankPublication.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unpublish empty string publication variable error",
+        "capturePath": "$.cases.unpublishEmptyStringPublication.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishEmptyStringPublication.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$[0].extensions.code",
+          "$[0].extensions.problems[0].path",
+          "$[0].extensions.problems[0].message"
+        ]
+      },
+      {
+        "name": "unpublish unknown publication user errors",
+        "capturePath": "$.cases.unpublishUnknownPublication.response.payload.data.publishableUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishUnknownPublication.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "publish current channel id-only payload",
+        "capturePath": "$.cases.publishToCurrentChannel.response.payload.data.publishablePublishToCurrentChannel",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-publish-current.graphql",
+          "variablesCapturePath": "$.cases.publishToCurrentChannel.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unpublish current channel id-only payload",
+        "capturePath": "$.cases.unpublishToCurrentChannel.response.payload.data.publishableUnpublishToCurrentChannel",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish-current.graphql",
+          "variablesCapturePath": "$.cases.unpublishToCurrentChannel.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

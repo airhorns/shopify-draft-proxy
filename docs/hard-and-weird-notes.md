@@ -64,6 +64,19 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: delegateAccessTokenCreate EXPIRES_AFTER_PARENT returns a null field
+
+A 2026-04 `delegateAccessTokenCreate` capture against
+`harry-test-heelo.myshopify.com` used an expiring conformance access token and
+`expiresIn: 99999999`. Shopify returned `EXPIRES_AFTER_PARENT`, message
+`The delegate token can't expire after the parent token.`, no delegated token,
+and `field: null`.
+
+Practical rule: keep the public GraphQL userError field null for this branch
+unless a newer version-specific capture proves Shopify changed it. The checked-in
+anchor is
+`config/parity-specs/apps/delegate-access-token-create-expires-after-parent.json`.
+
 ## Current: paymentTermsCreate public Order eligibility differs from internal notes
 
 A 2026-04 `paymentTermsCreate` Order-owner eligibility capture against
@@ -1447,6 +1460,8 @@ HAR-242 implements local staging for definition create/update/delete plus a boun
 HAR-245's 2026-04 schema-change capture added several easy traps:
 
 - `metaobjectDefinitionUpdate` accepts `resetFieldOrder` inside `MetaobjectDefinitionUpdateInput`; it is not a top-level mutation argument on this schema.
+- Public Admin GraphQL 2026-04 rejects top-level `metaobjectDefinitionUpdate(..., resetFieldOrder:)` with `argumentNotAccepted` on the offending argument path before resolver execution.
+- Public Admin GraphQL 2026-04 also rejects `standardMetaobjectDefinitionEnable(..., enabledByShopify:)` with `argumentNotAccepted`; the configured conformance credential cannot reach Shopify internal Admin visibility, so enabled-by-Shopify success evidence remains local-runtime-backed.
 - `MetaobjectFieldDefinitionUpdateInput` does not expose `type`, so field type changes cannot be submitted through the captured update input shape. Validation changes are captured; type changes are not part of the supported local update surface.
 - when publishable capability is enabled and `metaobjectCreate` omits a publishable status, Shopify defaulted the row to `DRAFT`, not `ACTIVE`.
 - after a required display field is added, pre-existing rows return that field with `value: null`; `displayName` falls back to a titleized handle until the row is updated with the required display field.
@@ -1459,6 +1474,7 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - `metaobjectCreate` with a duplicate requested handle succeeds by auto-suffixing the handle, while `metaobjectUpdate` to another row's handle returns `TAKEN`.
 - `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
+- `metaobjectUpdate` handle redirects use `redirectNewHandle` inside `MetaobjectUpdateInput`; Admin GraphQL 2026-04 rejects a top-level `redirectNewHandle` argument. Redirect creation requires an online-store-renderable definition and row-level `onlineStore` capability. Definition `onlineStore.data.urlHandle` is globally unique and becomes the `/pages/<urlHandle>/<handle>` path segment. `UrlRedirect` reads expose `id`, `path`, and `target`; captured 2026-04 schema rejected `createdAt` / `updatedAt` on `UrlRedirect`.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
 
 HAR-675 live parity work replaces the old local definition-delete associated-entry guardrail:
@@ -1468,9 +1484,14 @@ HAR-675 live parity work replaces the old local definition-delete associated-ent
 HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
 
 - `metaobjectDefinitionCreate` resolves `$app:<rest>` to the requesting app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`, and local parity replays provide that app identity through `x-shopify-draft-proxy-api-client-id`.
+- reserved create handling for an existing standard-template type (`shopify--qa-pair`) and an unresolved `shopify--*` type returns public GraphQL `NOT_AUTHORIZED` on `["definition"]` with message `Not authorized. This type is reserved for use by another application.` The internal service path may call this reserved-name handling, but do not emit `RESERVED_NAME` for the captured public 2026-04 shape without a newer live capture proving that code.
 - definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
 - uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
 - Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
+
+Delete guard caveat:
+
+- public Admin GraphQL 2026-04 does not expose the internal `app_config_managed?`, `standard_template_id`, or standard-template `dependent_on_app?` metadata needed to safely discover protected delete candidates. The current conformance shop's visible definitions are created by the conformance app, so `APP_CONFIG_MANAGED` and `STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP` delete responses remain runtime-test-backed until an eligible shop/app setup is available.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -2406,7 +2427,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -3194,11 +3215,15 @@ Captured facts:
 - `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
 - `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
 - selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+- On the captured 2025-01 shop, `giftCardConfiguration.issueLimit` was `3000.0 CAD` while `purchaseLimit` was `14000.0 CAD`; a card created at exactly the issue limit rejected a one-cent `giftCardCredit` with `GIFT_CARD_LIMIT_EXCEEDED`, so credit limit validation follows the issue-limit ceiling rather than the larger purchase limit in this public Admin path
+- The credit over-limit message is not the create-time formatted limit message. Public Admin returned `The gift card's value exceeds the allowed limits.` on `["creditInput", "creditAmount", "amount"]`
+- A one-cent `giftCardDebit` after the rejected credit succeeded with empty `userErrors`; debit decreases balance and did not surface `GIFT_CARD_LIMIT_EXCEEDED` in this path
 
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
+- credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
 
 ## 72. Finance/risk/POS roots need strong data minimization
 
@@ -3444,3 +3469,26 @@ Practical rule:
 - when local Function metadata carries the resolver title, omitted and `null`
   validationCreate title input should fall back to that value; do not treat
   empty string as missing input
+
+## 82. Webhook `metafieldNamespaces` app prefixes preserve suffix casing
+
+Admin GraphQL 2026-04 live capture for `webhookSubscriptionCreate` and
+`webhookSubscriptionUpdate` against `harry-test-heelo.myshopify.com` recorded
+`metafieldNamespaces` app-prefix resolution.
+
+Observed behavior:
+
+- `$app:Settings<run>` persisted and read back as
+  `app--347082227713--Settings<run>`
+- `$app:Billing<run>` persisted and read back as
+  `app--347082227713--Billing<run>`
+- non-app values such as `custom` and canonical
+  `app--999999999999--...` entries passed through unchanged
+- create/update payloads, detail reads, and URI-filtered list reads all
+  projected the same resolved namespace arrays
+
+Practical rule:
+
+- for webhook subscription namespace allowlists, resolve only the `$app:`
+  prefix to the request API client ID; do not downcase the suffix unless newer
+  endpoint-specific live evidence proves Shopify does so for this field

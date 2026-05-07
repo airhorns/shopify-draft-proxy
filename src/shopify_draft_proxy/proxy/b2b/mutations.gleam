@@ -2,6 +2,7 @@
 
 import gleam/dict.{type Dict}
 
+import gleam/float
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -50,6 +51,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 
 import shopify_draft_proxy/proxy/phone_numbers
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -1812,6 +1814,13 @@ pub fn captured_field(
 }
 
 @internal
+pub type LocationDeleteBlocker {
+  OnlyLocationOfCompany
+  LocationHasOrders
+  LocationHasStoreCredit
+}
+
+@internal
 pub fn handle_contact_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2001,7 +2010,7 @@ pub fn handle_assign_customer_as_contact(
                         identity,
                         ["companyId"],
                         "Customer must have an email address.",
-                        user_error_code.resource_not_found,
+                        user_error_code.invalid_input,
                         Some(b2b_types.customer_email_must_exist_detail),
                       )
                     Some(email) ->
@@ -2436,6 +2445,165 @@ pub fn delete_location(
 }
 
 @internal
+pub fn location_delete_blocker(
+  store: Store,
+  location: B2BCompanyLocationRecord,
+) -> Option(LocationDeleteBlocker) {
+  case location_has_other_locations(store, location) {
+    False -> Some(OnlyLocationOfCompany)
+    True ->
+      case location_has_associated_orders(store, location) {
+        True -> Some(LocationHasOrders)
+        False ->
+          case location_has_non_zero_store_credit(store, location) {
+            True -> Some(LocationHasStoreCredit)
+            False -> None
+          }
+      }
+  }
+}
+
+@internal
+pub fn location_delete_error(
+  field: List(String),
+  location: B2BCompanyLocationRecord,
+  blocker: LocationDeleteBlocker,
+) -> b2b_types.UserError {
+  let _ = location
+  let _ = blocker
+  user_error(
+    Some(field),
+    "Failed to delete the company location.",
+    user_error_code.failed_to_delete,
+  )
+}
+
+@internal
+pub fn location_bulk_delete_error(
+  field: List(String),
+  location: B2BCompanyLocationRecord,
+  blocker: LocationDeleteBlocker,
+) -> b2b_types.UserError {
+  user_error(
+    Some(field),
+    location_bulk_delete_error_message(location.id, blocker),
+    user_error_code.internal_error,
+  )
+}
+
+fn location_bulk_delete_error_message(
+  location_id: String,
+  blocker: LocationDeleteBlocker,
+) -> String {
+  let public_id =
+    option.unwrap(resource_ids.shopify_gid_tail(location_id), location_id)
+  let prefix = "Failed to delete CompanyLocation " <> public_id <> ": "
+  case blocker {
+    OnlyLocationOfCompany -> prefix <> "Company must have at least 1 location."
+    LocationHasOrders ->
+      prefix <> "CompanyLocation has existing Orders/Draft Orders"
+    LocationHasStoreCredit ->
+      prefix <> "CompanyLocation has non-zero store credit balance"
+  }
+}
+
+@internal
+pub fn location_has_other_locations(
+  store: Store,
+  location: B2BCompanyLocationRecord,
+) -> Bool {
+  store.list_effective_b2b_company_locations(store)
+  |> list.any(fn(other) {
+    other.company_id == location.company_id && other.id != location.id
+  })
+}
+
+@internal
+pub fn location_has_associated_orders(
+  store: Store,
+  location: B2BCompanyLocationRecord,
+) -> Bool {
+  location_has_associated_order_marker(location)
+  || location_has_staged_order_history(store, location.id)
+}
+
+@internal
+pub fn location_has_associated_order_marker(
+  location: B2BCompanyLocationRecord,
+) -> Bool {
+  case data_get(location.data, "ordersCount") {
+    SrcInt(count) if count > 0 -> True
+    _ ->
+      case data_get(location.data, "associatedOrdersCount") {
+        SrcInt(count) if count > 0 -> True
+        _ ->
+          case data_get(location.data, "hasAssociatedOrders") {
+            SrcBool(True) -> True
+            _ ->
+              case data_get(location.data, "orders") {
+                SrcList([_, ..]) -> True
+                _ -> False
+              }
+          }
+      }
+  }
+}
+
+@internal
+pub fn location_has_staged_order_history(
+  store: Store,
+  location_id: String,
+) -> Bool {
+  list.any(store.list_effective_orders(store), fn(order) {
+    purchasing_entity_location_id(order.data) == Some(location_id)
+  })
+  || list.any(store.list_effective_draft_orders(store), fn(draft_order) {
+    draft_order_references_location(draft_order.data, location_id)
+  })
+}
+
+@internal
+pub fn draft_order_references_location(
+  data: CapturedJsonValue,
+  location_id: String,
+) -> Bool {
+  purchasing_entity_location_id(data) == Some(location_id)
+  || case captured_object_field(data, "order") {
+    Some(order) -> purchasing_entity_location_id(order) == Some(location_id)
+    None -> False
+  }
+}
+
+@internal
+pub fn purchasing_entity_location_id(
+  data: CapturedJsonValue,
+) -> Option(String) {
+  data
+  |> captured_object_field("purchasingEntity")
+  |> option.then(fn(entity) {
+    entity
+    |> captured_object_field("location")
+    |> option.then(fn(location) { captured_string_field(location, "id") })
+  })
+}
+
+@internal
+pub fn location_has_non_zero_store_credit(
+  store: Store,
+  location: B2BCompanyLocationRecord,
+) -> Bool {
+  store.list_effective_store_credit_accounts_for_customer(store, location.id)
+  |> list.any(fn(account) { money_amount_non_zero(account.balance.amount) })
+}
+
+fn money_amount_non_zero(amount: String) -> Bool {
+  case float.parse(amount) {
+    Ok(value) -> value >. 0.0 || value <. 0.0
+    Error(_) -> False
+  }
+}
+
+@internal
 pub fn remove_role_assignments_for_location(
   store: Store,
   location_id: String,
@@ -2550,18 +2718,37 @@ pub fn handle_location_delete(
   case read_string(args, "companyLocationId") {
     Some(id) ->
       case store.get_effective_b2b_company_location_by_id(store, id) {
-        Some(_) -> {
-          let #(store, ids) = delete_location(store, id)
-          b2b_types.RootResult(
-            b2b_types.Payload(
-              ..empty_payload([]),
-              deleted_company_location_id: Some(id),
-            ),
-            store,
-            identity,
-            ids,
-          )
-        }
+        Some(location) ->
+          case location_delete_blocker(store, location) {
+            Some(blocker) ->
+              b2b_types.RootResult(
+                b2b_types.Payload(
+                  ..empty_payload([
+                    location_delete_error(
+                      ["companyLocationId"],
+                      location,
+                      blocker,
+                    ),
+                  ]),
+                  deleted_company_location_id: None,
+                ),
+                store,
+                identity,
+                [],
+              )
+            None -> {
+              let #(store, ids) = delete_location(store, id)
+              b2b_types.RootResult(
+                b2b_types.Payload(
+                  ..empty_payload([]),
+                  deleted_company_location_id: Some(id),
+                ),
+                store,
+                identity,
+                ids,
+              )
+            }
+          }
         None ->
           b2b_types.RootResult(
             b2b_types.Payload(
@@ -2630,21 +2817,40 @@ pub fn handle_locations_delete_under_limit(
       let #(id, index) = entry
       let #(current_store, deleted, staged, errors) = acc
       case store.get_effective_b2b_company_location_by_id(current_store, id) {
-        Some(_) -> {
-          let #(next_store, ids) = delete_location(current_store, id)
-          #(
-            next_store,
-            list.append(deleted, [id]),
-            list.append(staged, ids),
-            errors,
-          )
-        }
+        Some(location) ->
+          case location_delete_blocker(current_store, location) {
+            Some(blocker) -> #(
+              current_store,
+              deleted,
+              staged,
+              list.append(errors, [
+                location_bulk_delete_error(
+                  indexed_field_path("companyLocationIds", index),
+                  location,
+                  blocker,
+                ),
+              ]),
+            )
+            None -> {
+              let #(next_store, ids) = delete_location(current_store, id)
+              #(
+                next_store,
+                list.append(deleted, [id]),
+                list.append(staged, ids),
+                errors,
+              )
+            }
+          }
         None -> #(
           current_store,
           deleted,
           staged,
           list.append(errors, [
-            resource_not_found(indexed_field_path("companyLocationIds", index)),
+            user_error(
+              Some(indexed_field_path("companyLocationIds", index)),
+              "Resource requested does not exist.",
+              user_error_code.resource_not_found,
+            ),
           ]),
         )
       }

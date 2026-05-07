@@ -5,6 +5,8 @@ import gleam/string
 
 pub const api_client_id_header: String = "x-shopify-draft-proxy-api-client-id"
 
+pub const internal_visibility_header: String = "x-shopify-draft-proxy-internal-visibility"
+
 pub fn read_requesting_api_client_id(
   request_headers: Dict(String, String),
 ) -> Option(String) {
@@ -21,5 +23,39 @@ pub fn read_requesting_api_client_id(
   case found {
     Ok("") | Error(_) -> None
     Ok(value) -> Some(value)
+  }
+}
+
+pub fn resolve_app_namespace(
+  namespace: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  case string.starts_with(namespace, "$app:") {
+    True ->
+      case requesting_api_client_id {
+        Some(api_client_id) -> {
+          let suffix = string.drop_start(namespace, string.length("$app:"))
+          "app--" <> api_client_id <> "--" <> suffix
+        }
+        None -> namespace
+      }
+    False -> namespace
+  }
+}
+
+pub fn has_internal_visibility(request_headers: Dict(String, String)) -> Bool {
+  let found =
+    dict.to_list(request_headers)
+    |> list.find_map(fn(header) {
+      let #(name, value) = header
+      case string.lowercase(name) == internal_visibility_header {
+        True -> Ok(string.lowercase(string.trim(value)))
+        False -> Error(Nil)
+      }
+    })
+
+  case found {
+    Ok("true") | Ok("1") | Ok("yes") -> True
+    _ -> False
   }
 }

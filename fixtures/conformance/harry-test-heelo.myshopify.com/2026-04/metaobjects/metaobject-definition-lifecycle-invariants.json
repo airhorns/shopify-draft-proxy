@@ -1,0 +1,252 @@
+{
+  "capturedAt": "2026-05-07T06:41:22.877Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Metaobject definition lifecycle invariant probes for reserved create validation plus public-schema discovery for delete guard candidate availability.",
+  "standardTemplateReservedCreate": {
+    "name": "standard-template-reserved-create",
+    "request": {
+      "query": "mutation MetaobjectDefinitionLifecycleInvariantsCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "shopify--qa-pair",
+          "name": "Reserved Standard Template Probe",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Not authorized. This type is reserved for use by another application.",
+              "code": "NOT_AUTHORIZED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "shopifyReservedPrefixCreate": {
+    "name": "shopify-reserved-prefix-create",
+    "request": {
+      "query": "mutation MetaobjectDefinitionLifecycleInvariantsCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "shopify--lifecycle-invariants-1778136082420",
+          "name": "Reserved Prefix Probe",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Not authorized. This type is reserved for use by another application.",
+              "code": "NOT_AUTHORIZED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteGuardCandidateDiscovery": {
+    "name": "delete-guard-candidate-discovery",
+    "request": {
+      "query": "#graphql\n  query MetaobjectDefinitionDeleteGuardCandidateDiscovery($first: Int!) {\n    metaobjectDefinitionType: __type(name: \"MetaobjectDefinition\") {\n      fields {\n        name\n      }\n    }\n    standardTemplateType: __type(name: \"StandardMetaobjectDefinitionTemplate\") {\n      fields {\n        name\n      }\n    }\n    metaobjectDefinitions(first: $first) {\n      nodes {\n        id\n        type\n        name\n        standardTemplate {\n          type\n          name\n        }\n        createdByApp {\n          id\n          apiKey\n          handle\n          title\n        }\n        metaobjectsCount\n      }\n      pageInfo {\n        hasNextPage\n        endCursor\n      }\n    }\n  }\n",
+      "variables": {
+        "first": 250
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionType": {
+          "fields": [
+            {
+              "name": "access"
+            },
+            {
+              "name": "capabilities"
+            },
+            {
+              "name": "createdAt"
+            },
+            {
+              "name": "createdByApp"
+            },
+            {
+              "name": "createdByStaff"
+            },
+            {
+              "name": "description"
+            },
+            {
+              "name": "displayNameKey"
+            },
+            {
+              "name": "fieldDefinitions"
+            },
+            {
+              "name": "hasThumbnailField"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "metaobjects"
+            },
+            {
+              "name": "metaobjectsCount"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "standardTemplate"
+            },
+            {
+              "name": "type"
+            },
+            {
+              "name": "updatedAt"
+            }
+          ]
+        },
+        "standardTemplateType": {
+          "fields": [
+            {
+              "name": "description"
+            },
+            {
+              "name": "displayNameKey"
+            },
+            {
+              "name": "enabledCapabilities"
+            },
+            {
+              "name": "fieldDefinitions"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "type"
+            }
+          ]
+        },
+        "metaobjectDefinitions": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MetaobjectDefinition/17880285490",
+              "type": "shopify--color-pattern",
+              "name": "Color",
+              "standardTemplate": {
+                "type": "shopify--color-pattern",
+                "name": "Color"
+              },
+              "createdByApp": {
+                "id": "gid://shopify/App/347082227713",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "handle": "hermes-conformance-products",
+                "title": "hermes-conformance-products"
+              },
+              "metaobjectsCount": 0
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/17883300146",
+              "type": "har_810_short_key_1778039087501",
+              "name": "short_key",
+              "standardTemplate": null,
+              "createdByApp": {
+                "id": "gid://shopify/App/347082227713",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "handle": "hermes-conformance-products",
+                "title": "hermes-conformance-products"
+              },
+              "metaobjectsCount": 0
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "eyJsYXN0X2lkIjoxNzg4MzMwMDE0NiwibGFzdF92YWx1ZSI6IjE3ODgzMzAwMTQ2In0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 39,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unavailableDeleteGuardEvidence": [
+    {
+      "code": "APP_CONFIG_MANAGED",
+      "reason": "The current conformance shop exposes no visible metaobject definition created by another app, so an app-config-managed delete rejection cannot be safely recorded without a different app/shop setup."
+    },
+    {
+      "code": "STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP",
+      "reason": "Public Admin GraphQL 2026-04 does not expose standard_template_id or dependent_on_app metadata on MetaobjectDefinition or StandardMetaobjectDefinitionTemplate, so a dependent-on-app standard definition cannot be identified safely from this credential."
+    }
+  ],
+  "cleanup": [],
+  "upstreamCalls": []
+}

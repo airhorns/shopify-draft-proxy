@@ -902,6 +902,37 @@ pub fn webhook_subscription_create_customer_id_filter_stages_record_test() {
     == [Some("customer_id:10586565673266")]
 }
 
+pub fn webhook_subscription_create_resolves_app_metafield_namespaces_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: PRODUCTS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/product\", metafieldNamespaces: [\"$app:Settings\", \"custom\", \"app--222--kept\"] }) { webhookSubscription { id metafieldNamespaces } userErrors { field message } } }"
+  let identity = synthetic_identity.new()
+  let outcome =
+    webhooks.process_mutation_with_headers(
+      store.new(),
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      dict.from_list([#("x-shopify-draft-proxy-api-client-id", "999001")]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"metafieldNamespaces\":[\"app--999001--Settings\",\"custom\",\"app--222--kept\"]},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\") { metafieldNamespaces } webhookSubscriptions(first: 5) { nodes { metafieldNamespaces } } }",
+    )
+    == "{\"webhookSubscription\":{\"metafieldNamespaces\":[\"app--999001--Settings\",\"custom\",\"app--222--kept\"]},\"webhookSubscriptions\":{\"nodes\":[{\"metafieldNamespaces\":[\"app--999001--Settings\",\"custom\",\"app--222--kept\"]}]}}"
+}
+
+pub fn webhook_subscription_create_preserves_app_prefix_without_api_client_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: PRODUCTS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/product\", metafieldNamespaces: [\"$app:Settings\", \"custom\"] }) { webhookSubscription { id metafieldNamespaces } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"metafieldNamespaces\":[\"$app:Settings\",\"custom\"]},\"userErrors\":[]}}}"
+}
+
 pub fn webhook_subscription_create_invalid_filter_user_error_test() {
   let document =
     "mutation { webhookSubscriptionCreate(topic: CUSTOMERS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/customer\", filter: \"totally bogus syntax\" }) { webhookSubscription { id filter } userErrors { field message } } }"
@@ -1140,6 +1171,22 @@ pub fn webhook_subscription_create_duplicate_topic_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address for this topic has already been taken\"}]}}}"
 }
 
+pub fn webhook_subscription_create_duplicate_name_is_case_insensitive_test() {
+  let first_document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/orderhook\", name: \"OrderHook\" }) { webhookSubscription { id name } userErrors { field message } } }"
+  let first_outcome = run_mutation_outcome(store.new(), first_document)
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"name\":\"OrderHook\"},\"userErrors\":[]}}}"
+
+  let second_document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/orderhook-lower\", name: \"orderhook\" }) { webhookSubscription { id name } userErrors { field message } } }"
+  let second_outcome =
+    run_mutation_outcome(first_outcome.store, second_document)
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name already exists, no duplicate allowed\"}]}}}"
+  assert second_outcome.staged_resource_ids == []
+}
+
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
   // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
   // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
@@ -1242,6 +1289,39 @@ pub fn webhook_subscription_update_modifies_record_test() {
   let body = run_mutation(s, document)
   assert body
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\"},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_duplicate_name_is_case_insensitive_test() {
+  let existing =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("SHOP_UPDATE"),
+      Some("https://old.example.com/hook"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/hook")),
+      ),
+    )
+  let named =
+    WebhookSubscriptionRecord(
+      ..existing,
+      id: "gid://shopify/WebhookSubscription/2",
+      uri: Some("https://old.example.com/named"),
+      name: Some("Foo"),
+      endpoint: Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/named")),
+      ),
+    )
+  let seeded_store =
+    store.upsert_base_webhook_subscriptions(store.new(), [existing, named])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { name: \"FOO\" }) { webhookSubscription { id name } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name already exists, no duplicate allowed\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn webhook_subscription_update_preserves_existing_null_filter_test() {
@@ -1412,6 +1492,29 @@ pub fn webhook_subscription_update_customer_id_filter_sets_value_test() {
       "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
     )
     == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"customer_id:10586565673266\"}}"
+}
+
+pub fn webhook_subscription_update_resolves_app_metafield_namespaces_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { metafieldNamespaces: [\"$app:Billing\", \"custom\"] }) { webhookSubscription { id metafieldNamespaces } userErrors { field message } } }"
+  let identity = synthetic_identity.new()
+  let outcome =
+    webhooks.process_mutation_with_headers(
+      seed_update_store(),
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      dict.from_list([#("x-shopify-draft-proxy-api-client-id", "999001")]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"metafieldNamespaces\":[\"app--999001--Billing\",\"custom\"]},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { metafieldNamespaces } webhookSubscriptions(first: 5) { nodes { metafieldNamespaces } } }",
+    )
+    == "{\"webhookSubscription\":{\"metafieldNamespaces\":[\"app--999001--Billing\",\"custom\"]},\"webhookSubscriptions\":{\"nodes\":[{\"metafieldNamespaces\":[\"app--999001--Billing\",\"custom\"]}]}}"
 }
 
 pub fn webhook_subscription_update_rejects_cloud_uri_validation_errors_test() {

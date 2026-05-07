@@ -297,6 +297,16 @@ pub fn app_uninstall_no_installation_returns_app_not_installed_test() {
   assert draft.status == store_types.Failed
 }
 
+pub fn app_uninstall_user_errors_use_typed_fragment_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { appUninstall { app { id } userErrors { __typename field message ... on AppUninstallAppUninstallError { code } } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"__typename\":\"AppUninstallAppUninstallError\",\"field\":[\"base\"],\"message\":\"App is not installed on this shop.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
+}
+
 pub fn app_uninstall_unknown_input_id_returns_app_not_found_test() {
   let outcome =
     run_mutation_outcome(
@@ -518,6 +528,16 @@ pub fn revoke_access_scopes_unknown_app_id_test() {
     == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"The requested list of scopes to revoke includes invalid handles.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
 }
 
+pub fn revoke_access_scopes_user_errors_use_typed_fragment_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appRevokeAccessScopes(scopes: [\"unicorn_dust\"]) { revoked { handle } userErrors { __typename field message ... on AppRevokeAccessScopesAppRevokeScopeError { code } } } }",
+    )
+  assert body
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"__typename\":\"AppRevokeAccessScopesAppRevokeScopeError\",\"field\":[\"scopes\"],\"message\":\"The requested list of scopes to revoke includes invalid handles.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+}
+
 pub fn revoke_access_scopes_not_granted_known_scope_is_undeclared_test() {
   let outcome =
     run_mutation_outcome(
@@ -709,6 +729,64 @@ pub fn delegate_token_create_rejects_non_positive_expires_in_test() {
   assert json.to_string(outcome.data)
     == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The expires_in value must be greater than 0.\",\"code\":\"NEGATIVE_EXPIRES_IN\"}]}}}"
   assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_expiry_after_expiring_parent_test() {
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 7200 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "x-shopify-draft-proxy-access-token-expires-at",
+          "2024-01-01T01:00:00.000Z",
+        ),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The delegate token can't expire after the parent token.\",\"code\":\"EXPIRES_AFTER_PARENT\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_create_allows_expiry_equal_to_expiring_parent_test() {
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "x-shopify-draft-proxy-access-token-expires-at",
+          "2024-01-01T01:00:00.000Z",
+        ),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"expiresIn\":3600},\"userErrors\":[]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 1
+}
+
+pub fn delegate_token_create_skips_parent_expiry_check_without_expires_in_test() {
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"] }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "x-shopify-draft-proxy-access-token-expires-at",
+          "2024-01-01T00:00:01.000Z",
+        ),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"expiresIn\":null},\"userErrors\":[]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 1
 }
 
 pub fn delegate_token_create_rejects_unknown_scope_handles_test() {
@@ -1043,6 +1121,16 @@ pub fn purchase_create_requires_return_url_test() {
   assert json.to_string(outcome.data)
     == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"returnUrl\"],\"message\":\"Return URL is required.\",\"code\":null}]}}}"
   assert dict.size(outcome.store.staged_state.app_one_time_purchases) == 0
+}
+
+pub fn purchase_create_user_errors_remain_generic_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { __typename field message ... on UserError { code } } } }",
+    )
+  assert body
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"returnUrl\"],\"message\":\"Return URL is required.\",\"code\":null}]}}}"
 }
 
 pub fn purchase_create_rejects_blank_return_url_test() {

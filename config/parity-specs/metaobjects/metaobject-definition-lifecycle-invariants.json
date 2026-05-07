@@ -1,0 +1,38 @@
+{
+  "scenarioId": "metaobject-definition-lifecycle-invariants",
+  "operationNames": ["metaobjectDefinitionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-lifecycle-invariants.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-definition-lifecycle-invariants-create.graphql",
+    "variablesCapturePath": "$.standardTemplateReservedCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "standard-template-reserved-create",
+        "capturePath": "$.standardTemplateReservedCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate"
+      },
+      {
+        "name": "shopify-reserved-prefix-create",
+        "capturePath": "$.shopifyReservedPrefixCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-lifecycle-invariants-create.graphql",
+          "variablesCapturePath": "$.shopifyReservedPrefixCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectDefinitionCreate rejecting both an existing standard-template type and an unresolved shopify-- reserved namespace type. Public 2026-04 returns NOT_AUTHORIZED at field [\"definition\"] with message \"Not authorized. This type is reserved for use by another application.\" The delete guard branches for APP_CONFIG_MANAGED and STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP are runtime-test-backed only: the public MetaobjectDefinition and StandardMetaobjectDefinitionTemplate schema slices do not expose app_config_managed, standard_template_id, or dependent_on_app metadata, and the current conformance shop exposes no other-app app-managed definition candidate. The fixture records that discovery result so the parity spec does not synthesize delete evidence."
+}

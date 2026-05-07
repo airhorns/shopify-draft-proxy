@@ -1,0 +1,41 @@
+{
+  "scenarioId": "delegate-access-token-create-expires-after-parent",
+  "operationNames": ["delegateAccessTokenCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-expires-after-parent.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-expires-after-parent.graphql",
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-access-token-expires-at": "2024-01-01T01:00:00.000Z"
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "expires-after-parent-user-error",
+        "capturePath": "$.evidence.parity.expected.expiresAfterParent.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate"
+      },
+      {
+        "name": "failed-log",
+        "capturePath": "$.evidence.localRuntime.expected.failedLog",
+        "proxyLogPath": "$.entries[0]",
+        "selectedPaths": ["$.status", "$.stagedResourceIds"]
+      },
+      {
+        "name": "no-staged-delegate-token",
+        "capturePath": "$.evidence.localRuntime.expected.emptyDelegatedAccessTokens",
+        "proxyStatePath": "$.stagedState.delegatedAccessTokens"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 with an expiring conformance access token and `expiresIn: 99999999`. Shopify returned EXPIRES_AFTER_PARENT, no delegate token, and field null for this public GraphQL path. The proxy replay models the parent token record's expires_at through the request-scoped x-shopify-draft-proxy-access-token-expires-at header so permanent-parent requests omit the header and remain unbounded."
+}

@@ -990,6 +990,27 @@ pub fn serialize_definition_mutation_payload(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  serialize_definition_mutation_payload_with_validation_job(
+    store_in,
+    definition_field_name,
+    definition,
+    user_errors,
+    field,
+    variables,
+    None,
+  )
+}
+
+@internal
+pub fn serialize_definition_mutation_payload_with_validation_job(
+  store_in: Store,
+  definition_field_name: String,
+  definition: Option(MetafieldDefinitionRecord),
+  user_errors: List(definition_types.UserError),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  validation_job_id: Option(String),
+) -> Json {
   json.object(
     list.map(
       get_selected_child_fields(field, default_selected_field_options()),
@@ -1013,8 +1034,35 @@ pub fn serialize_definition_mutation_payload(
                 json.array(user_errors, fn(error) {
                   serialize_definition_user_error(error, selection)
                 })
-              False, "validationJob" -> json.null()
+              False, "validationJob" ->
+                case validation_job_id {
+                  Some(id) -> serialize_validation_job(selection, id, False)
+                  None -> json.null()
+                }
               False, _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_validation_job(field: Selection, id: String, done: Bool) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "__typename" -> json.string("Job")
+              "id" -> json.string(id)
+              "done" -> json.bool(done)
+              "query" -> json.null()
+              _ -> json.null()
             }
           _ -> json.null()
         }

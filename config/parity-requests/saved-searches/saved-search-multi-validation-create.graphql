@@ -1,0 +1,68 @@
+mutation SavedSearchMultiValidationCreate(
+  $productReservedUnknown: SavedSearchCreateInput!
+  $productLongIncompatible: SavedSearchCreateInput!
+  $orderReservedUnknown: SavedSearchCreateInput!
+  $productPositiveA: SavedSearchCreateInput!
+  $productPositiveB: SavedSearchCreateInput!
+) {
+  productReservedUnknown: savedSearchCreate(input: $productReservedUnknown) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productLongIncompatible: savedSearchCreate(input: $productLongIncompatible) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderReservedUnknown: savedSearchCreate(input: $orderReservedUnknown) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productPositiveA: savedSearchCreate(input: $productPositiveA) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productPositiveB: savedSearchCreate(input: $productPositiveB) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

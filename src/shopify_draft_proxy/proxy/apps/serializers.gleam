@@ -698,7 +698,13 @@ pub fn project_uninstall_payload(
   let payload =
     src_object([
       #("app", app_source),
-      #("userErrors", user_errors_source(user_errors)),
+      #(
+        "userErrors",
+        user_errors_source_with_typename(
+          user_errors,
+          "AppUninstallAppUninstallError",
+        ),
+      ),
     ])
   project_payload(payload, field, fragments)
 }
@@ -713,7 +719,13 @@ pub fn project_revoke_payload(
   let payload =
     src_object([
       #("revoked", SrcList(list.map(revoked, access_scope_to_source))),
-      #("userErrors", user_errors_source(user_errors)),
+      #(
+        "userErrors",
+        user_errors_source_with_typename(
+          user_errors,
+          "AppRevokeAccessScopesAppRevokeScopeError",
+        ),
+      ),
     ])
   project_payload(payload, field, fragments)
 }
@@ -917,16 +929,26 @@ fn project_payload(
 }
 
 fn user_errors_source(errors: List(app_types.UserError)) -> SourceValue {
-  SrcList(list.map(errors, user_error_to_source))
+  user_errors_source_with_typename(errors, "UserError")
 }
 
-fn user_error_to_source(error: app_types.UserError) -> SourceValue {
+fn user_errors_source_with_typename(
+  errors: List(app_types.UserError),
+  typename: String,
+) -> SourceValue {
+  SrcList(list.map(errors, fn(error) { user_error_to_source(error, typename) }))
+}
+
+fn user_error_to_source(
+  error: app_types.UserError,
+  typename: String,
+) -> SourceValue {
   let field = case error.field {
     [marker] if marker == app_types.null_user_error_field_marker -> SrcNull
     parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
   }
   let base = [
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString(typename)),
     #("field", field),
     #("message", SrcString(error.message)),
   ]

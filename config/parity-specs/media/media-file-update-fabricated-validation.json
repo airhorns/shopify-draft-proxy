@@ -1,0 +1,74 @@
+{
+  "scenarioId": "media-file-update-fabricated-validation",
+  "operationNames": ["fileCreate", "fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-fabricated-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-update-fabricated-validation-create.graphql",
+    "variablesCapturePath": "$.setup.imageCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 fileUpdate input-validation behavior for disputed branches: 513-character alt is rejected with ALT_VALUE_LIMIT_EXCEEDED, non-URL originalSource is rejected as INVALID_IMAGE_SOURCE_URL on previewImageSource, over-length originalSource returns a top-level INVALID_FIELD_ARGUMENTS error with data.fileUpdate null, and over-length previewImageSource is accepted. The proxy hydrates the captured READY MediaImage from cassette-backed upstream reads before staging each local update.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "long-alt-rejected",
+        "capturePath": "$.branches.longAlt.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.longAlt.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-original-source-rejected",
+        "capturePath": "$.branches.invalidOriginalSource.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.invalidOriginalSource.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "over-length-original-source-rejected",
+        "capturePath": "$.branches.overLengthOriginalSource.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.overLengthOriginalSource.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "over-length-original-source-top-level-error",
+        "capturePath": "$.branches.overLengthOriginalSource.response.errors",
+        "proxyPath": "$.errors",
+        "excludedPaths": ["$[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.overLengthOriginalSource.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "over-length-preview-image-source-accepted",
+        "capturePath": "$.branches.overLengthPreviewImageSource.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "excludedPaths": ["$.files[0].preview.image.url"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.overLengthPreviewImageSource.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

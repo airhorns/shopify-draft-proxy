@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-06T22:26:33.933Z",
+  "capturedAt": "2026-05-07T12:21:48.093Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenario": "delegate-access-token-destroy-codes",
@@ -114,7 +114,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -159,8 +159,8 @@
               "delegateAccessToken": {
                 "accessToken": "[redacted-live-delegate-token]",
                 "accessScopes": ["read_products"],
-                "createdAt": "2026-05-06T22:26:33Z",
-                "expiresIn": 298
+                "createdAt": "2026-05-07T12:21:47Z",
+                "expiresIn": 299
               },
               "userErrors": []
             }
@@ -171,7 +171,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }

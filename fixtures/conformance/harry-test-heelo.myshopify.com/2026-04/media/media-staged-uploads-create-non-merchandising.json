@@ -1,0 +1,927 @@
+{
+  "notes": "Captures Shopify Admin GraphQL 2026-04 stagedUploadsCreate target metadata for non-merchandising upload resources. No upload bytes are sent; this fixture records signed target metadata, SHOP_IMAGE access denial with the current conformance app scopes, and schema-invalid resource values that are not exposed by the public enum.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "schema": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "stagedUploadResource": {
+          "enumValues": [
+            {
+              "name": "COLLECTION_IMAGE",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "FILE",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "IMAGE",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "MODEL_3D",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "PRODUCT_IMAGE",
+              "isDeprecated": true,
+              "deprecationReason": "Use IMAGE instead. This resource type will be removed in a future version."
+            },
+            {
+              "name": "SHOP_IMAGE",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "VIDEO",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "BULK_MUTATION_VARIABLES",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "RETURN_LABEL",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "URL_REDIRECT_IMPORT",
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
+              "name": "DISPUTE_FILE_UPLOAD",
+              "isDeprecated": false,
+              "deprecationReason": null
+            }
+          ]
+        },
+        "stagedUploadHttpMethod": {
+          "enumValues": [
+            {
+              "name": "POST"
+            },
+            {
+              "name": "PUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "bulkMutationVariablesPost",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "BULK_MUTATION_VARIABLES",
+              "filename": "staged-upload-vars.jsonl",
+              "mimeType": "text/jsonl",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "text/jsonl"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/bulk/fe805111-59c2-4700-901f-5cec10bbd74b/staged-upload-vars.jsonl"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260507T112337Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260507/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "6a9f8a1572652fc52fd886ff04fbf1d7d56770b33c3a30d8f4f86e0f6d010ea844d59821c104e3faaf2b91cb5c49aa143c5067e904109ab46b81dcb12df12bf0d053cdd87487f3da2dd070122781488e3093c007c79170aa6d44812727f65b47d904b870baf694e6cf04f99771b1ec7c1b75c4a093045d783964b6008e51efac03c2404407f2853855371b2357772a337b06fd8cfcbe281bc42795ab37003e780a54c3e49f4bba236c9f57d014bf62c63a037c0ec845b836f6ec8882a3d9a69a99e2d85b802152f8659ce3e9eb5ae98aefddf1c3681fd841148a70a5ab7715f40f53691db31e483638f92c0907ddab196867a26b1e3817f36b6ddc6424eac8b7"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvZmU4MDUxMTEtNTljMi00NzAwLTkwMWYtNWNlYzEwYmJkNzRiXC9zdGFnZWQtdXBsb2FkLXZhcnMuanNvbmwifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA1MDdUMTEyMzM3WiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA1MDdcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNS0wOFQxMToyMzozN1oifQ=="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "bulkMutationVariablesPut",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "BULK_MUTATION_VARIABLES",
+              "filename": "staged-upload-vars-put.jsonl",
+              "mimeType": "text/jsonl",
+              "httpMethod": "PUT"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/5a76eaf1-ebd0-47be-9ce0-569be8a9bd6e/staged-upload-vars-put.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T112337Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=5b0c8cd5152c284dd07b2d79ed08394acdbc705e7e5de2f51e4f4251a005e55d3a8b81a8e5744e0d0ced6cb23c5ce76faa93f711c5a4a98f42c03f04abba0022212effd6df28fb988fbe232bbd85b23276b0da11337502501ec39fadd1bacbc61a1b67ae8fcf05b27e08b2f53321267fb040ec804b17a0999e6b59e2192df38cc368450de4411c16ccab7985c5960769f8e61af8bfac6b9c7f15d9f1cc9b5ed27407079143cbf418700c879e44b32e5b0dd317e1a7c8804e57e807c6885878196341fa955e92e22fa7dc17791f25d7287d3ed80f600c8209eb76205a4799dc8fff0a67d500a2c07fc0cd002b81586f10434b8a8d4363444463a30552ba44b5d0",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/5a76eaf1-ebd0-47be-9ce0-569be8a9bd6e/staged-upload-vars-put.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T112337Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=5b0c8cd5152c284dd07b2d79ed08394acdbc705e7e5de2f51e4f4251a005e55d3a8b81a8e5744e0d0ced6cb23c5ce76faa93f711c5a4a98f42c03f04abba0022212effd6df28fb988fbe232bbd85b23276b0da11337502501ec39fadd1bacbc61a1b67ae8fcf05b27e08b2f53321267fb040ec804b17a0999e6b59e2192df38cc368450de4411c16ccab7985c5960769f8e61af8bfac6b9c7f15d9f1cc9b5ed27407079143cbf418700c879e44b32e5b0dd317e1a7c8804e57e807c6885878196341fa955e92e22fa7dc17791f25d7287d3ed80f600c8209eb76205a4799dc8fff0a67d500a2c07fc0cd002b81586f10434b8a8d4363444463a30552ba44b5d0",
+                  "parameters": [
+                    {
+                      "name": "content_type",
+                      "value": "text/jsonl"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "urlRedirectImportPost",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "URL_REDIRECT_IMPORT",
+              "filename": "staged-upload-url-redirects.csv",
+              "mimeType": "text/csv",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "text/csv"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/redirect_imports/412fbd50-bbed-4ccc-854b-3290a3e04240/staged-upload-url-redirects.csv"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260507T112338Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260507/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "9ffdc009e4a80bb8ec14cd6048e71a56b6c8be4f6ade3ec799e360941fba1df765ce8f7fd4be8361651124859012ec2a4446b233bcb930395cc1aface0dca57309a3fb107944f069900833ac94259acf79cb45b90ff59051e233cd2a66ac8b7546054a84eb65dd2592571629f4083fd4c98a23d420d7ba7ea64d6addf1d08f14caf1b337110045001a21d473e21e8e321ae490294de23c976a703cca20e75974d4d8be205557bb48489825cf28156f08784c657ce1fea5ac5b85571948a18f630bef63e8069e3d9d0644d1d920346712c4d1df224f60d4c0ea31ffe1ac939ec926579df13438092ff727761977f13df77c5d2f5220483eb2e2b55cea583f5f94"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9jc3YifSx7InN1Y2Nlc3NfYWN0aW9uX3N0YXR1cyI6IjIwMSJ9LHsiYWNsIjoicHJpdmF0ZSJ9LFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDEsMjA5NzE1MjBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvcmVkaXJlY3RfaW1wb3J0c1wvNDEyZmJkNTAtYmJlZC00Y2NjLTg1NGItMzI5MGEzZTA0MjQwXC9zdGFnZWQtdXBsb2FkLXVybC1yZWRpcmVjdHMuY3N2In0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNTA3VDExMjMzOFoifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNTA3XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDUtMDhUMTE6MjM6MzhaIn0="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "urlRedirectImportPut",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "URL_REDIRECT_IMPORT",
+              "filename": "staged-upload-url-redirects-put.csv",
+              "mimeType": "text/csv",
+              "httpMethod": "PUT"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/redirect_imports/27362646-ad28-42a9-b876-8be5d8a8ea18/staged-upload-url-redirects-put.csv?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T112338Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=1b809b1d1c4a88f2a9f608b0d858b8d2cf34e29ecf45e15628890bf1b49336ccd2c1e248e54e7f5c218342b05b0094c6650ae924281ec56c558d005d1a57c34a2b6f6a5b0d9e157abab5e0f2ba705f1ab0ae1b645e6006510b0d8ccad5f3abca6066437cf064d275bab6bd8ed1cdcd1f4630921862d03d9a10ba2512abcf8a44a14b3625b6b619356c5bea69026b869afd7f7b4f412a2b345e77f6dc926d7816c08e76a2abb649b832f084e99696b92bcbd2810b59453d3fcd359a682c664565ceda5e7803538aa8410317636cbf4ba2c36b805e0575ba599e338f218bd1838ab270ab6da6e2ccff06cee807cf43c3c8e4a1380ef85ed156f2cd68a8acfb0815",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/redirect_imports/27362646-ad28-42a9-b876-8be5d8a8ea18/staged-upload-url-redirects-put.csv?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T112338Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=1b809b1d1c4a88f2a9f608b0d858b8d2cf34e29ecf45e15628890bf1b49336ccd2c1e248e54e7f5c218342b05b0094c6650ae924281ec56c558d005d1a57c34a2b6f6a5b0d9e157abab5e0f2ba705f1ab0ae1b645e6006510b0d8ccad5f3abca6066437cf064d275bab6bd8ed1cdcd1f4630921862d03d9a10ba2512abcf8a44a14b3625b6b619356c5bea69026b869afd7f7b4f412a2b345e77f6dc926d7816c08e76a2abb649b832f084e99696b92bcbd2810b59453d3fcd359a682c664565ceda5e7803538aa8410317636cbf4ba2c36b805e0575ba599e338f218bd1838ab270ab6da6e2ccff06cee807cf43c3c8e4a1380ef85ed156f2cd68a8acfb0815",
+                  "parameters": [
+                    {
+                      "name": "content_type",
+                      "value": "text/csv"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "returnLabelPost",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "RETURN_LABEL",
+              "filename": "staged-upload-return-label.pdf",
+              "mimeType": "application/pdf",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/return_labels/bb8a9ab1-b77e-4f50-8b57-74fe35720a4d/15ce06850030b21ffda43981fc25c899.pdf",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/pdf"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/return_labels/bb8a9ab1-b77e-4f50-8b57-74fe35720a4d/15ce06850030b21ffda43981fc25c899.pdf"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260507T112338Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260507/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "74eddb0527a2b57ba05ac35fe1bacee05b4d7546ae27a418d29ca9555d43ea06f5397e73d66b344223b01c86dcdf8d52fbe30490222564884a60a71b82f764ef10578b543f535354cb4d0f8e20d019753b35558ad4a887433c58bec6ab9740d0ec71ccb46a053fd0dce8feae40abbf136004e5729cad914de98e1b1370083f18512e678fd9163ca881ba34682fa238313048f8311bfb6b37ee836fb4967ddbcc9dd4c4d22bcea9c642dfd41c4dc5c2e9747861db074402d7a5e8fad60a1d339e84a3071fbb94c670bac04fbb3fda458aa15fe8c29ad3297d6bdfd2c7ebb4573c4ab32b818c4435b4ab6a58c327f12e644b32e2ad28cc49913df68d379ab88e22"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJhcHBsaWNhdGlvblwvcGRmIn0seyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiIyMDEifSx7ImFjbCI6InByaXZhdGUifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTIwXSx7ImJ1Y2tldCI6InNob3BpZnktc3RhZ2VkLXVwbG9hZHMifSx7ImtleSI6InRtcFwvOTI4OTEyNTA5OTRcL3JldHVybl9sYWJlbHNcL2JiOGE5YWIxLWI3N2UtNGY1MC04YjU3LTc0ZmUzNTcyMGE0ZFwvMTVjZTA2ODUwMDMwYjIxZmZkYTQzOTgxZmMyNWM4OTkucGRmIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNTA3VDExMjMzOFoifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNTA3XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDUtMDhUMTE6MjM6MzhaIn0="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "returnLabelPut",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "RETURN_LABEL",
+              "filename": "staged-upload-return-label-put.pdf",
+              "mimeType": "application/pdf",
+              "httpMethod": "PUT"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/return_labels/35a27f63-421e-43f2-96ab-ed5625e45809/0e58b6c7b60645dc1dfff1c46ca24340.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T112338Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=75e138e1fb6319836ea2396d5003aa1df2058c49bb9cabf4bf8b3486dffd8aaa2cab53b37555c39bfbb1017a8cbedf3db7f96e87cb5b7484cfd0298d527a3c9b8e2d172869310d65f35decef1011d49c6622dbf4e4c33f89df9a83c17e4f1f88f30dc6637b542d1be8bdaa6927c3bc0baa39d2dd7662c58545dd66fd5bf306b0db82e5496d475025b6be4226cd5137bb7ab29720868a237cac060487fb67ef75b7f34664b5193e04cac5c28a7ae7b9ff587a9e1d124193f8887d15f6af49cb2a203f92559a6ca6742c56c7b0e13cb12d14dc42352179caa84d93075ffe40e13a1b084847c0d1272d7b706a59cf0a22c65d1347ad6170ccc8c30f84d6df83ed9e",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/return_labels/35a27f63-421e-43f2-96ab-ed5625e45809/0e58b6c7b60645dc1dfff1c46ca24340.pdf",
+                  "parameters": [
+                    {
+                      "name": "content_type",
+                      "value": "application/pdf"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "disputeFileUploadPost",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "DISPUTE_FILE_UPLOAD",
+              "filename": "staged-upload-dispute.pdf",
+              "mimeType": "application/pdf",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/payments_file_uploads/682fb7a2-b6cd-409b-8167-08978ee83443/staged-upload-dispute.pdf",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/pdf"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/payments_file_uploads/682fb7a2-b6cd-409b-8167-08978ee83443/staged-upload-dispute.pdf"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260507T112338Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260507/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "aed1aec8648ba404f315c458cfe769362b5641b6e28975efb3ea44b7269a204a7059b19b57d1ba9fe1d2a486e6865e8a7b0a30da9a0d156ff113ec27bca928b6c973147c0771fc2bb7b5b2d90156bc487bb680a5ce5393b77eea971a3b0950139909bb1e5790d5ca211ad266562a05d290433782cb7443e26b9d15e3c74080404e276dc803eed17971ff585d199720031f74819901ab487aa00732b4cc73593400d0b93eecddcc8a5ac52bcbf6f2a4eeed48719b2a9b118dd2f0bc3918e893c891c45a1d22b1546ebdd02920ae491747e5660d45a761a6542eefc8e1bcbf6eed3d65c2c482d63826d81c189852627dad943f1ae15f5d13583692b01ca653cbb5"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJhcHBsaWNhdGlvblwvcGRmIn0seyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiIyMDEifSx7ImFjbCI6InByaXZhdGUifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTIwXSx7ImJ1Y2tldCI6InNob3BpZnktc3RhZ2VkLXVwbG9hZHMifSx7ImtleSI6InRtcFwvOTI4OTEyNTA5OTRcL3BheW1lbnRzX2ZpbGVfdXBsb2Fkc1wvNjgyZmI3YTItYjZjZC00MDliLTgxNjctMDg5NzhlZTgzNDQzXC9zdGFnZWQtdXBsb2FkLWRpc3B1dGUucGRmIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNTA3VDExMjMzOFoifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNTA3XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDUtMDhUMTE6MjM6MzhaIn0="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "disputeFileUploadPut",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "DISPUTE_FILE_UPLOAD",
+              "filename": "staged-upload-dispute-put.pdf",
+              "mimeType": "application/pdf",
+              "httpMethod": "PUT"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/payments_file_uploads/fe8a984e-f062-4061-9076-dc10ce14f4d1/staged-upload-dispute-put.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T112338Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=1618d67fad565e79c340b6f648d21ee9926d6622d2471809665b144ee7a6af8cd9cc2bb44a27746f69815777af2488ff20a3378e0d4dfd8df938303d31213fbd801e7929e03f2b59e574f8567dbcfbb812376aaea8e1a52757839ab3db5e30e56cabeaf4c629354ac3db18b46a874be3670e9f07959a0099c241a87eaff85999bd931d020d7bbaa3ee4809e82ce8de865548734044243005d17ff7f37e3e9d2c63731e3cc4afd1fe29d9414f523b349bc7f6db0a7ce9f3deb8593d6df8493a3e31690962cb2cd335b45b0ab8c8f5598f19452eb812ac0c15767595c8fbf35101d944045725d30f11194a7d556f351d25ff7de6a964b545261e4287283cbb2a00",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/payments_file_uploads/fe8a984e-f062-4061-9076-dc10ce14f4d1/staged-upload-dispute-put.pdf",
+                  "parameters": [
+                    {
+                      "name": "content_type",
+                      "value": "application/pdf"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "shopImageScopeBlocked",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "SHOP_IMAGE",
+              "filename": "staged-upload-shop-logo.png",
+              "mimeType": "image/png",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for stagedUploadsCreate field.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes"
+              },
+              "path": ["stagedUploadsCreate"]
+            }
+          ],
+          "data": {
+            "stagedUploadsCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "customerImportInvalidResource",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "CUSTOMER_IMPORT",
+              "filename": "staged-upload-customers.csv",
+              "mimeType": "text/csv",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [StagedUploadInput!]! was provided invalid value for 0.resource (Expected \"CUSTOMER_IMPORT\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 41
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "resource": "CUSTOMER_IMPORT",
+                    "filename": "staged-upload-customers.csv",
+                    "mimeType": "text/csv",
+                    "httpMethod": "POST"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "resource"],
+                    "explanation": "Expected \"CUSTOMER_IMPORT\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "inventoryImportInvalidResource",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "INVENTORY_IMPORT",
+              "filename": "staged-upload-inventory.csv",
+              "mimeType": "text/csv",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [StagedUploadInput!]! was provided invalid value for 0.resource (Expected \"INVENTORY_IMPORT\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 41
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "resource": "INVENTORY_IMPORT",
+                    "filename": "staged-upload-inventory.csv",
+                    "mimeType": "text/csv",
+                    "httpMethod": "POST"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "resource"],
+                    "explanation": "Expected \"INVENTORY_IMPORT\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "articleImageInvalidResource",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "ARTICLE_IMAGE",
+              "filename": "staged-upload-article.png",
+              "mimeType": "image/png",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [StagedUploadInput!]! was provided invalid value for 0.resource (Expected \"ARTICLE_IMAGE\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 41
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "resource": "ARTICLE_IMAGE",
+                    "filename": "staged-upload-article.png",
+                    "mimeType": "image/png",
+                    "httpMethod": "POST"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "resource"],
+                    "explanation": "Expected \"ARTICLE_IMAGE\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "themeArchiveInvalidResource",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "THEME_ARCHIVE",
+              "filename": "staged-upload-theme.zip",
+              "mimeType": "application/zip",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [StagedUploadInput!]! was provided invalid value for 0.resource (Expected \"THEME_ARCHIVE\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 41
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "resource": "THEME_ARCHIVE",
+                    "filename": "staged-upload-theme.zip",
+                    "mimeType": "application/zip",
+                    "httpMethod": "POST"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "resource"],
+                    "explanation": "Expected \"THEME_ARCHIVE\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "translationsImportInvalidResource",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadNonMerchandising($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "TRANSLATIONS_IMPORT",
+              "filename": "staged-upload-translations.csv",
+              "mimeType": "text/csv",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [StagedUploadInput!]! was provided invalid value for 0.resource (Expected \"TRANSLATIONS_IMPORT\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 41
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "resource": "TRANSLATIONS_IMPORT",
+                    "filename": "staged-upload-translations.csv",
+                    "mimeType": "text/csv",
+                    "httpMethod": "POST"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "resource"],
+                    "explanation": "Expected \"TRANSLATIONS_IMPORT\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

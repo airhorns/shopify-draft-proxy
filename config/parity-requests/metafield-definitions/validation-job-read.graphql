@@ -1,0 +1,10 @@
+query MetafieldDefinitionValidationJobRead($id: ID!) {
+  job(id: $id) {
+    __typename
+    id
+    done
+    query {
+      __typename
+    }
+  }
+}

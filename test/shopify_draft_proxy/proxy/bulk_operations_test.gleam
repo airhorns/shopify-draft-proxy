@@ -7,8 +7,12 @@ import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/bulk_operations
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/mutation_helpers
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, UpstreamContext, empty_upstream_context,
+}
+import shopify_draft_proxy/shopify/upstream_client.{SyncTransport}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
@@ -74,6 +78,45 @@ fn run_mutation_import_validator(inner_mutation: String) {
     document,
     variables,
     empty_upstream_context(),
+  )
+}
+
+fn run_mutation_import(
+  inner_mutation: String,
+  upload_path: String,
+  upload_content: String,
+  upstream: UpstreamContext,
+) {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let source =
+    store.stage_staged_upload_content(store.new(), upload_path, upload_content)
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message code } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner_mutation)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  bulk_operations.process_mutation(
+    source,
+    synthetic_identity.new(),
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn upstream_context_with_body(body: String) -> UpstreamContext {
+  let transport =
+    SyncTransport(send: fn(_req) {
+      Ok(commit.HttpOutcome(status: 200, body: body, headers: []))
+    })
+  UpstreamContext(
+    transport: Some(transport),
+    origin: "https://bulk-fallback.myshopify.com",
+    headers: dict.new(),
+    allow_upstream_reads: True,
   )
 }
 
@@ -782,6 +825,15 @@ pub fn run_mutation_disallowed_inner_root_matches_shopify_validator_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn run_mutation_disallowed_query_root_matches_shopify_validator_test() {
+  let inner =
+    "mutation Probe($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id } userErrors { field message } } }"
+  let outcome = run_mutation_import_validator(inner)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"mutation\"],\"message\":\"You must use an allowed mutation name.\",\"code\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn run_mutation_multiple_connections_matches_shopify_validator_test() {
   let outcome =
     run_mutation_import_validator(
@@ -876,6 +928,125 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
     dict.get(log_variables, "product")
   let assert Ok(root_field.StringVal("Bulk Created Board")) =
     dict.get(log_product, "title")
+}
+
+pub fn run_mutation_customer_create_import_stages_customer_and_reads_bulk_operation_test() {
+  let inner =
+    "mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { id email displayName tags } userErrors { field message code } } }"
+  let outcome =
+    run_mutation_import(
+      inner,
+      "/bulk/customers.jsonl",
+      "{\"input\":{\"email\":\"bulk-customer@example.com\",\"firstName\":\"Bulk\",\"lastName\":\"Customer\",\"tags\":[\"vip\"]}}\n",
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"CREATED\"")
+  assert string.contains(response, "\"type\":\"MUTATION\"")
+  assert string.contains(response, "\"userErrors\":[]")
+
+  let assert [operation_id, ..] = outcome.staged_resource_ids
+  let assert Ok(customer) =
+    store.list_effective_customers(outcome.store)
+    |> list.find(fn(record) {
+      record.email == Some("bulk-customer@example.com")
+    })
+  assert customer.display_name == Some("Bulk Customer")
+
+  let read_after =
+    run(
+      outcome.store,
+      "{ byId: bulkOperation(id: \""
+        <> operation_id
+        <> "\") { id status type objectCount rootObjectCount fileSize url query } current: currentBulkOperation(type: MUTATION) { id status type } list: bulkOperations(first: 5, query: \"operation_type:MUTATION\") { nodes { id status type } } }",
+    )
+  assert string.contains(
+    read_after,
+    "\"byId\":{\"id\":\""
+      <> operation_id
+      <> "\",\"status\":\"COMPLETED\",\"type\":\"MUTATION\"",
+  )
+  assert string.contains(read_after, "\"objectCount\":\"1\"")
+  assert string.contains(read_after, "\"rootObjectCount\":\"1\"")
+  assert string.contains(
+    read_after,
+    "\"current\":{\"id\":\"" <> operation_id <> "\",\"status\":\"COMPLETED\"",
+  )
+  assert string.contains(
+    read_after,
+    "\"list\":{\"nodes\":[{\"id\":\""
+      <> operation_id
+      <> "\",\"status\":\"COMPLETED\",\"type\":\"MUTATION\"}]}",
+  )
+
+  let assert Some(jsonl) =
+    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
+  assert string.contains(jsonl, "\"line\":1")
+  assert string.contains(jsonl, "\"customerCreate\"")
+  assert string.contains(jsonl, "bulk-customer@example.com")
+  let assert [
+    mutation_helpers.LogDraft(
+      operation_name: Some("CustomerCreate"),
+      root_fields: ["customerCreate"],
+      primary_root_field: Some("customerCreate"),
+      domain: "customers",
+      staged_resource_ids: [customer_id, ..],
+      status: store_types.Staged,
+      ..,
+    ),
+  ] = outcome.log_drafts
+  assert customer_id == customer.id
+}
+
+pub fn run_mutation_allowed_unknown_root_uses_upstream_fallback_and_records_result_test() {
+  let upstream_body =
+    "{\"data\":{\"urlRedirectCreate\":{\"urlRedirect\":{\"id\":\"gid://shopify/UrlRedirect/1\",\"path\":\"/old\",\"target\":\"/new\"},\"userErrors\":[]}}}"
+  let inner =
+    "mutation UrlRedirectCreate($urlRedirect: UrlRedirectInput!) { urlRedirectCreate(urlRedirect: $urlRedirect) { urlRedirect { id path target } userErrors { field message } } }"
+  let outcome =
+    run_mutation_import(
+      inner,
+      "/bulk/url-redirects.jsonl",
+      "{\"urlRedirect\":{\"path\":\"/old\",\"target\":\"/new\"}}\n",
+      upstream_context_with_body(upstream_body),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(response, "\"status\":\"CREATED\"")
+  assert string.contains(response, "\"userErrors\":[]")
+  let assert [operation_id] = outcome.staged_resource_ids
+  let assert Some(jsonl) =
+    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
+  assert string.contains(jsonl, "\"line\":1")
+  assert string.contains(jsonl, "\"urlRedirectCreate\"")
+  assert string.contains(jsonl, "\"gid://shopify/UrlRedirect/1\"")
+  assert store.list_effective_customers(outcome.store) == []
+
+  let read_after =
+    run(
+      outcome.store,
+      "{ bulkOperation(id: \""
+        <> operation_id
+        <> "\") { id status type objectCount rootObjectCount url } currentBulkOperation(type: MUTATION) { id } }",
+    )
+  assert string.contains(read_after, "\"status\":\"COMPLETED\"")
+  assert string.contains(read_after, "\"objectCount\":\"0\"")
+  assert string.contains(
+    read_after,
+    "\"currentBulkOperation\":{\"id\":\"" <> operation_id <> "\"}",
+  )
+
+  let assert [
+    mutation_helpers.LogDraft(
+      operation_name: Some("UrlRedirectCreate"),
+      root_fields: ["urlRedirectCreate"],
+      primary_root_field: Some("urlRedirectCreate"),
+      domain: "bulk-operations",
+      execution: "passthrough",
+      staged_resource_ids: [],
+      status: store_types.Proxied,
+      ..,
+    ),
+  ] = outcome.log_drafts
 }
 
 pub fn run_mutation_returns_operation_in_progress_for_non_terminal_mutation_test() {
