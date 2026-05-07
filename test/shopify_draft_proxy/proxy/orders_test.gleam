@@ -9059,6 +9059,271 @@ pub fn orders_order_update_existing_order_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830627356905\",\"email\":\"order-update-expanded@example.com\",\"poNumber\":\"PO-ORDER-UPDATE-PARITY\",\"note\":\"order update expanded parity plan\",\"tags\":[\"expanded-parity\",\"order-update\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"expanded-parity\"}],\"gift\":{\"id\":\"gid://shopify/Metafield/35289666519273\",\"namespace\":\"custom\",\"key\":\"gift\",\"type\":\"single_line_text_field\",\"value\":\"yes\"}}}}"
 }
 
+pub fn orders_order_update_localization_and_known_staff_read_after_write_test() {
+  let order_id = "gid://shopify/Order/6830627356905"
+  let staff_member_id = "gid://shopify/StaffMember/1001"
+  let staff_member =
+    types.AdminPlatformGenericNodeRecord(
+      id: staff_member_id,
+      typename: "StaffMember",
+      data: types.CapturedObject([
+        #("__typename", types.CapturedString("StaffMember")),
+        #("id", types.CapturedString(staff_member_id)),
+        #("name", types.CapturedString("Ada Lovelace")),
+      ]),
+    )
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1323")),
+          #("note", types.CapturedString("before")),
+          #(
+            "localizedFields",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+          #(
+            "localizationExtensions",
+            types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+          ),
+          #("user", types.CapturedNull),
+          #("staffMember", types.CapturedNull),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_admin_platform_generic_nodes([staff_member])
+  let mutation =
+    "
+    mutation OrderUpdateLocalizationAndStaff($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order {
+          id
+          note
+          localizedFields(first: 5) {
+            nodes {
+              key
+              keyType
+              value
+            }
+          }
+          localizationExtensions(first: 5) {
+            nodes {
+              key
+              value
+            }
+          }
+          user {
+            id
+            name
+          }
+          staffMember {
+            id
+            name
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("id", root_field.StringVal(order_id)),
+            #("note", root_field.StringVal("after localization")),
+            #(
+              "localizedFields",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("key", root_field.StringVal("TAX_CREDENTIAL_BR_CPF_CNPJ")),
+                    #("value", root_field.StringVal("12345678901")),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "localizationExtensions",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("key", root_field.StringVal("SHIPPING_CREDENTIAL_BR")),
+                    #("value", root_field.StringVal("52998224725")),
+                  ]),
+                ),
+              ]),
+            ),
+            #("staffMemberId", root_field.StringVal(staff_member_id)),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  let mutation_json = json.to_string(outcome.data)
+  assert string.contains(
+    mutation_json,
+    "\"localizedFields\":{\"nodes\":[{\"key\":\"TAX_CREDENTIAL_BR_CPF_CNPJ\",\"keyType\":\"TAX_CREDENTIAL_BR_CPF_CNPJ\",\"value\":\"12345678901\"},{\"key\":\"SHIPPING_CREDENTIAL_BR\",\"keyType\":\"SHIPPING_CREDENTIAL_BR\",\"value\":\"52998224725\"}]}",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"localizationExtensions\":{\"nodes\":[{\"key\":\"TAX_CREDENTIAL_BR_CPF_CNPJ\",\"value\":\"12345678901\"},{\"key\":\"SHIPPING_CREDENTIAL_BR\",\"value\":\"52998224725\"}]}",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"user\":{\"id\":\"" <> staff_member_id <> "\",\"name\":\"Ada Lovelace\"}",
+  )
+  assert string.contains(
+    mutation_json,
+    "\"staffMember\":{\"id\":\""
+      <> staff_member_id
+      <> "\",\"name\":\"Ada Lovelace\"}",
+  )
+  assert string.contains(mutation_json, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+
+  let read_query =
+    "
+    query OrderUpdateLocalizationAndStaffRead($id: ID!) {
+      order(id: $id) {
+        localizedFields(first: 5) {
+          nodes {
+            key
+            keyType
+            value
+          }
+        }
+        localizationExtensions(first: 5) {
+          nodes {
+            key
+            value
+          }
+        }
+        user { id name }
+        staffMember { id name }
+      }
+    }
+  "
+  let assert Ok(read) =
+    orders.process(
+      outcome.store,
+      read_query,
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"localizedFields\":{\"nodes\":[{\"key\":\"TAX_CREDENTIAL_BR_CPF_CNPJ\",\"keyType\":\"TAX_CREDENTIAL_BR_CPF_CNPJ\",\"value\":\"12345678901\"},{\"key\":\"SHIPPING_CREDENTIAL_BR\",\"keyType\":\"SHIPPING_CREDENTIAL_BR\",\"value\":\"52998224725\"}]},\"localizationExtensions\":{\"nodes\":[{\"key\":\"TAX_CREDENTIAL_BR_CPF_CNPJ\",\"value\":\"12345678901\"},{\"key\":\"SHIPPING_CREDENTIAL_BR\",\"value\":\"52998224725\"}]},\"user\":{\"id\":\"gid://shopify/StaffMember/1001\",\"name\":\"Ada Lovelace\"},\"staffMember\":{\"id\":\"gid://shopify/StaffMember/1001\",\"name\":\"Ada Lovelace\"}}}}"
+}
+
+pub fn orders_order_update_staff_member_id_validation_test() {
+  let order_id = "gid://shopify/Order/6830627356905"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#1323")),
+          #("note", types.CapturedString("before")),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderUpdateStaffValidation($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        order { id note }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+
+  let unknown_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+              #(
+                "staffMemberId",
+                root_field.StringVal("gid://shopify/StaffMember/999999"),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let unknown_json = json.to_string(unknown_outcome.data)
+  assert string.contains(
+    unknown_json,
+    "\"field\":[\"input\",\"staffMemberId\"]",
+  )
+  assert string.contains(unknown_json, "\"code\":\"NOT_FOUND\"")
+  assert unknown_outcome.staged_resource_ids == []
+  assert unknown_outcome.log_drafts == []
+
+  let malformed_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+              #(
+                "staffMemberId",
+                root_field.StringVal("gid://shopify/Customer/999999"),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let malformed_json = json.to_string(malformed_outcome.data)
+  assert string.contains(
+    malformed_json,
+    "\"field\":[\"input\",\"staffMemberId\"]",
+  )
+  assert string.contains(malformed_json, "\"code\":\"INVALID\"")
+  assert malformed_outcome.staged_resource_ids == []
+  assert malformed_outcome.log_drafts == []
+}
+
 pub fn orders_order_open_close_read_after_write_test() {
   let order_id = "gid://shopify/Order/6830646198505"
   let seeded =

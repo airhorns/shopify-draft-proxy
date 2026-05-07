@@ -4473,6 +4473,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-update-localization-and-staff',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-localization-and-staff-conformance.ts',
+    purpose:
+      'orderUpdate localizedFields/localizationExtensions read-after-write parity plus public-schema evidence that staffMemberId is unavailable on the configured conformance store.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-localization-and-staff.json`,
+      'config/parity-specs/orders/orderUpdate-localization-and-staff.json',
+      'config/parity-requests/orders/orderUpdate-localization-and-staff.graphql',
+      'config/parity-requests/orders/orderUpdate-localization-and-staff-read.graphql',
+      'config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable paid test order and cancels it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The staffMemberId NOT_FOUND branch is runtime-test-backed because the public 2026-04 schema for the configured conformance store rejects OrderInput.staffMemberId before resolver execution.',
+  },
+  {
+    domain: 'orders',
     captureId: 'order-invoice-send-email-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-invoice-send-email-validation-conformance.ts',
