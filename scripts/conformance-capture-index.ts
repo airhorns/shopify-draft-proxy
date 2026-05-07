@@ -2346,7 +2346,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',
     purpose:
-      'MarketLocalizableResource default product-metafield behavior plus marketLocalizationsRegister/remove validation.',
+      'MarketLocalizableResource default text-metafield behavior plus definition-backed money-metafield marketLocalizationsRegister/remove lifecycle parity.',
     requiredAuthScopes: [
       'read_markets',
       'write_markets',
@@ -2360,7 +2360,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/market-localization-metafield-lifecycle.json',
     ],
     cleanupBehavior:
-      'Creates one disposable draft product with a product metafield, probes market localization behavior, then deletes the product.',
+      'Creates one disposable draft product with a text metafield, creates a disposable money metafield definition and metafield, probes market localization behavior, deletes the definition with associated metafields, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2405,6 +2405,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable subfolder web presence, updates it, deletes it, records one multi-locale disposable web presence with subfolder suffix intl, records one partial alternate-locale-only update, deletes all disposable web presences, and verifies the baseline read after cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'markets-delete-cascades',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-delete-cascades-conformance.mts',
+    purpose:
+      'marketDelete, catalogDelete, and priceListDelete downstream cascade behavior for web presences, catalog contexts, catalog/price-list detachment, and fixed price cleanup.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delete-cascades-parity.json`,
+      'config/parity-specs/markets/market-delete-cascades-web-presence.json',
+      'config/parity-specs/markets/catalog-delete-detaches-price-list.json',
+      'config/parity-specs/markets/price-list-delete-clears-fixed-prices.json',
+      'config/parity-requests/markets/market-delete-cascade-delete.graphql',
+      'config/parity-requests/markets/market-delete-cascade-read.graphql',
+      'config/parity-requests/markets/market-delete-cascade-setup-read.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-delete.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-read.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-setup-read.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-delete.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-read.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-setup-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable web presence, markets, catalogs, price lists, and one fixed variant price; the live delete scenarios remove the targeted records, and cleanup deletes any surviving setup records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3152,8 +3179,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
       'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
-      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
       'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
     ],
     cleanupBehavior:
       'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',
