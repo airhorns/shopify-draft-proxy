@@ -989,6 +989,108 @@ pub fn flow_trigger_receive_body_only_validates_json_and_schema_test() {
   )
   assert missing_resource_url.staged_resource_ids == []
 
+  let missing_trigger_reference =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_trigger_reference_body =
+    json.to_string(missing_trigger_reference.data)
+  assert string.contains(missing_trigger_reference_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    missing_trigger_reference_body,
+    "Errors validating schema:\\n  Required field missing: 'trigger_id'.\\n",
+  )
+  assert missing_trigger_reference.staged_resource_ids == []
+  assert missing_trigger_reference.store.staged_state.admin_platform_flow_trigger_order
+    == []
+
+  let unknown_trigger_id =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let unknown_trigger_id_body = json.to_string(unknown_trigger_id.data)
+  assert string.contains(
+    unknown_trigger_id_body,
+    "Errors validating schema:\\n  Invalid trigger_id 'abc'.\\n",
+  )
+  assert unknown_trigger_id.staged_resource_ids == []
+
+  let unknown_trigger_title =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_title\\\":\\\"foo\\\",\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let unknown_trigger_title_body = json.to_string(unknown_trigger_title.data)
+  assert string.contains(
+    unknown_trigger_title_body,
+    "Errors validating schema:\\n  Invalid trigger_title 'foo'.\\n",
+  )
+  assert unknown_trigger_title.staged_resource_ids == []
+
+  let non_absolute_url =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{},\\\"resources\\\":[{\\\"url\\\":\\\"not-a-url\\\",\\\"name\\\":\\\"x\\\"}]}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let non_absolute_url_body = json.to_string(non_absolute_url.data)
+  assert string.contains(
+    non_absolute_url_body,
+    "Errors validating schema:\\n  Type error for field 'url': not-a-url is not an absolute URL.\\n",
+  )
+  assert non_absolute_url.staged_resource_ids == []
+
+  let unknown_root_key =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{},\\\"unknown_root\\\":1}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let unknown_root_key_body = json.to_string(unknown_root_key.data)
+  assert string.contains(
+    unknown_root_key_body,
+    "Errors validating schema:\\n  Invalid field: 'unknown_root'.\\n",
+  )
+  assert !string.contains(unknown_root_key_body, "Invalid trigger_id 'abc'.")
+  assert unknown_root_key.staged_resource_ids == []
+
+  let multiple_body_schema_errors =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{},\\\"resources\\\":[{\\\"url\\\":\\\"not-a-url\\\"}],\\\"unknown_root\\\":1}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let multiple_body_schema_errors_body =
+    json.to_string(multiple_body_schema_errors.data)
+  assert string.contains(
+    multiple_body_schema_errors_body,
+    "Errors validating schema:\\n  Invalid field: 'unknown_root'.\\n  Required field missing: 'name'.\\n  Type error for field 'url': not-a-url is not an absolute URL.\\n",
+  )
+  assert multiple_body_schema_errors.staged_resource_ids == []
+
   let whitespace_body =
     admin_platform.process_mutation(
       store.new(),
@@ -1005,48 +1107,6 @@ pub fn flow_trigger_receive_body_only_validates_json_and_schema_test() {
     "`handle` and `payload` arguments are required",
   )
   assert whitespace_body.staged_resource_ids == []
-}
-
-pub fn flow_trigger_receive_body_only_success_uses_canonical_payload_test() {
-  let compact =
-    admin_platform.process_mutation(
-      store.new(),
-      synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\") { userErrors { field message } } }",
-      empty_vars(),
-      empty_upstream_context(),
-    )
-  let compact_body = json.to_string(compact.data)
-  assert string.contains(compact_body, "\"userErrors\":[]")
-  assert list.length(compact.staged_resource_ids) == 1
-
-  let spaced =
-    admin_platform.process_mutation(
-      store.new(),
-      synthetic_identity.new(),
-      "/admin/api/2026-04/graphql.json",
-      "mutation { flowTriggerReceive(body: \"{  \\\"trigger_id\\\" : \\\"abc\\\", \\\"properties\\\" : {} }\") { userErrors { field message } } }",
-      empty_vars(),
-      empty_upstream_context(),
-    )
-  let spaced_body = json.to_string(spaced.data)
-  assert string.contains(spaced_body, "\"userErrors\":[]")
-  assert list.length(spaced.staged_resource_ids) == 1
-
-  let compact_record = only_flow_trigger_record(compact)
-  let spaced_record = only_flow_trigger_record(spaced)
-  assert compact_record.handle == "legacy-body"
-  assert compact_record.payload_bytes == spaced_record.payload_bytes
-  assert compact_record.payload_sha256 == spaced_record.payload_sha256
-}
-
-fn only_flow_trigger_record(outcome: mutation_helpers.MutationOutcome) {
-  let staged = outcome.store.staged_state
-  let assert [record_id] = staged.admin_platform_flow_trigger_order
-  let assert Ok(record) =
-    dict.get(staged.admin_platform_flow_triggers, record_id)
-  record
 }
 
 pub fn flow_trigger_receive_accepts_non_local_handle_test() {
