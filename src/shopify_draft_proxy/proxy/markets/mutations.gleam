@@ -34,6 +34,7 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   upsert_quantity_rule_nodes, user_error, user_error_with_typename,
   valid_currency, variant_payloads, web_presence_connection_from_ids,
 }
+import shopify_draft_proxy/proxy/markets/unsupported_country_regions
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, combine_error_lists,
 }
@@ -604,10 +605,23 @@ fn market_create_region_errors(
   let existing_codes = assigned_market_country_codes(store)
   read_market_region_inputs(input)
   |> list.filter_map(fn(region) {
-    case list.contains(existing_codes, region.country_code) {
+    case
+      unsupported_country_regions.is_unsupported_country_region(
+        region.country_code,
+      )
+    {
       True ->
-        Ok(user_error(region.field, "Code has already been taken", "TAKEN"))
-      False -> Error(Nil)
+        Ok(user_error(
+          region.field,
+          region.country_code <> " is not a supported country or region code.",
+          "UNSUPPORTED_COUNTRY_REGION",
+        ))
+      False ->
+        case list.contains(existing_codes, region.country_code) {
+          True ->
+            Ok(user_error(region.field, "Code has already been taken", "TAKEN"))
+          False -> Error(Nil)
+        }
     }
   })
 }
@@ -695,10 +709,32 @@ fn market_update_linkage_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   [
+    market_update_region_errors(input),
     missing_catalog_link_errors(store, input, "catalogsToAdd"),
     missing_web_presence_link_errors(store, input, "webPresencesToAdd"),
   ]
   |> list.flatten
+}
+
+fn market_update_region_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  read_market_region_inputs(input)
+  |> list.filter_map(fn(region) {
+    case
+      unsupported_country_regions.is_unsupported_country_region(
+        region.country_code,
+      )
+    {
+      True ->
+        Ok(user_error(
+          region.field,
+          region.country_code <> " is not a supported country or region code.",
+          "UNSUPPORTED_COUNTRY_REGION",
+        ))
+      False -> Error(Nil)
+    }
+  })
 }
 
 fn missing_catalog_link_errors(
