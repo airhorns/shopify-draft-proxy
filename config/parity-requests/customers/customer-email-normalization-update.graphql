@@ -1,0 +1,15 @@
+mutation CustomerEmailNormalizationUpdate($input: CustomerInput!) {
+  customerUpdate(input: $input) {
+    customer {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

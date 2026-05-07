@@ -1,0 +1,15 @@
+mutation CustomerEmailNormalizationCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
