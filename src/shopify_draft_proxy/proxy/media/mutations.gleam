@@ -324,12 +324,7 @@ fn handle_file_update(
   let version_hydration =
     maybe_hydrate_file_update_revert_versions(inputs, upstream)
   let errors =
-    inputs
-    |> enumerate_objects
-    |> list.flat_map(fn(entry) {
-      let #(input, index) = entry
-      validate_file_update_input(store, input, index)
-    })
+    validate_file_update_inputs(store, inputs)
     |> list.append(validate_file_update_revert_versions(
       inputs,
       version_hydration,
@@ -410,30 +405,24 @@ fn handle_file_delete(
     |> list.map(fn(file_id) {
       #(file_id, resolve_file_delete_record(store, file_id))
     })
-  let missing =
+  let missing_file_ids =
     resolved
-    |> list.find_map(fn(entry) {
+    |> list.filter_map(fn(entry) {
       let #(file_id, file) = entry
       case file {
         Some(_) -> Error(Nil)
         None -> Ok(file_id)
       }
     })
-    |> option.from_result
-  case missing {
-    Some(file_id) -> {
-      let error =
-        media_types.FilesUserError(
-          ["fileIds"],
-          "File id " <> file_id <> " does not exist.",
-          "FILE_DOES_NOT_EXIST",
-        )
+    |> dedupe_strings
+  case missing_file_ids {
+    [_, ..] -> {
       #(
         MutationFieldResult(
           key: key,
           payload: serializers.file_delete_payload(
             SrcNull,
-            [error],
+            file_does_not_exist_count_errors(["fileIds"], missing_file_ids),
             field,
             fragments,
           ),
@@ -443,7 +432,7 @@ fn handle_file_delete(
         identity,
       )
     }
-    None -> {
+    [] -> {
       let deleted_files =
         resolved
         |> list.filter_map(fn(entry) {
@@ -490,30 +479,34 @@ fn handle_file_acknowledge_update_failed(
   let file_ids =
     graphql_helpers.field_args(field, variables)
     |> read_string_list_arg("fileIds")
-  let errors =
+  let missing_file_ids =
     file_ids
-    |> list.flat_map(fn(file_id) {
+    |> list.filter_map(fn(file_id) {
       case get_effective_file_like_record(store, file_id) {
-        None -> [
-          media_types.FilesUserError(
-            ["fileIds"],
-            "File id " <> file_id <> " does not exist.",
-            "FILE_DOES_NOT_EXIST",
-          ),
-        ]
-        Some(file) ->
-          case file.file_status {
-            "READY" -> []
-            _ -> [
-              media_types.FilesUserError(
-                ["fileIds"],
-                "File with id " <> file_id <> " is not in the READY state.",
-                "NON_READY_STATE",
-              ),
-            ]
-          }
+        None -> Ok(file_id)
+        Some(_) -> Error(Nil)
       }
     })
+    |> dedupe_strings
+  let errors = case missing_file_ids {
+    [] -> {
+      let non_ready_file_ids =
+        file_ids
+        |> list.filter_map(fn(file_id) {
+          case get_effective_file_like_record(store, file_id) {
+            Some(file) ->
+              case file.file_status {
+                "READY" -> Error(Nil)
+                _ -> Ok(file_id)
+              }
+            None -> Error(Nil)
+          }
+        })
+        |> dedupe_strings
+      file_non_ready_state_count_errors(["fileIds"], non_ready_file_ids)
+    }
+    _ -> file_does_not_exist_count_errors(["fileIds"], missing_file_ids)
+  }
   case errors {
     [] -> {
       let acknowledged =
@@ -767,18 +760,53 @@ fn duplicate_media_type_name(content_type: Option(String)) -> String {
   }
 }
 
-fn validate_file_update_input(
+fn validate_file_update_inputs(
   store: Store,
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(media_types.FilesUserError) {
+  let #(field_errors, missing_file_ids, non_ready_file_ids, target_errors) =
+    inputs
+    |> enumerate_objects
+    |> list.fold(#([], [], [], []), fn(acc, entry) {
+      let #(field_errors, missing_file_ids, non_ready_file_ids, target_errors) =
+        acc
+      let #(input, index) = entry
+      let input_field_errors = validate_file_update_input_fields(input, index)
+      case input_field_errors {
+        [] -> {
+          let #(missing_ids, non_ready_ids, input_target_errors) =
+            validate_file_update_target(store, input, index)
+          #(
+            field_errors,
+            list.append(missing_file_ids, missing_ids),
+            list.append(non_ready_file_ids, non_ready_ids),
+            list.append(target_errors, input_target_errors),
+          )
+        }
+        _ -> #(
+          list.append(field_errors, input_field_errors),
+          missing_file_ids,
+          non_ready_file_ids,
+          target_errors,
+        )
+      }
+    })
+  field_errors
+  |> list.append(
+    file_update_does_not_exist_count_errors(dedupe_strings(missing_file_ids)),
+  )
+  |> list.append(
+    file_update_non_ready_errors(dedupe_strings(non_ready_file_ids)),
+  )
+  |> list.append(target_errors)
+}
+
+fn validate_file_update_input_fields(
   input: Dict(String, ResolvedValue),
   index: Int,
 ) -> List(media_types.FilesUserError) {
-  let id = read_string_field(input, "id")
-  let id_errors = case id {
-    Some(id) if id != "" ->
-      case get_effective_file_like_record(store, id) {
-        Some(_) -> []
-        None -> [file_does_not_exist_error(index, id)]
-      }
+  let id_errors = case read_string_field(input, "id") {
+    Some(id) if id != "" -> []
     _ -> [
       media_types.FilesUserError(
         ["files", int.to_string(index), "id"],
@@ -836,10 +864,7 @@ fn validate_file_update_input(
     |> list.append(source_errors)
     |> list.append(conflict_errors)
     |> list.append(source_version_errors)
-  case field_errors {
-    [] -> validate_file_update_target(store, input, index, id)
-    _ -> field_errors
-  }
+  field_errors
 }
 
 fn validate_file_update_revert_versions(
@@ -950,56 +975,121 @@ fn validate_file_update_target(
   store: Store,
   input: Dict(String, ResolvedValue),
   index: Int,
-  id: Option(String),
-) -> List(media_types.FilesUserError) {
-  case id {
+) -> #(List(String), List(String), List(media_types.FilesUserError)) {
+  case read_string_field(input, "id") {
     Some(file_id) ->
       case get_effective_file_like_record(store, file_id) {
         Some(file) -> {
-          let identity_errors =
-            validate_file_update_identity(file, file_id, index)
-          case identity_errors {
-            [] -> {
-              let state_errors =
-                validate_file_update_ready(file, file_id, index)
-              case state_errors {
-                [] -> validate_file_update_supported_changes(file, input, index)
-                _ -> state_errors
+          case file_update_identity_matches(file, file_id) {
+            True -> {
+              case file.file_status {
+                "READY" -> #(
+                  [],
+                  [],
+                  validate_file_update_supported_changes(file, input, index),
+                )
+                _ -> #([], [file_id], [])
               }
             }
-            _ -> identity_errors
+            False -> #([file_id], [], [])
           }
         }
-        None -> [file_does_not_exist_error(index, file_id)]
+        None -> #([file_id], [], [])
       }
-    _ -> []
+    _ -> #([], [], [])
   }
 }
 
-fn validate_file_update_identity(
-  file: FileRecord,
-  file_id: String,
-  index: Int,
-) -> List(media_types.FilesUserError) {
+fn file_update_identity_matches(file: FileRecord, file_id: String) -> Bool {
   case shopify_gid_type(file_id), serializers.file_typename(file) {
-    Some(type_), actual_type if type_ != actual_type -> [
-      file_does_not_exist_error(index, file_id),
-    ]
-    _, _ -> []
+    Some(type_), actual_type if type_ != actual_type -> False
+    _, _ -> True
   }
 }
 
-fn validate_file_update_ready(
-  file: FileRecord,
-  _file_id: String,
-  _index: Int,
+fn file_does_not_exist_count_errors(
+  field: List(String),
+  file_ids: List(String),
 ) -> List(media_types.FilesUserError) {
-  case file.file_status {
-    "READY" -> []
+  case file_ids {
+    [] -> []
+    [file_id] -> [
+      media_types.FilesUserError(
+        field,
+        "File id " <> file_id <> " does not exist.",
+        "FILE_DOES_NOT_EXIST",
+      ),
+    ]
+    _ -> [
+      media_types.FilesUserError(
+        field,
+        "File ids " <> string.join(file_ids, ",") <> " do not exist.",
+        "FILE_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+}
+
+fn file_update_does_not_exist_count_errors(
+  file_ids: List(String),
+) -> List(media_types.FilesUserError) {
+  case file_ids {
+    [] -> []
+    [file_id] -> [
+      media_types.FilesUserError(
+        ["files"],
+        "File id " <> quoted_id_list([file_id]) <> " does not exist.",
+        "FILE_DOES_NOT_EXIST",
+      ),
+    ]
+    _ -> [
+      media_types.FilesUserError(
+        ["files"],
+        "File ids " <> quoted_id_list(file_ids) <> " do not exist.",
+        "FILE_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+}
+
+fn quoted_id_list(file_ids: List(String)) -> String {
+  "[\"" <> string.join(file_ids, "\", \"") <> "\"]"
+}
+
+fn file_update_non_ready_errors(
+  file_ids: List(String),
+) -> List(media_types.FilesUserError) {
+  case file_ids {
+    [] -> []
     _ -> [
       media_types.FilesUserError(
         ["files"],
         "Non-ready files cannot be updated.",
+        "NON_READY_STATE",
+      ),
+    ]
+  }
+}
+
+fn file_non_ready_state_count_errors(
+  field: List(String),
+  file_ids: List(String),
+) -> List(media_types.FilesUserError) {
+  case file_ids {
+    [] -> []
+    [file_id] -> [
+      media_types.FilesUserError(
+        field,
+        "File with id " <> file_id <> " is not in the READY state.",
+        "NON_READY_STATE",
+      ),
+    ]
+    _ -> [
+      media_types.FilesUserError(
+        field,
+        "Files with ids "
+          <> string.join(file_ids, ", ")
+          <> " are not in the READY state.",
         "NON_READY_STATE",
       ),
     ]
@@ -1084,17 +1174,6 @@ fn file_allows_source_or_filename_update(file: FileRecord) -> Bool {
     Some("IMAGE") | Some("FILE") -> True
     _ -> False
   }
-}
-
-fn file_does_not_exist_error(
-  _index: Int,
-  file_id: String,
-) -> media_types.FilesUserError {
-  media_types.FilesUserError(
-    ["files"],
-    "File id [\"" <> file_id <> "\"] does not exist.",
-    "FILE_DOES_NOT_EXIST",
-  )
 }
 
 fn validate_optional_url(

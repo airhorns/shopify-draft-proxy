@@ -1,0 +1,28 @@
+{
+  "scenarioId": "comment-moderation-not-found-codes",
+  "operationNames": ["commentApprove", "commentSpam", "commentNotSpam", "commentDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/comment-moderation-not-found-codes.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/comment-moderation-not-found-codes.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "comment-moderation-not-found-codes",
+        "capturePath": "$.capture.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Live 2025-01 capture requests code-bearing userErrors for unknown comment ids across commentApprove, commentSpam, commentNotSpam, and commentDelete. The proxy replay uses the same unknown GID, hydrates comment misses through the recorded cassette, and must return NOT_FOUND codes without upstream mutations or staged writes."
+}

@@ -302,7 +302,23 @@ pub fn prepare_contact_create_input(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
-  prepare_contact_input(store, ensure_contact_locale(store, input), None, True)
+  prepare_contact_create_input_with_prefix(store, input, ["input"])
+}
+
+@internal
+pub fn prepare_contact_create_input_with_prefix(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  prepare_contact_input(
+    store,
+    ensure_contact_locale(store, input),
+    None,
+    True,
+    prefix,
+    "Email is invalid",
+  )
 }
 
 @internal
@@ -311,7 +327,14 @@ pub fn prepare_contact_update_input(
   input: Dict(String, root_field.ResolvedValue),
   contact_id: String,
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
-  prepare_contact_input(store, input, Some(contact_id), False)
+  prepare_contact_input(
+    store,
+    input,
+    Some(contact_id),
+    False,
+    ["input"],
+    "Email address is invalid",
+  )
 }
 
 @internal
@@ -320,6 +343,8 @@ pub fn prepare_contact_input(
   input: Dict(String, root_field.ResolvedValue),
   exclude_contact_id: Option(String),
   default_locale: Bool,
+  prefix: List(String),
+  email_error_message: String,
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   let input = case default_locale {
     True -> ensure_contact_locale(store, input)
@@ -330,6 +355,11 @@ pub fn prepare_contact_input(
   let errors =
     []
     |> list.append(phone_errors)
+    |> list.append(validate_contact_email_input(
+      input,
+      prefix,
+      email_error_message,
+    ))
     |> list.append(validate_contact_locale_input(input))
     |> list.append(validate_contact_notes_input(input))
     |> list.append(validate_contact_duplicate_email(
@@ -343,6 +373,28 @@ pub fn prepare_contact_input(
       exclude_contact_id,
     ))
   #(input, errors)
+}
+
+@internal
+pub fn validate_contact_email_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  message: String,
+) -> List(b2b_types.UserError) {
+  case read_string(input, "email") {
+    Some(email) ->
+      case valid_email_address(email) {
+        True -> []
+        False -> [
+          user_error(
+            Some(field_path(prefix, "email")),
+            message,
+            user_error_code.invalid,
+          ),
+        ]
+      }
+    None -> []
+  }
 }
 
 @internal
@@ -744,6 +796,38 @@ pub fn is_alpha(grapheme: String) -> Bool {
 }
 
 @internal
+pub fn valid_email_address(email: String) -> Bool {
+  let trimmed = string.trim(email)
+  trimmed == email
+  && !contains_email_whitespace(email)
+  && case string.split(email, on: "@") {
+    [local, domain] ->
+      local != ""
+      && domain != ""
+      && string.contains(domain, ".")
+      && !string.starts_with(domain, ".")
+      && !string.ends_with(domain, ".")
+      && !string.contains(domain, "..")
+    _ -> False
+  }
+}
+
+@internal
+pub fn contains_email_whitespace(email: String) -> Bool {
+  email
+  |> string.to_utf_codepoints
+  |> list.any(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    code == 0x09
+    || code == 0x0a
+    || code == 0x0b
+    || code == 0x0c
+    || code == 0x0d
+    || code == 0x20
+  })
+}
+
+@internal
 pub fn contains_html_tag(value: String) -> Bool {
   string.contains(value, "<") && string.contains(value, ">")
 }
@@ -1025,7 +1109,10 @@ pub fn handle_company_create(
   {
     Ok(root_field.ObjectVal(raw_contact_input)) -> {
       let #(prepared, prepare_errors) =
-        prepare_contact_create_input(store, raw_contact_input)
+        prepare_contact_create_input_with_prefix(store, raw_contact_input, [
+          "input",
+          "companyContact",
+        ])
       let #(validated, validation_errors) =
         validate_contact_input(prepared, ["input", "companyContact"])
       #(Some(validated), list.append(prepare_errors, validation_errors))
@@ -1272,15 +1359,43 @@ pub fn not_found_result(
         company: None,
       )
     "companyContact" ->
-      b2b_types.Payload(
-        ..empty_payload([resource_not_found(field_path)]),
-        company_contact: None,
-      )
+      case field_path {
+        ["companyContactId"] ->
+          b2b_types.Payload(
+            ..empty_payload([
+              user_error(
+                Some(field_path),
+                "The company contact doesn't exist.",
+                user_error_code.resource_not_found,
+              ),
+            ]),
+            company_contact: None,
+          )
+        _ ->
+          b2b_types.Payload(
+            ..empty_payload([resource_not_found(field_path)]),
+            company_contact: None,
+          )
+      }
     "companyLocation" ->
-      b2b_types.Payload(
-        ..empty_payload([resource_not_found(field_path)]),
-        company_location: None,
-      )
+      case field_path {
+        ["companyLocationId"] ->
+          b2b_types.Payload(
+            ..empty_payload([
+              user_error(
+                Some(["input"]),
+                "The company location doesn't exist",
+                user_error_code.resource_not_found,
+              ),
+            ]),
+            company_location: None,
+          )
+        _ ->
+          b2b_types.Payload(
+            ..empty_payload([resource_not_found(field_path)]),
+            company_location: None,
+          )
+      }
     _ -> empty_payload([resource_not_found(field_path)])
   }
   b2b_types.RootResult(payload, store, identity, [])

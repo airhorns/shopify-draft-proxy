@@ -1,0 +1,43 @@
+{
+  "scenarioId": "discount-items-refs-validation",
+  "operationNames": ["discountCodeBasicCreate", "discountCodeBxgyCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-items-refs-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-items-refs-validation.graphql",
+    "variablesCapturePath": "$.validation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 discount item reference validation for unknown product, variant, and collection IDs, collection sentinel IDs, BXGY customerBuys item refs, and product/variant/collection success branches backed by live store setup objects. Update remove behavior was probed live separately: non-entitled removes are accepted as no-ops and preserve existing entitlements.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-items-refs-validation-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.successProduct.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages the successful product entitlement branch with a synthetic discount node ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.successVariant.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages the successful variant entitlement branch with a synthetic discount node ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.successCollection.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages the successful collection entitlement branch with a synthetic discount node ID instead of Shopify's live ID."
+          }
+        ]
+      }
+    ]
+  }
+}

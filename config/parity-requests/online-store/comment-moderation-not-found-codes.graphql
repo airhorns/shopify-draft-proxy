@@ -1,0 +1,40 @@
+mutation CommentModerationNotFoundCodes($id: ID!) {
+  commentApprove(id: $id) {
+    comment {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  commentSpam(id: $id) {
+    comment {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  commentNotSpam(id: $id) {
+    comment {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  commentDelete(id: $id) {
+    deletedCommentId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

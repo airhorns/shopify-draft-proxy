@@ -75,6 +75,13 @@ Local staged mutations:
   staged file is still `UPLOADED`. The proxy does not apply the older fabricated
   512-character `alt` ceiling on `fileCreate`.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, source plus `revertToVersionId` conflict, missing `revertToVersionId` media versions, and typed-GID mismatches before updating staged records. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
+- Files API validation userErrors follow captured aggregate behavior. `fileDelete`
+  missing IDs aggregate into one `FILE_DOES_NOT_EXIST` entry on `["fileIds"]`
+  with comma-joined GIDs. `fileUpdate` missing IDs also aggregate into one
+  `FILE_DOES_NOT_EXIST` entry on `["files"]`, but Shopify 2026-04 interpolates
+  the id list as a quoted array string such as `["gid://...", "gid://..."]`.
+  Non-ready `fileUpdate` inputs collapse to one `NON_READY_STATE` entry with
+  Shopify's generic `Non-ready files cannot be updated.` message.
 - In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation: product reads hydrate referenced products, media-version reads validate `revertToVersionId` ownership, and file reads hydrate existing READY Shopify file records needed for local validation/staging. Supported mutation handling still stages locally and does not write upstream at runtime.
 - In Snapshot mode, `fileUpdate.revertToVersionId` existence validation is skipped when the version is not already known through LiveHybrid hydration. The public Admin GraphQL schemas currently checked through 2026-04 and unstable do not expose `FileUpdateInput.revertToVersionId`, so checked-in live conformance can prove the reference-target branch but the version-id branch remains covered by deterministic LiveHybrid cassette tests and internal Shopify behavior notes.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
@@ -88,7 +95,11 @@ Local staged mutations:
 - Acknowledgement validation follows captured Shopify behavior for the supported
   local subset: unknown or deleted IDs return `files: null` with
   `FILE_DOES_NOT_EXIST`, and non-ready file states such as failed file creation
-  return `NON_READY_STATE`.
+  return `NON_READY_STATE`. When any requested acknowledgement id is missing,
+  Shopify returns the aggregated missing-id error and does not also report
+  state errors for other supplied ids. When all ids exist but multiple files
+  are non-ready, the non-ready ids aggregate into one `NON_READY_STATE` entry
+  with the `Files with ids X, Y are not in the READY state.` message.
 - The proxy does not model Shopify's internal `MediaError` rows,
   `mediaWarnings`, `mediaable.status`, or `preview_image.status`. Local Files
   API and product-media reads therefore expose empty `mediaErrors` /

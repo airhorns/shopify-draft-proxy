@@ -1,0 +1,15 @@
+mutation ArticlePageBlogLengthValidationsArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+  articleUpdate(id: $id, article: $article) {
+    article {
+      id
+      title
+      handle
+      body
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

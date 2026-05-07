@@ -1,0 +1,1130 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "products": [
+      {
+        "id": "gid://shopify/Product/10179023995186",
+        "title": "discount refs product one 1778109432052",
+        "variantId": "gid://shopify/ProductVariant/51133416702258",
+        "variantTitle": "Default Title"
+      },
+      {
+        "id": "gid://shopify/Product/10179024027954",
+        "title": "discount refs product two 1778109432052",
+        "variantId": "gid://shopify/ProductVariant/51133416735026",
+        "variantTitle": "Default Title"
+      }
+    ],
+    "collections": [
+      {
+        "id": "gid://shopify/Collection/512477167922",
+        "title": "discount refs collection 1778109432052"
+      }
+    ]
+  },
+  "validation": {
+    "query": "mutation DiscountItemsRefsValidation(\n  $unknownProduct: DiscountCodeBasicInput!\n  $unknownVariant: DiscountCodeBasicInput!\n  $unknownCollection: DiscountCodeBasicInput!\n  $bxgyUnknownBuy: DiscountCodeBxgyInput!\n  $collectionSentinel: DiscountCodeBasicInput!\n  $successProduct: DiscountCodeBasicInput!\n  $successVariant: DiscountCodeBasicInput!\n  $successCollection: DiscountCodeBasicInput!\n) {\n  unknownProduct: discountCodeBasicCreate(basicCodeDiscount: $unknownProduct) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownVariant: discountCodeBasicCreate(basicCodeDiscount: $unknownVariant) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownCollection: discountCodeBasicCreate(basicCodeDiscount: $unknownCollection) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyUnknownBuy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyUnknownBuy) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  collectionSentinel: discountCodeBasicCreate(basicCodeDiscount: $collectionSentinel) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  successProduct: discountCodeBasicCreate(basicCodeDiscount: $successProduct) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  successVariant: discountCodeBasicCreate(basicCodeDiscount: $successVariant) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  successCollection: discountCodeBasicCreate(basicCodeDiscount: $successCollection) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+    "variables": {
+      "unknownProduct": {
+        "title": "discount refs BADPROD 1778109432052",
+        "code": "REFSBADPROD1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/999999999999"]
+            }
+          }
+        }
+      },
+      "unknownVariant": {
+        "title": "discount refs BADVAR 1778109432052",
+        "code": "REFSBADVAR1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "products": {
+              "productVariantsToAdd": ["gid://shopify/ProductVariant/999999999999"]
+            }
+          }
+        }
+      },
+      "unknownCollection": {
+        "title": "discount refs BADCOLL 1778109432052",
+        "code": "REFSBADCOLL1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "collections": {
+              "add": ["gid://shopify/Collection/999999999999"]
+            }
+          }
+        }
+      },
+      "bxgyUnknownBuy": {
+        "title": "discount refs bxgy BADBUY 1778109432052",
+        "code": "REFSBXGYBADBUY1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/999999999999"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountOnQuantity": {
+              "quantity": "1",
+              "effect": {
+                "percentage": 1
+              }
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10179024027954"]
+            }
+          }
+        }
+      },
+      "collectionSentinel": {
+        "title": "discount refs COLLZERO 1778109432052",
+        "code": "REFSCOLLZERO1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "collections": {
+              "add": ["gid://shopify/Collection/0"]
+            }
+          }
+        }
+      },
+      "successProduct": {
+        "title": "discount refs OKPROD 1778109432052",
+        "code": "REFSOKPROD1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10179023995186"]
+            }
+          }
+        }
+      },
+      "successVariant": {
+        "title": "discount refs OKVAR 1778109432052",
+        "code": "REFSOKVAR1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "products": {
+              "productVariantsToAdd": ["gid://shopify/ProductVariant/51133416735026"]
+            }
+          }
+        }
+      },
+      "successCollection": {
+        "title": "discount refs OKCOLL 1778109432052",
+        "code": "REFSOKCOLL1778109432052",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerSelection": {
+          "all": true
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "collections": {
+              "add": ["gid://shopify/Collection/512477167922"]
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "unknownProduct": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "items", "products", "productsToAdd"],
+              "message": "Product with id: 999999999999 is invalid",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "unknownVariant": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "items", "products", "productVariantsToAdd"],
+              "message": "Product variant with id: 999999999999 is invalid",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "unknownCollection": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
+              "message": "Collection with id: 999999999999 is invalid",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "bxgyUnknownBuy": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["bxgyCodeDiscount", "customerBuys", "items", "products", "productsToAdd"],
+              "message": "Product with id: 999999999999 is invalid",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "collectionSentinel": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
+              "message": "Collection with id: 0 is invalid",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "successProduct": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640638775602"
+          },
+          "userErrors": []
+        },
+        "successVariant": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640638808370"
+          },
+          "userErrors": []
+        },
+        "successCollection": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640638841138"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 80,
+          "actualQueryCost": 80,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1920,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640638841138",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1961,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640638808370",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640638775602",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/512477167922",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10179024027954",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10179023995186",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": [
+          "gid://shopify/Collection/0",
+          "gid://shopify/Collection/512477167922",
+          "gid://shopify/Collection/999999999999",
+          "gid://shopify/Product/999999999999",
+          "gid://shopify/ProductVariant/999999999999",
+          "gid://shopify/Product/10179023995186",
+          "gid://shopify/Product/10179024027954",
+          "gid://shopify/ProductVariant/51133416735026"
+        ]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      combinedListingRole\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      options {\n        id\n        name\n        position\n        optionValues { id name hasVariants }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      media(first: 250) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage {\n            image { id url altText width height }\n          }\n        }\n      }\n      collections(first: 250) {\n        nodes {\n          id\n          legacyResourceId\n          title\n          handle\n          updatedAt\n          description\n          descriptionHtml\n          sortOrder\n          templateSuffix\n          seo { title description }\n          productsCount { count }\n        }\n      }\n      variants(first: 250) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          metafields(first: 250) {\n            nodes {\n              id\n              namespace\n              key\n              type\n              value\n              compareDigest\n              jsonValue\n              createdAt\n              updatedAt\n              ownerType\n            }\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n            measurement { weight { unit value } }\n            inventoryLevels(first: 50) {\n              nodes {\n                id\n                location { id name }\n                quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n                  name\n                  quantity\n                  updatedAt\n                }\n              }\n            }\n          }\n          sellingPlanGroups(first: 50) {\n            nodes { id name merchantCode }\n          }\n        }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on Collection {\n      legacyResourceId\n      title\n      handle\n      updatedAt\n      description\n      descriptionHtml\n      sortOrder\n      templateSuffix\n      seo { title description }\n      ruleSet {\n        appliedDisjunctively\n        rules { column relation condition }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      productsCount { count }\n      products(first: 250) {\n        edges {\n          cursor\n          node { id title handle status vendor productType tags totalInventory tracksInventory }\n        }\n      }\n    }\n    ... on ProductVariant {\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions { name value }\n      product { id title handle status totalInventory tracksInventory }\n      product {\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions { name value }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n      }\n      sellingPlanGroups(first: 50) {\n        nodes { id name merchantCode }\n      }\n    }\n    ... on InventoryItem {\n      tracked\n      requiresShipping\n      measurement { weight { unit value } }\n      variant {\n        id\n        title\n        inventoryQuantity\n        selectedOptions { name value }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      inventoryLevels(first: 50) {\n        nodes {\n          id\n          location { id name }\n          quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n      }\n    }\n    ... on InventoryLevel {\n      id\n      location { id name }\n      quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n        name\n        quantity\n        updatedAt\n      }\n      item {\n        id\n        tracked\n        requiresShipping\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n      }\n    }\n    ... on Location {\n      id\n      name\n      isActive\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              null,
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/512477167922",
+                "legacyResourceId": "512477167922",
+                "title": "discount refs collection 1778109432052",
+                "handle": "discount-refs-collection-1778109432052",
+                "updatedAt": "2026-05-06T23:17:13Z",
+                "description": "",
+                "descriptionHtml": "",
+                "sortOrder": "BEST_SELLING",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "ruleSet": null,
+                "metafields": {
+                  "nodes": []
+                },
+                "productsCount": {
+                  "count": 0
+                },
+                "products": {
+                  "edges": []
+                }
+              },
+              null,
+              null,
+              null,
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10179023995186",
+                "legacyResourceId": "10179023995186",
+                "title": "discount refs product one 1778109432052",
+                "handle": "discount-refs-product-one-1778109432052",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "HERMES",
+                "productType": "CONFORMANCE",
+                "tags": ["1778109432052", "conformance", "discount-items-refs-validation"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-05-06T23:17:12Z",
+                "updatedAt": "2026-05-06T23:17:12Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://330fqsdqqvpcam4w-92891250994.shopifypreview.com/products_preview?preview_key=156196ec8148ec80818c3837c15dc2e6&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNS0wN1QwMDoxNzoxMy41ODBaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--7b1c5b9ba6fd54945eecf18134f9b5a1c6b29598",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12727182655794",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8017395056946",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": []
+                },
+                "collections": {
+                  "nodes": []
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51133416702258",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53236584186162",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53236584186162",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-05-06T23:17:12Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              },
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10179024027954",
+                "legacyResourceId": "10179024027954",
+                "title": "discount refs product two 1778109432052",
+                "handle": "discount-refs-product-two-1778109432052",
+                "status": "ACTIVE",
+                "combinedListingRole": null,
+                "vendor": "HERMES",
+                "productType": "CONFORMANCE",
+                "tags": ["1778109432052", "conformance", "discount-items-refs-validation"],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-05-06T23:17:12Z",
+                "updatedAt": "2026-05-06T23:17:13Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://330fqsdqqvpcam4w-92891250994.shopifypreview.com/products_preview?preview_key=b4eac78b5ddb851a4afd7e9af1b22200&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNS0wN1QwMDoxNzoxMy42MDNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--b0c5525f82812a003219eb080bc93a96b4167e12",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12727182688562",
+                    "name": "Title",
+                    "position": 1,
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8017395089714",
+                        "name": "Default Title",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "metafields": {
+                  "nodes": []
+                },
+                "media": {
+                  "nodes": []
+                },
+                "collections": {
+                  "nodes": []
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51133416735026",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "metafields": {
+                        "nodes": []
+                      },
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53236584218930",
+                        "tracked": false,
+                        "requiresShipping": true,
+                        "measurement": {
+                          "weight": {
+                            "unit": "KILOGRAMS",
+                            "value": 0
+                          }
+                        },
+                        "inventoryLevels": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53236584218930",
+                              "location": {
+                                "id": "gid://shopify/Location/106318430514",
+                                "name": "Shop location"
+                              },
+                              "quantities": [
+                                {
+                                  "name": "available",
+                                  "quantity": 0,
+                                  "updatedAt": "2026-05-06T23:17:12Z"
+                                },
+                                {
+                                  "name": "on_hand",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "committed",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "incoming",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "reserved",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "damaged",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "quality_control",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                },
+                                {
+                                  "name": "safety_stock",
+                                  "quantity": 0,
+                                  "updatedAt": null
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "sellingPlanGroups": {
+                        "nodes": []
+                      }
+                    }
+                  ]
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              },
+              {
+                "__typename": "ProductVariant",
+                "id": "gid://shopify/ProductVariant/51133416735026",
+                "title": "Default Title",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Title",
+                    "value": "Default Title"
+                  }
+                ],
+                "product": {
+                  "id": "gid://shopify/Product/10179024027954",
+                  "title": "discount refs product two 1778109432052",
+                  "handle": "discount-refs-product-two-1778109432052",
+                  "status": "ACTIVE",
+                  "totalInventory": 0,
+                  "tracksInventory": false,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51133416735026",
+                        "title": "Default Title",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Title",
+                            "value": "Default Title"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53236584218930",
+                          "tracked": false,
+                          "requiresShipping": true,
+                          "measurement": {
+                            "weight": {
+                              "unit": "KILOGRAMS",
+                              "value": 0
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                },
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53236584218930",
+                  "tracked": false,
+                  "requiresShipping": true,
+                  "measurement": {
+                    "weight": {
+                      "unit": "KILOGRAMS",
+                      "value": 0
+                    }
+                  }
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 637,
+              "actualQueryCost": 66,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1934,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSBADPROD1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSBADVAR1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSBADCOLL1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSBXGYBADBUY1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSCOLLZERO1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSOKPROD1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSOKVAR1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountUniquenessCheck",
+      "variables": {
+        "code": "REFSOKCOLL1778109432052"
+      },
+      "query": "#graphql\n  query DiscountUniquenessCheck($code: String!) {\n    codeDiscountNodeByCode(code: $code) {\n      id\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNodeByCode": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

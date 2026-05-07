@@ -1,0 +1,39 @@
+query FulfillmentOrderReleaseHoldSelectiveOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    displayFulfillmentStatus
+    fulfillmentOrders(first: 5) {
+      nodes {
+        id
+        status
+        requestStatus
+        updatedAt
+        supportedActions {
+          action
+        }
+        fulfillmentHolds {
+          id
+          handle
+          reason
+          reasonNotes
+          displayReason
+          heldByRequestingApp
+        }
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+              quantity
+              fulfillableQuantity
+            }
+          }
+        }
+      }
+    }
+  }
+}

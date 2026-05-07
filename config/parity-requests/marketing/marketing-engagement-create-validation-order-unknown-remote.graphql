@@ -1,0 +1,15 @@
+mutation MarketingEngagementCreateValidationOrderUnknownRemote(
+  $remoteId: String!
+  $engagement: MarketingEngagementInput!
+) {
+  marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $engagement) {
+    marketingEngagement {
+      occurredOn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

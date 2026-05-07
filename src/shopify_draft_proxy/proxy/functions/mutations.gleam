@@ -554,6 +554,10 @@ fn handle_validation_create(
             }
             Ok(shopify_fn) -> {
               let title = graphql_helpers.read_arg_string(input, "title")
+              let final_title = case title {
+                Some(t) -> Some(t)
+                None -> shopify_fn.title
+              }
               let #(timestamp, identity_after_ts) =
                 synthetic_identity.make_synthetic_timestamp(identity)
               let #(validation_id, identity_final) =
@@ -581,7 +585,7 @@ fn handle_validation_create(
               let validation =
                 ValidationRecord(
                   id: validation_id,
-                  title: title,
+                  title: final_title,
                   enable: enable,
                   block_on_failure: block_on_failure,
                   function_id: reference.function_id,

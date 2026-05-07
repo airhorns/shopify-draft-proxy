@@ -1,0 +1,72 @@
+mutation GiftCardUserErrorTypename(
+  $smallBalanceId: ID!
+  $negativeCreditInput: GiftCardCreditInput!
+  $insufficientDebitInput: GiftCardDebitInput!
+) {
+  createError: giftCardCreate(input: { initialValue: "0" }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  creditError: giftCardCredit(id: $smallBalanceId, creditInput: $negativeCreditInput) {
+    giftCardCreditTransaction {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  debitError: giftCardDebit(id: $smallBalanceId, debitInput: $insufficientDebitInput) {
+    giftCardDebitTransaction {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  deactivateError: giftCardDeactivate(id: "gid://shopify/GiftCard/999999999999") {
+    giftCard {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  notificationCustomerError: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/999999999999") {
+    giftCard {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  notificationRecipientError: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/999999999999") {
+    giftCard {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,671 @@
+{
+  "capturedAt": "2026-05-06T23:24:01.752Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Captures gift-card mutation userErrors __typename values for schema-valid typed user-error payloads.",
+    "GiftCardUpdatePayload.userErrors is generic UserError in the public schema. UserError exposes field/message but not code, so update is intentionally excluded from the strict code-selecting live request and covered by schema evidence plus local runtime tests.",
+    "The small-balance setup gift card is deactivated during cleanup. The replay request earns gift-card state through cassette-backed hydration, not parity runner seeding."
+  ],
+  "schemaSummary": {
+    "payloadUserErrorTypes": {
+      "GiftCardCreatePayload": "GiftCardUserError",
+      "GiftCardUpdatePayload": "UserError",
+      "GiftCardDeactivatePayload": "GiftCardDeactivateUserError",
+      "GiftCardCreditPayload": "GiftCardTransactionUserError",
+      "GiftCardDebitPayload": "GiftCardTransactionUserError",
+      "GiftCardSendNotificationToCustomerPayload": "GiftCardSendNotificationToCustomerUserError",
+      "GiftCardSendNotificationToRecipientPayload": "GiftCardSendNotificationToRecipientUserError"
+    },
+    "userErrorFields": {
+      "UserError": ["field", "message"],
+      "GiftCardUserError": ["code", "field", "message"],
+      "GiftCardTransactionUserError": ["code", "field", "message"],
+      "GiftCardDeactivateUserError": ["code", "field", "message"],
+      "GiftCardSendNotificationToCustomerUserError": ["code", "field", "message"],
+      "GiftCardSendNotificationToRecipientUserError": ["code", "field", "message"]
+    }
+  },
+  "proxyVariables": {
+    "userErrorTypename": {
+      "smallBalanceId": "gid://shopify/GiftCard/654865301810",
+      "negativeCreditInput": {
+        "creditAmount": {
+          "amount": "-1.00",
+          "currencyCode": "CAD"
+        }
+      },
+      "insufficientDebitInput": {
+        "debitAmount": {
+          "amount": "9999.00",
+          "currencyCode": "CAD"
+        }
+      }
+    }
+  },
+  "setup": {
+    "smallBalance": {
+      "label": "setupSmallBalance",
+      "query": "#graphql\n    mutation GiftCardUserErrorTypenameSetup($input: GiftCardCreateInput!) {\n      giftCardCreate(input: $input) {\n        giftCard {\n          id\n          enabled\n          balance {\n            amount\n            currencyCode\n          }\n        }\n        giftCardCode\n        userErrors {\n          field\n          code\n          message\n        }\n      }\n    }\n  ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "typenamemouoou4p",
+          "note": "Disposable gift-card user-error typename capture card.",
+          "expiresOn": "2099-01-01"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654865301810",
+                "enabled": true,
+                "balance": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "giftCardCode": "typenamemouoou4p",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1939,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "operations": {
+    "schemaIntrospection": {
+      "label": "schemaIntrospection",
+      "query": "#graphql\n    query GiftCardUserErrorTypeIntrospection {\n      giftCardCreatePayload: __type(name: \"GiftCardCreatePayload\") {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      giftCardUpdatePayload: __type(name: \"GiftCardUpdatePayload\") {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      giftCardDeactivatePayload: __type(name: \"GiftCardDeactivatePayload\") {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      giftCardCreditPayload: __type(name: \"GiftCardCreditPayload\") {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      giftCardDebitPayload: __type(name: \"GiftCardDebitPayload\") {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      giftCardSendNotificationToCustomerPayload: __type(\n        name: \"GiftCardSendNotificationToCustomerPayload\"\n      ) {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      giftCardSendNotificationToRecipientPayload: __type(\n        name: \"GiftCardSendNotificationToRecipientPayload\"\n      ) {\n        name\n        fields {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n                ofType {\n                  kind\n                  name\n                  ofType {\n                    kind\n                    name\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userError: __type(name: \"UserError\") {\n        name\n        fields {\n          name\n        }\n      }\n      giftCardUserError: __type(name: \"GiftCardUserError\") {\n        name\n        fields {\n          name\n        }\n      }\n      giftCardTransactionUserError: __type(name: \"GiftCardTransactionUserError\") {\n        name\n        fields {\n          name\n        }\n      }\n      giftCardDeactivateUserError: __type(name: \"GiftCardDeactivateUserError\") {\n        name\n        fields {\n          name\n        }\n      }\n      giftCardSendNotificationToCustomerUserError: __type(\n        name: \"GiftCardSendNotificationToCustomerUserError\"\n      ) {\n        name\n        fields {\n          name\n        }\n      }\n      giftCardSendNotificationToRecipientUserError: __type(\n        name: \"GiftCardSendNotificationToRecipientUserError\"\n      ) {\n        name\n        fields {\n          name\n        }\n      }\n    }\n  ",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreatePayload": {
+              "name": "GiftCardCreatePayload",
+              "fields": [
+                {
+                  "name": "giftCard",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCard",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "giftCardCode",
+                  "type": {
+                    "kind": "SCALAR",
+                    "name": "String",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "GiftCardUserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "giftCardUpdatePayload": {
+              "name": "GiftCardUpdatePayload",
+              "fields": [
+                {
+                  "name": "giftCard",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCard",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "UserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "giftCardDeactivatePayload": {
+              "name": "GiftCardDeactivatePayload",
+              "fields": [
+                {
+                  "name": "giftCard",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCard",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "GiftCardDeactivateUserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "giftCardCreditPayload": {
+              "name": "GiftCardCreditPayload",
+              "fields": [
+                {
+                  "name": "giftCardCreditTransaction",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCardCreditTransaction",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "GiftCardTransactionUserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "giftCardDebitPayload": {
+              "name": "GiftCardDebitPayload",
+              "fields": [
+                {
+                  "name": "giftCardDebitTransaction",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCardDebitTransaction",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "GiftCardTransactionUserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "giftCardSendNotificationToCustomerPayload": {
+              "name": "GiftCardSendNotificationToCustomerPayload",
+              "fields": [
+                {
+                  "name": "giftCard",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCard",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "GiftCardSendNotificationToCustomerUserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "giftCardSendNotificationToRecipientPayload": {
+              "name": "GiftCardSendNotificationToRecipientPayload",
+              "fields": [
+                {
+                  "name": "giftCard",
+                  "type": {
+                    "kind": "OBJECT",
+                    "name": "GiftCard",
+                    "ofType": null
+                  }
+                },
+                {
+                  "name": "userErrors",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "LIST",
+                      "name": null,
+                      "ofType": {
+                        "kind": "NON_NULL",
+                        "name": null,
+                        "ofType": {
+                          "kind": "OBJECT",
+                          "name": "GiftCardSendNotificationToRecipientUserError",
+                          "ofType": null
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "userError": {
+              "name": "UserError",
+              "fields": [
+                {
+                  "name": "field"
+                },
+                {
+                  "name": "message"
+                }
+              ]
+            },
+            "giftCardUserError": {
+              "name": "GiftCardUserError",
+              "fields": [
+                {
+                  "name": "code"
+                },
+                {
+                  "name": "field"
+                },
+                {
+                  "name": "message"
+                }
+              ]
+            },
+            "giftCardTransactionUserError": {
+              "name": "GiftCardTransactionUserError",
+              "fields": [
+                {
+                  "name": "code"
+                },
+                {
+                  "name": "field"
+                },
+                {
+                  "name": "message"
+                }
+              ]
+            },
+            "giftCardDeactivateUserError": {
+              "name": "GiftCardDeactivateUserError",
+              "fields": [
+                {
+                  "name": "code"
+                },
+                {
+                  "name": "field"
+                },
+                {
+                  "name": "message"
+                }
+              ]
+            },
+            "giftCardSendNotificationToCustomerUserError": {
+              "name": "GiftCardSendNotificationToCustomerUserError",
+              "fields": [
+                {
+                  "name": "code"
+                },
+                {
+                  "name": "field"
+                },
+                {
+                  "name": "message"
+                }
+              ]
+            },
+            "giftCardSendNotificationToRecipientUserError": {
+              "name": "GiftCardSendNotificationToRecipientUserError",
+              "fields": [
+                {
+                  "name": "code"
+                },
+                {
+                  "name": "field"
+                },
+                {
+                  "name": "message"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 61,
+              "actualQueryCost": 61,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1939,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "userErrorTypename": {
+      "label": "userErrorTypename",
+      "query": "mutation GiftCardUserErrorTypename(\n  $smallBalanceId: ID!\n  $negativeCreditInput: GiftCardCreditInput!\n  $insufficientDebitInput: GiftCardDebitInput!\n) {\n  createError: giftCardCreate(input: { initialValue: \"0\" }) {\n    giftCard {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  creditError: giftCardCredit(id: $smallBalanceId, creditInput: $negativeCreditInput) {\n    giftCardCreditTransaction {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  debitError: giftCardDebit(id: $smallBalanceId, debitInput: $insufficientDebitInput) {\n    giftCardDebitTransaction {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  deactivateError: giftCardDeactivate(id: \"gid://shopify/GiftCard/999999999999\") {\n    giftCard {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  notificationCustomerError: giftCardSendNotificationToCustomer(\n    id: \"gid://shopify/GiftCard/999999999999\"\n  ) {\n    giftCard {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n  notificationRecipientError: giftCardSendNotificationToRecipient(\n    id: \"gid://shopify/GiftCard/999999999999\"\n  ) {\n    giftCard {\n      id\n    }\n    userErrors {\n      __typename\n      code\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "smallBalanceId": "gid://shopify/GiftCard/654865301810",
+        "negativeCreditInput": {
+          "creditAmount": {
+            "amount": "-1.00",
+            "currencyCode": "CAD"
+          }
+        },
+        "insufficientDebitInput": {
+          "debitAmount": {
+            "amount": "9999.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createError": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "__typename": "GiftCardUserError",
+                  "code": "GREATER_THAN",
+                  "field": ["input", "initialValue"],
+                  "message": "must be greater than 0"
+                }
+              ]
+            },
+            "creditError": {
+              "giftCardCreditTransaction": null,
+              "userErrors": [
+                {
+                  "__typename": "GiftCardTransactionUserError",
+                  "code": "NEGATIVE_OR_ZERO_AMOUNT",
+                  "field": ["creditInput", "creditAmount", "amount"],
+                  "message": "A positive amount must be used."
+                }
+              ]
+            },
+            "debitError": {
+              "giftCardDebitTransaction": null,
+              "userErrors": [
+                {
+                  "__typename": "GiftCardTransactionUserError",
+                  "code": "INSUFFICIENT_FUNDS",
+                  "field": ["debitInput", "debitAmount", "amount"],
+                  "message": "The gift card does not have sufficient funds to satisfy the request."
+                }
+              ]
+            },
+            "deactivateError": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "__typename": "GiftCardDeactivateUserError",
+                  "code": "GIFT_CARD_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "The gift card could not be found."
+                }
+              ]
+            },
+            "notificationCustomerError": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "__typename": "GiftCardSendNotificationToCustomerUserError",
+                  "code": "GIFT_CARD_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "The gift card could not be found."
+                }
+              ]
+            },
+            "notificationRecipientError": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "__typename": "GiftCardSendNotificationToRecipientUserError",
+                  "code": "GIFT_CARD_NOT_FOUND",
+                  "field": ["id"],
+                  "message": "The gift card could not be found."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 60,
+              "actualQueryCost": 60,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1901,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:smallBalance",
+      "query": "#graphql\n      mutation GiftCardUserErrorTypenameCleanup($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654865301810"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654865301810",
+                "enabled": false,
+                "deactivatedAt": "2026-05-06T23:24:01Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1907,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654865301810"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654865301810",
+              "lastCharacters": "ou4p",
+              "maskedCode": "•••• •••• •••• ou4p",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2099-01-01",
+              "note": "Disposable gift-card user-error typename capture card.",
+              "templateSuffix": null,
+              "createdAt": "2026-05-06T23:24:01Z",
+              "updatedAt": "2026-05-06T23:24:01Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": null,
+              "recipientAttributes": null,
+              "transactions": {
+                "nodes": []
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1937,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/999999999999"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": null,
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1947,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

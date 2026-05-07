@@ -1,0 +1,15 @@
+mutation ArticlePageBlogLengthValidationsPageCreate($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

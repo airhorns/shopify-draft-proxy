@@ -197,6 +197,82 @@ pub fn reads_lists_filters_paginates_and_derives_current_test() {
   )
 }
 
+pub fn reads_sort_by_completed_at_and_reject_hidden_id_sort_key_test() {
+  let completed_old =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/101",
+        "COMPLETED",
+        "QUERY",
+        "2026-04-27T00:00:05Z",
+      ),
+      completed_at: Some("2026-04-27T00:00:10Z"),
+    )
+  let completed_new_lower_id =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/202",
+        "COMPLETED",
+        "QUERY",
+        "2026-04-27T00:00:01Z",
+      ),
+      completed_at: Some("2026-04-27T00:00:30Z"),
+    )
+  let running =
+    bulk_operation(
+      "gid://shopify/BulkOperation/303",
+      "RUNNING",
+      "QUERY",
+      "2026-04-27T00:00:20Z",
+    )
+  let completed_new_higher_id =
+    BulkOperationRecord(
+      ..bulk_operation(
+        "gid://shopify/BulkOperation/404",
+        "COMPLETED",
+        "QUERY",
+        "2026-04-27T00:00:10Z",
+      ),
+      completed_at: Some("2026-04-27T00:00:30Z"),
+    )
+  let #(_, source) = store.stage_bulk_operation(store.new(), completed_old)
+  let #(_, source) = store.stage_bulk_operation(source, completed_new_lower_id)
+  let #(_, source) = store.stage_bulk_operation(source, running)
+  let #(_, source) = store.stage_bulk_operation(source, completed_new_higher_id)
+
+  let result =
+    run(
+      source,
+      "{ completedDesc: bulkOperations(first: 5, sortKey: COMPLETED_AT) { nodes { id completedAt } } completedAsc: bulkOperations(first: 5, sortKey: COMPLETED_AT, reverse: true) { nodes { id completedAt } } createdDesc: bulkOperations(first: 5, sortKey: CREATED_AT) { nodes { id createdAt } } }",
+    )
+
+  assert string.contains(
+    result,
+    "\"completedDesc\":{\"nodes\":[{\"id\":\"gid://shopify/BulkOperation/404\",\"completedAt\":\"2026-04-27T00:00:30Z\"},{\"id\":\"gid://shopify/BulkOperation/202\",\"completedAt\":\"2026-04-27T00:00:30Z\"},{\"id\":\"gid://shopify/BulkOperation/101\",\"completedAt\":\"2026-04-27T00:00:10Z\"},{\"id\":\"gid://shopify/BulkOperation/303\",\"completedAt\":null}]}",
+  )
+  assert string.contains(
+    result,
+    "\"completedAsc\":{\"nodes\":[{\"id\":\"gid://shopify/BulkOperation/303\",\"completedAt\":null},{\"id\":\"gid://shopify/BulkOperation/101\",\"completedAt\":\"2026-04-27T00:00:10Z\"},{\"id\":\"gid://shopify/BulkOperation/202\",\"completedAt\":\"2026-04-27T00:00:30Z\"},{\"id\":\"gid://shopify/BulkOperation/404\",\"completedAt\":\"2026-04-27T00:00:30Z\"}]}",
+  )
+  assert string.contains(
+    result,
+    "\"createdDesc\":{\"nodes\":[{\"id\":\"gid://shopify/BulkOperation/303\",\"createdAt\":\"2026-04-27T00:00:20Z\"},{\"id\":\"gid://shopify/BulkOperation/404\",\"createdAt\":\"2026-04-27T00:00:10Z\"},{\"id\":\"gid://shopify/BulkOperation/101\",\"createdAt\":\"2026-04-27T00:00:05Z\"},{\"id\":\"gid://shopify/BulkOperation/202\",\"createdAt\":\"2026-04-27T00:00:01Z\"}]}",
+  )
+
+  let assert Ok(invalid_sort_key) =
+    bulk_operations.process(
+      source,
+      "{ bulkOperations(first: 5, sortKey: ID) { nodes { id } } }",
+      empty_vars(),
+    )
+  let invalid_json = json.to_string(invalid_sort_key)
+  assert string.contains(invalid_json, "\"errors\":[")
+  assert string.contains(invalid_json, "sortKey")
+  assert string.contains(invalid_json, "ID")
+  assert string.contains(invalid_json, "BulkOperationsSortKeys")
+  assert !string.contains(invalid_json, "\"bulkOperations\":{\"nodes\"")
+}
+
 pub fn process_wraps_in_data_envelope_test() {
   let assert Ok(data) =
     bulk_operations.process(
