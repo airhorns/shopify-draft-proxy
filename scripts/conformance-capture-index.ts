@@ -2867,6 +2867,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-comment-moderation-not-found-codes',
+    scriptPath: 'scripts/capture-online-store-comment-moderation-not-found-codes-conformance.ts',
+    purpose:
+      'commentApprove, commentSpam, commentNotSpam, and commentDelete unknown-id userErrors include NOT_FOUND codes.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}comment-moderation-not-found-codes.json`,
+      'config/parity-specs/online-store/comment-moderation-not-found-codes.json',
+      'config/parity-requests/online-store/comment-moderation-not-found-codes.graphql',
+    ],
+    cleanupBehavior:
+      'Uses a non-existent comment GID to exercise resolver-level not-found branches without creating or mutating store records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-theme-update-role-not-an-input',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-theme-update-validation-conformance.ts',
