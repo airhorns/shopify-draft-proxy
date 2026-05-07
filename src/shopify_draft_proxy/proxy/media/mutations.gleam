@@ -54,6 +54,11 @@ const google_signed_upload_parameter_names: List(String) = [
   "signature",
 ]
 
+const google_put_upload_parameter_names: List(String) = [
+  "content_type",
+  "acl",
+]
+
 const staged_upload_resource_values: List(String) = [
   "COLLECTION_IMAGE",
   "FILE",
@@ -1383,30 +1388,18 @@ fn make_staged_target(
   let method = read_string_field(input, "httpMethod") |> option.unwrap("POST")
   let key = "shopify-draft-proxy/" <> id <> "/" <> filename
   let parameters = case resource {
-    "IMAGE" | "FILE" ->
-      list.map(google_form_upload_parameter_names, fn(name) {
-        case name {
-          "Content-Type" -> #(name, mime_type)
-          "success_action_status" -> #(name, "201")
-          "acl" -> #(name, "private")
-          "key" -> #(name, key)
-          "x-goog-algorithm" -> #(name, "GOOG4-RSA-SHA256")
-          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
-        }
-      })
-    "VIDEO" | "MODEL_3D" ->
-      list.map(google_signed_upload_parameter_names, fn(name) {
-        case name {
-          "key" -> #(name, key)
-          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
-        }
-      })
-    _ -> [
-      #("key", key),
-      #("Content-Type", mime_type),
-      #("x-shopify-draft-proxy-resource", resource),
-      #("x-shopify-draft-proxy-http-method", method),
-    ]
+    "IMAGE"
+    | "FILE"
+    | "COLLECTION_IMAGE"
+    | "PRODUCT_IMAGE"
+    | "SHOP_IMAGE"
+    | "BULK_MUTATION_VARIABLES"
+    | "RETURN_LABEL"
+    | "URL_REDIRECT_IMPORT"
+    | "DISPUTE_FILE_UPLOAD" ->
+      make_google_upload_parameters(method, mime_type, key)
+    "VIDEO" | "MODEL_3D" -> make_signed_upload_parameters(key)
+    _ -> make_google_upload_parameters(method, mime_type, key)
   }
   let encoded_id = encode_upload_segment(id)
   let encoded_filename = encode_upload_segment(filename)
@@ -1425,6 +1418,43 @@ fn make_staged_target(
     ),
     next_identity,
   )
+}
+
+fn make_google_upload_parameters(
+  method: String,
+  mime_type: String,
+  key: String,
+) -> List(#(String, String)) {
+  case method {
+    "PUT" ->
+      list.map(google_put_upload_parameter_names, fn(name) {
+        case name {
+          "content_type" -> #(name, mime_type)
+          "acl" -> #(name, "private")
+          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
+        }
+      })
+    _ ->
+      list.map(google_form_upload_parameter_names, fn(name) {
+        case name {
+          "Content-Type" -> #(name, mime_type)
+          "success_action_status" -> #(name, "201")
+          "acl" -> #(name, "private")
+          "key" -> #(name, key)
+          "x-goog-algorithm" -> #(name, "GOOG4-RSA-SHA256")
+          _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
+        }
+      })
+  }
+}
+
+fn make_signed_upload_parameters(key: String) -> List(#(String, String)) {
+  list.map(google_signed_upload_parameter_names, fn(name) {
+    case name {
+      "key" -> #(name, key)
+      _ -> #(name, "shopify-draft-proxy-placeholder-" <> name)
+    }
+  })
 }
 
 fn empty_staged_target() -> media_types.StagedTarget {
