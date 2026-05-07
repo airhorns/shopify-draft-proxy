@@ -3034,6 +3034,51 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
     == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
 }
 
+pub fn fulfillment_order_move_processes_multiple_line_item_inputs_test() {
+  let active_location_id = "gid://shopify/Location/move-multi-active"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/move-multi"
+  let first_line_item_id = "gid://shopify/FulfillmentOrderLineItem/move-multi-1"
+  let second_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/move-multi-2"
+  let base_store =
+    store.new()
+    |> store.upsert_base_store_property_location(location(
+      active_location_id,
+      "Move multi active location",
+      True,
+      False,
+    ))
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(fulfillment_order_id, [
+        #(first_line_item_id, "gid://shopify/LineItem/move-multi-1", 2),
+        #(second_line_item_id, "gid://shopify/LineItem/move-multi-2", 3),
+      ]),
+    ])
+
+  let move_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Move($id: ID!, $newLocationId: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) { fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $lineItems) { movedFulfillmentOrder { id lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } } originalFulfillmentOrder { id lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } } remainingFulfillmentOrder { id lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+        #(
+          "lineItems",
+          root_field.ListVal([
+            fulfillment_order_line_item_input(first_line_item_id, 2),
+            fulfillment_order_line_item_input(second_line_item_id, 1),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(move_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-1\",\"totalQuantity\":2,\"remainingQuantity\":2},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-2\",\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-multi\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-2\",\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-multi\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-2\",\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"userErrors\":[]}}}"
+}
+
 pub fn fulfillment_orders_set_deadline_validation_errors_test() {
   let valid_order_id = "gid://shopify/FulfillmentOrder/deadline-valid"
   let unknown_order_id = "gid://shopify/FulfillmentOrder/deadline-missing"
@@ -3268,6 +3313,52 @@ pub fn fulfillment_order_hold_zeros_line_item_fulfillable_quantity_test() {
     == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/full-hold\",\"quantity\":2,\"fulfillableQuantity\":0}}]}},\"userErrors\":[]}}}"
 }
 
+pub fn fulfillment_order_hold_processes_multiple_line_item_inputs_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-multi"
+  let first_line_item_id = "gid://shopify/FulfillmentOrderLineItem/hold-multi-1"
+  let second_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-multi-2"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(fulfillment_order_id, [
+        #(first_line_item_id, "gid://shopify/LineItem/hold-multi-1", 2),
+        #(second_line_item_id, "gid://shopify/LineItem/hold-multi-2", 3),
+      ]),
+    ])
+
+  let hold_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) { fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) { fulfillmentOrder { status lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } } } } remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } } } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("hold-multi")),
+              #(
+                "fulfillmentOrderLineItems",
+                root_field.ListVal([
+                  fulfillment_order_line_item_input(first_line_item_id, 2),
+                  fulfillment_order_line_item_input(second_line_item_id, 1),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      api_client_upstream_context("app-a"),
+    )
+
+  assert json.to_string(hold_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/hold-multi-1\",\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/hold-multi-1\",\"quantity\":2,\"fulfillableQuantity\":0}},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/hold-multi-2\",\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/hold-multi-2\",\"quantity\":3,\"fulfillableQuantity\":2}}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/hold-multi-2\",\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/hold-multi-2\",\"quantity\":3,\"fulfillableQuantity\":2}}]}},\"userErrors\":[]}}}"
+}
+
 pub fn held_fulfillment_order_sets_shipping_order_display_status_test() {
   let order_id = "gid://shopify/Order/held-display-status"
   let fulfillment_order_id =
@@ -3493,6 +3584,18 @@ fn split_input(
           }),
         ),
       ),
+    ]),
+  )
+}
+
+fn fulfillment_order_line_item_input(
+  line_item_id: String,
+  quantity: Int,
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("id", root_field.StringVal(line_item_id)),
+      #("quantity", root_field.IntVal(quantity)),
     ]),
   )
 }
