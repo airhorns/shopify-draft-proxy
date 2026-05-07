@@ -793,22 +793,35 @@ fn serialize_node_by_id(
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
     "Job" ->
-      case is_local_product_full_sync_job(store, id) {
-        True ->
-          project_graphql_value(
-            job_source(id, False),
-            admin_node_selected_fields(selections, "Job", fragments),
-            fragments,
-          )
-        False ->
-          case store.get_customer_merge_request(store, id) {
-            Some(_) ->
+      case store.get_effective_admin_platform_generic_node_by_id(store, id) {
+        Some(record) ->
+          case record.typename {
+            "Job" ->
               project_graphql_value(
-                job_source(id, True),
+                captured_json_source_with_typename(record.data, "Job"),
                 admin_node_selected_fields(selections, "Job", fragments),
                 fragments,
               )
-            None -> json.null()
+            _ -> json.null()
+          }
+        None ->
+          case is_local_product_full_sync_job(store, id) {
+            True ->
+              project_graphql_value(
+                job_source(id, False),
+                admin_node_selected_fields(selections, "Job", fragments),
+                fragments,
+              )
+            False ->
+              case store.get_customer_merge_request(store, id) {
+                Some(_) ->
+                  project_graphql_value(
+                    job_source(id, True),
+                    admin_node_selected_fields(selections, "Job", fragments),
+                    fragments,
+                  )
+                None -> json.null()
+              }
           }
       }
     "Location" ->

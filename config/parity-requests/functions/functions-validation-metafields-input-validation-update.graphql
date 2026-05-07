@@ -1,0 +1,20 @@
+mutation ValidationMetafieldsInvalidUpdate($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation {
+      id
+      metafields(first: 5) {
+        nodes {
+          namespace
+          key
+          type
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

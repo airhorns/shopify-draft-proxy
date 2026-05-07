@@ -1,0 +1,16 @@
+query LocalizationShopLocaleMarketWebPresenceFilterSetup {
+  allShopLocales: shopLocales {
+    locale
+    name
+    primary
+    published
+    marketWebPresences {
+      id
+      subfolderSuffix
+      __typename
+      defaultLocale {
+        locale
+      }
+    }
+  }
+}

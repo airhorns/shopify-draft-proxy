@@ -968,16 +968,41 @@ fn validate_external_activity_update(
       case serializers.read_marketing_object(activity.data, "marketingEvent") {
         None -> Some(marketing_event_does_not_exist_error())
         Some(event) ->
-          validate_external_activity_event_update(
-            store,
-            activity,
-            event,
-            input,
-            requested_utm,
-            validate_utm,
-            requesting_api_client_id,
-          )
+          case validate_external_activity_currency(input) {
+            Some(error) -> Some(error)
+            None ->
+              case validate_external_activity_tactic_update(activity, input) {
+                Some(error) -> Some(error)
+                None ->
+                  validate_external_activity_event_update(
+                    store,
+                    activity,
+                    event,
+                    input,
+                    requested_utm,
+                    validate_utm,
+                    requesting_api_client_id,
+                  )
+              }
+          }
       }
+  }
+}
+
+fn validate_external_activity_tactic_update(
+  activity: MarketingRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case serializers.read_value_string(input, "tactic") {
+    Some("STOREFRONT_APP") ->
+      Some(cannot_update_tactic_to_storefront_app_error())
+    Some(_) ->
+      case serializers.read_marketing_string(activity.data, "tactic") {
+        Some("STOREFRONT_APP") ->
+          Some(cannot_update_tactic_if_originally_storefront_app_error())
+        _ -> None
+      }
+    None -> None
   }
 }
 
@@ -1892,6 +1917,22 @@ fn activity_currency_mismatch_error() -> UserError {
     field: Some(["input"]),
     message: "Currency code is not matching between budget and ad spend",
     code: None,
+  )
+}
+
+fn cannot_update_tactic_to_storefront_app_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+    code: Some("CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"),
+  )
+}
+
+fn cannot_update_tactic_if_originally_storefront_app_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "You can not update an activity tactic from STOREFRONT_APP.",
+    code: Some("CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"),
   )
 }
 

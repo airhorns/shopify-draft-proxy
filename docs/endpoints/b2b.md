@@ -105,7 +105,12 @@ HTML-name create payload (`INVALID_INPUT` at `["input"]`) because the public
 `customerId` arguments in the checked-in Admin schema, so the local handler
 defaults the created contact locale and derives the contact customer payload
 from the resolved local `Customer` record instead of synthesizing an arbitrary
-customer shape.
+customer shape. Public Admin `2026-04` capture shows its error branches use
+`RESOURCE_NOT_FOUND` at `customerId` for an unknown customer, `INVALID_INPUT`
+at `companyId` for a customer already assigned as a company contact, and
+`INVALID_INPUT` at `companyId` for an existing customer whose email is null.
+The public `BusinessCustomerUserError` schema rejects selecting `detail`, so
+the local `customer_email_must_exist` detail remains covered by runtime tests.
 
 Empty-object B2B write inputs short-circuit before local staging. The
 2026-04 `b2b-no-input-validation` parity capture records the public Admin
@@ -294,6 +299,25 @@ flag invariant can be tested directly; the parity spec documents the public
 readback difference for that single captured path while the focused runtime test
 covers the local shared-anchor cascade.
 
+Company location deletion applies Shopify's persistence-level
+failed-deletable checks before staging local deletes. `companyLocationDelete`
+and `companyLocationsDelete` reject locations that are the only remaining
+location for their company, locations referenced by effective local draft-order
+or order state, and locations that own a non-zero store credit account.
+`companyLocationDelete` returns `FAILED_TO_DELETE` with the public Admin API's
+generic `Failed to delete the company location.` message, the
+`companyLocationId` field path, and no state change. Public Admin 2026-04
+exposes a different bulk surface for the same persistence guard:
+`companyLocationsDelete` reports indexed `INTERNAL_ERROR` userErrors with the
+detailed failed-deletable message. In both roots, blocked locations remain
+visible to downstream `companyLocation(id:)` / `company(id:).locations` reads.
+Bulk location delete remains partial-success: deletable IDs are deleted,
+unknown IDs keep indexed `RESOURCE_NOT_FOUND` errors, and blocked IDs are
+omitted from `deletedCompanyLocationIds`. The executable bulk parity scenario
+uses the store-credit failed-deletable branch and records the public bulk error
+surface; single-location delete parity covers the public `FAILED_TO_DELETE`
+branch.
+
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
 unknown/unsupported escape hatch until a faithful no-send model exists.
@@ -356,6 +380,11 @@ conformance-backed local modeling.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:
   `config/parity-specs/b2b/b2b-location-address-management.json`
+- Location delete failed-deletable check capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/location-delete-failed-deletable-check.json`
+- Location delete failed-deletable check parity scenarios:
+  `config/parity-specs/b2b/location_delete_failed_deletable_check.json`,
+  `config/parity-specs/b2b/locations_delete_failed_deletable_check.json`
 - Empty input validation capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
 - Empty input validation parity scenario:

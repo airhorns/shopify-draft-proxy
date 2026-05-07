@@ -1,0 +1,420 @@
+{
+  "capturedAt": "2026-05-07T12:04:21.951Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "namespace": "validation_job_movfuluv",
+  "key": "probe",
+  "schema": {
+    "request": {
+      "query": "#graphql\nquery MetafieldDefinitionValidationJobPayloadSchema {\n  createPayload: __type(name: \"MetafieldDefinitionCreatePayload\") { fields { name } }\n  updatePayload: __type(name: \"MetafieldDefinitionUpdatePayload\") { fields { name } }\n  definition: __type(name: \"MetafieldDefinition\") { fields { name } }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "createPayload": {
+          "fields": [
+            {
+              "name": "createdDefinition"
+            },
+            {
+              "name": "userErrors"
+            }
+          ]
+        },
+        "updatePayload": {
+          "fields": [
+            {
+              "name": "updatedDefinition"
+            },
+            {
+              "name": "userErrors"
+            },
+            {
+              "name": "validationJob"
+            }
+          ]
+        },
+        "definition": {
+          "fields": [
+            {
+              "name": "access"
+            },
+            {
+              "name": "capabilities"
+            },
+            {
+              "name": "constraints"
+            },
+            {
+              "name": "description"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "key"
+            },
+            {
+              "name": "metafields"
+            },
+            {
+              "name": "metafieldsCount"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "namespace"
+            },
+            {
+              "name": "ownerType"
+            },
+            {
+              "name": "pinnedPosition"
+            },
+            {
+              "name": "standardTemplate"
+            },
+            {
+              "name": "type"
+            },
+            {
+              "name": "useAsCollectionCondition"
+            },
+            {
+              "name": "validationStatus"
+            },
+            {
+              "name": "validations"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productCreate": {
+    "request": {
+      "query": "#graphql\nmutation ValidationJobProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id title }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "validation job movfuluv"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10179777560882",
+            "title": "validation job movfuluv"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "create": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-job-create.graphql",
+      "variables": {
+        "definition": {
+          "name": "Validation Job Definition",
+          "namespace": "validation_job_movfuluv",
+          "key": "probe",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207233843506",
+            "namespace": "validation_job_movfuluv",
+            "key": "probe",
+            "ownerType": "PRODUCT",
+            "validations": [],
+            "validationStatus": "ALL_VALID"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "metafieldsSet": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-job-metafields-set.graphql",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10179777560882",
+            "namespace": "validation_job_movfuluv",
+            "key": "probe",
+            "type": "single_line_text_field",
+            "value": "ABCDE"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/43122509152562",
+              "ownerType": "PRODUCT",
+              "namespace": "validation_job_movfuluv",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "ABCDE"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validationUpdate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-job-update.graphql",
+      "variables": {
+        "definition": {
+          "namespace": "validation_job_movfuluv",
+          "key": "probe",
+          "ownerType": "PRODUCT",
+          "validations": [
+            {
+              "name": "max",
+              "value": "8"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionUpdate": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207233843506",
+            "namespace": "validation_job_movfuluv",
+            "key": "probe",
+            "ownerType": "PRODUCT",
+            "validations": [
+              {
+                "name": "max",
+                "value": "8"
+              }
+            ],
+            "validationStatus": "ALL_VALID"
+          },
+          "validationJob": {
+            "__typename": "Job",
+            "id": "gid://shopify/Job/4917411e-3fe0-400c-bd97-7310a0971d01",
+            "done": false,
+            "query": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "jobRead": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-job-read.graphql",
+      "variables": {
+        "id": "gid://shopify/Job/4917411e-3fe0-400c-bd97-7310a0971d01"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "job": {
+          "__typename": "Job",
+          "id": "gid://shopify/Job/4917411e-3fe0-400c-bd97-7310a0971d01",
+          "done": false,
+          "query": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "rename": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-job-rename.graphql",
+      "variables": {
+        "definition": {
+          "namespace": "validation_job_movfuluv",
+          "key": "probe",
+          "ownerType": "PRODUCT",
+          "name": "Validation Job Definition Renamed"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionUpdate": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207233843506",
+            "name": "Validation Job Definition Renamed",
+            "namespace": "validation_job_movfuluv",
+            "key": "probe",
+            "ownerType": "PRODUCT",
+            "validations": [
+              {
+                "name": "max",
+                "value": "8"
+              }
+            ],
+            "validationStatus": "ALL_VALID"
+          },
+          "validationJob": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\nmutation ValidationJobDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/207233843506"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207233843506",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\nmutation ValidationJobProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors { field message }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10179777560882"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10179777560882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -1,0 +1,62 @@
+{
+  "scenarioId": "customer-set-id-not-allowed",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-set-id-not-allowed.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.validation.idNotAllowed.byId.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for customerSet rejecting deprecated CustomerSetInput.id whenever an identifier is supplied. Current public CustomerSetIdentifiers exposes id/email/phone/customId; Shopify returns one CustomerSetUserError with field [\"input\"], message \"The id field is not allowed if identifier is provided.\", and code ID_NOT_ALLOWED before resolving the identifier or staging a customer.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "identifier-id-input-id-not-allowed",
+        "capturePath": "$.validation.idNotAllowed.byId.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "identifier-email-input-id-not-allowed",
+        "capturePath": "$.validation.idNotAllowed.byEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-id-not-allowed.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.idNotAllowed.byEmail.variables"
+        }
+      },
+      {
+        "name": "identifier-phone-input-id-not-allowed",
+        "capturePath": "$.validation.idNotAllowed.byPhone.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-id-not-allowed.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.idNotAllowed.byPhone.variables"
+        }
+      },
+      {
+        "name": "identifier-custom-id-input-id-not-allowed",
+        "capturePath": "$.validation.idNotAllowed.byCustomId.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-id-not-allowed.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.idNotAllowed.byCustomId.variables"
+        }
+      },
+      {
+        "name": "rejected-requests-do-not-stage",
+        "capturePath": "$.expectedEmptyMutationLog",
+        "proxyLogPath": "$.entries"
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+query B2BLocationDeleteCheckRead($companyId: ID!, $companyLocationId: ID!) {
+  company(id: $companyId) {
+    id
+    locations(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+  companyLocation(id: $companyLocationId) {
+    id
+    name
+  }
+}

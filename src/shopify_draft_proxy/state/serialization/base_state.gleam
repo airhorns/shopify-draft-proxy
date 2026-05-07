@@ -22,8 +22,8 @@ import shopify_draft_proxy/state/serialization/shared/decoders.{
   shipping_package_decoder, shop_decoder, shop_locale_decoder,
   shopify_function_decoder, store_property_mutation_payload_decoder,
   store_property_record_decoder, store_property_value_decoder,
-  tax_app_configuration_decoder, translation_decoder, validation_decoder,
-  web_presence_decoder, webhook_subscription_decoder,
+  tax_app_configuration_decoder, translation_decoder, url_redirect_decoder,
+  validation_decoder, web_presence_decoder, webhook_subscription_decoder,
 }
 import shopify_draft_proxy/state/serialization/shared/serializers.{
   abandoned_checkout_json, abandonment_json, admin_platform_generic_node_json,
@@ -57,7 +57,8 @@ import shopify_draft_proxy/state/serialization/shared/serializers.{
   store_credit_account_json, store_credit_account_transaction_json,
   store_property_mutation_payload_json, store_property_record_json,
   store_property_value_json, tax_app_configuration_json, translation_json,
-  validation_json, web_presence_json, webhook_subscription_json,
+  url_redirect_json, validation_json, web_presence_json,
+  webhook_subscription_json,
 }
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
@@ -424,6 +425,12 @@ fn base_state_dump_fields(state: store.BaseState) -> List(#(String, Json)) {
     #("metaobjects", dict_to_json(state.metaobjects, metaobject_json)),
     #("metaobjectOrder", json.array(state.metaobject_order, json.string)),
     #("deletedMetaobjectIds", bool_dict_to_json(state.deleted_metaobject_ids)),
+    #("urlRedirects", dict_to_json(state.url_redirects, url_redirect_json)),
+    #("urlRedirectOrder", json.array(state.url_redirect_order, json.string)),
+    #(
+      "deletedUrlRedirectIds",
+      bool_dict_to_json(state.deleted_url_redirect_ids),
+    ),
     #(
       "marketingActivities",
       dict_to_json(state.marketing_activities, marketing_record_json),
@@ -908,6 +915,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use metaobjects <- dict_field("metaobjects", metaobject_decoder())
   use metaobject_order <- string_list_field("metaobjectOrder")
   use deleted_metaobject_ids <- bool_dict_field("deletedMetaobjectIds")
+  use url_redirects <- dict_field("urlRedirects", url_redirect_decoder())
+  use url_redirect_order <- string_list_field("urlRedirectOrder")
+  use deleted_url_redirect_ids <- bool_dict_field("deletedUrlRedirectIds")
   use marketing_activities <- dict_field(
     "marketingActivities",
     marketing_record_decoder(),
@@ -1139,6 +1149,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     metaobjects: metaobjects,
     metaobject_order: metaobject_order,
     deleted_metaobject_ids: deleted_metaobject_ids,
+    url_redirects: url_redirects,
+    url_redirect_order: url_redirect_order,
+    deleted_url_redirect_ids: deleted_url_redirect_ids,
     marketing_activities: marketing_activities,
     marketing_activity_order: marketing_activity_order,
     marketing_events: marketing_events,

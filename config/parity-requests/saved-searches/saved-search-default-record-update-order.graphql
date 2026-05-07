@@ -1,0 +1,20 @@
+mutation SavedSearchDefaultRecordUpdateOrder($input: SavedSearchUpdateInput!) {
+  savedSearchUpdate(input: $input) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

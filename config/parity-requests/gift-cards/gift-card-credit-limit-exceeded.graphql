@@ -1,0 +1,34 @@
+mutation GiftCardCreditLimitExceeded(
+  $boundaryId: ID!
+  $creditInput: GiftCardCreditInput!
+  $debitInput: GiftCardDebitInput!
+) {
+  overLimitCredit: giftCardCredit(id: $boundaryId, creditInput: $creditInput) {
+    giftCardCreditTransaction {
+      __typename
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  debitAfterRejectedCredit: giftCardDebit(id: $boundaryId, debitInput: $debitInput) {
+    giftCardDebitTransaction {
+      __typename
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

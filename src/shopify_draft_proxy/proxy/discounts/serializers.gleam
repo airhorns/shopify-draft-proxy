@@ -647,11 +647,23 @@ pub fn validate_discount_input(
   is_create: Bool,
   ignored_discount_id: Option(String),
 ) -> List(SourceValue) {
+  let code_errors = case discount_type {
+    "app" -> validate_app_discount_code_input(input_name, input, require_code)
+    _ -> validate_discount_code_input(input_name, input, require_code)
+  }
   let errors =
     list.append(
-      validate_discount_code_input(input_name, input, require_code),
+      code_errors,
       validate_context_customer_selection_conflict(input_name, input),
     )
+  let errors = case discount_type {
+    "app" ->
+      list.append(
+        errors,
+        validate_app_discount_create_input(input_name, input, is_create),
+      )
+    _ -> errors
+  }
   let errors = case discount_types.read_string(input, "code") {
     Some(code) ->
       case errors {
@@ -858,6 +870,132 @@ pub fn resolved_decimal_float(
           int.parse(value) |> result.map(int.to_float) |> option.from_result
       }
     _ -> None
+  }
+}
+
+@internal
+pub fn validate_app_discount_create_input(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  is_create: Bool,
+) -> List(SourceValue) {
+  let errors = case input_name, title_is_blank(input) {
+    "automaticAppDiscount", True -> [
+      discount_types.user_error(
+        [input_name, "title"],
+        "Title can't be blank.",
+        "INVALID",
+      ),
+    ]
+    _, _ -> []
+  }
+  let errors = case is_create, input_value_is_present(input, "startsAt") {
+    True, False ->
+      list.append(errors, [
+        discount_types.user_error(
+          [input_name, "startsAt"],
+          "Starts at can't be blank.",
+          "INVALID",
+        ),
+      ])
+    _, _ -> errors
+  }
+  let errors = case dict.get(input, "discountClasses") {
+    Ok(root_field.ListVal([])) ->
+      list.append(errors, [
+        discount_types.user_error(
+          [input_name, "discountClasses"],
+          "Discount classes can't be empty.",
+          "INVALID",
+        ),
+      ])
+    _ -> errors
+  }
+  list.append(
+    errors,
+    validate_app_discount_customer_selection(input_name, input),
+  )
+}
+
+@internal
+pub fn validate_app_discount_code_input(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  require_code: Bool,
+) -> List(SourceValue) {
+  case
+    input_name == "codeAppDiscount",
+    discount_types.read_string(input, "code")
+  {
+    True, None ->
+      case require_code {
+        True -> [app_discount_code_blank_error(input_name)]
+        False -> []
+      }
+    True, Some(code) ->
+      case string.trim(code) {
+        "" -> [app_discount_code_blank_error(input_name)]
+        _ ->
+          case string.length(code) > 255 {
+            True -> [
+              discount_types.user_error(
+                [input_name, "code"],
+                "Code is too long (maximum is 255 characters)",
+                "TOO_LONG",
+              ),
+            ]
+            False -> []
+          }
+      }
+    False, _ -> []
+  }
+}
+
+@internal
+pub fn app_discount_code_blank_error(input_name: String) -> SourceValue {
+  discount_types.user_error(
+    [input_name, "code"],
+    "Discount code can't be blank.",
+    "INVALID",
+  )
+}
+
+@internal
+pub fn validate_app_discount_customer_selection(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_selection_fields(input) {
+    Some(fields) ->
+      case
+        customer_selection_empty_add(fields, "customers")
+        || customer_selection_empty_add(fields, "customerSegments")
+      {
+        True -> [
+          discount_types.user_error(
+            [input_name, "customerSelection"],
+            "a minimum of one prerequisite segment or prerequisite customer must be provided",
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+@internal
+pub fn customer_selection_empty_add(
+  fields: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(fields, name) {
+    Ok(root_field.ObjectVal(selection)) ->
+      case dict.get(selection, "add") {
+        Ok(root_field.ListVal([])) -> True
+        _ -> False
+      }
+    _ -> False
   }
 }
 
@@ -3387,11 +3525,63 @@ pub fn validate_bulk_search_selector(
               ),
             ]
           }
-        _ -> []
+        _ ->
+          []
+          |> list.append(validate_bulk_search_fields(root, search))
       }
     }
     _ -> []
   }
+}
+
+fn validate_bulk_search_fields(
+  root: String,
+  search: String,
+) -> List(SourceValue) {
+  case root {
+    "discountCodeBulkDelete" -> {
+      let invalid_fields =
+        search_query_parser.parse_search_query(
+          search,
+          search_query_parser.default_parse_options(),
+        )
+        |> option.map(search_query_parser.search_query_node_fields)
+        |> option.unwrap([])
+        |> list.unique
+        |> list.filter(fn(field) {
+          !list.contains(discount_code_bulk_delete_search_fields(), field)
+        })
+      case invalid_fields {
+        [] -> []
+        _ -> [
+          discount_types.user_error(
+            ["search"],
+            "Invalid search field(s): "
+              <> string.join(invalid_fields, ", ")
+              <> ". Check the query syntax.",
+            "INVALID",
+          ),
+        ]
+      }
+    }
+    _ -> []
+  }
+}
+
+fn discount_code_bulk_delete_search_fields() -> List(String) {
+  [
+    "status",
+    "times_used",
+    "discount_type",
+    "type",
+    "title",
+    "starts_at",
+    "ends_at",
+    "created_at",
+    "updated_at",
+    "method",
+    "id",
+  ]
 }
 
 @internal

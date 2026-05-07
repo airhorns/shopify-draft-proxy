@@ -1,0 +1,73 @@
+{
+  "scenarioId": "saved-search-default-record-update-delete",
+  "operationNames": ["orderSavedSearches", "draftOrderSavedSearches", "savedSearchUpdate", "savedSearchDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-default-record-update-delete.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-default-records-read.graphql",
+    "variablesCapturePath": "$.readBefore.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture for persisted ORDER and DRAFT_ORDER default saved-search records. The generic parity runner verifies the proxy can read seeded defaults, update an ORDER default, reflect the update through orderSavedSearches, delete a DRAFT_ORDER default, and suppress it from draftOrderSavedSearches without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "default-saved-searches-read-before",
+        "capturePath": "$.readBefore.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "order-default-update-payload",
+        "capturePath": "$.updateOrderDefault.response.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-update-order.graphql",
+          "variablesCapturePath": "$.updateOrderDefault.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "order-default-read-after-update",
+        "capturePath": "$.readOrderAfterUpdate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-read-updated-order.graphql",
+          "variablesCapturePath": "$.readOrderAfterUpdate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "draft-order-default-delete-payload",
+        "capturePath": "$.deleteDraftOrderDefault.response.data.savedSearchDelete",
+        "proxyPath": "$.data.savedSearchDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-delete-draft-order.graphql",
+          "variablesCapturePath": "$.deleteDraftOrderDefault.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "draft-order-default-read-after-delete",
+        "capturePath": "$.readDraftAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-read-deleted-draft-order.graphql",
+          "variablesCapturePath": "$.readDraftAfterDelete.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 {
   "scenarioId": "saved-search-unknown-filter-field",
-  "operationNames": ["savedSearchCreate"],
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "query-validation-parity"],
   "liveCaptureFiles": [
@@ -13,7 +13,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live evidence that savedSearchCreate rejects unknown PRODUCT filter fields with savedSearch: null and field [\"input\", \"query\"], while a known PRODUCT vendor filter remains valid.",
+  "notes": "Live evidence that savedSearchCreate and savedSearchUpdate reject unknown PRODUCT filter fields with field [\"input\", \"query\"], while a known PRODUCT vendor filter remains valid.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -34,6 +34,31 @@
             "path": "$.savedSearch.id",
             "matcher": "shopify-gid:SavedSearch",
             "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          }
+        ]
+      },
+      {
+        "name": "unknown-product-filter-update",
+        "capturePath": "$.savedSearchUnknownFilterField.updateUnknownProduct.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-unknown-filter-field-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productPositive.savedSearch.id"
+              },
+              "query": "made_up_filter:foo"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy updates the deterministic local SavedSearch id created by the primary request while Shopify returned the live setup id."
           }
         ]
       }

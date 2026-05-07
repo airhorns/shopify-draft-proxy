@@ -312,6 +312,42 @@ pub fn member_query_create_from_segment_id_stages_initialized_query_job_test() {
     == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},\"userErrors\":[]}}}"
 }
 
+pub fn member_query_create_from_segment_id_does_not_revalidate_stored_query_test() {
+  let s =
+    store.new()
+    |> seed(segment_record(
+      "gid://shopify/Segment/55",
+      "Stored broad grammar",
+      "foo bar",
+    ))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/55\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},\"userErrors\":[]}}}"
+
+  let assert Some(record) =
+    store.get_effective_customer_segment_members_query_by_id(
+      outcome.store,
+      "gid://shopify/CustomerSegmentMembersQuery/1",
+    )
+  assert record.segment_id == Some("gid://shopify/Segment/55")
+  assert record.query == Some("foo bar")
+}
+
+pub fn member_query_create_unknown_segment_id_uses_cdp_error_shape_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/999999999999999999\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":null,\"code\":\"INVALID\",\"message\":\"Invalid segment ID.\"}]}}}"
+}
+
 // ----------- segmentCreate -----------
 
 pub fn segment_create_mints_record_test() {

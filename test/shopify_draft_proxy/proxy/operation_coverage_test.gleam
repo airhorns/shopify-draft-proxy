@@ -265,7 +265,6 @@ pub fn query_coverage_classifies_declared_gaps_and_unregistered_test() {
       "standardMetafieldDefinitionTemplates",
       "tenderTransactions",
       "urlRedirectSavedSearches",
-      "urlRedirects",
       "urlRedirectsCount",
     ]
   assert unregistered
@@ -294,7 +293,6 @@ pub fn query_coverage_classifies_declared_gaps_and_unregistered_test() {
       "subscriptionContract",
       "subscriptionContracts",
       "subscriptionDraft",
-      "urlRedirect",
       "urlRedirectImport",
     ]
 }

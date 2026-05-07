@@ -1,0 +1,171 @@
+{
+  "scenarioId": "assign-customer-as-contact-no-email-invalid-input",
+  "operationNames": ["companyCreate", "customerCreate", "companyAssignCustomerAsContact"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "business-rule-precondition"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/assign-customer-as-contact-no-email-invalid-input.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-company-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable public Admin 2026-04 parity evidence for companyAssignCustomerAsContact error branches: unknown customer remains RESOURCE_NOT_FOUND on customerId, duplicate contact remains INVALID_INPUT on companyId, and an existing customer with no email returns INVALID_INPUT on companyId. Public BusinessCustomerUserError rejects selecting detail, so the local detail value remains covered by the focused runtime test.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-payload",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different main contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "known-customer-create-payload",
+        "capturePath": "$.knownCustomerCreate.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-customer-create.graphql",
+          "variablesCapturePath": "$.knownCustomerCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different customer IDs."
+          }
+        ]
+      },
+      {
+        "name": "unknown-customer-user-error",
+        "capturePath": "$.unknownCustomerAssign.response.data.companyAssignCustomerAsContact",
+        "proxyPath": "$.data.companyAssignCustomerAsContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-assign.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "customerId": {
+              "fromCapturePath": "$.unknownCustomerAssign.request.variables.customerId"
+            }
+          }
+        }
+      },
+      {
+        "name": "assign-known-customer-payload",
+        "capturePath": "$.knownCustomerAssign.response.data.companyAssignCustomerAsContact",
+        "proxyPath": "$.data.companyAssignCustomerAsContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-assign.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "customerId": {
+              "fromProxyResponse": "known-customer-create-payload",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different company contact IDs."
+          },
+          {
+            "path": "$.companyContact.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy contact references the locally staged customer ID."
+          },
+          {
+            "path": "$.companyContact.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy contact is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-customer-user-error",
+        "capturePath": "$.duplicateCustomerAssign.response.data.companyAssignCustomerAsContact",
+        "proxyPath": "$.data.companyAssignCustomerAsContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-assign.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "customerId": {
+              "fromProxyResponse": "known-customer-create-payload",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "no-email-customer-create-payload",
+        "capturePath": "$.noEmailCustomerCreate.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-customer-create.graphql",
+          "variablesCapturePath": "$.noEmailCustomerCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different customer IDs."
+          }
+        ]
+      },
+      {
+        "name": "no-email-customer-user-error",
+        "capturePath": "$.noEmailCustomerAssign.response.data.companyAssignCustomerAsContact",
+        "proxyPath": "$.data.companyAssignCustomerAsContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/assign-customer-as-contact-error-branch-assign.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "customerId": {
+              "fromProxyResponse": "no-email-customer-create-payload",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,695 @@
+{
+  "scenarioId": "inventory-reason-validation",
+  "operationNames": [
+    "productSet",
+    "inventorySetQuantities",
+    "inventoryAdjustQuantities",
+    "inventoryMoveQuantities",
+    "inventorySetOnHandQuantities",
+    "inventoryItem"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-reason-validation-setup.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "input": {
+        "title": "Inventory reason validation parity seed",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [
+              {
+                "name": "Default Title"
+              }
+            ]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Default Title"
+              }
+            ],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "synchronous": true
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "accepted-correction",
+        "capturePath": "$.acceptedReasonCases.correction.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-correction/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-correction-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-cycle_count_available",
+        "capturePath": "$.acceptedReasonCases.cycle_count_available.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "cycle_count_available",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-cycle_count_available/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-cycle_count_available-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-damaged",
+        "capturePath": "$.acceptedReasonCases.damaged.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "damaged",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-damaged/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-damaged-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-movement_canceled",
+        "capturePath": "$.acceptedReasonCases.movement_canceled.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "movement_canceled",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_canceled/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-movement_canceled-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-movement_created",
+        "capturePath": "$.acceptedReasonCases.movement_created.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "movement_created",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_created/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-movement_created-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-movement_received",
+        "capturePath": "$.acceptedReasonCases.movement_received.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "movement_received",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_received/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-movement_received-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-movement_updated",
+        "capturePath": "$.acceptedReasonCases.movement_updated.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "movement_updated",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_updated/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-movement_updated-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-other",
+        "capturePath": "$.acceptedReasonCases.other.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "other",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-other/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-other-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-promotion",
+        "capturePath": "$.acceptedReasonCases.promotion.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "promotion",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-promotion/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-promotion-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-quality_control",
+        "capturePath": "$.acceptedReasonCases.quality_control.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "quality_control",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-quality_control/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-quality_control-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-received",
+        "capturePath": "$.acceptedReasonCases.received.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "received",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-received/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-received-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-reservation_created",
+        "capturePath": "$.acceptedReasonCases.reservation_created.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "reservation_created",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-reservation_created/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-reservation_created-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-reservation_deleted",
+        "capturePath": "$.acceptedReasonCases.reservation_deleted.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "reservation_deleted",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-reservation_deleted/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-reservation_deleted-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-reservation_updated",
+        "capturePath": "$.acceptedReasonCases.reservation_updated.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "reservation_updated",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-reservation_updated/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-reservation_updated-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-restock",
+        "capturePath": "$.acceptedReasonCases.restock.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "restock",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-restock/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-restock-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-safety_stock",
+        "capturePath": "$.acceptedReasonCases.safety_stock.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "safety_stock",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-safety_stock/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-safety_stock-parity"
+          }
+        }
+      },
+      {
+        "name": "accepted-shrinkage",
+        "capturePath": "$.acceptedReasonCases.shrinkage.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "shrinkage",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-shrinkage/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-accepted-shrinkage-parity"
+          }
+        }
+      },
+      {
+        "name": "unknown-reason-set",
+        "capturePath": "$.invalidReasonCases.unknownReasonSet.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "completely_made_up",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-reason-set/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-unknown-set-parity"
+          }
+        }
+      },
+      {
+        "name": "empty-reason-set",
+        "capturePath": "$.invalidReasonCases.emptyReasonSet.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/empty-reason-set/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-empty-set-parity"
+          }
+        }
+      },
+      {
+        "name": "unknown-reason-adjust",
+        "capturePath": "$.invalidReasonCases.unknownReasonAdjust.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "completely_made_up",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-reason-adjust/parity",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "delta": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-unknown-adjust-parity"
+          }
+        }
+      },
+      {
+        "name": "unknown-reason-move",
+        "capturePath": "$.invalidReasonCases.unknownReasonMove.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "reason": "completely_made_up",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-reason-move/parity",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "quantity": 1,
+                  "from": {
+                    "locationId": "gid://shopify/Location/1",
+                    "name": "available",
+                    "changeFromQuantity": 1
+                  },
+                  "to": {
+                    "locationId": "gid://shopify/Location/1",
+                    "name": "damaged",
+                    "changeFromQuantity": 0,
+                    "ledgerDocumentUri": "logistics://inventory-reason-validation/unknown-reason-move/parity"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-unknown-move-parity"
+          }
+        }
+      },
+      {
+        "name": "unknown-reason-set-on-hand",
+        "capturePath": "$.invalidReasonCases.unknownReasonSetOnHand.response.data.inventorySetOnHandQuantities",
+        "proxyPath": "$.data.inventorySetOnHandQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-set-on-hand.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "reason": "completely_made_up",
+              "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-reason-set-on-hand/parity",
+              "setQuantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": 1,
+                  "changeFromQuantity": 1
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-reason-validation-unknown-set-on-hand-parity"
+          }
+        }
+      },
+      {
+        "name": "downstream-after-rejections",
+        "capturePath": "$.downstreamAfterRejected.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-reason-validation-downstream.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The parity proxy uses the local productSet inventory item ID instead of Shopify's live captured inventory item ID."
+          },
+          {
+            "path": "$.inventoryLevels.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The local fixture uses its canonical location ID while the live store has a different location ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "2026-04 live capture enumerates Shopify public inventory adjustment reasons and the INVALID_REASON userError shape for set, adjust, move, and deprecated set-on-hand roots. The parity runner creates a local productSet inventory item, proves each captured accepted reason remains accepted, strictly compares invalid reason payloads, and verifies rejected branches leave downstream inventory quantities unchanged."
+}

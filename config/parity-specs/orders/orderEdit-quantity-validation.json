@@ -2,7 +2,12 @@
   "scenarioId": "orderEdit-quantity-validation",
   "operationNames": ["orderEditBegin", "orderEditSetQuantity", "orderEditAddVariant"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write-parity", "known-projection-gap"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "read-after-write-parity",
+    "calculated-order-projection-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderEdit-quantity-validation.json"
   ],
@@ -12,7 +17,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Shopify Admin API 2026-04 orderEdit quantity validation. Negative setQuantity and zero/negative addVariant return quantity userErrors and leave the calculated order unchanged, proven by the original line item quantity remaining 3 in a final valid addVariant payload. The valid addVariant target excludes the proxy's extra calculatedOrder.lineItems added-variant projection, which is tracked separately because this scenario is scoped to rejected quantity validation.",
+  "notes": "Captured Shopify Admin API 2026-04 orderEdit quantity validation. Negative setQuantity and zero/negative addVariant return quantity userErrors and leave the calculated order unchanged, proven by the original line item quantity remaining 3 in a final valid addVariant payload. The valid addVariant target compares the calculated-order line item lists strictly: Shopify returns the newly added variant under addedLineItems while keeping calculatedOrder.lineItems scoped to the original line items.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -91,7 +96,6 @@
         "excludedPaths": [
           "$.calculatedOrder.id",
           "$.calculatedOrder.lineItems.nodes[*].id",
-          "$.calculatedOrder.lineItems.nodes[1]",
           "$.calculatedOrder.addedLineItems.nodes[*].id",
           "$.calculatedLineItem.id",
           "$.orderEditSession.id"

@@ -32,6 +32,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Argument, type Location, type Selection, type Value, Argument,
@@ -1355,6 +1356,26 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "RefundInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
+                      "MetafieldAccessInput"
+                      | "MetafieldAccessUpdateInput"
+                      | "StandardMetafieldDefinitionAccessInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       _ -> []
                     }
                   Some(schema_field) ->
@@ -1626,6 +1647,7 @@ fn top_level_required_input_field_strict_types() -> List(String) {
     "DeliveryCarrierServiceCreateInput",
     "CatalogCreateInput",
     "PriceListCreateInput",
+    "ShopPolicyInput",
   ]
 }
 
@@ -1780,8 +1802,32 @@ fn scalar_value_problems(
 ) -> List(ValueProblem) {
   case type_name {
     "Decimal" -> decimal_value_problems(resolved, path)
+    "ID" -> id_value_problems(resolved, path)
     "URL" -> url_value_problems(resolved, path)
     _ -> []
+  }
+}
+
+fn id_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved, path_ends_with_publication_id(path) {
+    root_field.StringVal(""), True -> [
+      ValueProblem(
+        path: path,
+        explanation: "Invalid global id ''",
+        message: Some("Invalid global id ''"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn path_ends_with_publication_id(path: List(PathSegment)) -> Bool {
+  case list.reverse(path) {
+    [StringSegment("publicationId"), ..] -> True
+    _ -> False
   }
 }
 
@@ -1876,7 +1922,7 @@ fn collect_unknown_variable_fields(
   io: mutation_schema.SchemaInputObject,
   path: List(PathSegment),
 ) -> List(ValueProblem) {
-  dict.keys(fields)
+  unknown_variable_field_names(fields, io.name)
   |> list.filter_map(fn(field_name) {
     case io.name, find_schema_input_field(io.input_fields, field_name) {
       _, Some(_) -> Error(Nil)
@@ -1904,7 +1950,31 @@ fn collect_unknown_variable_fields(
           explanation: "Field is not defined on " <> io.name,
           message: None,
         ))
+      "MetafieldAccessInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "MetafieldAccessUpdateInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "StandardMetafieldDefinitionAccessInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
       "DiscountCustomerSelectionInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "RefundInput", None ->
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
           explanation: "Field is not defined on " <> io.name,
@@ -1919,6 +1989,40 @@ fn collect_unknown_variable_fields(
       _, None -> Error(Nil)
     }
   })
+}
+
+fn unknown_variable_field_names(
+  fields: Dict(String, root_field.ResolvedValue),
+  input_object_name: String,
+) -> List(String) {
+  case input_object_name {
+    "RefundInput" ->
+      dict.keys(fields)
+      |> list.sort(compare_refund_input_variable_field_names)
+    _ -> dict.keys(fields)
+  }
+}
+
+fn compare_refund_input_variable_field_names(left: String, right: String) {
+  case
+    int.compare(
+      refund_input_variable_field_rank(left),
+      refund_input_variable_field_rank(right),
+    )
+  {
+    order.Eq -> string.compare(left, right)
+    order -> order
+  }
+}
+
+fn refund_input_variable_field_rank(field_name: String) -> Int {
+  case field_name {
+    "pointOfSaleDeviceId" -> 1
+    "locationId" -> 2
+    "userId" -> 3
+    "transactionGroupId" -> 4
+    _ -> 1000
+  }
 }
 
 fn build_unknown_input_object_field_error(
@@ -2052,6 +2156,16 @@ fn enum_value_sets() -> Dict(String, List(String)) {
       "ALL_PRODUCTS",
     ]),
     #("TaxExemption", tax_exemption_values()),
+    #("ShopPolicyType", [
+      "REFUND_POLICY",
+      "SHIPPING_POLICY",
+      "PRIVACY_POLICY",
+      "TERMS_OF_SERVICE",
+      "TERMS_OF_SALE",
+      "LEGAL_NOTICE",
+      "SUBSCRIPTION_POLICY",
+      "CONTACT_INFORMATION",
+    ]),
   ])
 }
 

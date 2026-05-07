@@ -1,0 +1,25 @@
+mutation MetaobjectUpdateRedirectNewHandleEntryCreate($metaobject: MetaobjectCreateInput!) {
+  metaobjectCreate(metaobject: $metaobject) {
+    metaobject {
+      id
+      handle
+      type
+      displayName
+      capabilities {
+        publishable {
+          status
+        }
+        onlineStore {
+          templateSuffix
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
