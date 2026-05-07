@@ -4327,6 +4327,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-create-reference-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-reference-not-found-conformance.ts',
+    purpose:
+      'paymentTermsCreate unknown Order and DraftOrder reference userError field paths and type-specific messages.',
+    requiredAuthScopes: ['read_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-create-reference-not-found.json`,
+      'config/parity-specs/payments/payment-terms-create-reference-not-found.json',
+      'config/parity-requests/payments/payment-terms-create-reference-not-found.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; creates no Shopify resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-metafields-and-handle-update',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-metafields-conformance.ts',

@@ -1,0 +1,36 @@
+{
+  "scenarioId": "payment-terms-create-reference-not-found",
+  "operationNames": ["paymentTermsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-reference-not-found.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-create-reference-not-found.graphql",
+    "variablesCapturePath": "$.cases.missingOrder.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-order-reference-not-found",
+        "capturePath": "$.cases.missingOrder.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate"
+      },
+      {
+        "name": "missing-draft-order-reference-not-found",
+        "capturePath": "$.cases.missingDraftOrder.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-reference-not-found.graphql",
+          "variablesCapturePath": "$.cases.missingDraftOrder.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture for paymentTermsCreate reference-not-found branches. Unknown Order and DraftOrder GIDs return paymentTerms: null plus PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors with field: null and type-specific messages containing the numeric GID tail."
+}
