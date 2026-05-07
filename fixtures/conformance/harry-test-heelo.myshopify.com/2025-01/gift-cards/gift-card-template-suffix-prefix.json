@@ -1,0 +1,173 @@
+{
+  "capturedAt": "2026-05-07T16:29:29.150Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Captures live giftCardCreate and giftCardUpdate behavior for templateSuffix values with a leading gift_card. prefix.",
+    "Shopify strips exactly the literal leading gift_card. prefix, returns the stripped suffix in mutation payloads, and downstream reads expose the stripped value.",
+    "Setup creates one disposable gift card with a run-unique code; cleanup deactivates the setup gift card."
+  ],
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "initialValue": "5.00",
+        "code": "PFXMOVPBH4D",
+        "templateSuffix": "gift_card.birthday"
+      }
+    },
+    "update": {
+      "templateSuffix": "gift_card.foo"
+    },
+    "readAfterUpdate": {
+      "idQuery": "id:654871167282",
+      "query": "BH4D"
+    }
+  },
+  "setup": [
+    {
+      "label": "templateSuffixPrefixCreate",
+      "query": "#graphql\n  mutation GiftCardTemplateSuffixPrefixCreate($input: GiftCardCreateInput!) {\n    giftCardCreate(input: $input) {\n      giftCard {\n        id\n        templateSuffix\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "PFXMOVPBH4D",
+          "templateSuffix": "gift_card.birthday"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654871167282",
+                "templateSuffix": "birthday"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "update": {
+      "label": "templateSuffixPrefixUpdate",
+      "query": "#graphql\n  mutation GiftCardTemplateSuffixPrefixUpdate($id: ID!, $templateSuffix: String!) {\n    giftCardUpdate(id: $id, input: { templateSuffix: $templateSuffix }) {\n      giftCard {\n        id\n        templateSuffix\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654871167282",
+        "templateSuffix": "gift_card.foo"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardUpdate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654871167282",
+                "templateSuffix": "foo"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterUpdate": {
+      "label": "readAfterTemplateSuffixPrefixUpdate",
+      "query": "#graphql\n  query GiftCardTemplateSuffixPrefixRead($id: ID!, $query: String!) {\n    giftCard(id: $id) {\n      id\n      templateSuffix\n    }\n    giftCards(first: 2, query: $query, sortKey: ID) {\n      nodes {\n        id\n        templateSuffix\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654871167282",
+        "query": "BH4D"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654871167282",
+              "templateSuffix": "foo"
+            },
+            "giftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654871167282",
+                  "templateSuffix": "foo"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:templateSuffixPrefixCard",
+      "query": "#graphql\n      mutation GiftCardTemplateSuffixPrefixDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654871167282"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654871167282",
+                "enabled": false,
+                "deactivatedAt": "2026-05-07T16:29:29Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

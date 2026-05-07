@@ -6436,6 +6436,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-template-suffix-prefix',
+    scriptPath: 'scripts/capture-gift-card-template-suffix-prefix-conformance.ts',
+    purpose:
+      'Gift-card create/update behavior for templateSuffix values with the literal gift_card. prefix, including downstream readback.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-template-suffix-prefix.json`,
+      'config/parity-specs/gift-cards/gift-card-template-suffix-prefix.json',
+      'config/parity-requests/gift-cards/gift-card-template-suffix-prefix-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-template-suffix-prefix-update.graphql',
+      'config/parity-requests/gift-cards/gift-card-template-suffix-prefix-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable gift card with a run-unique code, records prefixed templateSuffix create/update plus readback, and deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',

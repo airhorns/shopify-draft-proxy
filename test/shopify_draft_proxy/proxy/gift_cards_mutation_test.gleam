@@ -453,6 +453,53 @@ pub fn gift_card_create_rejects_duplicate_code_test() {
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":null,\"message\":\"Code has already been taken\"}]}}}"
 }
 
+pub fn gift_card_template_suffix_strips_gift_card_prefix_on_create_update_and_reads_test() {
+  let create =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { giftCardCreate(input: { initialValue: \"10\", templateSuffix: \"gift_card.birthday\" }) { giftCard { id templateSuffix } userErrors { field code message } } }",
+    )
+  let id = "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
+  assert json.to_string(create.data)
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":{\"id\":\""
+    <> id
+    <> "\",\"templateSuffix\":\"birthday\"},\"userErrors\":[]}}}"
+  let assert Some(created) =
+    store.get_effective_gift_card_by_id(create.store, id)
+  assert created.template_suffix == Some("birthday")
+
+  let update =
+    run_mutation_outcome(
+      create.store,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { templateSuffix: \"gift_card.foo\" }) { giftCard { id templateSuffix } userErrors { field code message } } }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":{\"id\":\""
+    <> id
+    <> "\",\"templateSuffix\":\"foo\"},\"userErrors\":[]}}}"
+  let assert Some(updated) =
+    store.get_effective_gift_card_by_id(update.store, id)
+  assert updated.template_suffix == Some("foo")
+
+  let read_after =
+    gift_cards.handle_gift_card_query(
+      update.store,
+      "{ giftCard(id: \""
+        <> id
+        <> "\") { id templateSuffix } giftCards(first: 5) { nodes { id templateSuffix } } }",
+      dict.new(),
+    )
+  let assert Ok(read_data) = read_after
+  assert json.to_string(read_data)
+    == "{\"giftCard\":{\"id\":\""
+    <> id
+    <> "\",\"templateSuffix\":\"foo\"},\"giftCards\":{\"nodes\":[{\"id\":\""
+    <> id
+    <> "\",\"templateSuffix\":\"foo\"}]}}"
+}
+
 pub fn gift_card_create_rejects_missing_customer_test() {
   let body =
     run_mutation(
