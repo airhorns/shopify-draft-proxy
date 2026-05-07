@@ -498,6 +498,7 @@ pub fn validate_mutation_field_against_schema(
         _ -> []
       }
       let field_loc = field_location(field)
+      let response_key = field_response_key(field)
       let var_defs = extract_variable_definitions(source_body)
       let top_level_errors =
         validate_top_level_args(
@@ -527,6 +528,7 @@ pub fn validate_mutation_field_against_schema(
           operation_path,
           source_body,
           schema,
+          response_key,
         )
       let literal_errors =
         validate_literal_bound_args(
@@ -552,6 +554,7 @@ fn validate_literal_input_object_fields(
   operation_path: String,
   source_body: String,
   schema: MutationSchema,
+  response_key: String,
 ) -> List(Json) {
   case operation_name {
     "backupRegionUpdate" ->
@@ -583,6 +586,13 @@ fn validate_literal_input_object_fields(
           source_body,
           schema,
         ),
+      )
+    "giftCardCreate" | "giftCardUpdate" ->
+      validate_gift_card_recipient_literal_fields(
+        arguments,
+        response_key,
+        operation_path,
+        source_body,
       )
     "carrierServiceCreate" ->
       validate_direct_literal_input_fields(
@@ -617,6 +627,44 @@ fn validate_literal_input_object_fields(
         source_body,
         schema,
       )
+    _ -> []
+  }
+}
+
+fn field_response_key(field: Selection) -> String {
+  case field {
+    Field(alias: Some(alias), ..) -> alias.value
+    Field(name: name, ..) -> name.value
+    _ -> ""
+  }
+}
+
+fn validate_gift_card_recipient_literal_fields(
+  arguments: List(Argument),
+  response_key: String,
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case find_argument(arguments, "input") {
+    Some(Argument(value: ast.ObjectValue(fields: input_fields, ..), ..)) ->
+      case find_object_field(input_fields, "recipientAttributes") {
+        Some(ast.ObjectField(
+          value: ast.ObjectValue(fields: recipient_fields, loc: loc),
+          ..,
+        )) ->
+          validate_nested_literal_input_field(
+            recipient_fields,
+            ["input", "recipientAttributes"],
+            "GiftCardRecipientInput",
+            "id",
+            "ID!",
+            response_key,
+            operation_path,
+            loc,
+            source_body,
+          )
+        _ -> []
+      }
     _ -> []
   }
 }
@@ -1538,6 +1586,9 @@ fn top_level_required_input_field_problems(
           _ -> []
         },
       )
+    Some("GiftCardCreateInput"), root_field.ObjectVal(fields)
+    | Some("GiftCardUpdateInput"), root_field.ObjectVal(fields)
+    -> gift_card_recipient_required_field_problems(schema, fields)
     Some(input_type_name), root_field.ObjectVal(fields) -> {
       case
         list.contains(
@@ -1551,6 +1602,22 @@ fn top_level_required_input_field_problems(
       }
     }
     _, _ -> []
+  }
+}
+
+fn gift_card_recipient_required_field_problems(
+  schema: MutationSchema,
+  fields: Dict(String, root_field.ResolvedValue),
+) -> List(ValueProblem) {
+  case dict.get(fields, "recipientAttributes") {
+    Ok(root_field.ObjectVal(recipient_fields)) ->
+      required_input_field_problems_for(
+        schema,
+        "GiftCardRecipientInput",
+        recipient_fields,
+        [StringSegment("recipientAttributes")],
+      )
+    _ -> []
   }
 }
 

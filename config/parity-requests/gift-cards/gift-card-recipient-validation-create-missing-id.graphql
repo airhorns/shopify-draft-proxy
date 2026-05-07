@@ -1,0 +1,15 @@
+mutation GiftCardRecipientValidationCreateMissingId {
+  createMissingRecipientId: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { message: "missing id" } }
+  ) {
+    giftCard {
+      id
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

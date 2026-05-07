@@ -1,0 +1,12 @@
+mutation GiftCardRecipientValidationCustomerCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

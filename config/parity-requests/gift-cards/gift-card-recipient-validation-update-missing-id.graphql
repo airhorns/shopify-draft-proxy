@@ -1,0 +1,12 @@
+mutation GiftCardRecipientValidationUpdateMissingId($activeId: ID!) {
+  updateMissingRecipientId: giftCardUpdate(id: $activeId, input: { recipientAttributes: { message: "missing id" } }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

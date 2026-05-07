@@ -11,8 +11,10 @@ import gleam/dict
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state.{DraftProxy, Request, Response}
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -47,6 +49,23 @@ fn run_mutation_outcome(
 
 fn run_mutation(store_in: store.Store, document: String) -> String {
   json.to_string(run_mutation_outcome(store_in, document).data)
+}
+
+fn run_proxy_graphql(document: String) {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2025-01/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"" <> escape(document) <> "\"}",
+    )
+  draft_proxy.process_request(draft_proxy.new(), request)
+}
+
+fn escape(value: String) -> String {
+  value
+  |> string.replace("\\", "\\\\")
+  |> string.replace("\"", "\\\"")
 }
 
 fn run_customer_notification(store_in: store.Store, id: String) -> String {
@@ -408,6 +427,62 @@ pub fn gift_card_create_rejects_missing_customer_test() {
     )
   assert body
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
+}
+
+pub fn gift_card_create_missing_recipient_attribute_id_is_schema_error_test() {
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    run_proxy_graphql(
+      "mutation GiftCardRecipientValidationCreateMissingId { createMissingRecipientId: giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { message: \"missing id\" } }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  let rendered = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(
+    rendered,
+    "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
+  )
+  assert string.contains(
+    rendered,
+    "\"path\":[\"mutation GiftCardRecipientValidationCreateMissingId\",\"createMissingRecipientId\",\"input\",\"recipientAttributes\",\"id\"]",
+  )
+  assert string.contains(
+    rendered,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert store.list_effective_gift_cards(proxy_after.store) == []
+}
+
+pub fn gift_card_create_rejects_bad_recipient_attributes_without_staging_test() {
+  let recipient_id = "gid://shopify/Customer/recipient-validation"
+  let s =
+    store.new()
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let too_long_name = string.repeat("x", times: 256)
+  let too_long_message = string.repeat("x", times: 201)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { longName: giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", preferredName: \""
+        <> too_long_name
+        <> "\" } }) { giftCard { id } giftCardCode userErrors { field code message } } longMessage: giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", message: \""
+        <> too_long_message
+        <> "\" } }) { giftCard { id } giftCardCode userErrors { field code message } } htmlName: giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", preferredName: \"<b>Ada</b>\" } }) { giftCard { id } giftCardCode userErrors { field code message } } htmlMessage: giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", message: \"<script>alert(1)</script>\" } }) { giftCard { id } giftCardCode userErrors { field code message } } futureSendAt: giftCardCreate(input: { initialValue: \"10\", recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", sendNotificationAt: \"2099-01-01T00:00:00Z\" } }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"longName\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"preferredName\"],\"code\":\"TOO_LONG\",\"message\":\"preferredName is too long (maximum is 255)\"}]},\"longMessage\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"message\"],\"code\":\"TOO_LONG\",\"message\":\"message is too long (maximum is 200)\"}]},\"htmlName\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"preferredName\"],\"code\":\"INVALID\",\"message\":\"Preferred name cannot contain HTML tags\"}]},\"htmlMessage\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"message\"],\"code\":\"INVALID\",\"message\":\"Message cannot contain HTML tags\"}]},\"futureSendAt\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"sendNotificationAt\"],\"code\":\"INVALID\",\"message\":\"Send notification at must be within 90 days from now\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
 }
 
 pub fn gift_card_create_rejects_trial_shop_customer_assignment_before_customer_lookup_test() {
@@ -810,6 +885,76 @@ pub fn gift_card_update_rejects_too_long_recipient_message_test() {
     )
   assert body
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"message\"],\"code\":\"TOO_LONG\",\"message\":\"message is too long (maximum is 200)\"}]}}}"
+}
+
+pub fn gift_card_update_missing_recipient_attribute_id_is_schema_error_test() {
+  let id = "gid://shopify/GiftCard/update-recipient-missing-id"
+  let existing = transaction_card(id, True, None, "50.0", "CAD")
+  let proxy =
+    DraftProxy(..draft_proxy.new(), store: seed_card(store.new(), existing))
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2025-01/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\"mutation GiftCardRecipientValidationUpdateMissingId { updateMissingRecipientId: giftCardUpdate(id: \\\""
+        <> id
+        <> "\\\", input: { recipientAttributes: { message: \\\"missing id\\\" } }) { giftCard { id } userErrors { field code message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    draft_proxy.process_request(proxy, request)
+  let rendered = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(
+    rendered,
+    "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
+  )
+  assert string.contains(
+    rendered,
+    "\"path\":[\"mutation GiftCardRecipientValidationUpdateMissingId\",\"updateMissingRecipientId\",\"input\",\"recipientAttributes\",\"id\"]",
+  )
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(proxy_after.store, id)
+  assert after.updated_at == existing.updated_at
+  assert after.recipient_attributes == None
+}
+
+pub fn gift_card_update_rejects_recipient_html_and_send_at_without_mutating_test() {
+  let id = "gid://shopify/GiftCard/update-recipient-invalid"
+  let recipient_id = "gid://shopify/Customer/2"
+  let card = transaction_card(id, True, None, "50.0", "CAD")
+  let s =
+    store.new()
+    |> seed_card(card)
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { htmlName: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", preferredName: \"<b>Ada</b>\" } }) { giftCard { id } userErrors { field code message } } htmlMessage: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", message: \"<script>alert(1)</script>\" } }) { giftCard { id } userErrors { field code message } } pastSendAt: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", sendNotificationAt: \"1990-01-01T00:00:00Z\" } }) { giftCard { id } userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"htmlName\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"preferredName\"],\"code\":\"INVALID\",\"message\":\"Preferred name cannot contain HTML tags\"}]},\"htmlMessage\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"message\"],\"code\":\"INVALID\",\"message\":\"Message cannot contain HTML tags\"}]},\"pastSendAt\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"sendNotificationAt\"],\"code\":\"INVALID\",\"message\":\"Send notification at must be within 90 days from now\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.updated_at == card.updated_at
+  assert after.recipient_attributes == None
+  assert after.balance == card.balance
+  assert after.transactions == []
 }
 
 // ----------- giftCardCredit -----------
