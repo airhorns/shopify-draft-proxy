@@ -654,6 +654,7 @@ fn linked_option_metaobject_definition(
     description: None,
     display_name_key: display_name_key,
     online_store_url_handle: None,
+    online_store_create_redirects: None,
     access: dict.new(),
     capabilities: state_types.MetaobjectDefinitionCapabilitiesRecord(
       publishable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
