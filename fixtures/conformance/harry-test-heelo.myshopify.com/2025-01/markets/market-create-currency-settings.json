@@ -1,0 +1,287 @@
+{
+  "capturedAt": "2026-05-07T16:45:32.873Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "marketCreateLocalCurrencies",
+      "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Currency Settings 20260507164530 Local Currencies",
+          "status": "ACTIVE",
+          "enabled": true,
+          "currencySettings": {
+            "baseCurrency": "USD",
+            "localCurrencies": true
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97997881650",
+                "name": "Draft Proxy Currency Settings 20260507164530 Local Currencies",
+                "status": "ACTIVE",
+                "enabled": true,
+                "currencySettings": {
+                  "baseCurrency": {
+                    "currencyCode": "USD",
+                    "currencyName": "US Dollar"
+                  },
+                  "localCurrencies": true,
+                  "roundingEnabled": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketReadLocalCurrencies",
+      "query": "#graphql\nquery MarketCreateCurrencySettingsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    status\n    enabled\n    currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n      localCurrencies\n      roundingEnabled\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97997881650"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/97997881650",
+              "name": "Draft Proxy Currency Settings 20260507164530 Local Currencies",
+              "status": "ACTIVE",
+              "enabled": true,
+              "currencySettings": {
+                "baseCurrency": {
+                  "currencyCode": "USD",
+                  "currencyName": "US Dollar"
+                },
+                "localCurrencies": true,
+                "roundingEnabled": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreateRoundingEnabled",
+      "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Currency Settings 20260507164530 Rounding",
+          "status": "ACTIVE",
+          "enabled": true,
+          "currencySettings": {
+            "baseCurrency": "USD",
+            "roundingEnabled": true
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97997914418",
+                "name": "Draft Proxy Currency Settings 20260507164530 Rounding",
+                "status": "ACTIVE",
+                "enabled": true,
+                "currencySettings": {
+                  "baseCurrency": {
+                    "currencyCode": "USD",
+                    "currencyName": "US Dollar"
+                  },
+                  "localCurrencies": false,
+                  "roundingEnabled": true
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketReadRoundingEnabled",
+      "query": "#graphql\nquery MarketCreateCurrencySettingsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    status\n    enabled\n    currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n      localCurrencies\n      roundingEnabled\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97997914418"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/97997914418",
+              "name": "Draft Proxy Currency Settings 20260507164530 Rounding",
+              "status": "ACTIVE",
+              "enabled": true,
+              "currencySettings": {
+                "baseCurrency": {
+                  "currencyCode": "USD",
+                  "currencyName": "US Dollar"
+                },
+                "localCurrencies": false,
+                "roundingEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreateInvalidManualRate",
+      "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+          "currencySettings": {
+            "baseCurrency": "USD",
+            "baseCurrencyManualRate": 0
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "currencySettings", "baseCurrencyManualRate"],
+                  "message": "Enter a rate above 0.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanupCases": [
+    {
+      "name": "marketDeleteCleanup",
+      "query": "#graphql\nmutation MarketCreateCurrencySettingsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97997914418"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97997914418",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketDeleteCleanup",
+      "query": "#graphql\nmutation MarketCreateCurrencySettingsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97997881650"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97997881650",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

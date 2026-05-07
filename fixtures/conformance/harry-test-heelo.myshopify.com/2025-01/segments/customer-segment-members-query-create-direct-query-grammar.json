@@ -1,0 +1,164 @@
+{
+  "capturedAt": "2026-05-07T15:58:45.884Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "directQueryCustomerCountriesAccept",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateDirectQueryGrammar($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "query": "customer_countries CONTAINS 'CA'"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/a0aa4f87-4a2d-11f1-98a4-4aa3bc3ed587",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "directQueryCompaniesNullAccept",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateDirectQueryGrammar($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "query": "companies IS NULL"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/a0bd84df-4a2d-11f1-ba01-66daa4510b6c",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "directQueryParenthesizedOrAccept",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateDirectQueryGrammar($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "query": "(number_of_orders >= 1) OR (number_of_orders = 0)"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/a0cf78c6-4a2d-11f1-ba01-66daa4510b6c",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "directQueryMalformedRejected",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreateDirectQueryGrammar($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "query": "not a valid segment query ???"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "code": "INVALID",
+                  "message": "Line 1 Column 6: 'valid' is unexpected."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live evidence that customerSegmentMembersQueryCreate(input: { query }) accepts broad segment grammar directly through the Customer Data Platform path.",
+    "Accepted branches cover customer countries, company null checks, boolean composition, and parentheses.",
+    "The malformed branch captures the CDP-shaped CustomerSegmentMembersQueryUserError response for one representative invalid query.",
+    "CustomerSegmentMembersQuery jobs are Shopify async query state and do not have a cleanup mutation."
+  ],
+  "upstreamCalls": []
+}

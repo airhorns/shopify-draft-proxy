@@ -1,0 +1,11 @@
+mutation SegmentCreateMissingQuery {
+  segmentCreate(name: "Required Arg Probe") {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

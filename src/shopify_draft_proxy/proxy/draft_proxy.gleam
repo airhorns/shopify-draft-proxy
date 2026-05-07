@@ -23,8 +23,8 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Argument, type Location, type Selection, Argument, Field,
-  FragmentDefinition, FragmentSpread, InlineFragment, SelectionSet,
+  type Argument, type Location, type Selection, type TypeRef, Argument, Field,
+  FragmentDefinition, FragmentSpread, InlineFragment, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation.{
@@ -774,6 +774,34 @@ fn schema_validation_error_response(errors: List(Json)) -> Response {
   Response(status: 200, body: error_envelope(errors), headers: [])
 }
 
+fn query_schema_validation_errors(
+  parsed: ParsedOperation,
+  query: String,
+) -> List(Json) {
+  case parsed.type_ {
+    QueryOperation -> {
+      let fragments = graphql_helpers.get_document_fragments(query)
+      let operation_path = case parsed.name {
+        Some(name) -> "query " <> name
+        None -> "query"
+      }
+      case root_field.get_root_fields(query) {
+        Error(_) -> []
+        Ok(fields) ->
+          list.flat_map(fields, fn(field) {
+            cart_transform_selection_errors(
+              field,
+              operation_path,
+              query,
+              fragments,
+            )
+          })
+      }
+    }
+    _ -> []
+  }
+}
+
 fn schema_validation_errors(
   parsed: ParsedOperation,
   query: String,
@@ -808,6 +836,11 @@ fn schema_validation_errors(
               operation_path,
               query,
             ))
+            |> list.append(fulfillment_service_removed_argument_errors(
+              field,
+              operation_path,
+              query,
+            ))
             |> list.append(metaobject_argument_visibility_errors(
               field,
               request_headers,
@@ -836,12 +869,86 @@ fn schema_validation_errors(
               name.value,
               variables,
             ))
+            |> list.append(cart_transform_create_argument_errors(
+              field,
+              operation_path,
+              query,
+            ))
+            |> list.append(cart_transform_selection_errors(
+              field,
+              operation_path,
+              query,
+              fragments,
+            ))
           }
           _ -> []
         }
       })
     }
   }
+}
+
+fn cart_transform_create_argument_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, arguments: arguments, loc: field_loc, ..)
+      if name.value == "cartTransformCreate"
+    ->
+      arguments
+      |> list.filter_map(fn(argument) {
+        let Argument(name: arg_name, loc: arg_loc, ..) = argument
+        case
+          list.contains(
+            ["functionId", "functionHandle", "blockOnFailure", "metafields"],
+            arg_name.value,
+          )
+        {
+          True -> Error(Nil)
+          False ->
+            Ok(build_top_level_argument_not_accepted_error(
+              name.value,
+              arg_name.value,
+              operation_path,
+              field_loc,
+              arg_loc,
+              source_body,
+            ))
+        }
+      })
+    _ -> []
+  }
+}
+
+fn cart_transform_selection_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+  fragments: FragmentMap,
+) -> List(Json) {
+  collect_cart_transform_field_selections([field], fragments)
+  |> list.filter_map(fn(selected) {
+    let #(field_name, loc, path) = selected
+    case invalid_cart_transform_field(field_name) {
+      True ->
+        Ok(build_undefined_cart_transform_field_error(
+          field_name,
+          loc,
+          list.append([operation_path], path),
+          source_body,
+        ))
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn invalid_cart_transform_field(field_name: String) -> Bool {
+  list.contains(
+    ["title", "functionHandle", "createdAt", "updatedAt"],
+    field_name,
+  )
 }
 
 fn payment_reminder_send_selection_errors(
@@ -920,6 +1027,43 @@ fn server_pixel_endpoint_argument_errors(
         _ -> []
       }
     }
+    _ -> []
+  }
+}
+
+fn fulfillment_service_removed_argument_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, arguments: arguments, loc: field_loc, ..) ->
+      case name.value {
+        "fulfillmentServiceCreate" | "fulfillmentServiceUpdate" ->
+          list.flat_map(
+            [
+              "permitsSkuSharing",
+              "inventorySyncEnabled",
+              "fulfillmentOrdersOptIn",
+            ],
+            fn(argument_name) {
+              case argument_location(arguments, argument_name) {
+                Some(argument_loc) -> [
+                  build_top_level_argument_not_accepted_error(
+                    name.value,
+                    argument_name,
+                    operation_path,
+                    field_loc,
+                    Some(argument_loc),
+                    source_body,
+                  ),
+                ]
+                None -> []
+              }
+            },
+          )
+        _ -> []
+      }
     _ -> []
   }
 }
@@ -1188,6 +1332,179 @@ fn collect_named_child_fields_from_selections(
   })
 }
 
+fn collect_cart_transform_field_selections(
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> List(#(String, Option(Location), List(String))) {
+  collect_cart_transform_field_selections_at(selections, fragments, [])
+}
+
+fn collect_cart_transform_field_selections_at(
+  selections: List(Selection),
+  fragments: FragmentMap,
+  path: List(String),
+) -> List(#(String, Option(Location), List(String))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(
+        name: name,
+        selection_set: Some(SelectionSet(selections: inner, ..)),
+        ..,
+      ) -> {
+        let next_path = list.append(path, [name.value])
+        case name.value {
+          "cartTransform" ->
+            collect_cart_transform_object_fields(inner, fragments, next_path)
+          "cartTransforms" ->
+            collect_cart_transform_connection_fields(
+              inner,
+              fragments,
+              next_path,
+            )
+          _ ->
+            collect_cart_transform_field_selections_at(
+              inner,
+              fragments,
+              next_path,
+            )
+        }
+      }
+      Field(..) -> []
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        collect_cart_transform_field_selections_at(inner, fragments, path)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            collect_cart_transform_field_selections_at(inner, fragments, path)
+          _ -> []
+        }
+    }
+  })
+}
+
+fn collect_cart_transform_connection_fields(
+  selections: List(Selection),
+  fragments: FragmentMap,
+  path: List(String),
+) -> List(#(String, Option(Location), List(String))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(
+        name: name,
+        selection_set: Some(SelectionSet(selections: inner, ..)),
+        ..,
+      ) -> {
+        let next_path = list.append(path, [name.value])
+        case name.value {
+          "nodes" ->
+            collect_cart_transform_object_fields(inner, fragments, next_path)
+          "edges" ->
+            collect_cart_transform_edge_fields(inner, fragments, next_path)
+          _ -> []
+        }
+      }
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        collect_cart_transform_connection_fields(inner, fragments, path)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) -> collect_cart_transform_connection_fields(inner, fragments, path)
+          _ -> []
+        }
+      Field(..) -> []
+    }
+  })
+}
+
+fn collect_cart_transform_edge_fields(
+  selections: List(Selection),
+  fragments: FragmentMap,
+  path: List(String),
+) -> List(#(String, Option(Location), List(String))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(
+        name: name,
+        selection_set: Some(SelectionSet(selections: inner, ..)),
+        ..,
+      )
+        if name.value == "node"
+      ->
+        collect_cart_transform_object_fields(
+          inner,
+          fragments,
+          list.append(path, [name.value]),
+        )
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        collect_cart_transform_edge_fields(inner, fragments, path)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) -> collect_cart_transform_edge_fields(inner, fragments, path)
+          _ -> []
+        }
+      Field(..) -> []
+    }
+  })
+}
+
+fn collect_cart_transform_object_fields(
+  selections: List(Selection),
+  fragments: FragmentMap,
+  path: List(String),
+) -> List(#(String, Option(Location), List(String))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(name: name, loc: loc, ..) -> [
+        #(name.value, loc, list.append(path, [name.value])),
+      ]
+      InlineFragment(
+        type_condition: type_condition,
+        selection_set: SelectionSet(selections: inner, ..),
+        ..,
+      ) ->
+        case cart_transform_type_condition_applies(type_condition) {
+          True -> collect_cart_transform_object_fields(inner, fragments, path)
+          False -> []
+        }
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            type_condition: type_condition,
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            case cart_transform_type_condition_applies(Some(type_condition)) {
+              True ->
+                collect_cart_transform_object_fields(inner, fragments, path)
+              False -> []
+            }
+          _ -> []
+        }
+    }
+  })
+}
+
+fn cart_transform_type_condition_applies(
+  type_condition: Option(TypeRef),
+) -> Bool {
+  case type_condition {
+    Some(NamedType(name: name, ..)) -> {
+      let type_name = name.value
+      type_name == "CartTransform" || type_name == "Node"
+    }
+    None -> True
+    _ -> False
+  }
+}
+
 fn collect_selection_field_names(
   selections: List(Selection),
   fragments: FragmentMap,
@@ -1207,6 +1524,39 @@ fn collect_selection_field_names(
         }
     }
   })
+}
+
+fn build_undefined_cart_transform_field_error(
+  field_name: String,
+  field_loc: Option(Location),
+  path: List(String),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '" <> field_name <> "' doesn't exist on type 'CartTransform'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", json.array(path, json.string)),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("undefinedField")),
+          #("typeName", json.string("CartTransform")),
+          #("fieldName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn build_undefined_payment_reminder_payload_field_error(
@@ -1511,16 +1861,20 @@ fn route_query(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case query_handler_for(proxy, parsed, query, primary_root_field) {
-    Some(handler) ->
-      handler(proxy, request, parsed, primary_root_field, query, variables)
-    None -> #(
-      bad_request(
-        "No domain dispatcher implemented for root field: "
-        <> primary_root_field,
-      ),
-      proxy,
-    )
+  case query_schema_validation_errors(parsed, query) {
+    [] ->
+      case query_handler_for(proxy, parsed, query, primary_root_field) {
+        Some(handler) ->
+          handler(proxy, request, parsed, primary_root_field, query, variables)
+        None -> #(
+          bad_request(
+            "No domain dispatcher implemented for root field: "
+            <> primary_root_field,
+          ),
+          proxy,
+        )
+      }
+    errors -> #(schema_validation_error_response(errors), proxy)
   }
 }
 

@@ -338,6 +338,30 @@ fn project_cart_transform_selections(
   json.object(entries)
 }
 
+fn project_cart_transform_metafield(
+  record: CartTransformRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let args = field_args(field, dict.new())
+  case
+    read_literal_string_arg(field, args, "namespace"),
+    read_literal_string_arg(field, args, "key")
+  {
+    Some(namespace), Some(key) ->
+      case find_cart_transform_metafield(record.metafields, namespace, key) {
+        Some(row) ->
+          project_payload(
+            cart_transform_metafield_to_source(row),
+            field,
+            fragments,
+          )
+        None -> json.null()
+      }
+    _, _ -> json.null()
+  }
+}
+
 fn project_function_object_entries(
   source: SourceValue,
   selections: List(Selection),
@@ -403,30 +427,6 @@ fn source_type_condition_applies(
     SrcObject(fields) ->
       graphql_helpers.default_type_condition_applies(fields, type_condition)
     _ -> True
-  }
-}
-
-fn project_cart_transform_metafield(
-  record: CartTransformRecord,
-  field: Selection,
-  fragments: FragmentMap,
-) -> Json {
-  let args = field_args(field, dict.new())
-  case
-    read_literal_string_arg(field, args, "namespace"),
-    read_literal_string_arg(field, args, "key")
-  {
-    Some(namespace), Some(key) ->
-      case find_cart_transform_metafield(record.metafields, namespace, key) {
-        Some(row) ->
-          project_payload(
-            cart_transform_metafield_to_source(row),
-            field,
-            fragments,
-          )
-        None -> json.null()
-      }
-    _, _ -> json.null()
   }
 }
 
@@ -578,26 +578,14 @@ fn cart_transform_to_source(record: CartTransformRecord) -> SourceValue {
         None -> SrcNull
       }
   }
-  let metafield_source = case record.metafields {
-    [] -> SrcNull
-    [first, ..] -> cart_transform_metafield_to_source(first)
-  }
   src_object([
     #("__typename", SrcString("CartTransform")),
     #("id", SrcString(record.id)),
-    #("title", graphql_helpers.option_string_source(record.title)),
     #(
       "blockOnFailure",
       graphql_helpers.option_bool_source(record.block_on_failure),
     ),
     #("functionId", function_id_source),
-    #(
-      "functionHandle",
-      graphql_helpers.option_string_source(record.function_handle),
-    ),
-    #("createdAt", graphql_helpers.option_string_source(record.created_at)),
-    #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
-    #("metafield", metafield_source),
     #(
       "metafields",
       cart_transform_metafields_connection_source(record.metafields),
@@ -772,16 +760,66 @@ pub fn cart_transform_mutation_payload(
   cart_transform: Option(CartTransformRecord),
   user_errors: List(function_types.UserError),
 ) -> Json {
-  let cart_transform_source = case cart_transform {
-    Some(record) -> cart_transform_to_source(record)
-    None -> SrcNull
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+      |> project_cart_transform_mutation_payload_entries(
+        cart_transform,
+        user_errors,
+        fragments,
+      )
+      |> json.object
+    _ -> json.object([])
   }
-  let payload =
+}
+
+fn project_cart_transform_mutation_payload_entries(
+  selections: List(Selection),
+  cart_transform: Option(CartTransformRecord),
+  user_errors: List(function_types.UserError),
+  fragments: FragmentMap,
+) -> List(#(String, Json)) {
+  let payload_source =
     src_object([
-      #("cartTransform", cart_transform_source),
+      #("cartTransform", SrcNull),
       #("userErrors", user_errors_source(user_errors)),
     ])
-  project_payload(payload, field, fragments)
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        project_cart_transform_mutation_payload_entries(
+          inner,
+          cart_transform,
+          user_errors,
+          fragments,
+        )
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) ->
+            project_cart_transform_mutation_payload_entries(
+              inner,
+              cart_transform,
+              user_errors,
+              fragments,
+            )
+          _ -> []
+        }
+      Field(name: name, ..) -> {
+        let key = get_field_response_key(selection)
+        let value = case name.value, cart_transform {
+          "cartTransform", Some(record) ->
+            project_cart_transform(record, selection, fragments)
+          "cartTransform", None -> json.null()
+          _, _ ->
+            project_graphql_field_value(payload_source, selection, fragments)
+        }
+        [#(key, value)]
+      }
+    }
+  })
 }
 
 @internal

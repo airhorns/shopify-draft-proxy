@@ -1,0 +1,259 @@
+{
+  "scenarioId": "online-store/article-create-update-blog-not-found",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-07T15:58:30.358Z",
+  "interactions": [
+    {
+      "name": "blogCreate-setup",
+      "request": {
+        "query": "mutation OnlineStoreArticleUpdateValidationBlogCreate($blog: BlogCreateInput!) {\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "blog": {
+            "title": "Article Blog Not Found Blog 20260507155829"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121000919346",
+              "title": "Article Blog Not Found Blog 20260507155829",
+              "handle": "article-blog-not-found-blog-20260507155829"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-setup",
+      "request": {
+        "query": "mutation OnlineStoreArticleUpdateValidationArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      image {\n        altText\n        url\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "title": "Article Blog Not Found Setup 20260507155829",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/121000919346",
+            "author": {
+              "name": "Article Blog Not Found Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683160371506",
+              "title": "Article Blog Not Found Setup 20260507155829",
+              "handle": "article-blog-not-found-setup-20260507155829",
+              "image": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-blog-not-found",
+      "request": {
+        "query": "mutation OnlineStoreArticleCreateValidationArticleCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {\n  articleCreate(article: $article, blog: $blog) {\n    article {\n      id\n      title\n      handle\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "title": "Article Blog Not Found Create 20260507155829",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/999999999999",
+            "author": {
+              "name": "Article Blog Not Found Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Must reference an existing blog.",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleUpdate-blog-not-found",
+      "request": {
+        "query": "mutation OnlineStoreArticleUpdateValidationArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n  articleUpdate(id: $id, article: $article) {\n    article {\n      id\n      title\n      handle\n      image {\n        altText\n        url\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/683160371506",
+          "article": {
+            "title": "Article Blog Not Found Should Not Apply 20260507155829",
+            "blogId": "gid://shopify/Blog/999999999999"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Must reference an existing blog.",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleRead-after-failed-update",
+      "request": {
+        "query": "query OnlineStoreArticleBlogNotFoundRead($id: ID!) {\n  article(id: $id) {\n    id\n    title\n    blog {\n      id\n      title\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/683160371506"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "article": {
+            "id": "gid://shopify/Article/683160371506",
+            "title": "Article Blog Not Found Setup 20260507155829",
+            "blog": {
+              "id": "gid://shopify/Blog/121000919346",
+              "title": "Article Blog Not Found Blog 20260507155829"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleBlogNotFoundArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683160371506"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683160371506",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreArticleBlogNotFoundBlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121000919346"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121000919346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
