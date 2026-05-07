@@ -3199,11 +3199,15 @@ Captured facts:
 - `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
 - `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
 - selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+- On the captured 2025-01 shop, `giftCardConfiguration.issueLimit` was `3000.0 CAD` while `purchaseLimit` was `14000.0 CAD`; a card created at exactly the issue limit rejected a one-cent `giftCardCredit` with `GIFT_CARD_LIMIT_EXCEEDED`, so credit limit validation follows the issue-limit ceiling rather than the larger purchase limit in this public Admin path
+- The credit over-limit message is not the create-time formatted limit message. Public Admin returned `The gift card's value exceeds the allowed limits.` on `["creditInput", "creditAmount", "amount"]`
+- A one-cent `giftCardDebit` after the rejected credit succeeded with empty `userErrors`; debit decreases balance and did not surface `GIFT_CARD_LIMIT_EXCEEDED` in this path
 
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
+- credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

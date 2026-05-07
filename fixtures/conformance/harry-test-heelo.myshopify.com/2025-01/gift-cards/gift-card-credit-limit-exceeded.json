@@ -1,0 +1,321 @@
+{
+  "capturedAt": "2026-05-07T09:25:48.444Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Captures giftCardCredit validation when a card at the configured issue limit is credited by one cent.",
+    "The captured shop issue limit is 3000.0 CAD; purchaseLimit is 14000.0 CAD.",
+    "The setup gift card is created at the exact issue limit, over-limit credit is expected to reject without adding a transaction, and cleanup deactivates the setup card.",
+    "A one-cent debit after the rejected credit is captured to confirm debit decreases the balance and does not surface GIFT_CARD_LIMIT_EXCEEDED in this public Admin path."
+  ],
+  "proxyVariables": {
+    "creditLimitExceeded": {
+      "boundaryId": "gid://shopify/GiftCard/654867595570",
+      "creditInput": {
+        "creditAmount": {
+          "amount": "0.01",
+          "currencyCode": "CAD"
+        }
+      },
+      "debitInput": {
+        "debitAmount": {
+          "amount": "0.01",
+          "currencyCode": "CAD"
+        }
+      }
+    }
+  },
+  "operations": {
+    "configurationRead": {
+      "label": "configurationRead",
+      "query": "#graphql\n  query GiftCardCreditLimitConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setupCreate": {
+      "label": "setupCreate",
+      "query": "#graphql\n  mutation GiftCardCreditLimitSetup($input: GiftCardCreateInput!) {\n    giftCardCreate(input: $input) {\n      giftCard {\n        id\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "initialValue": "3000.0",
+          "code": "CREDLIMMOVA6Q4O",
+          "note": "Gift card credit limit conformance setup",
+          "expiresOn": "2099-01-01"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654867595570",
+                "initialValue": {
+                  "amount": "3000.0",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "3000.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "creditLimitExceeded": {
+      "label": "creditLimitExceeded",
+      "query": "#graphql\n  mutation GiftCardCreditLimitExceeded($id: ID!, $input: GiftCardCreditInput!) {\n    overLimitCredit: giftCardCredit(id: $id, creditInput: $input) {\n      giftCardCreditTransaction {\n        __typename\n        amount { amount currencyCode }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654867595570",
+        "input": {
+          "creditAmount": {
+            "amount": "0.01",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "overLimitCredit": {
+              "giftCardCreditTransaction": null,
+              "userErrors": [
+                {
+                  "field": ["creditInput", "creditAmount", "amount"],
+                  "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                  "message": "The gift card's value exceeds the allowed limits."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterRejectedCredit": {
+      "label": "readAfterRejectedCredit",
+      "query": "#graphql\n  query GiftCardReadAfterRejectedCredit($id: ID!) {\n    giftCard(id: $id) {\n      id\n      balance { amount currencyCode }\n      transactions(first: 10) {\n        nodes {\n          __typename\n          amount { amount currencyCode }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654867595570"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654867595570",
+              "balance": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "transactions": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "debitAfterRejectedCredit": {
+      "label": "debitAfterRejectedCredit",
+      "query": "#graphql\n  mutation GiftCardDebitAfterRejectedCredit($id: ID!, $input: GiftCardDebitInput!) {\n    debitAfterRejectedCredit: giftCardDebit(id: $id, debitInput: $input) {\n      giftCardDebitTransaction {\n        __typename\n        amount { amount currencyCode }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654867595570",
+        "input": {
+          "debitAmount": {
+            "amount": "0.01",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "debitAfterRejectedCredit": {
+              "giftCardDebitTransaction": {
+                "__typename": "GiftCardDebitTransaction",
+                "amount": {
+                  "amount": "-0.01",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate",
+      "query": "#graphql\n      mutation GiftCardCreditLimitCleanup($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654867595570"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654867595570",
+                "enabled": false,
+                "deactivatedAt": "2026-05-07T09:25:48Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654867595570"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654867595570",
+              "lastCharacters": "6q4o",
+              "maskedCode": "•••• •••• •••• 6q4o",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2099-01-01",
+              "note": "Gift card credit limit conformance setup",
+              "templateSuffix": null,
+              "createdAt": "2026-05-07T09:25:47Z",
+              "updatedAt": "2026-05-07T09:25:47Z",
+              "initialValue": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "customer": null,
+              "recipientAttributes": null,
+              "transactions": {
+                "nodes": []
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
