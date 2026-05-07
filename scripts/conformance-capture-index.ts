@@ -1403,6 +1403,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-field-operation-errors',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-field-operation-errors-conformance.ts',
+    purpose:
+      'metaobjectDefinitionUpdate field-operation conflict userError codes, field paths, messages, and multi-conflict ordering.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinitionUpdate-field-operation-errors.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-field-operation-errors.json',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition, captures validation-only field operation conflicts, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-update-immutable',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-update-immutable-conformance.ts',

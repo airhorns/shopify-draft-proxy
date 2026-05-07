@@ -1,0 +1,20 @@
+mutation MetaobjectDefinitionFieldOperationErrorsUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      displayNameKey
+      fieldDefinitions {
+        key
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
