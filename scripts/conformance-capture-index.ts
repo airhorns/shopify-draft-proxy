@@ -4557,8 +4557,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'fulfillment-order-release-hold-selective',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-release-hold-selective-conformance.ts',
-    purpose:
-      'fulfillmentOrderReleaseHold holdIds selective release behavior and remaining-hold ON_HOLD status.',
+    purpose: 'fulfillmentOrderReleaseHold holdIds selective release behavior and remaining-hold ON_HOLD status.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-order-release-hold-selective.json`,

@@ -4,10 +4,7 @@
     "startedAt": "2026-05-07T00:22:05.236Z",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2026-04",
-    "scopedRoots": [
-      "fulfillmentOrderHold",
-      "fulfillmentOrderReleaseHold"
-    ],
+    "scopedRoots": ["fulfillmentOrderHold", "fulfillmentOrderReleaseHold"],
     "createdOrder": {
       "id": "gid://shopify/Order/8733296558386",
       "name": "#1328",
@@ -21,10 +18,7 @@
         "order": {
           "email": "selective-release-20260507002205@example.com",
           "note": "fulfillment-order selective release 20260507002205",
-          "tags": [
-            "draft-proxy",
-            "fulfillment-order-release-hold-selective"
-          ],
+          "tags": ["draft-proxy", "fulfillment-order-release-hold-selective"],
           "test": true,
           "currency": "USD",
           "shippingAddress": {
@@ -375,9 +369,7 @@
         "query": "mutation FulfillmentOrderReleaseHoldSelectiveRelease($id: ID!, $holdIds: [ID!]) {\n  fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) {\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      updatedAt\n      supportedActions {\n        action\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
           "id": "gid://shopify/FulfillmentOrder/9656897175858",
-          "holdIds": [
-            "gid://shopify/FulfillmentHold/263830864178"
-          ]
+          "holdIds": ["gid://shopify/FulfillmentHold/263830864178"]
         },
         "response": {
           "status": 200,
@@ -525,9 +517,7 @@
       "query": "mutation FulfillmentOrderReleaseHoldSelectiveRelease($id: ID!, $holdIds: [ID!]) {\n  fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) {\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      updatedAt\n      supportedActions {\n        action\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9656897175858",
-        "holdIds": [
-          "gid://shopify/FulfillmentHold/263830896946"
-        ]
+        "holdIds": ["gid://shopify/FulfillmentHold/263830896946"]
       },
       "response": {
         "status": 200,
