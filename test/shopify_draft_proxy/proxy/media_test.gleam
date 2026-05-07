@@ -554,6 +554,21 @@ pub fn file_update_aggregates_missing_file_ids_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File ids [\\\"gid://shopify/MediaImage/404\\\", \\\"gid://shopify/MediaImage/405\\\"] do not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
 }
 
+pub fn file_update_missing_file_id_short_circuits_field_errors_test() {
+  let long_alt = string.repeat("a", times: 513)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/404\", alt: \""
+        <> long_alt
+        <> "\" }]) { files { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File id [\\\"gid://shopify/MediaImage/404\\\"] does not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
+}
+
 pub fn file_update_aggregates_non_ready_file_errors_test() {
   let proxy =
     registry_proxy_with_files([
@@ -607,6 +622,18 @@ pub fn file_update_rejects_filename_extension_mismatch_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"The filename extension provided must match the original filename.\",\"code\":\"INVALID_FILENAME_EXTENSION\"}]}}}"
 }
 
+pub fn file_update_reports_two_source_conflict_errors_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/v2.jpg\", previewImageSource: \"https://cdn.example.com/preview.jpg\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"Cannot update the preview image and image at the same time because they are one and the same.\",\"code\":\"INVALID\"}]}}}"
+}
+
 pub fn file_update_rejects_source_and_revert_version_conflict_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
@@ -616,7 +643,19 @@ pub fn file_update_rejects_source_and_revert_version_conflict_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"Specify either a source or revertToVersionId, not both.\",\"code\":\"CANNOT_SPECIFY_SOURCE_AND_VERSION_ID\"}]}}}"
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Specify either a source or revertToVersionId, not both.\",\"code\":\"CANNOT_SPECIFY_SOURCE_AND_VERSION_ID\"}]}}}"
+}
+
+pub fn file_update_missing_file_id_short_circuits_source_version_conflict_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/404\", originalSource: \"https://cdn.example.com/v2.jpg\", revertToVersionId: \"gid://shopify/FileVersion/9\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File id [\\\"gid://shopify/MediaImage/404\\\"] does not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
 }
 
 pub fn file_update_rejects_unknown_revert_version_id_test() {

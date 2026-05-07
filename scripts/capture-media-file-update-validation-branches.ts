@@ -322,7 +322,7 @@ try {
         files: [],
         userErrors: [
           {
-            field: ['files', '0'],
+            field: ['files'],
             message: 'Specify either a source or revertToVersionId, not both.',
             code: 'CANNOT_SPECIFY_SOURCE_AND_VERSION_ID',
           },

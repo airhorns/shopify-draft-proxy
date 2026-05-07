@@ -147,9 +147,9 @@
           "files": [],
           "userErrors": [
             {
-              "field": ["files", "0"],
-              "message": "Specify either originalSource or previewImageSource, not both.",
-              "code": "INVALID"
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
             }
           ]
         }

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "media-file-update-validation-ordering",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-validation-ordering.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+    "variablesCapturePath": "$.branches.missingLongAlt.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Shopify 2026-04 fileUpdate validation ordering for missing-id short-circuiting before long alt validation and READY-file simultaneous originalSource/previewImageSource conflicts. Public 2026-04 and unstable schemas do not expose FileUpdateInput.revertToVersionId, so that private-core source/version ordering branch is covered by focused runtime tests and the existing local validation-branches scenario rather than synthetic data in this capture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-id-short-circuits-long-alt",
+        "capturePath": "$.branches.missingLongAlt.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate"
+      },
+      {
+        "name": "ready-image-source-conflict-two-user-errors",
+        "capturePath": "$.branches.conflictingSources.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.conflictingSources.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

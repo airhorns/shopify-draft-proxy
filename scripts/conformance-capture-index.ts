@@ -877,6 +877,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-validation-ordering',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-validation-ordering.ts',
+    purpose:
+      'fileUpdate validation ordering for missing-id short-circuiting and simultaneous original/preview source conflicts.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-validation-ordering.json`,
+      'config/parity-specs/media/media-file-update-validation-ordering.json',
+      'config/parity-requests/media/media-file-update-validation-branches-update.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable image file and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-user-error-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-user-error-aggregation-conformance.ts',

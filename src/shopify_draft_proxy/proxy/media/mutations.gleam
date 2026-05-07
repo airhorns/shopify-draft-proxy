@@ -323,13 +323,14 @@ fn handle_file_update(
   let store = maybe_hydrate_file_update_targets(store, inputs, upstream)
   let version_hydration =
     maybe_hydrate_file_update_revert_versions(inputs, upstream)
-  let errors =
-    validate_file_update_inputs(store, inputs)
-    |> list.append(validate_file_update_revert_versions(
-      inputs,
-      version_hydration,
-    ))
-    |> list.append(validate_file_update_reference_targets(store, inputs))
+  let errors = case validate_file_update_inputs(store, inputs) {
+    [] ->
+      case validate_file_update_revert_versions(inputs, version_hydration) {
+        [] -> validate_file_update_reference_targets(store, inputs)
+        version_errors -> version_errors
+      }
+    validation_errors -> validation_errors
+  }
   case errors {
     [] -> {
       let updated =
@@ -764,41 +765,76 @@ fn validate_file_update_inputs(
   store: Store,
   inputs: List(Dict(String, ResolvedValue)),
 ) -> List(media_types.FilesUserError) {
-  let #(field_errors, missing_file_ids, non_ready_file_ids, target_errors) =
+  let #(
+    field_errors,
+    missing_file_ids,
+    non_ready_file_ids,
+    conflict_errors,
+    source_update_errors,
+    filename_media_type_errors,
+    filename_extension_errors,
+    source_version_errors,
+  ) =
     inputs
     |> enumerate_objects
-    |> list.fold(#([], [], [], []), fn(acc, entry) {
-      let #(field_errors, missing_file_ids, non_ready_file_ids, target_errors) =
-        acc
+    |> list.fold(#([], [], [], [], [], [], [], []), fn(acc, entry) {
+      let #(
+        field_errors,
+        missing_file_ids,
+        non_ready_file_ids,
+        conflict_errors,
+        source_update_errors,
+        filename_media_type_errors,
+        filename_extension_errors,
+        source_version_errors,
+      ) = acc
       let #(input, index) = entry
       let input_field_errors = validate_file_update_input_fields(input, index)
-      case input_field_errors {
-        [] -> {
-          let #(missing_ids, non_ready_ids, input_target_errors) =
-            validate_file_update_target(store, input, index)
-          #(
-            field_errors,
-            list.append(missing_file_ids, missing_ids),
-            list.append(non_ready_file_ids, non_ready_ids),
-            list.append(target_errors, input_target_errors),
-          )
-        }
-        _ -> #(
-          list.append(field_errors, input_field_errors),
-          missing_file_ids,
-          non_ready_file_ids,
-          target_errors,
-        )
-      }
+      let #(
+        missing_ids,
+        non_ready_ids,
+        source_errors,
+        filename_type_errors,
+        extension_errors,
+      ) = validate_file_update_target(store, input, index)
+      #(
+        list.append(field_errors, input_field_errors),
+        list.append(missing_file_ids, missing_ids),
+        list.append(non_ready_file_ids, non_ready_ids),
+        list.append(
+          conflict_errors,
+          validate_file_update_source_conflict(input, index),
+        ),
+        list.append(source_update_errors, source_errors),
+        list.append(filename_media_type_errors, filename_type_errors),
+        list.append(filename_extension_errors, extension_errors),
+        list.append(
+          source_version_errors,
+          validate_file_update_source_version_conflict(input),
+        ),
+      )
     })
-  field_errors
-  |> list.append(
+  first_non_empty([
     file_update_does_not_exist_count_errors(dedupe_strings(missing_file_ids)),
-  )
-  |> list.append(
     file_update_non_ready_errors(dedupe_strings(non_ready_file_ids)),
-  )
-  |> list.append(target_errors)
+    conflict_errors,
+    source_update_errors,
+    filename_media_type_errors,
+    filename_extension_errors,
+    source_version_error_bucket(source_version_errors),
+    field_errors,
+  ])
+}
+
+fn first_non_empty(buckets: List(List(a))) -> List(a) {
+  case buckets {
+    [] -> []
+    [bucket, ..rest] ->
+      case bucket {
+        [] -> first_non_empty(rest)
+        _ -> bucket
+      }
+  }
 }
 
 fn validate_file_update_input_fields(
@@ -832,39 +868,63 @@ fn validate_file_update_input_fields(
   let source_errors =
     validate_optional_url(input, index, "originalSource")
     |> list.append(validate_optional_url(input, index, "previewImageSource"))
-  let conflict_errors = case
+  let field_errors =
+    id_errors
+    |> list.append(alt_errors)
+    |> list.append(source_errors)
+  field_errors
+}
+
+fn validate_file_update_source_conflict(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(media_types.FilesUserError) {
+  case
     read_string_field(input, "originalSource"),
     read_string_field(input, "previewImageSource")
   {
-    Some(original), Some(preview) if original != "" && preview != "" -> [
-      media_types.FilesUserError(
-        ["files", int.to_string(index)],
-        "Specify either originalSource or previewImageSource, not both.",
-        "INVALID",
-      ),
-    ]
+    Some(original), Some(preview) if original != "" && preview != "" -> {
+      let message =
+        "Cannot update the preview image and image at the same time because they are one and the same."
+      [
+        media_types.FilesUserError(
+          ["files", int.to_string(index), "previewImageSource"],
+          message,
+          "INVALID",
+        ),
+        media_types.FilesUserError(
+          ["files", int.to_string(index), "originalSource"],
+          message,
+          "INVALID",
+        ),
+      ]
+    }
     _, _ -> []
   }
-  let source_version_errors = case
-    has_source_update(input),
-    read_string_field(input, "revertToVersionId")
-  {
+}
+
+fn validate_file_update_source_version_conflict(
+  input: Dict(String, ResolvedValue),
+) -> List(media_types.FilesUserError) {
+  case has_source_update(input), read_string_field(input, "revertToVersionId") {
     True, Some(version_id) if version_id != "" -> [
       media_types.FilesUserError(
-        ["files", int.to_string(index)],
+        ["files"],
         "Specify either a source or revertToVersionId, not both.",
         "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID",
       ),
     ]
     _, _ -> []
   }
-  let field_errors =
-    id_errors
-    |> list.append(alt_errors)
-    |> list.append(source_errors)
-    |> list.append(conflict_errors)
-    |> list.append(source_version_errors)
-  field_errors
+}
+
+fn source_version_error_bucket(
+  errors: List(media_types.FilesUserError),
+) -> List(media_types.FilesUserError) {
+  case errors {
+    [] -> []
+    [first, ..] -> [first]
+  }
 }
 
 fn validate_file_update_revert_versions(
@@ -975,7 +1035,13 @@ fn validate_file_update_target(
   store: Store,
   input: Dict(String, ResolvedValue),
   index: Int,
-) -> #(List(String), List(String), List(media_types.FilesUserError)) {
+) -> #(
+  List(String),
+  List(String),
+  List(media_types.FilesUserError),
+  List(media_types.FilesUserError),
+  List(media_types.FilesUserError),
+) {
   case read_string_field(input, "id") {
     Some(file_id) ->
       case get_effective_file_like_record(store, file_id) {
@@ -986,17 +1052,19 @@ fn validate_file_update_target(
                 "READY" -> #(
                   [],
                   [],
-                  validate_file_update_supported_changes(file, input, index),
+                  validate_original_source_update(file, input, index),
+                  validate_filename_media_type_update(file, input),
+                  validate_filename_extension_update(file, input, index),
                 )
-                _ -> #([], [file_id], [])
+                _ -> #([], [file_id], [], [], [])
               }
             }
-            False -> #([file_id], [], [])
+            False -> #([file_id], [], [], [], [])
           }
         }
-        None -> #([file_id], [], [])
+        None -> #([file_id], [], [], [], [])
       }
-    _ -> #([], [], [])
+    _ -> #([], [], [], [], [])
   }
 }
 
@@ -1096,16 +1164,6 @@ fn file_non_ready_state_count_errors(
   }
 }
 
-fn validate_file_update_supported_changes(
-  file: FileRecord,
-  input: Dict(String, ResolvedValue),
-  index: Int,
-) -> List(media_types.FilesUserError) {
-  []
-  |> list.append(validate_original_source_update(file, input, index))
-  |> list.append(validate_filename_update(file, input, index))
-}
-
 fn validate_original_source_update(
   file: FileRecord,
   input: Dict(String, ResolvedValue),
@@ -1127,10 +1185,9 @@ fn validate_original_source_update(
   }
 }
 
-fn validate_filename_update(
+fn validate_filename_media_type_update(
   file: FileRecord,
   input: Dict(String, ResolvedValue),
-  index: Int,
 ) -> List(media_types.FilesUserError) {
   case read_string_field(input, "filename") {
     Some(filename) if filename != "" ->
@@ -1142,7 +1199,22 @@ fn validate_filename_update(
             "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE",
           ),
         ]
+        True -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_filename_extension_update(
+  file: FileRecord,
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(media_types.FilesUserError) {
+  case read_string_field(input, "filename") {
+    Some(filename) if filename != "" ->
+      case file_allows_source_or_filename_update(file) {
         True -> validate_filename_extension(file, filename, index)
+        False -> []
       }
     _ -> []
   }
