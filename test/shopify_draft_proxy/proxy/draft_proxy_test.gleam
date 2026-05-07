@@ -881,7 +881,7 @@ pub fn graphql_saved_search_update_rejects_unknown_filter_without_staging_test()
     draft_proxy.process_request(proxy, update_request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Update unknown\",\"query\":\"made_up_filter:foo\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[{\"field\":[\"input\",\"searchTerms\"],\"message\":\"Query is invalid, 'made_up_filter' is not a valid filter\"}]}}}"
+    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"name\":\"Update unknown\",\"query\":\"made_up_filter:foo\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[{\"field\":[\"input\",\"query\"],\"message\":\"Query is invalid, 'made_up_filter' is not a valid filter\"}]}}}"
 
   let #(Response(body: read_body, ..), _) =
     draft_proxy.process_request(
