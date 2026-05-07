@@ -1,0 +1,12 @@
+query B2BContactUpdateCustomerReadbackContactRead($companyContactId: ID!) {
+  companyContact(id: $companyContactId) {
+    id
+    customer {
+      id
+      email
+      firstName
+      lastName
+      phone
+    }
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "scenarioId": "b2b-contact-update-customer-readback",
+  "operationNames": ["companyCreate", "companyContactCreate", "companyContactUpdate", "companyContact"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "read-after-write", "customer-subobject-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-update-customer-readback.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-contact-update-customer-readback-company-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for successful companyContactCreate followed by companyContactUpdate changing firstName, lastName, email, and phone, then downstream companyContact.customer readback. Shopify Admin 2026-04 updates the linked Customer subobject while preserving the customer id; local parity permits only live-vs-synthetic GID differences.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-create",
+        "capturePath": "$.contactCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-update-customer-readback-contact-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.contactCreate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.companyContact.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different stable customer IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-update",
+        "capturePath": "$.contactUpdate.response.data.companyContactUpdate",
+        "proxyPath": "$.data.companyContactUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-update-customer-readback-contact-update.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromProxyResponse": "contact-create",
+              "path": "$.data.companyContactCreate.companyContact.id"
+            },
+            "input": { "fromCapturePath": "$.contactUpdate.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.companyContact.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different stable customer IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-read-after-update",
+        "capturePath": "$.contactReadAfterUpdate.response.data.companyContact",
+        "proxyPath": "$.data.companyContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-update-customer-readback-contact-read.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromProxyResponse": "contact-create",
+              "path": "$.data.companyContactCreate.companyContact.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different stable customer IDs."
+          }
+        ]
+      }
+    ]
+  }
+}

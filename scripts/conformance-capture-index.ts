@@ -387,6 +387,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-contact-update-customer-readback',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-update-customer-readback-conformance.mts',
+    purpose:
+      'B2B companyContactUpdate read-after-write behavior for the linked CompanyContact.customer subobject after firstName, lastName, email, and phone changes.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-update-customer-readback.json`,
+      'config/parity-specs/b2b/b2b-contact-update-customer-readback.json',
+      'config/parity-requests/b2b/b2b-contact-update-customer-readback-company-create.graphql',
+      'config/parity-requests/b2b/b2b-contact-update-customer-readback-contact-create.graphql',
+      'config/parity-requests/b2b/b2b-contact-update-customer-readback-contact-update.graphql',
+      'config/parity-requests/b2b/b2b-contact-update-customer-readback-contact-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with a B2B contact, updates the contact, records downstream readback, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-email-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-email-name-validation-conformance.mts',

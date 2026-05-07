@@ -300,6 +300,24 @@ pub fn contact_data_from_input(
   |> dict.insert("updatedAt", StorePropertyString(now))
 }
 
+fn contact_customer_data_from_input(
+  contact_data: Dict(String, StorePropertyValue),
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, StorePropertyValue) {
+  case dict.get(contact_data, "customer") {
+    Ok(StorePropertyObject(customer)) -> {
+      let customer =
+        list.fold(
+          ["firstName", "lastName", "email", "phone"],
+          customer,
+          fn(acc, key) { maybe_put_string(acc, input, key) },
+        )
+      dict.insert(contact_data, "customer", StorePropertyObject(customer))
+    }
+    _ -> contact_data
+  }
+}
+
 @internal
 pub fn prepare_contact_create_input(
   store: Store,
@@ -1616,11 +1634,10 @@ pub fn handle_contact_update(
                   )
                 [] -> {
                   let #(now, identity) = timestamp(identity)
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..contact,
-                      data: contact_data_from_input(input, now, contact.data),
-                    )
+                  let data =
+                    contact_data_from_input(input, now, contact.data)
+                    |> contact_customer_data_from_input(input)
+                  let updated = B2BCompanyContactRecord(..contact, data: data)
                   let #(updated, store) =
                     store.upsert_staged_b2b_company_contact(store, updated)
                   b2b_types.RootResult(
