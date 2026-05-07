@@ -4988,9 +4988,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql',
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-create.graphql',
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-creation-read.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-validation-existing-read.graphql',
       'config/parity-requests/discounts/discount-redeem-code-bulk-validation-read.graphql',
     ],
-    cleanupBehavior: 'Creates a disposable code discount and deletes it after validation probes.',
+    cleanupBehavior: 'Creates two disposable code discounts and deletes them after validation probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

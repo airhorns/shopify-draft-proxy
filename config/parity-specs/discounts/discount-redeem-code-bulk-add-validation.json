@@ -142,8 +142,89 @@
             }
           }
         }
+      },
+      {
+        "name": "existing-code-conflicts-accepted-creation",
+        "capturePath": "$.existingCodeConflicts.add.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountRedeemCodeBulkAdd.bulkCreation.done",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codesCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.importedCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.failedCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codes.nodes",
+          "$.discountRedeemCodeBulkAdd.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.discountRedeemCodeBulkAdd.bulkCreation.id",
+            "matcher": "shopify-gid:DiscountRedeemCodeBulkCreation",
+            "reason": "The proxy uses synthetic IDs for local bulk creations."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.requests.existingCodeConflicts.variables.codes"
+            }
+          }
+        }
+      },
+      {
+        "name": "existing-code-conflicts-final-creation",
+        "capturePath": "$.existingCodeConflicts.finalRead.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountRedeemCodeBulkCreation"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-creation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "existing-code-conflicts-accepted-creation",
+              "path": "$.data.discountRedeemCodeBulkAdd.bulkCreation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "existing-code-conflicts-stage-downstream",
+        "capturePath": "$.existingCodeConflicts.readAfter.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.codeDiscountNode.codeDiscount.codes.nodes",
+          "$.codeDiscountNode.codeDiscount.codesCount",
+          "$.sameDiscount",
+          "$.fresh"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy uses synthetic IDs for locally staged discounts."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-existing-read.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "sameDiscountCode": {
+              "fromCapturePath": "$.variables.seedCode"
+            },
+            "crossDiscountCode": {
+              "fromCapturePath": "$.variables.crossDiscountCode"
+            },
+            "freshCode": {
+              "fromCapturePath": "$.variables.existingFreshCode"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 validation evidence for discountRedeemCodeBulkAdd. Unknown discount IDs and empty code arrays reject via mutation userErrors; more than 250 inputs is a top-level MAX_INPUT_SIZE_EXCEEDED GraphQL error; per-code blank/newline/too-long/duplicate failures are accepted into a bulk creation and surface on discountRedeemCodeBulkCreation codes.nodes.errors after processing. The proxy keeps legacy local-runtime string-code inputs completed immediately, but schema-shaped DiscountRedeemCodeInput arrays follow the captured async response shape."
+  "notes": "Live Admin GraphQL 2026-04 validation evidence for discountRedeemCodeBulkAdd. Unknown discount IDs and empty code arrays reject via mutation userErrors; more than 250 inputs is a top-level MAX_INPUT_SIZE_EXCEEDED GraphQL error; per-code blank/newline/too-long/duplicate failures are accepted into a bulk creation and surface on discountRedeemCodeBulkCreation codes.nodes.errors after processing. Existing redeem codes on the target discount and on another shop code-discount return per-code uniqueness errors with code null while fresh accepted codes still stage and read back. The proxy keeps legacy local-runtime string-code inputs completed immediately, but schema-shaped DiscountRedeemCodeInput arrays follow the captured async response shape."
 }
