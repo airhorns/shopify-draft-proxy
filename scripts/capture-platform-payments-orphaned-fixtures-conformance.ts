@@ -683,6 +683,57 @@ async function captureDelegateAccessTokenCreateValidation(): Promise<string> {
   return filePath;
 }
 
+async function captureDelegateAccessTokenCreateExpiresAfterParent(): Promise<string> {
+  const client = await clientFor('2026-04');
+  const query = await readText('config/parity-requests/apps/delegateAccessTokenCreate-expires-after-parent.graphql');
+  const result = await client.runGraphqlRequest(query, {});
+  assertNoTopLevelErrors(result, 'delegateAccessTokenCreate expires-after-parent');
+
+  const token = readPath(result.payload, ['data', 'delegateAccessTokenCreate', 'delegateAccessToken']);
+  const userErrors = readArray(readPath(result.payload, ['data', 'delegateAccessTokenCreate', 'userErrors']));
+  const firstError = readRecord(userErrors[0]);
+  if (
+    token !== null ||
+    userErrors.length !== 1 ||
+    firstError['code'] !== 'EXPIRES_AFTER_PARENT' ||
+    firstError['message'] !== "The delegate token can't expire after the parent token."
+  ) {
+    throw new Error(`Unexpected expires-after-parent response: ${JSON.stringify(result.payload, null, 2)}`);
+  }
+
+  const filePath = outputPath(client.config, 'apps', 'delegate-access-token-create-expires-after-parent.json');
+  await writeJson(filePath, {
+    capturedAt: new Date().toISOString(),
+    storeDomain: client.config.storeDomain,
+    apiVersion: client.config.apiVersion,
+    scenario: 'delegate-access-token-create-expires-after-parent',
+    notes: [
+      'Captured live Admin GraphQL delegateAccessTokenCreate EXPIRES_AFTER_PARENT validation with the expiring conformance credential.',
+      'The request used a very large expiresIn so the delegate would outlive the active parent token.',
+      'Shopify returned field null for this public GraphQL userError path.',
+    ],
+    operationNames: ['delegateAccessTokenCreate'],
+    upstreamCalls: [],
+    evidence: {
+      parity: {
+        expected: {
+          expiresAfterParent: readRecord(redactSecrets(result.payload)),
+        },
+      },
+      localRuntime: {
+        expected: {
+          failedLog: {
+            status: 'failed',
+            stagedResourceIds: [],
+          },
+          emptyDelegatedAccessTokens: {},
+        },
+      },
+    },
+  });
+  return filePath;
+}
+
 async function captureDelegateAccessTokenDestroyCodes(): Promise<string> {
   const parentClient = await clientFor('2026-04');
   const createQuery = await readText('config/parity-requests/apps/delegateAccessTokenCreate-happy-validation.graphql');
@@ -782,7 +833,11 @@ async function captureDelegateAccessTokenDestroyCodes(): Promise<string> {
 }
 
 async function captureApps(): Promise<string[]> {
-  return [await captureDelegateAccessTokenCreateValidation(), await captureDelegateAccessTokenDestroyCodes()];
+  return [
+    await captureDelegateAccessTokenCreateValidation(),
+    await captureDelegateAccessTokenCreateExpiresAfterParent(),
+    await captureDelegateAccessTokenDestroyCodes(),
+  ];
 }
 
 async function captureBulkOperations(): Promise<string[]> {

@@ -77,7 +77,7 @@ Current modeled behavior:
   `ACCESS_TOKEN_NOT_FOUND`. Downstream `currentAppInstallation` reads return
   `null` when the current installation is targeted, and app-subscription Node
   reads show cancelled status.
-- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores the owning app id plus parent access-token hash alongside the token hash/preview. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, and active delegate-token parents return Shopify-like user errors without staging a new token. The payload's non-null `shop` field is projected through the Apps current-shop helper: hydrated `store.get_effective_shop(store)` data wins, and otherwise the proxy returns a stable synthetic Shop with `id`, `myshopifyDomain`, and `currencyCode`. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
+- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores the owning app id plus parent access-token hash alongside the token hash/preview. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, active delegate-token parents, and expiring parent tokens whose delegated `expiresIn` would outlive the parent return Shopify-like user errors without staging a new token. The parent expiry check is driven by request-owned parent-token context; parity and test harnesses model that context with `x-shopify-draft-proxy-access-token-expires-at`, while permanent parent tokens omit it. The payload's non-null `shop` field is projected through the Apps current-shop helper: hydrated `store.get_effective_shop(store)` data wins, and otherwise the proxy returns a stable synthetic Shop with `id`, `myshopifyDomain`, and `currencyCode`. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
 - `delegateAccessTokenDestroy` matches the raw token against the stored hash, checks the caller app id and parent/delegate token hierarchy, marks allowed delegate tokens destroyed locally, and returns a non-null `shop` payload through the Apps current-shop helper on both success and user-error branches. Unknown or repeated tokens return `ACCESS_TOKEN_NOT_FOUND` with `field: null` and `Access token does not exist.` Parent access-token self-destroy returns `CAN_ONLY_DELETE_DELEGATE_TOKENS` with `Can only delete delegate tokens.` Cross-app and non-parent delegate hierarchy attempts return `ACCESS_DENIED`; all error paths leave token state unchanged and emit a failed log draft.
 
 The implementation does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
@@ -128,6 +128,14 @@ successful `read_products` delegated token create with immediate cleanup. The
 generic parity runner cannot yet replay a later request with the newly returned
 delegate token as its active auth header, so parent-is-delegate validation is
 covered by focused Gleam runtime tests until auth swapping lands in the harness.
+
+HAR-1034 captured live 2026-04 `delegateAccessTokenCreate` validation against
+`harry-test-heelo.myshopify.com` on 2026-05-07 with the expiring conformance
+credential and a very large `expiresIn`. Shopify returned
+`EXPIRES_AFTER_PARENT`, message
+`The delegate token can't expire after the parent token.`, `field: null`, and
+no delegate token. The proxy replay models the parent token's `expires_at`
+through request-owned parent-token context instead of ambient auth state.
 
 HAR-631 attempted a live `appSubscriptionCreate`/`appSubscriptionCancel` transition capture against the current conformance store on 2026-05-05. Shopify returned `Custom apps cannot use the Billing API`, so repeat-cancel and forced-status transition coverage remains executable local-runtime evidence rather than live billing mutation evidence for this app credential.
 

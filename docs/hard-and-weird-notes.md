@@ -64,6 +64,19 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: delegateAccessTokenCreate EXPIRES_AFTER_PARENT returns a null field
+
+A 2026-04 `delegateAccessTokenCreate` capture against
+`harry-test-heelo.myshopify.com` used an expiring conformance access token and
+`expiresIn: 99999999`. Shopify returned `EXPIRES_AFTER_PARENT`, message
+`The delegate token can't expire after the parent token.`, no delegated token,
+and `field: null`.
+
+Practical rule: keep the public GraphQL userError field null for this branch
+unless a newer version-specific capture proves Shopify changed it. The checked-in
+anchor is
+`config/parity-specs/apps/delegate-access-token-create-expires-after-parent.json`.
+
 ## Current: paymentTermsCreate public Order eligibility differs from internal notes
 
 A 2026-04 `paymentTermsCreate` Order-owner eligibility capture against

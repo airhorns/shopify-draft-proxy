@@ -1,0 +1,53 @@
+{
+  "capturedAt": "2026-05-07T12:21:47.066Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenario": "delegate-access-token-create-expires-after-parent",
+  "notes": [
+    "Captured live Admin GraphQL delegateAccessTokenCreate EXPIRES_AFTER_PARENT validation with the expiring conformance credential.",
+    "The request used a very large expiresIn so the delegate would outlive the active parent token.",
+    "Shopify returned field null for this public GraphQL userError path."
+  ],
+  "operationNames": ["delegateAccessTokenCreate"],
+  "upstreamCalls": [],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "expiresAfterParent": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The delegate token can't expire after the parent token.",
+                  "code": "EXPIRES_AFTER_PARENT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "localRuntime": {
+      "expected": {
+        "failedLog": {
+          "status": "failed",
+          "stagedResourceIds": []
+        },
+        "emptyDelegatedAccessTokens": {}
+      }
+    }
+  }
+}
