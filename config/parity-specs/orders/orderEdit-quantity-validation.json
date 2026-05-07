@@ -2,7 +2,12 @@
   "scenarioId": "orderEdit-quantity-validation",
   "operationNames": ["orderEditBegin", "orderEditSetQuantity", "orderEditAddVariant"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write-parity", "calculated-order-projection-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "read-after-write-parity",
+    "calculated-order-projection-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderEdit-quantity-validation.json"
   ],
