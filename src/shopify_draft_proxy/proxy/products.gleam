@@ -5,11 +5,15 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import gleam/list
+import gleam/option.{None, Some}
+import gleam/result
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue,
+  type FragmentMap, type SourceValue, SrcObject, SrcString,
+  project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/products/collections_core as collections
@@ -269,6 +273,234 @@ pub fn product_variant_source(
   variant: ProductVariantRecord,
 ) -> SourceValue {
   variants.product_variant_source(store, variant)
+}
+
+pub fn serialize_product_variant_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_variant_by_id(store, id) {
+    Some(record) ->
+      project_graphql_value(
+        product_variant_source(store, record),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_inventory_item_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.find_effective_variant_by_inventory_item_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        inventory_item_source(store, record),
+        "InventoryItem",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_inventory_level_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case find_inventory_level_node_target(store, id) {
+    Some(target) -> {
+      let #(variant, level) = target
+      project_node_source(
+        inventory_level_source_with_item(store, variant, level),
+        "InventoryLevel",
+        selections,
+        fragments,
+      )
+    }
+    None -> json.null()
+  }
+}
+
+fn find_inventory_level_node_target(store: Store, id: String) {
+  store
+  |> store.list_effective_product_variants
+  |> list.filter_map(fn(variant) {
+    case variant.inventory_item {
+      Some(item) ->
+        item.inventory_levels
+        |> list.find(fn(level) { level.id == id })
+        |> result.map(fn(level) { #(variant, level) })
+      None -> Error(Nil)
+    }
+  })
+  |> list.first
+  |> option.from_result
+}
+
+pub fn serialize_inventory_transfer_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_inventory_transfer_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        inventory_transfer_source(store, record),
+        "InventoryTransfer",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_inventory_shipment_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_inventory_shipment_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        inventory_shipment_source(store, record),
+        "InventoryShipment",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_product_feed_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_product_feed_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        product_feed_source(record),
+        "ProductFeed",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_publication_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_publication_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        publication_source(store, record),
+        "Publication",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_channel_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_channel_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        channel_source(store, record),
+        "Channel",
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_selling_plan_group_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_selling_plan_group_by_id(store, id) {
+    Some(record) ->
+      serialize_selling_plan_group_node(
+        store,
+        record,
+        selections,
+        variables,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_product_media_node_by_id(
+  store: Store,
+  id: String,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case find_product_media_by_id(store, id) {
+    Some(record) ->
+      project_node_source(
+        product_media_source(record),
+        typename,
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+fn find_product_media_by_id(store: Store, id: String) {
+  store
+  |> store.list_effective_product_media
+  |> list.find(fn(media) { media.id == Some(id) })
+  |> option.from_result
+}
+
+fn project_node_source(
+  source: SourceValue,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    source_with_typename(source, typename),
+    selections,
+    fragments,
+  )
+}
+
+fn source_with_typename(source: SourceValue, typename: String) -> SourceValue {
+  case source {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
+    _ -> source
+  }
 }
 
 pub fn process_mutation(

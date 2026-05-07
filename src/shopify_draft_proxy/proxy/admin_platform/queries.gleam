@@ -21,8 +21,7 @@ import shopify_draft_proxy/proxy/b2b/serializers as b2b_serializers
 import shopify_draft_proxy/proxy/bulk_operations/serializers as bulk_operation_serializers
 import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/customers/serializers as customer_serializers
-import shopify_draft_proxy/proxy/discounts/queries as discount_queries
-import shopify_draft_proxy/proxy/discounts/types as discount_types
+import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/functions/serializers as function_serializers
 import shopify_draft_proxy/proxy/gift_cards/queries as gift_card_queries
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -35,13 +34,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/marketing/queries as marketing_queries
-import shopify_draft_proxy/proxy/markets/serializers as market_serializers
-import shopify_draft_proxy/proxy/media/serializers as media_serializers
-import shopify_draft_proxy/proxy/metafield_definitions/serializers as metafield_definition_serializers
+import shopify_draft_proxy/proxy/markets
+import shopify_draft_proxy/proxy/media
+import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/metaobject_definitions/serializers as metaobject_serializers
-import shopify_draft_proxy/proxy/online_store/serializers as online_store_serializers
-import shopify_draft_proxy/proxy/orders/serializers as order_serializers
+import shopify_draft_proxy/proxy/online_store
+import shopify_draft_proxy/proxy/orders
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments/serializers as payment_serializers
 import shopify_draft_proxy/proxy/products
@@ -50,15 +49,14 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/proxy/saved_searches/queries as saved_search_queries
 import shopify_draft_proxy/proxy/segments/serializers as segment_serializers
-import shopify_draft_proxy/proxy/shipping_fulfillments/serializers as shipping_serializers
-import shopify_draft_proxy/proxy/shipping_fulfillments/sources as shipping_sources
+import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/webhooks/serializers as webhook_serializers
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
-  type AdminPlatformTaxonomyCategoryRecord, type BackupRegionRecord,
-  type CapturedJsonValue, BackupRegionRecord, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  type AdminPlatformTaxonomyCategoryRecord, type CapturedJsonValue,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString,
 }
 
 @internal
@@ -420,184 +418,6 @@ fn resolved_value_requests_passthrough_node(
   }
 }
 
-fn captured_backup_region() -> BackupRegionRecord {
-  BackupRegionRecord(
-    id: "gid://shopify/MarketRegionCountry/4062110417202",
-    name: "Canada",
-    code: "CA",
-  )
-}
-
-@internal
-pub fn backup_region_for_country(
-  store: Store,
-  shop_origin: String,
-  code: String,
-) -> Option(BackupRegionRecord) {
-  let normalized_code = string.uppercase(code)
-  case store.get_effective_shop(store) {
-    Some(shop) ->
-      backup_region_for_shop_country(shop.myshopify_domain, normalized_code)
-    None ->
-      case backup_region_for_origin_country(shop_origin, normalized_code) {
-        Some(region) -> Some(region)
-        None ->
-          case normalized_code {
-            "CA" -> Some(captured_backup_region())
-            _ -> None
-          }
-      }
-  }
-}
-
-@internal
-pub fn effective_backup_region(
-  store: Store,
-  shop_origin: String,
-) -> Option(BackupRegionRecord) {
-  case store.get_effective_backup_region(store) {
-    Some(region) -> Some(region)
-    None -> backup_region_for_effective_shop(store, shop_origin)
-  }
-}
-
-fn backup_region_for_effective_shop(
-  store: Store,
-  shop_origin: String,
-) -> Option(BackupRegionRecord) {
-  case store.get_effective_shop(store) {
-    Some(shop) ->
-      case shop.shop_address.country_code_v2 {
-        Some(code) ->
-          backup_region_for_shop_country(shop.myshopify_domain, code)
-        None -> None
-      }
-    None ->
-      case backup_region_for_origin_country(shop_origin, "CA") {
-        Some(region) -> Some(region)
-        None -> Some(captured_backup_region())
-      }
-  }
-}
-
-fn backup_region_for_origin_country(
-  shop_origin: String,
-  code: String,
-) -> Option(BackupRegionRecord) {
-  let origin = string.lowercase(shop_origin)
-  let without_scheme = case string.starts_with(origin, "https://") {
-    True -> string.drop_start(origin, 8)
-    False ->
-      case string.starts_with(origin, "http://") {
-        True -> string.drop_start(origin, 7)
-        False -> origin
-      }
-  }
-  let domain = case string.split(without_scheme, on: "/") {
-    [host, ..] -> host
-    [] -> without_scheme
-  }
-  backup_region_for_shop_country(domain, code)
-}
-
-fn backup_region_for_shop_country(
-  shop_domain: String,
-  code: String,
-) -> Option(BackupRegionRecord) {
-  case string.lowercase(shop_domain), string.uppercase(code) {
-    "harry-test-heelo.myshopify.com", "CA" -> Some(captured_backup_region())
-    "harry-test-heelo.myshopify.com", "AE" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110482738",
-        name: "United Arab Emirates",
-        code: "AE",
-      ))
-    "harry-test-heelo.myshopify.com", "AT" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110515506",
-        name: "Austria",
-        code: "AT",
-      ))
-    "harry-test-heelo.myshopify.com", "AU" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110548274",
-        name: "Australia",
-        code: "AU",
-      ))
-    "harry-test-heelo.myshopify.com", "BE" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110581042",
-        name: "Belgium",
-        code: "BE",
-      ))
-    "harry-test-heelo.myshopify.com", "CH" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110613810",
-        name: "Switzerland",
-        code: "CH",
-      ))
-    "harry-test-heelo.myshopify.com", "CZ" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110646578",
-        name: "Czechia",
-        code: "CZ",
-      ))
-    "harry-test-heelo.myshopify.com", "DE" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110679346",
-        name: "Germany",
-        code: "DE",
-      ))
-    "harry-test-heelo.myshopify.com", "DK" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110712114",
-        name: "Denmark",
-        code: "DK",
-      ))
-    "harry-test-heelo.myshopify.com", "ES" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110744882",
-        name: "Spain",
-        code: "ES",
-      ))
-    "harry-test-heelo.myshopify.com", "FI" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062110777650",
-        name: "Finland",
-        code: "FI",
-      ))
-    "harry-test-heelo.myshopify.com", "MX" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/4062111334706",
-        name: "Mexico",
-        code: "MX",
-      ))
-    "very-big-test-store.myshopify.com", "CA" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/454909493481",
-        name: "Canada",
-        code: "CA",
-      ))
-    "very-big-test-store.myshopify.com", "US" ->
-      Some(BackupRegionRecord(
-        id: "gid://shopify/MarketRegionCountry/454910378217",
-        name: "United States",
-        code: "US",
-      ))
-    _, _ -> None
-  }
-}
-
-@internal
-pub fn backup_region_source(region: BackupRegionRecord) -> SourceValue {
-  src_object([
-    #("__typename", SrcString("MarketRegionCountry")),
-    #("id", SrcString(region.id)),
-    #("name", SrcString(region.name)),
-    #("code", SrcString(region.code)),
-  ])
-}
-
 fn public_api_versions() -> List(SourceValue) {
   [
     api_version("2025-07", "2025-07", True),
@@ -695,8 +515,8 @@ fn serialize_query_field(
     "job" -> #(serialize_job(store, field, fragments, variables), [])
     "domain" -> #(serialize_domain(store, field, fragments, variables), [])
     "backupRegion" -> {
-      let value = case effective_backup_region(store, shop_origin) {
-        Some(region) -> backup_region_source(region)
+      let value = case markets.effective_backup_region(store, shop_origin) {
+        Some(region) -> markets.backup_region_source(region)
         None -> SrcNull
       }
       #(project_selection(value, field, fragments), [])
@@ -955,126 +775,84 @@ fn serialize_node_by_id(
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
     "Order" ->
-      serialize_order_node_by_id(store, id, selections, fragments, variables)
+      orders.serialize_order_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Order", fragments),
+        fragments,
+        variables,
+      )
     "DraftOrder" ->
-      case store.get_draft_order_by_id(store, id) {
-        Some(record) ->
-          order_serializers.serialize_draft_order_node(
-            Some(store),
-            synthetic_node_field(
-              "DraftOrder",
-              admin_node_selected_fields(selections, "DraftOrder", fragments),
-            ),
-            record,
-            fragments,
-          )
-        None -> json.null()
-      }
+      orders.serialize_draft_order_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "DraftOrder", fragments),
+        fragments,
+      )
     "ProductVariant" ->
-      case store.get_effective_variant_by_id(store, id) {
-        Some(record) ->
-          project_graphql_value(
-            products.product_variant_source(store, record),
-            admin_node_selected_fields(selections, "ProductVariant", fragments),
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_product_variant_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "ProductVariant", fragments),
+        fragments,
+      )
     "InventoryItem" ->
-      case store.find_effective_variant_by_inventory_item_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.inventory_item_source(store, record),
-            "InventoryItem",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_inventory_item_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "InventoryItem", fragments),
+        fragments,
+      )
     "InventoryLevel" ->
-      case find_inventory_level_node_target(store, id) {
-        Some(target) -> {
-          let #(variant, level) = target
-          project_node_source(
-            products.inventory_level_source_with_item(store, variant, level),
-            "InventoryLevel",
-            selections,
-            fragments,
-          )
-        }
-        None -> json.null()
-      }
+      products.serialize_inventory_level_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "InventoryLevel", fragments),
+        fragments,
+      )
     "InventoryTransfer" ->
-      case store.get_effective_inventory_transfer_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.inventory_transfer_source(store, record),
-            "InventoryTransfer",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_inventory_transfer_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "InventoryTransfer", fragments),
+        fragments,
+      )
     "InventoryShipment" ->
-      case store.get_effective_inventory_shipment_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.inventory_shipment_source(store, record),
-            "InventoryShipment",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_inventory_shipment_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "InventoryShipment", fragments),
+        fragments,
+      )
     "ProductFeed" ->
-      case store.get_effective_product_feed_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.product_feed_source(record),
-            "ProductFeed",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_product_feed_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "ProductFeed", fragments),
+        fragments,
+      )
     "Publication" ->
-      case store.get_effective_publication_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.publication_source(store, record),
-            "Publication",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_publication_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Publication", fragments),
+        fragments,
+      )
     "Channel" ->
-      case store.get_effective_channel_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.channel_source(store, record),
-            "Channel",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_channel_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Channel", fragments),
+        fragments,
+      )
     "SellingPlanGroup" ->
-      case store.get_effective_selling_plan_group_by_id(store, id) {
-        Some(record) ->
-          products.serialize_selling_plan_group_node(
-            store,
-            record,
-            admin_node_selected_fields(
-              selections,
-              "SellingPlanGroup",
-              fragments,
-            ),
-            variables,
-            fragments,
-          )
-        None -> json.null()
-      }
+      products.serialize_selling_plan_group_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "SellingPlanGroup", fragments),
+        variables,
+        fragments,
+      )
     "GenericFile" | "MediaImage" | "Video" | "ExternalVideo" | "Model3d" ->
       serialize_media_node_by_id(
         store,
@@ -1111,32 +889,32 @@ fn serialize_node_by_id(
         None -> json.null()
       }
     "DiscountNode" ->
-      case store.get_effective_discount_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            discount_queries.discount_node_source(record),
-            "DiscountNode",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      discounts.serialize_discount_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "DiscountNode", fragments),
+        fragments,
+      )
     "DiscountCodeNode" ->
-      serialize_discount_owner_node_by_id(
+      discounts.serialize_discount_owner_node_by_id(
         store,
         id,
         "code",
         "DiscountCodeNode",
-        selections,
+        admin_node_selected_fields(selections, "DiscountCodeNode", fragments),
         fragments,
       )
     "DiscountAutomaticNode" ->
-      serialize_discount_owner_node_by_id(
+      discounts.serialize_discount_owner_node_by_id(
         store,
         id,
         "automatic",
         "DiscountAutomaticNode",
-        selections,
+        admin_node_selected_fields(
+          selections,
+          "DiscountAutomaticNode",
+          fragments,
+        ),
         fragments,
       )
     "MetaobjectDefinition" ->
@@ -1172,35 +950,26 @@ fn serialize_node_by_id(
         None -> json.null()
       }
     "Market" ->
-      case store.get_effective_market_by_id(store, id) {
-        Some(record) ->
-          project_graphql_value(
-            market_serializers.market_record_source(record),
-            admin_node_selected_fields(selections, "Market", fragments),
-            fragments,
-          )
-        None -> json.null()
-      }
+      markets.serialize_market_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Market", fragments),
+        fragments,
+      )
     "MarketCatalog" ->
-      case store.get_effective_catalog_by_id(store, id) {
-        Some(record) ->
-          project_graphql_value(
-            market_serializers.catalog_record_source(record),
-            admin_node_selected_fields(selections, "MarketCatalog", fragments),
-            fragments,
-          )
-        None -> json.null()
-      }
+      markets.serialize_market_catalog_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "MarketCatalog", fragments),
+        fragments,
+      )
     "PriceList" ->
-      case store.get_effective_price_list_by_id(store, id) {
-        Some(record) ->
-          project_graphql_value(
-            market_serializers.price_list_record_source(record),
-            admin_node_selected_fields(selections, "PriceList", fragments),
-            fragments,
-          )
-        None -> json.null()
-      }
+      markets.serialize_price_list_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "PriceList", fragments),
+        fragments,
+      )
     "WebhookSubscription" ->
       case store.get_effective_webhook_subscription_by_id(store, id) {
         Some(record) ->
@@ -1444,27 +1213,23 @@ fn serialize_node_by_id(
         None -> json.null()
       }
     "DeliveryCarrierService" ->
-      case store.get_effective_carrier_service_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_serializers.carrier_service_source(record),
-            "DeliveryCarrierService",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_delivery_carrier_service_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(
+          selections,
+          "DeliveryCarrierService",
+          fragments,
+        ),
+        fragments,
+      )
     "DeliveryProfile" ->
-      case store.get_effective_delivery_profile_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.delivery_profile_source(record),
-            "DeliveryProfile",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_delivery_profile_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "DeliveryProfile", fragments),
+        fragments,
+      )
     "DeliveryCondition"
     | "DeliveryCountry"
     | "DeliveryLocationGroup"
@@ -1473,166 +1238,149 @@ fn serialize_node_by_id(
     | "DeliveryProvince"
     | "DeliveryRateDefinition"
     | "DeliveryZone" ->
-      serialize_delivery_profile_nested_node_by_id(
+      shipping_fulfillments.serialize_delivery_profile_nested_node_by_id(
         store,
         id,
         gid_resource_type(id),
-        selections,
+        admin_node_selected_fields(selections, gid_resource_type(id), fragments),
         fragments,
+        fn() { serialize_generic_node_by_id(store, id, selections, fragments) },
       )
     "Fulfillment" ->
-      case store.get_effective_fulfillment_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.fulfillment_source(record),
-            "Fulfillment",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_fulfillment_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Fulfillment", fragments),
+        fragments,
+      )
     "FulfillmentOrder" ->
-      case store.get_effective_fulfillment_order_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.fulfillment_order_source(record),
-            "FulfillmentOrder",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_fulfillment_order_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "FulfillmentOrder", fragments),
+        fragments,
+      )
     "ReverseDelivery" ->
-      case store.get_effective_reverse_delivery_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.reverse_delivery_source(store, record),
-            "ReverseDelivery",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_reverse_delivery_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "ReverseDelivery", fragments),
+        fragments,
+      )
     "ReverseFulfillmentOrder" ->
-      case store.get_effective_reverse_fulfillment_order_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.reverse_fulfillment_order_source(store, record),
-            "ReverseFulfillmentOrder",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_reverse_fulfillment_order_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(
+          selections,
+          "ReverseFulfillmentOrder",
+          fragments,
+        ),
+        fragments,
+      )
     "CalculatedOrder" ->
-      case store.get_effective_calculated_order_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.calculated_order_source(record),
-            "CalculatedOrder",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
+      shipping_fulfillments.serialize_calculated_order_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "CalculatedOrder", fragments),
+        fragments,
+      )
     "Article" ->
-      serialize_online_store_content_node_by_id(
+      online_store.serialize_content_node_by_id(
         store,
         id,
         "article",
         "Article",
-        selections,
+        admin_node_selected_fields(selections, "Article", fragments),
         fragments,
         variables,
       )
     "Blog" ->
-      serialize_online_store_content_node_by_id(
+      online_store.serialize_content_node_by_id(
         store,
         id,
         "blog",
         "Blog",
-        selections,
+        admin_node_selected_fields(selections, "Blog", fragments),
         fragments,
         variables,
       )
     "Comment" ->
-      serialize_online_store_content_node_by_id(
+      online_store.serialize_content_node_by_id(
         store,
         id,
         "comment",
         "Comment",
-        selections,
+        admin_node_selected_fields(selections, "Comment", fragments),
         fragments,
         variables,
       )
     "Page" ->
-      serialize_online_store_content_node_by_id(
+      online_store.serialize_content_node_by_id(
         store,
         id,
         "page",
         "Page",
-        selections,
+        admin_node_selected_fields(selections, "Page", fragments),
         fragments,
         variables,
       )
     "OnlineStoreTheme" ->
-      serialize_online_store_integration_node_by_id(
+      online_store.serialize_integration_node_by_id(
         store,
         id,
         "theme",
         "OnlineStoreTheme",
-        selections,
+        admin_node_selected_fields(selections, "OnlineStoreTheme", fragments),
         fragments,
       )
     "ScriptTag" ->
-      serialize_online_store_integration_node_by_id(
+      online_store.serialize_integration_node_by_id(
         store,
         id,
         "scriptTag",
         "ScriptTag",
-        selections,
+        admin_node_selected_fields(selections, "ScriptTag", fragments),
         fragments,
       )
     "WebPixel" ->
-      serialize_online_store_integration_node_by_id(
+      online_store.serialize_integration_node_by_id(
         store,
         id,
         "webPixel",
         "WebPixel",
-        selections,
+        admin_node_selected_fields(selections, "WebPixel", fragments),
         fragments,
       )
     "ServerPixel" ->
-      serialize_online_store_integration_node_by_id(
+      online_store.serialize_integration_node_by_id(
         store,
         id,
         "serverPixel",
         "ServerPixel",
-        selections,
+        admin_node_selected_fields(selections, "ServerPixel", fragments),
         fragments,
       )
     "StorefrontAccessToken" ->
-      serialize_online_store_integration_node_by_id(
+      online_store.serialize_integration_node_by_id(
         store,
         id,
         "storefrontAccessToken",
         "StorefrontAccessToken",
-        selections,
+        admin_node_selected_fields(
+          selections,
+          "StorefrontAccessToken",
+          fragments,
+        ),
         fragments,
       )
     "UrlRedirect" ->
-      case store.get_effective_url_redirect_by_id(store, id) {
-        Some(record) ->
-          online_store_serializers.project_url_redirect_record(
-            record,
-            synthetic_node_field(
-              "UrlRedirect",
-              admin_node_selected_fields(selections, "UrlRedirect", fragments),
-            ),
-            fragments,
-          )
-        None -> json.null()
-      }
+      online_store.serialize_url_redirect_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "UrlRedirect", fragments),
+        fragments,
+      )
     "Job" ->
       case store.get_effective_admin_platform_generic_node_by_id(store, id) {
         Some(record) ->
@@ -1676,7 +1424,13 @@ fn serialize_node_by_id(
           )
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
-    "Domain" -> serialize_domain_node_by_id(store, id, selections, fragments)
+    "Domain" ->
+      store_properties.serialize_domain_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "Domain", fragments),
+        fragments,
+      )
     "App" -> apps.serialize_app_node_by_id(store, id, selections, fragments)
     "AppInstallation" ->
       apps.serialize_app_installation_node_by_id(
@@ -1752,13 +1506,16 @@ fn serialize_node_by_id(
         fragments,
       )
     "Metafield" ->
-      serialize_metafield_node_by_id(store, id, selections, fragments)
-    "MetafieldDefinition" ->
-      serialize_metafield_definition_node_by_id(
+      metafields.serialize_metafield_node_by_id(
         store,
         id,
-        selections,
-        fragments,
+        admin_node_selected_fields(selections, "Metafield", fragments),
+      )
+    "MetafieldDefinition" ->
+      metafield_definitions.serialize_metafield_definition_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "MetafieldDefinition", fragments),
         variables,
       )
     "SellingPlan" ->
@@ -1769,26 +1526,23 @@ fn serialize_node_by_id(
         fragments,
       )
     "MarketRegionCountry" ->
-      serialize_market_region_country_node_by_id(
+      markets.serialize_market_region_country_node_by_id(
         store,
         shop_origin,
         id,
-        selections,
+        admin_node_selected_fields(selections, "MarketRegionCountry", fragments),
         fragments,
       )
     "TaxonomyCategory" ->
       serialize_taxonomy_category_node_by_id(store, id, selections, fragments)
     "MarketWebPresence" ->
-      case store.get_effective_web_presence_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            market_serializers.web_presence_record_source(record),
-            "MarketWebPresence",
-            selections,
-            fragments,
-          )
-        None -> serialize_generic_node_by_id(store, id, selections, fragments)
-      }
+      markets.serialize_web_presence_node_by_id(
+        store,
+        id,
+        admin_node_selected_fields(selections, "MarketWebPresence", fragments),
+        fragments,
+        fn() { serialize_generic_node_by_id(store, id, selections, fragments) },
+      )
     "CompanyAddress" ->
       b2b.serialize_company_address_node_by_id(store, id, selections, fragments)
     "CompanyContactRoleAssignment" ->
@@ -1802,114 +1556,6 @@ fn serialize_node_by_id(
   }
 }
 
-fn serialize_order_node_by_id(
-  store: Store,
-  id: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Json {
-  case store.get_order_by_id(store, id) {
-    Some(record) ->
-      order_serializers.serialize_order_node(
-        Some(store),
-        synthetic_node_field(
-          "Order",
-          admin_node_selected_fields(selections, "Order", fragments),
-        ),
-        record,
-        fragments,
-        variables,
-      )
-    None ->
-      case store.get_effective_shipping_order_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            shipping_sources.shipping_order_source(store, record),
-            "Order",
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
-  }
-}
-
-fn serialize_delivery_profile_nested_node_by_id(
-  store: Store,
-  id: String,
-  typename: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  store
-  |> store.list_effective_delivery_profiles
-  |> list.find_map(fn(profile) {
-    case find_captured_node_source_by_id(profile.data, id) {
-      Some(source) -> Ok(source)
-      None -> Error(Nil)
-    }
-  })
-  |> option.from_result
-  |> option.map(fn(source) {
-    project_node_source(source, typename, selections, fragments)
-  })
-  |> option.unwrap(serialize_generic_node_by_id(
-    store,
-    id,
-    selections,
-    fragments,
-  ))
-}
-
-fn find_captured_node_source_by_id(
-  data: CapturedJsonValue,
-  id: String,
-) -> Option(SourceValue) {
-  case data {
-    CapturedObject(fields) ->
-      case captured_object_string_field(fields, "id") == Some(id) {
-        True -> Some(captured_json_source(CapturedObject(fields)))
-        False ->
-          fields
-          |> list.find_map(fn(pair) {
-            let #(_, value) = pair
-            case find_captured_node_source_by_id(value, id) {
-              Some(source) -> Ok(source)
-              None -> Error(Nil)
-            }
-          })
-          |> option.from_result
-      }
-    CapturedArray(items) ->
-      items
-      |> list.find_map(fn(item) {
-        case find_captured_node_source_by_id(item, id) {
-          Some(source) -> Ok(source)
-          None -> Error(Nil)
-        }
-      })
-      |> option.from_result
-    _ -> None
-  }
-}
-
-fn find_inventory_level_node_target(store: Store, id: String) {
-  store
-  |> store.list_effective_product_variants
-  |> list.filter_map(fn(variant) {
-    case variant.inventory_item {
-      Some(item) ->
-        item.inventory_levels
-        |> list.find(fn(level) { level.id == id })
-        |> result.map(fn(level) { #(variant, level) })
-      None -> Error(Nil)
-    }
-  })
-  |> list.first
-  |> option.from_result
-}
-
 fn serialize_media_node_by_id(
   store: Store,
   id: String,
@@ -1917,118 +1563,19 @@ fn serialize_media_node_by_id(
   selections: List(Selection),
   fragments: FragmentMap,
 ) -> Json {
-  case store.get_effective_file_by_id(store, id) {
-    Some(record) ->
-      project_node_source(
-        media_serializers.file_source(record),
-        typename,
-        selections,
-        fragments,
-      )
+  let selected = admin_node_selected_fields(selections, typename, fragments)
+  case
+    media.serialize_file_node_by_id(store, id, typename, selected, fragments)
+  {
+    Some(file_json) -> file_json
     None ->
-      case find_product_media_by_id(store, id) {
-        Some(record) ->
-          project_node_source(
-            products.product_media_source(record),
-            typename,
-            selections,
-            fragments,
-          )
-        None -> json.null()
-      }
-  }
-}
-
-fn find_product_media_by_id(store: Store, id: String) {
-  store
-  |> store.list_effective_product_media
-  |> list.find(fn(media) { media.id == Some(id) })
-  |> option.from_result
-}
-
-fn serialize_discount_owner_node_by_id(
-  store: Store,
-  id: String,
-  owner_kind: String,
-  typename: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  case store.get_effective_discount_by_id(store, id) {
-    Some(record) if record.owner_kind == owner_kind ->
-      project_node_source(
-        discount_types.discount_owner_source(record),
-        typename,
-        selections,
-        fragments,
-      )
-    _ -> json.null()
-  }
-}
-
-fn serialize_online_store_content_node_by_id(
-  store: Store,
-  id: String,
-  kind: String,
-  typename: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Json {
-  case store.get_effective_online_store_content_by_id(store, id) {
-    Some(record) if record.kind == kind ->
-      online_store_serializers.project_content_record(
+      products.serialize_product_media_node_by_id(
         store,
-        record,
-        synthetic_node_field(
-          typename,
-          admin_node_selected_fields(selections, typename, fragments),
-        ),
-        fragments,
-        variables,
-      )
-    _ -> json.null()
-  }
-}
-
-fn serialize_online_store_integration_node_by_id(
-  store: Store,
-  id: String,
-  kind: String,
-  typename: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  case store.get_effective_online_store_integration_by_id(store, id) {
-    Some(record) if record.kind == kind ->
-      project_node_source(
-        online_store_serializers.integration_projection_source(record),
+        id,
         typename,
-        selections,
+        selected,
         fragments,
       )
-    _ -> json.null()
-  }
-}
-
-fn project_node_source(
-  source: SourceValue,
-  typename: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  project_graphql_value(
-    source_with_typename(source, typename),
-    admin_node_selected_fields(selections, typename, fragments),
-    fragments,
-  )
-}
-
-fn source_with_typename(source: SourceValue, typename: String) -> SourceValue {
-  case source {
-    SrcObject(fields) ->
-      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
-    _ -> source
   }
 }
 
@@ -2046,94 +1593,8 @@ fn synthetic_node_field(
   )
 }
 
-fn serialize_domain_node_by_id(
-  store: Store,
-  id: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  case store_properties.primary_domain_for_id(store, id) {
-    Some(domain) ->
-      project_graphql_value(
-        store_properties.shop_domain_source(domain),
-        admin_node_selected_fields(selections, "Domain", fragments),
-        fragments,
-      )
-    None -> json.null()
-  }
-}
-
-fn serialize_metafield_node_by_id(
-  store: Store,
-  id: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  let metafield =
-    list.append(
-      dict.values(store.base_state.product_metafields),
-      dict.values(store.staged_state.product_metafields),
-    )
-    |> list.find(fn(record) { record.id == id })
-  case metafield {
-    Ok(record) ->
-      metafields.serialize_metafield_selection_set(
-        metafields.MetafieldRecordCore(
-          id: record.id,
-          namespace: record.namespace,
-          key: record.key,
-          type_: record.type_,
-          value: record.value,
-          compare_digest: record.compare_digest,
-          json_value: record.json_value,
-          created_at: record.created_at,
-          updated_at: record.updated_at,
-          owner_type: record.owner_type,
-        ),
-        admin_node_selected_fields(selections, "Metafield", fragments),
-      )
-    Error(_) -> json.null()
-  }
-}
-
-fn serialize_metafield_definition_node_by_id(
-  store: Store,
-  id: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Json {
-  case store.get_effective_metafield_definition_by_id(store, id) {
-    Some(record) ->
-      metafield_definition_serializers.serialize_definition_selection_set(
-        store,
-        record,
-        admin_node_selected_fields(selections, "MetafieldDefinition", fragments),
-        variables,
-      )
-    None -> json.null()
-  }
-}
-
-fn serialize_market_region_country_node_by_id(
-  store: Store,
-  shop_origin: String,
-  id: String,
-  selections: List(Selection),
-  fragments: FragmentMap,
-) -> Json {
-  case effective_backup_region(store, shop_origin) {
-    Some(region) if region.id == id ->
-      project_graphql_value(
-        backup_region_source(region),
-        admin_node_selected_fields(selections, "MarketRegionCountry", fragments),
-        fragments,
-      )
-    _ -> json.null()
-  }
-}
-
-fn serialize_taxonomy_category_node_by_id(
+@internal
+pub fn serialize_taxonomy_category_node_by_id(
   store: Store,
   id: String,
   selections: List(Selection),
@@ -2150,7 +1611,8 @@ fn serialize_taxonomy_category_node_by_id(
   }
 }
 
-fn serialize_generic_node_by_id(
+@internal
+pub fn serialize_generic_node_by_id(
   store: Store,
   id: String,
   selections: List(Selection),

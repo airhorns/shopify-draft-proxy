@@ -5,10 +5,17 @@
 
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
+import gleam/option.{type Option, None, Some}
+import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/graphql_helpers.{
+  type FragmentMap, type SourceValue, SrcObject, SrcString,
+  project_graphql_value,
+}
 import shopify_draft_proxy/proxy/media/mutations
 import shopify_draft_proxy/proxy/media/queries
+import shopify_draft_proxy/proxy/media/serializers
 import shopify_draft_proxy/proxy/media/types
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -82,4 +89,44 @@ pub fn process_mutation(
     variables,
     upstream,
   )
+}
+
+pub fn serialize_file_node_by_id(
+  store: Store,
+  id: String,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Option(Json) {
+  case store.get_effective_file_by_id(store, id) {
+    Some(record) ->
+      Some(project_node_source(
+        serializers.file_source(record),
+        typename,
+        selections,
+        fragments,
+      ))
+    None -> None
+  }
+}
+
+fn project_node_source(
+  source: SourceValue,
+  typename: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    source_with_typename(source, typename),
+    selections,
+    fragments,
+  )
+}
+
+fn source_with_typename(source: SourceValue, typename: String) -> SourceValue {
+  case source {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(fields, "__typename", SrcString(typename)))
+    _ -> source
+  }
 }
