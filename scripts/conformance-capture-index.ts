@@ -983,6 +983,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-source-semantics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-source-semantics.ts',
+    purpose:
+      'Files API fileUpdate originalSource success semantics for READY MediaImage preview swaps and GenericFile direct source updates.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-source-semantics.json`,
+      'config/parity-specs/media/media-file-update-source-semantics.json',
+      'config/parity-requests/media/media-file-update-source-semantics-update.graphql',
+      'config/parity-requests/media/media-file-update-source-semantics-read.graphql',
+      'config/parity-requests/media/media-file-update-source-semantics-generic-read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable image and generic files and deletes all returned file IDs during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-user-error-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-user-error-aggregation-conformance.ts',
