@@ -64,9 +64,11 @@ Staged mutations:
   membership for filters that are accepted for segment storage but do not have a modeled customer-state dependency, such
   as `email_subscription_status = 'SUBSCRIBED'`, `companies IS NULL`, or `customer_countries CONTAINS 'CA'`.
 - `customerSegmentMembersQueryCreate(input: { segmentId })` resolves the staged or hydrated segment query at creation
-  time, returns Shopify's captured async creation shape, and stores an immediately readable local job. Integration
-  coverage verifies that direct `customerSegmentMembers(query:)` reads and `queryId` reads agree for the supported
-  grammar.
+  time, returns Shopify's captured async creation shape, and stores an immediately readable local job. The mutation
+  does not revalidate the resolved segment's stored query grammar; Shopify hands this branch to CDP after selector
+  validation. Unknown valid Segment GIDs return the captured CDP user error `field: null`, `code: INVALID`,
+  `message: "Invalid segment ID."`. Integration coverage verifies that direct `customerSegmentMembers(query:)` reads
+  and `queryId` reads agree for the supported grammar.
 - Segment search, sort, and uncaptured member-query grammar are not inferred beyond the captured request arguments.
 - Segment filter and value suggestion roots are captured metadata payloads, not a dynamic local suggestion engine. They
   are useful for shape fidelity and empty/no-data behavior, but new suggestion search semantics should be backed by fresh
@@ -84,6 +86,7 @@ Staged mutations:
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-query-grammar-not-contains.json`
 - Segment create/update query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-update-query-grammar.json`
+- Member-query segmentId branch fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-create-segment-id-paths.json`
 - Conformance request/spec: `config/parity-requests/segments/segments-baseline-read.graphql`, `config/parity-specs/segments/segments-baseline-read.json`
 - Segment lifecycle validation specs: `config/parity-specs/segments/segment-create-invalid-query-validation.json`, `config/parity-specs/segments/segment-update-unknown-id-validation.json`, `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
 - Segment length/limit validation spec: `config/parity-specs/segments/segments-create-update-validation-limits.json`
@@ -92,6 +95,8 @@ Staged mutations:
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment create/update query grammar parity spec: `config/parity-specs/segments/segment-create-update-query-grammar.json`
+- Member-query segmentId branch parity spec: `config/parity-specs/segments/customer-segment-members-query-create-segment-id-paths.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
+- Member-query segmentId branch capture script: `scripts/capture-customer-segment-members-query-create-segment-id-paths-conformance.ts`
 - Review coverage includes segmentId-backed member query jobs, direct query reads, and accepted-but-unmodeled filter
   storage boundaries.

@@ -91,7 +91,7 @@ import shopify_draft_proxy/state/types.{
   type InventoryMeasurementRecord, type ProductOperationUserErrorRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
   InventoryItemRecord, InventoryLevelRecord, InventoryMeasurementRecord,
-  ProductOperationUserErrorRecord, ProductVariantRecord,
+  InventoryQuantityRecord, ProductOperationUserErrorRecord, ProductVariantRecord,
 }
 
 // ===== from inventory_l02 =====
@@ -245,7 +245,16 @@ fn inventory_level_selected_quantities(
           })
         {
           Ok(quantity) -> Ok(quantity)
-          Error(_) -> Error(Nil)
+          Error(_) ->
+            case valid_staged_inventory_quantity_name(requested_name) {
+              True ->
+                Ok(InventoryQuantityRecord(
+                  name: requested_name,
+                  quantity: 0,
+                  updated_at: None,
+                ))
+              False -> Error(Nil)
+            }
         }
       })
   }

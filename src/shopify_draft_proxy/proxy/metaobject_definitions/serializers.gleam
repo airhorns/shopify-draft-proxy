@@ -197,6 +197,11 @@ pub fn metaobject_definition_source(
       "standardTemplate",
       standard_template_source(definition.standard_template),
     ),
+    #("enabledByShopify", SrcBool(definition.enabled_by_shopify)),
+    #(
+      "enabledByShopifyAt",
+      graphql_helpers.option_string_source(definition.enabled_by_shopify_at),
+    ),
     #("createdAt", graphql_helpers.option_string_source(definition.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(definition.updated_at)),
   ])
@@ -1295,10 +1300,20 @@ pub fn standard_template_source(
   template: Option(MetaobjectStandardTemplateRecord),
 ) -> SourceValue {
   case template {
-    Some(MetaobjectStandardTemplateRecord(type_: type_, name: name)) ->
+    Some(MetaobjectStandardTemplateRecord(
+      type_: type_,
+      name: name,
+      enabled_by_shopify: enabled_by_shopify,
+      enabled_by_shopify_at: enabled_by_shopify_at,
+    )) ->
       src_object([
         #("type", graphql_helpers.option_string_source(type_)),
         #("name", graphql_helpers.option_string_source(name)),
+        #("enabledByShopify", SrcBool(enabled_by_shopify)),
+        #(
+          "enabledByShopifyAt",
+          graphql_helpers.option_string_source(enabled_by_shopify_at),
+        ),
       ])
     None -> SrcNull
   }

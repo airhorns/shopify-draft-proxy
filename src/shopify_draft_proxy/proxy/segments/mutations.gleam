@@ -26,7 +26,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  CustomerSegmentMembersQueryRecord, SegmentRecord,
+  type SegmentRecord, CustomerSegmentMembersQueryRecord, SegmentRecord,
 }
 
 @internal
@@ -787,15 +787,15 @@ fn handle_customer_segment_members_query_create(
   }
   let raw_query = graphql_helpers.read_arg_string_nonempty(input, "query")
   let segment_id = graphql_helpers.read_arg_string_nonempty(input, "segmentId")
+  let resolved_segment = case segment_id {
+    Some(id_value) -> store.get_effective_segment_by_id(store, id_value)
+    None -> None
+  }
   let resolved_query = case raw_query {
     Some(_) -> raw_query
     None ->
-      case segment_id {
-        Some(id_value) ->
-          case store.get_effective_segment_by_id(store, id_value) {
-            Some(SegmentRecord(query: q, ..)) -> q
-            None -> None
-          }
+      case resolved_segment {
+        Some(SegmentRecord(query: q, ..)) -> q
         None -> None
       }
   }
@@ -803,7 +803,7 @@ fn handle_customer_segment_members_query_create(
     validate_customer_segment_members_query_create(
       raw_query,
       segment_id,
-      resolved_query,
+      resolved_segment,
     )
   case user_errors {
     [] -> {
@@ -881,7 +881,7 @@ fn handle_customer_segment_members_query_create(
 fn validate_customer_segment_members_query_create(
   raw_query: Option(String),
   segment_id: Option(String),
-  resolved_query: Option(String),
+  resolved_segment: Option(SegmentRecord),
 ) -> List(segment_types.UserError) {
   case raw_query, segment_id {
     Some(_), Some(_) -> [
@@ -894,8 +894,18 @@ fn validate_customer_segment_members_query_create(
         "You must provide one of segment_id or query.",
       ),
     ]
-    _, _ ->
-      segment_types.validate_customer_segment_members_query(resolved_query)
+    Some(_), None ->
+      segment_types.validate_customer_segment_members_query(raw_query)
+    None, Some(_) ->
+      case resolved_segment {
+        Some(_) -> []
+        None -> [
+          segment_types.null_field_user_error(
+            "Invalid segment ID.",
+            Some("INVALID"),
+          ),
+        ]
+      }
   }
 }
 

@@ -723,6 +723,22 @@ pub fn parse_search_query(
   }
 }
 
+/// Returns every field name referenced by terms in a parsed query tree.
+/// Unfielded text terms are intentionally ignored.
+pub fn search_query_node_fields(node: SearchQueryNode) -> List(String) {
+  case node {
+    TermNode(term: term) ->
+      case term.field {
+        Some(field) -> [field]
+        None -> []
+      }
+    AndNode(children: children) | OrNode(children: children) ->
+      children
+      |> list.flat_map(search_query_node_fields)
+    NotNode(child: child) -> search_query_node_fields(child)
+  }
+}
+
 fn parse_or_expression(
   tokens: List(SearchQueryToken),
 ) -> #(Option(SearchQueryNode), List(SearchQueryToken)) {

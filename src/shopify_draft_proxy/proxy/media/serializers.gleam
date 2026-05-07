@@ -190,7 +190,22 @@ fn file_image_source(file: FileRecord) -> SourceValue {
 }
 
 fn file_preview_source(file: FileRecord) -> SourceValue {
-  src_object([#("image", file_image_source(file))])
+  src_object([#("image", file_preview_image_source(file))])
+}
+
+fn file_preview_image_source(file: FileRecord) -> SourceValue {
+  case file.preview_image_url {
+    Some(url) ->
+      src_object([
+        #("url", SrcString(url)),
+        #("width", graphql_helpers.option_int_source(file.preview_image_width)),
+        #(
+          "height",
+          graphql_helpers.option_int_source(file.preview_image_height),
+        ),
+      ])
+    None -> SrcNull
+  }
 }
 
 fn staged_target_source(target: media_types.StagedTarget) -> SourceValue {

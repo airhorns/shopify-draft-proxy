@@ -22,6 +22,9 @@ pub fn file_json(record: types.FileRecord) -> Json {
     #("imageUrl", optional_string(record.image_url)),
     #("imageWidth", optional_int(record.image_width)),
     #("imageHeight", optional_int(record.image_height)),
+    #("previewImageUrl", optional_string(record.preview_image_url)),
+    #("previewImageWidth", optional_int(record.preview_image_width)),
+    #("previewImageHeight", optional_int(record.preview_image_height)),
     #(
       "updateFailureAcknowledgedAt",
       optional_string(record.update_failure_acknowledged_at),
@@ -1229,6 +1232,8 @@ pub fn metaobject_definition_json(
       json.bool(record.standard_template_dependent_on_app),
     ),
     #("appConfigManaged", json.bool(record.app_config_managed)),
+    #("enabledByShopify", json.bool(record.enabled_by_shopify)),
+    #("enabledByShopifyAt", optional_string(record.enabled_by_shopify_at)),
     #(
       "linkedMetafields",
       json.array(
@@ -1361,6 +1366,8 @@ pub fn metaobject_standard_template_json(
   json.object([
     #("type", optional_string(record.type_)),
     #("name", optional_string(record.name)),
+    #("enabledByShopify", json.bool(record.enabled_by_shopify)),
+    #("enabledByShopifyAt", optional_string(record.enabled_by_shopify_at)),
   ])
 }
 

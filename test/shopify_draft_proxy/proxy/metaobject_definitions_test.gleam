@@ -139,6 +139,18 @@ fn graphql_request(query: String) -> proxy_state.Request {
   )
 }
 
+fn graphql_request_with_headers(
+  query: String,
+  headers: dict.Dict(String, String),
+) -> proxy_state.Request {
+  proxy_state.Request(
+    method: "POST",
+    path: path,
+    headers: headers,
+    body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
+  )
+}
+
 fn create_definition_query(type_: String) -> String {
   "mutation {
     metaobjectDefinitionCreate(definition: {
@@ -421,6 +433,8 @@ fn definition_record(
         Some(state_types.MetaobjectStandardTemplateRecord(
           type_: Some(type_),
           name: Some("Seed standard"),
+          enabled_by_shopify: False,
+          enabled_by_shopify_at: None,
         ))
       False -> None
     },
@@ -430,6 +444,8 @@ fn definition_record(
     },
     standard_template_dependent_on_app: False,
     app_config_managed: False,
+    enabled_by_shopify: False,
+    enabled_by_shopify_at: None,
     linked_metafields: [],
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
@@ -675,6 +691,163 @@ pub fn standard_definition_enable_existing_type_is_idempotent_test() {
   assert string.contains(serialized, "\"name\":\"Material\"")
   assert string.contains(serialized, "\"userErrors\":[]")
   assert first.identity == second.identity
+}
+
+pub fn standard_definition_enable_public_enabled_by_shopify_arg_is_schema_error_test() {
+  let query =
+    "mutation {
+      standardMetaobjectDefinitionEnable(
+        type: \"shopify--color-pattern\",
+        enabledByShopify: true
+      ) {
+        metaobjectDefinition { id type enabledByShopify }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'standardMetaobjectDefinitionEnable' doesn't accept argument 'enabledByShopify'\"",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(serialized, "\"typeName\":\"Field\"")
+  assert string.contains(serialized, "\"argumentName\":\"enabledByShopify\"")
+  assert run_query(
+      next_proxy.store,
+      "{ metaobjectDefinitionByType(type: \"shopify--color-pattern\") { id } }",
+    )
+    == "{\"data\":{\"metaobjectDefinitionByType\":null}}"
+}
+
+pub fn standard_definition_enable_internal_enabled_by_shopify_persists_provenance_test() {
+  let query =
+    "mutation {
+      standardMetaobjectDefinitionEnable(
+        type: \"shopify--material\",
+        enabledByShopify: true
+      ) {
+        metaobjectDefinition {
+          id
+          type
+          enabledByShopify
+          enabledByShopifyAt
+          standardTemplate {
+            type
+            name
+            enabledByShopify
+            enabledByShopifyAt
+          }
+        }
+        userErrors { field message code }
+      }
+    }"
+  let headers =
+    dict.from_list([#(app_identity.internal_visibility_header, "true")])
+  let #(proxy_state.Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_with_headers(query, headers),
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"enabledByShopify\":true")
+  assert string.contains(
+    serialized,
+    "\"enabledByShopifyAt\":\"2024-01-01T00:00:00.000Z\"",
+  )
+
+  let by_id =
+    run_query(
+      next_proxy.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { type enabledByShopify enabledByShopifyAt standardTemplate { type enabledByShopify enabledByShopifyAt } } }",
+    )
+  assert by_id
+    == "{\"data\":{\"metaobjectDefinition\":{\"type\":\"shopify--material\",\"enabledByShopify\":true,\"enabledByShopifyAt\":\"2024-01-01T00:00:00.000Z\",\"standardTemplate\":{\"type\":\"shopify--material\",\"enabledByShopify\":true,\"enabledByShopifyAt\":\"2024-01-01T00:00:00.000Z\"}}}}"
+
+  let by_type =
+    run_query(
+      next_proxy.store,
+      "{ metaobjectDefinitionByType(type: \"shopify--material\") { type enabledByShopify enabledByShopifyAt standardTemplate { type enabledByShopify enabledByShopifyAt } } }",
+    )
+  assert by_type
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"type\":\"shopify--material\",\"enabledByShopify\":true,\"enabledByShopifyAt\":\"2024-01-01T00:00:00.000Z\",\"standardTemplate\":{\"type\":\"shopify--material\",\"enabledByShopify\":true,\"enabledByShopifyAt\":\"2024-01-01T00:00:00.000Z\"}}}}"
+}
+
+pub fn definition_update_rejects_top_level_reset_field_order_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_reset_arg_shape"),
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: created.store,
+      synthetic_identity: created.identity,
+    )
+  let top_level_reset =
+    "mutation {
+      metaobjectDefinitionUpdate(
+        id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+        resetFieldOrder: true,
+        definition: {
+          fieldDefinitions: [
+            { create: { key: \"summary\", name: \"Summary\", type: \"single_line_text_field\", required: false } }
+          ]
+        }
+      ) {
+        metaobjectDefinition { id fieldDefinitions { key } }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), after_reject) =
+    draft_proxy.process_request(proxy, graphql_request(top_level_reset))
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'metaobjectDefinitionUpdate' doesn't accept argument 'resetFieldOrder'\"",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(serialized, "\"typeName\":\"Field\"")
+  assert string.contains(serialized, "\"argumentName\":\"resetFieldOrder\"")
+  assert run_query(
+      after_reject.store,
+      "{ metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { fieldDefinitions { key } } }",
+    )
+    == "{\"data\":{\"metaobjectDefinition\":{\"fieldDefinitions\":[{\"key\":\"title\"},{\"key\":\"body\"}]}}}"
+
+  let nested_reset =
+    "mutation {
+      metaobjectDefinitionUpdate(
+        id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+        definition: {
+          resetFieldOrder: true,
+          fieldDefinitions: [
+            { create: { key: \"summary\", name: \"Summary\", type: \"single_line_text_field\", required: false } }
+          ]
+        }
+      ) {
+        metaobjectDefinition { id fieldDefinitions { key } }
+        userErrors { field message code }
+      }
+    }"
+  let #(proxy_state.Response(status: nested_status, body: nested_body, ..), _) =
+    draft_proxy.process_request(after_reject, graphql_request(nested_reset))
+
+  assert nested_status == 200
+  assert json.to_string(nested_body)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"fieldDefinitions\":[{\"key\":\"summary\"},{\"key\":\"title\"},{\"key\":\"body\"}]},\"userErrors\":[]}}}"
 }
 
 pub fn definition_update_rejects_standard_template_definition_test() {

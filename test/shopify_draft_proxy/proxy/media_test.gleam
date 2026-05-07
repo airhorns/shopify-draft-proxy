@@ -74,6 +74,9 @@ fn ready_image() -> FileRecord {
     image_url: Some("https://cdn.example.com/seed.jpg"),
     image_width: None,
     image_height: None,
+    preview_image_url: Some("https://cdn.example.com/seed.jpg"),
+    preview_image_width: None,
+    preview_image_height: None,
     update_failure_acknowledged_at: None,
   )
 }
@@ -90,6 +93,9 @@ fn ready_video() -> FileRecord {
     image_url: None,
     image_width: None,
     image_height: None,
+    preview_image_url: None,
+    preview_image_width: None,
+    preview_image_height: None,
     update_failure_acknowledged_at: None,
   )
 }
@@ -701,6 +707,65 @@ pub fn file_update_preserves_ready_status_after_success_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Updated alt\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
 }
 
+pub fn file_update_rejects_long_alt_test() {
+  let long_alt = string.repeat("a", 513)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", alt: \""
+        <> long_alt
+        <> "\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"alt\"],\"message\":\"The alt value exceeds the maximum limit of 512 characters.\",\"code\":\"ALT_VALUE_LIMIT_EXCEEDED\"}]}}}"
+}
+
+pub fn file_update_rejects_non_url_sources_with_captured_error_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"not-a-url\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Invalid image source url value provided\",\"code\":\"INVALID_IMAGE_SOURCE_URL\"}]}}}"
+}
+
+pub fn file_update_rejects_over_length_original_source_with_top_level_error_test() {
+  let long_url =
+    "https://cdn.example.com/" <> string.repeat("a", 3000) <> ".jpg"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \""
+        <> long_url
+        <> "\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"originalSource is too long (maximum is 2048)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileUpdate\"]}],\"data\":{\"fileUpdate\":null}}"
+}
+
+pub fn file_update_does_not_length_check_preview_image_source_test() {
+  let long_url =
+    "https://cdn.example.com/" <> string.repeat("a", 3000) <> ".jpg"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", previewImageSource: \""
+        <> long_url
+        <> "\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Seed\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
+}
+
 pub fn staged_uploads_create_requires_video_file_size_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
@@ -723,6 +788,42 @@ pub fn staged_uploads_create_rejects_image_unsupported_mime_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"mimeType\"],\"message\":\"x.exe: (application/x-msdownload) is not a recognized format\"}]}}}"
+}
+
+pub fn staged_uploads_create_bulk_variables_post_uses_google_form_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: BULK_MUTATION_VARIABLES, filename: \"vars.jsonl\", mimeType: \"text/jsonl\", httpMethod: POST }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"Content-Type\",\"value\":\"text/jsonl\"},{\"name\":\"success_action_status\",\"value\":\"201\"},{\"name\":\"acl\",\"value\":\"private\"},{\"name\":\"key\",\"value\":\"shopify-draft-proxy/gid://shopify/StagedUploadTarget0/1/vars.jsonl\"},{\"name\":\"x-goog-date\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-date\"},{\"name\":\"x-goog-credential\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-credential\"},{\"name\":\"x-goog-algorithm\",\"value\":\"GOOG4-RSA-SHA256\"},{\"name\":\"x-goog-signature\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-signature\"},{\"name\":\"policy\",\"value\":\"shopify-draft-proxy-placeholder-policy\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_bulk_variables_put_uses_captured_put_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: BULK_MUTATION_VARIABLES, filename: \"vars.jsonl\", mimeType: \"text/jsonl\", httpMethod: PUT }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/jsonl\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_shop_image_uses_image_family_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: SHOP_IMAGE, filename: \"logo.png\", mimeType: \"image/png\", httpMethod: POST }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"Content-Type\",\"value\":\"image/png\"},{\"name\":\"success_action_status\",\"value\":\"201\"},{\"name\":\"acl\",\"value\":\"private\"},{\"name\":\"key\",\"value\":\"shopify-draft-proxy/gid://shopify/StagedUploadTarget0/1/logo.png\"},{\"name\":\"x-goog-date\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-date\"},{\"name\":\"x-goog-credential\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-credential\"},{\"name\":\"x-goog-algorithm\",\"value\":\"GOOG4-RSA-SHA256\"},{\"name\":\"x-goog-signature\",\"value\":\"shopify-draft-proxy-placeholder-x-goog-signature\"},{\"name\":\"policy\",\"value\":\"shopify-draft-proxy-placeholder-policy\"}]}],\"userErrors\":[]}}}"
 }
 
 pub fn staged_uploads_create_user_errors_rejects_code_selection_test() {

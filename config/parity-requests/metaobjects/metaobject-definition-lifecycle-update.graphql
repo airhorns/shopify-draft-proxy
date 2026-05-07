@@ -1,5 +1,5 @@
 mutation MetaobjectDefinitionLifecycleUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
-  metaobjectDefinitionUpdate(id: $id, definition: $definition, resetFieldOrder: true) {
+  metaobjectDefinitionUpdate(id: $id, definition: $definition) {
     metaobjectDefinition {
       id
       type

@@ -107,6 +107,9 @@ pub type FileRecord {
     image_url: Option(String),
     image_width: Option(Int),
     image_height: Option(Int),
+    preview_image_url: Option(String),
+    preview_image_width: Option(Int),
+    preview_image_height: Option(Int),
     update_failure_acknowledged_at: Option(String),
   )
 }
@@ -1323,7 +1326,12 @@ pub type MetaobjectFieldDefinitionRecord {
 }
 
 pub type MetaobjectStandardTemplateRecord {
-  MetaobjectStandardTemplateRecord(type_: Option(String), name: Option(String))
+  MetaobjectStandardTemplateRecord(
+    type_: Option(String),
+    name: Option(String),
+    enabled_by_shopify: Bool,
+    enabled_by_shopify_at: Option(String),
+  )
 }
 
 pub type MetaobjectDefinitionLinkedMetafieldRecord {
@@ -1353,6 +1361,8 @@ pub type MetaobjectDefinitionRecord {
     standard_template_id: Option(String),
     standard_template_dependent_on_app: Bool,
     app_config_managed: Bool,
+    enabled_by_shopify: Bool,
+    enabled_by_shopify_at: Option(String),
     linked_metafields: List(MetaobjectDefinitionLinkedMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
