@@ -3558,6 +3558,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-activation-failure-field-base-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-activation-failure-field-base-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for app discount activation failure after a staged discount Function becomes unavailable.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [`${LOCAL_RUNTIME_ROOT}discount-activation-failure-field-base.json`],
+    cleanupBehavior:
+      'Runs only against the local proxy runtime with a deterministic Function cassette; no Shopify cleanup required.',
+    expectedStatusChecks: ['conformance:check', 'gleam:test', 'targeted-runtime-test'],
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-buyer-context',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',

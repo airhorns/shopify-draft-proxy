@@ -1,8 +1,8 @@
 {
   "fixtureKind": "local-runtime-discount-activation-failure-field-base",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-05-06T06:10:00.000Z",
-  "summary": "Executable local-runtime fixture for app-discount activation failure after the backing Function is unavailable. Setup creates staged app code and automatic discounts through normal GraphQL mutations and cassette-backed Function hydration; activation failure is earned through a second Function availability read returning no nodes.",
+  "capturedAt": "2026-05-07T02:40:01.783Z",
+  "summary": "Executable local-runtime fixture for app-discount activation failure after the backing Function is unavailable. Setup creates scheduled staged app code and automatic discounts through normal GraphQL mutations and cassette-backed Function hydration; activation failure is earned through a second Function availability read returning no nodes.",
   "create": {
     "variables": {
       "codeInput": {
