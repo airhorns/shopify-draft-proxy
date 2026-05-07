@@ -1,0 +1,11 @@
+mutation SegmentUpdateMissingId {
+  segmentUpdate(name: "Required Arg Probe") {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

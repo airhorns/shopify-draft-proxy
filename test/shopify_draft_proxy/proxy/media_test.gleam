@@ -896,6 +896,18 @@ pub fn staged_uploads_create_bulk_variables_put_uses_captured_put_shape_test() {
     == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/jsonl\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
 }
 
+pub fn staged_uploads_create_omitted_method_uses_captured_put_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: IMAGE, filename: \"image.png\", mimeType: \"image/png\" }, { resource: FILE, filename: \"file.txt\", mimeType: \"text/plain\" }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"image/png\"},{\"name\":\"acl\",\"value\":\"private\"}]},{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/plain\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
+}
+
 pub fn staged_uploads_create_shop_image_uses_image_family_shape_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(

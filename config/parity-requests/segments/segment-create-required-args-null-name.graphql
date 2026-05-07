@@ -1,0 +1,11 @@
+mutation SegmentCreateNullName {
+  segmentCreate(name: null, query: "number_of_orders >= 1") {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

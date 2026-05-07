@@ -1,0 +1,18 @@
+mutation MarketWebPresenceSuffixMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+  marketUpdate(id: $id, input: $input) {
+    market {
+      id
+      webPresences(first: 5) {
+        nodes {
+          id
+          subfolderSuffix
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

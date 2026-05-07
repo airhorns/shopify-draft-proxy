@@ -1537,7 +1537,7 @@ fn make_staged_target(
     read_string_field(input, "mimeType")
     |> option.unwrap("application/octet-stream")
   let resource = read_string_field(input, "resource") |> option.unwrap("FILE")
-  let method = read_string_field(input, "httpMethod") |> option.unwrap("POST")
+  let method = read_string_field(input, "httpMethod") |> option.unwrap("PUT")
   let key = "shopify-draft-proxy/" <> id <> "/" <> filename
   let parameters = case resource {
     "IMAGE"

@@ -1,0 +1,654 @@
+{
+  "scenarioId": "b2b-location-input-normalization",
+  "capturedAt": "2026-05-07T13:50:14.573Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create disposable B2B company/location records and record companyLocation phone E.164 normalization, primary-locale defaulting, invalid phone validation, malformed locale passthrough, and cleanup."
+  },
+  "schemaProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BLocationInputNormalizationSchema {\n    locationType: __type(name: \"CompanyLocation\") { fields { name } }\n    locationInputType: __type(name: \"CompanyLocationInput\") { inputFields { name } }\n    locationUpdateInputType: __type(name: \"CompanyLocationUpdateInput\") { inputFields { name } }\n    shop { billingAddress { countryCodeV2 } }\n    shopLocales { locale primary published }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "locationType": {
+          "fields": [
+            {
+              "name": "billingAddress"
+            },
+            {
+              "name": "buyerExperienceConfiguration"
+            },
+            {
+              "name": "catalogs"
+            },
+            {
+              "name": "catalogsCount"
+            },
+            {
+              "name": "company"
+            },
+            {
+              "name": "createdAt"
+            },
+            {
+              "name": "currency"
+            },
+            {
+              "name": "defaultCursor"
+            },
+            {
+              "name": "draftOrders"
+            },
+            {
+              "name": "events"
+            },
+            {
+              "name": "externalId"
+            },
+            {
+              "name": "hasTimelineComment"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "inCatalog"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "metafield"
+            },
+            {
+              "name": "metafields"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "orders"
+            },
+            {
+              "name": "ordersCount"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "roleAssignments"
+            },
+            {
+              "name": "shippingAddress"
+            },
+            {
+              "name": "staffMemberAssignments"
+            },
+            {
+              "name": "storeCreditAccounts"
+            },
+            {
+              "name": "taxSettings"
+            },
+            {
+              "name": "totalSpent"
+            },
+            {
+              "name": "updatedAt"
+            }
+          ]
+        },
+        "locationInputType": {
+          "inputFields": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "externalId"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "buyerExperienceConfiguration"
+            },
+            {
+              "name": "billingAddress"
+            },
+            {
+              "name": "shippingAddress"
+            },
+            {
+              "name": "billingSameAsShipping"
+            },
+            {
+              "name": "taxRegistrationId"
+            },
+            {
+              "name": "taxExemptions"
+            },
+            {
+              "name": "taxExempt"
+            }
+          ]
+        },
+        "locationUpdateInputType": {
+          "inputFields": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "externalId"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "buyerExperienceConfiguration"
+            }
+          ]
+        },
+        "shop": {
+          "billingAddress": {
+            "countryCodeV2": "CA"
+          }
+        },
+        "shopLocales": [
+          {
+            "locale": "en",
+            "primary": true,
+            "published": true
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            phone\n            locale\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B location input 1778161811902 nested success"
+          },
+          "companyLocation": {
+            "name": "B2B location input 1778161811902 HQ",
+            "phone": "(415) 555-1234"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5447909682",
+            "name": "B2B location input 1778161811902 nested success",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8275689778",
+                  "name": "B2B location input 1778161811902 HQ",
+                  "phone": "+14155551234",
+                  "locale": "en"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidNestedPhone": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            phone\n            locale\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B location input 1778161811902 nested invalid phone"
+          },
+          "companyLocation": {
+            "name": "B2B location input 1778161811902 invalid phone HQ",
+            "phone": "not-a-phone"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "companyLocation", "phone"],
+              "message": "Phone is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nestedMalformedLocale": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            phone\n            locale\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B location input 1778161811902 nested malformed locale"
+          },
+          "companyLocation": {
+            "name": "B2B location input 1778161811902 malformed locale HQ",
+            "locale": "not_a_locale"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5447942450",
+            "name": "B2B location input 1778161811902 nested malformed locale",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8275722546",
+                  "name": "B2B location input 1778161811902 malformed locale HQ",
+                  "phone": null,
+                  "locale": "not_a_locale"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447909682",
+        "input": {
+          "name": "B2B location input 1778161811902 branch",
+          "phone": "415.555.5678"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275755314",
+            "name": "B2B location input 1778161811902 branch",
+            "phone": "+14155555678",
+            "locale": "en"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidLocationCreatePhone": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447909682",
+        "input": {
+          "name": "B2B location input 1778161811902 invalid phone branch",
+          "phone": "not-a-phone"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "phone"],
+              "message": "Phone is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateMalformedLocale": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447909682",
+        "input": {
+          "name": "B2B location input 1778161811902 malformed locale branch",
+          "locale": "not_a_locale"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275788082",
+            "name": "B2B location input 1778161811902 malformed locale branch",
+            "phone": null,
+            "locale": "not_a_locale"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateForUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447909682",
+        "input": {
+          "name": "B2B location input 1778161811902 update branch",
+          "phone": "+14155550000",
+          "locale": "fr-CA"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275820850",
+            "name": "B2B location input 1778161811902 update branch",
+            "phone": "+14155550000",
+            "locale": "fr-CA"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8275820850",
+        "input": {
+          "phone": "(415) 555-9999"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275820850",
+            "name": "B2B location input 1778161811902 update branch",
+            "phone": "+14155559999",
+            "locale": "fr-CA"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidLocationUpdatePhone": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8275820850",
+        "input": {
+          "phone": "not-a-phone"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "phone"],
+              "message": "Phone is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdateMalformedLocale": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationInputNormalizationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        phone\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8275820850",
+        "input": {
+          "locale": "not_a_locale"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275820850",
+            "name": "B2B location input 1778161811902 update branch",
+            "phone": "+14155559999",
+            "locale": "not_a_locale"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "nestedMalformedLocaleCompanyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5447942450"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5447942450",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BLocationInputNormalizationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5447909682"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5447909682",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
