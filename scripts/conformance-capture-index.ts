@@ -4207,6 +4207,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'app-discount-input-validator',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-input-validator-conformance.ts',
+    purpose:
+      'App-discount create/update input validator userErrors for blank code/title, missing startsAt on create, empty discountClasses, and empty customer/segment selections.',
+    requiredAuthScopes: [
+      'read_discounts',
+      'write_discounts',
+      'shopifyFunctions read access',
+      'released discount Shopify Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}app-discount-input-validator.json`,
+      'config/parity-specs/discounts/app-discount-input-validator.json',
+      'config/parity-requests/discounts/app-discount-input-validator-setup.graphql',
+      'config/parity-requests/discounts/app-discount-input-validator-code-create.graphql',
+      'config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql',
+      'config/parity-requests/discounts/app-discount-input-validator-code-update.graphql',
+      'config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable app-managed code and automatic discounts, captures validation failures plus a combinesWith acceptance probe, and deletes all created discounts in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-context-customer-selection-conflict',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-context-customer-selection-conflict-conformance.ts',
