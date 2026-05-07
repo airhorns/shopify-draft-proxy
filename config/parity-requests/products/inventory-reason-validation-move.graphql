@@ -1,0 +1,23 @@
+mutation InventoryReasonValidationMove($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {
+  inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup {
+      reason
+      changes {
+        name
+        delta
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

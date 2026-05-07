@@ -2097,6 +2097,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'inventory',
+    captureId: 'inventory-reason-validation-2026',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-reason-validation-conformance.ts',
+    purpose:
+      'Inventory quantity mutation adjustment reason validation against Shopify public adjustment reasons on 2026-04.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-reason-validation.json`,
+      'config/parity-specs/products/inventory-reason-validation.json',
+      'config/parity-requests/products/inventory-reason-validation-setup.graphql',
+      'config/parity-requests/products/inventory-reason-validation-set.graphql',
+      'config/parity-requests/products/inventory-reason-validation-adjust.graphql',
+      'config/parity-requests/products/inventory-reason-validation-move.graphql',
+      'config/parity-requests/products/inventory-reason-validation-set-on-hand.graphql',
+      'config/parity-requests/products/inventory-reason-validation-downstream.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records accepted and invalid inventory reason branches, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'localization',
     captureId: 'localization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },

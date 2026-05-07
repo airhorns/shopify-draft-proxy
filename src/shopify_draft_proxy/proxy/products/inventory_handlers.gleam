@@ -27,15 +27,18 @@ import shopify_draft_proxy/proxy/products/inventory_apply.{
 }
 import shopify_draft_proxy/proxy/products/inventory_core.{
   active_inventory_levels, find_inventory_level, find_inventory_level_target,
+  invalid_inventory_adjustment_reason_error,
   invalid_inventory_set_quantity_name_error, inventory_activate_staged_ids,
   inventory_adjust_product_total_inventory_sync, inventory_adjustment_app_source,
   inventory_change_location, inventory_item_variant_cursor,
   inventory_level_is_active, inventory_set_quantity_changes,
   product_set_inventory_level_id, product_set_inventory_location,
   quantity_compare_quantity, quantity_source, reactivate_inventory_level,
-  read_inventory_adjustment_change_inputs, read_inventory_set_quantity_inputs,
+  read_inventory_adjustment_change_inputs,
+  read_inventory_set_on_hand_quantity_inputs, read_inventory_set_quantity_inputs,
   replace_inventory_level, reverse_inventory_item_variants,
-  valid_inventory_set_quantity_name, variant_inventory_levels,
+  valid_inventory_adjustment_reason, valid_inventory_set_quantity_name,
+  variant_inventory_levels,
 }
 import shopify_draft_proxy/proxy/products/inventory_validation.{
   filtered_inventory_item_variants, inventory_adjust_202604_contract_error,
@@ -1370,6 +1373,41 @@ pub fn inventory_quantity_mutation_result(
   )
 }
 
+@internal
+pub fn inventory_quantity_mutation_rejected_result(
+  key: String,
+  typename: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  mutation_rejected_result(
+    key,
+    inventory_quantity_payload(
+      typename,
+      store,
+      None,
+      user_errors,
+      field,
+      fragments,
+    ),
+    store,
+    identity,
+  )
+}
+
+@internal
+pub fn inventory_adjustment_reason_errors(
+  reason: String,
+) -> List(ProductUserError) {
+  case valid_inventory_adjustment_reason(reason) {
+    True -> []
+    False -> [invalid_inventory_adjustment_reason_error()]
+  }
+}
+
 // ===== from inventory_l14 =====
 @internal
 pub fn handle_inventory_adjust_quantities(
@@ -1398,7 +1436,7 @@ pub fn handle_inventory_adjust_quantities(
       ])
     None -> {
       let quantity_name = read_non_empty_string_field(input, "name")
-      let reason = read_non_empty_string_field(input, "reason")
+      let reason = read_string_field(input, "reason")
       let changes = read_inventory_adjustment_change_inputs(input)
       case quantity_name, reason, changes {
         None, _, _ ->
@@ -1456,32 +1494,20 @@ pub fn handle_inventory_adjust_quantities(
             [],
           )
         Some(name), Some(reason), changes -> {
-          case validate_inventory_adjust_inputs(name, changes) {
+          case inventory_adjustment_reason_errors(reason) {
             [_, ..] as errors ->
-              inventory_quantity_mutation_result(
+              inventory_quantity_mutation_rejected_result(
                 key,
                 "InventoryAdjustQuantitiesPayload",
                 store,
                 identity,
-                None,
                 errors,
                 field,
                 fragments,
-                [],
               )
-            [] -> {
-              let result =
-                apply_inventory_adjust_quantities(
-                  store,
-                  identity,
-                  input,
-                  name,
-                  reason,
-                  changes,
-                  uses_202604_contract,
-                )
-              case result {
-                Error(errors) ->
+            [] ->
+              case validate_inventory_adjust_inputs(name, changes) {
+                [_, ..] as errors ->
                   inventory_quantity_mutation_result(
                     key,
                     "InventoryAdjustQuantitiesPayload",
@@ -1493,22 +1519,48 @@ pub fn handle_inventory_adjust_quantities(
                     fragments,
                     [],
                   )
-                Ok(applied) -> {
-                  let #(next_store, next_identity, group, staged_ids) = applied
-                  inventory_quantity_mutation_result(
-                    key,
-                    "InventoryAdjustQuantitiesPayload",
-                    next_store,
-                    next_identity,
-                    Some(group),
-                    [],
-                    field,
-                    fragments,
-                    staged_ids,
-                  )
+                [] -> {
+                  let result =
+                    apply_inventory_adjust_quantities(
+                      store,
+                      identity,
+                      input,
+                      name,
+                      reason,
+                      changes,
+                      uses_202604_contract,
+                    )
+                  case result {
+                    Error(errors) ->
+                      inventory_quantity_mutation_result(
+                        key,
+                        "InventoryAdjustQuantitiesPayload",
+                        store,
+                        identity,
+                        None,
+                        errors,
+                        field,
+                        fragments,
+                        [],
+                      )
+                    Ok(applied) -> {
+                      let #(next_store, next_identity, group, staged_ids) =
+                        applied
+                      inventory_quantity_mutation_result(
+                        key,
+                        "InventoryAdjustQuantitiesPayload",
+                        next_store,
+                        next_identity,
+                        Some(group),
+                        [],
+                        field,
+                        fragments,
+                        staged_ids,
+                      )
+                    }
+                  }
                 }
               }
-            }
           }
         }
       }
@@ -1568,71 +1620,111 @@ pub fn handle_valid_inventory_set_quantities(
         [],
       )
     Some(reason), quantities -> {
-      case
-        !uses_202604_contract
-        && !ignore_compare_quantity
-        && list.any(quantities, fn(quantity) {
-          quantity.compare_quantity == None
-        })
-      {
-        True ->
+      case inventory_adjustment_reason_errors(reason) {
+        [_, ..] as errors ->
+          inventory_quantity_mutation_rejected_result(
+            key,
+            "InventorySetQuantitiesPayload",
+            store,
+            identity,
+            errors,
+            field,
+            fragments,
+          )
+        [] ->
+          handle_valid_inventory_set_quantities_after_reason(
+            store,
+            identity,
+            key,
+            input,
+            name,
+            reason,
+            quantities,
+            ignore_compare_quantity,
+            uses_202604_contract,
+            field,
+            fragments,
+          )
+      }
+    }
+  }
+}
+
+@internal
+pub fn handle_valid_inventory_set_quantities_after_reason(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  input: Dict(String, ResolvedValue),
+  name: String,
+  reason: String,
+  quantities: List(InventorySetQuantityInput),
+  ignore_compare_quantity: Bool,
+  uses_202604_contract: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  case
+    !uses_202604_contract
+    && !ignore_compare_quantity
+    && list.any(quantities, fn(quantity) { quantity.compare_quantity == None })
+  {
+    True ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventorySetQuantitiesPayload",
+        store,
+        identity,
+        None,
+        [
+          ProductUserError(
+            ["input", "ignoreCompareQuantity"],
+            "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity.",
+            None,
+          ),
+        ],
+        field,
+        fragments,
+        [],
+      )
+    False -> {
+      let result =
+        apply_inventory_set_quantities(
+          store,
+          identity,
+          input,
+          name,
+          reason,
+          quantities,
+          ignore_compare_quantity,
+          uses_202604_contract,
+        )
+      case result {
+        Error(errors) ->
           inventory_quantity_mutation_result(
             key,
             "InventorySetQuantitiesPayload",
             store,
             identity,
             None,
-            [
-              ProductUserError(
-                ["input", "ignoreCompareQuantity"],
-                "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity.",
-                None,
-              ),
-            ],
+            errors,
             field,
             fragments,
             [],
           )
-        False -> {
-          let result =
-            apply_inventory_set_quantities(
-              store,
-              identity,
-              input,
-              name,
-              reason,
-              quantities,
-              ignore_compare_quantity,
-              uses_202604_contract,
-            )
-          case result {
-            Error(errors) ->
-              inventory_quantity_mutation_result(
-                key,
-                "InventorySetQuantitiesPayload",
-                store,
-                identity,
-                None,
-                errors,
-                field,
-                fragments,
-                [],
-              )
-            Ok(applied) -> {
-              let #(next_store, next_identity, group, staged_ids) = applied
-              inventory_quantity_mutation_result(
-                key,
-                "InventorySetQuantitiesPayload",
-                next_store,
-                next_identity,
-                Some(group),
-                [],
-                field,
-                fragments,
-                staged_ids,
-              )
-            }
-          }
+        Ok(applied) -> {
+          let #(next_store, next_identity, group, staged_ids) = applied
+          inventory_quantity_mutation_result(
+            key,
+            "InventorySetQuantitiesPayload",
+            next_store,
+            next_identity,
+            Some(group),
+            [],
+            field,
+            fragments,
+            staged_ids,
+          )
         }
       }
     }
@@ -1651,7 +1743,7 @@ pub fn handle_inventory_move_quantities(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let reason = read_non_empty_string_field(input, "reason")
+  let reason = read_string_field(input, "reason")
   let changes = read_inventory_move_quantity_inputs(input)
   case reason, changes {
     None, _ ->
@@ -1691,8 +1783,62 @@ pub fn handle_inventory_move_quantities(
         [],
       )
     Some(reason), changes -> {
-      case validate_inventory_move_inputs(changes) {
+      case inventory_adjustment_reason_errors(reason) {
         [_, ..] as errors ->
+          inventory_quantity_mutation_rejected_result(
+            key,
+            "InventoryMoveQuantitiesPayload",
+            store,
+            identity,
+            errors,
+            field,
+            fragments,
+          )
+        [] ->
+          handle_valid_inventory_move_quantities(
+            store,
+            identity,
+            key,
+            input,
+            reason,
+            changes,
+            field,
+            fragments,
+          )
+      }
+    }
+  }
+}
+
+@internal
+pub fn handle_valid_inventory_move_quantities(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  input: Dict(String, ResolvedValue),
+  reason: String,
+  changes: List(InventoryMoveQuantityInput),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  case validate_inventory_move_inputs(changes) {
+    [_, ..] as errors ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventoryMoveQuantitiesPayload",
+        store,
+        identity,
+        None,
+        errors,
+        field,
+        fragments,
+        [],
+      )
+    [] -> {
+      let result =
+        apply_inventory_move_quantities(store, identity, input, reason, changes)
+      case result {
+        Error(errors) ->
           inventory_quantity_mutation_result(
             key,
             "InventoryMoveQuantitiesPayload",
@@ -1704,43 +1850,19 @@ pub fn handle_inventory_move_quantities(
             fragments,
             [],
           )
-        [] -> {
-          let result =
-            apply_inventory_move_quantities(
-              store,
-              identity,
-              input,
-              reason,
-              changes,
-            )
-          case result {
-            Error(errors) ->
-              inventory_quantity_mutation_result(
-                key,
-                "InventoryMoveQuantitiesPayload",
-                store,
-                identity,
-                None,
-                errors,
-                field,
-                fragments,
-                [],
-              )
-            Ok(applied) -> {
-              let #(next_store, next_identity, group, staged_ids) = applied
-              inventory_quantity_mutation_result(
-                key,
-                "InventoryMoveQuantitiesPayload",
-                next_store,
-                next_identity,
-                Some(group),
-                [],
-                field,
-                fragments,
-                staged_ids,
-              )
-            }
-          }
+        Ok(applied) -> {
+          let #(next_store, next_identity, group, staged_ids) = applied
+          inventory_quantity_mutation_result(
+            key,
+            "InventoryMoveQuantitiesPayload",
+            next_store,
+            next_identity,
+            Some(group),
+            [],
+            field,
+            fragments,
+            staged_ids,
+          )
         }
       }
     }
@@ -1762,7 +1884,7 @@ pub fn handle_inventory_set_quantities(
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let quantity_name = read_non_empty_string_field(input, "name")
-  let reason = read_non_empty_string_field(input, "reason")
+  let reason = read_string_field(input, "reason")
   let quantities = read_inventory_set_quantity_inputs(input)
   let ignore_compare_quantity =
     read_bool_field(input, "ignoreCompareQuantity") == Some(True)
@@ -1829,5 +1951,114 @@ pub fn handle_inventory_set_quantities(
           }
         }
       }
+  }
+}
+
+@internal
+pub fn handle_inventory_set_on_hand_quantities(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let reason = read_string_field(input, "reason")
+  let quantities = read_inventory_set_on_hand_quantity_inputs(input)
+  case reason, quantities {
+    None, _ ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventorySetOnHandQuantitiesPayload",
+        store,
+        identity,
+        None,
+        [
+          ProductUserError(
+            ["input", "reason"],
+            "Inventory adjustment reason is required",
+            None,
+          ),
+        ],
+        field,
+        fragments,
+        [],
+      )
+    _, [] ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventorySetOnHandQuantitiesPayload",
+        store,
+        identity,
+        None,
+        [
+          ProductUserError(
+            ["input", "setQuantities"],
+            "At least one inventory quantity is required",
+            None,
+          ),
+        ],
+        field,
+        fragments,
+        [],
+      )
+    Some(reason), quantities -> {
+      case inventory_adjustment_reason_errors(reason) {
+        [_, ..] as errors ->
+          inventory_quantity_mutation_rejected_result(
+            key,
+            "InventorySetOnHandQuantitiesPayload",
+            store,
+            identity,
+            errors,
+            field,
+            fragments,
+          )
+        [] -> {
+          let result =
+            apply_inventory_set_quantities(
+              store,
+              identity,
+              input,
+              "on_hand",
+              reason,
+              quantities,
+              True,
+              False,
+            )
+          case result {
+            Error(errors) ->
+              inventory_quantity_mutation_result(
+                key,
+                "InventorySetOnHandQuantitiesPayload",
+                store,
+                identity,
+                None,
+                errors,
+                field,
+                fragments,
+                [],
+              )
+            Ok(applied) -> {
+              let #(next_store, next_identity, group, staged_ids) = applied
+              inventory_quantity_mutation_result(
+                key,
+                "InventorySetOnHandQuantitiesPayload",
+                next_store,
+                next_identity,
+                Some(group),
+                [],
+                field,
+                fragments,
+                staged_ids,
+              )
+            }
+          }
+        }
+      }
+    }
   }
 }

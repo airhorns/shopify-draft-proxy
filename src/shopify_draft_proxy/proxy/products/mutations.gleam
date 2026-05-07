@@ -39,7 +39,8 @@ import shopify_draft_proxy/proxy/products/inventory_apply.{
 import shopify_draft_proxy/proxy/products/inventory_handlers.{
   handle_inventory_activate, handle_inventory_adjust_quantities,
   handle_inventory_bulk_toggle_activation, handle_inventory_item_update,
-  handle_inventory_move_quantities, handle_inventory_set_quantities,
+  handle_inventory_move_quantities, handle_inventory_set_on_hand_quantities,
+  handle_inventory_set_quantities,
 }
 import shopify_draft_proxy/proxy/products/inventory_shipments_handlers.{
   handle_inventory_shipment_add_items, handle_inventory_shipment_create,
@@ -128,6 +129,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "inventoryBulkToggleActivation"
     | "inventoryItemUpdate"
     | "inventorySetQuantities"
+    | "inventorySetOnHandQuantities"
     | "inventoryMoveQuantities"
     | "collectionAddProducts"
     | "collectionAddProductsV2"
@@ -972,14 +974,16 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged inventoryAdjustQuantities locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -1131,14 +1135,58 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged inventorySetQuantities locally."),
+                  Some(note),
+                )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
+              #(
+                next_entries,
+                next_errors,
+                result.store,
+                result.identity,
+                next_staged,
+                next_drafts,
+              )
+            }
+            "inventorySetOnHandQuantities" -> {
+              let result =
+                handle_inventory_set_on_hand_quantities(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  entry_status,
+                  "products",
+                  "stage-locally",
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -1171,14 +1219,16 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged inventoryMoveQuantities locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),

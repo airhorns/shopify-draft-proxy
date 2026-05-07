@@ -4590,6 +4590,114 @@ pub fn inventory_set_quantities_validates_name_quantity_and_duplicates_test() {
     == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":[{\"field\":[\"input\",\"quantities\",\"0\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"},{\"field\":[\"input\",\"quantities\",\"1\",\"locationId\"],\"message\":\"The combination of inventoryItemId and locationId must be unique.\",\"code\":\"NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR\"}]}}}"
 }
 
+pub fn inventory_quantity_mutations_reject_invalid_reason_without_staging_test() {
+  let invalid_reason_error =
+    "{\"field\":[\"input\",\"reason\"],\"message\":\"The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.\",\"code\":\"INVALID_REASON\"}"
+
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"available\\\", reason: \\\"completely_made_up\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: -1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-adjust\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), adjust_proxy) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(adjust_query, "2026-04"),
+    )
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [adjust_entry] = store.get_log(adjust_proxy.store)
+  assert adjust_entry.status == store_types.Failed
+
+  let set_query =
+    "mutation { inventorySetQuantities(input: { name: \\\"available\\\", reason: \\\"completely_made_up\\\", quantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-set\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(Response(status: set_status, body: set_body, ..), set_proxy) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(set_query, "2026-04"),
+    )
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"inventorySetQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [set_entry] = store.get_log(set_proxy.store)
+  assert set_entry.status == store_types.Failed
+
+  let move_query =
+    "mutation { inventoryMoveQuantities(input: { reason: \\\"completely_made_up\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", quantity: 1, from: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"available\\\", changeFromQuantity: 1 }, to: { locationId: \\\"gid://shopify/Location/1\\\", name: \\\"damaged\\\", changeFromQuantity: 0, ledgerDocumentUri: \\\"ledger://invalid-reason/move\\\" } }] }) @idempotent(key: \\\"invalid-reason-move\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(Response(status: move_status, body: move_body, ..), move_proxy) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(move_query, "2026-04"),
+    )
+  assert move_status == 200
+  assert json.to_string(move_body)
+    == "{\"data\":{\"inventoryMoveQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [move_entry] = store.get_log(move_proxy.store)
+  assert move_entry.status == store_types.Failed
+
+  let set_on_hand_query =
+    "mutation { inventorySetOnHandQuantities(input: { reason: \\\"completely_made_up\\\", setQuantities: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", quantity: 1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-set-on-hand\\\") { inventoryAdjustmentGroup { id reason } userErrors { field message code } } }"
+  let #(
+    Response(status: set_on_hand_status, body: set_on_hand_body, ..),
+    set_on_hand_proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy_state.DraftProxy(
+        ..draft_proxy.new(),
+        store: tracked_inventory_store(),
+      ),
+      graphql_request_for_version(set_on_hand_query, "2026-04"),
+    )
+  assert set_on_hand_status == 200
+  assert json.to_string(set_on_hand_body)
+    == "{\"data\":{\"inventorySetOnHandQuantities\":{\"inventoryAdjustmentGroup\":null,\"userErrors\":["
+    <> invalid_reason_error
+    <> "]}}}"
+  let assert [set_on_hand_entry] = store.get_log(set_on_hand_proxy.store)
+  assert set_on_hand_entry.status == store_types.Failed
+}
+
+pub fn inventory_invalid_reason_preserves_downstream_quantities_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: tracked_inventory_store(),
+    )
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"available\\\", reason: \\\"completely_made_up\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: -1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"invalid-reason-read-after-write\\\") { inventoryAdjustmentGroup { id } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(adjust_query, "2026-04"),
+    )
+  assert adjust_status == 200
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(
+        "query { inventoryItem(id: \\\"gid://shopify/InventoryItem/tracked\\\") { inventoryLevels(first: 5) { nodes { quantities(names: [\\\"available\\\", \\\"on_hand\\\", \\\"damaged\\\"]) { name quantity } } } } }",
+        "2026-04",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryItem\":{\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"damaged\",\"quantity\":0}]}]}}}}"
+}
+
 pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
