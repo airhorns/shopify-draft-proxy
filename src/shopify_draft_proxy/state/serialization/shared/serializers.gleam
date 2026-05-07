@@ -16,6 +16,7 @@ pub fn file_json(record: types.FileRecord) -> Json {
     #("alt", optional_string(record.alt)),
     #("contentType", optional_string(record.content_type)),
     #("createdAt", json.string(record.created_at)),
+    #("updatedAt", json.string(record.updated_at)),
     #("fileStatus", json.string(record.file_status)),
     #("filename", optional_string(record.filename)),
     #("originalSource", json.string(record.original_source)),
