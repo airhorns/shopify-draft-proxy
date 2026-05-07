@@ -4633,6 +4633,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-release-hold-selective',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-release-hold-selective-conformance.ts',
+    purpose: 'fulfillmentOrderReleaseHold holdIds selective release behavior and remaining-hold ON_HOLD status.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-release-hold-selective.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-release-hold-selective.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-hold.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-release.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-order-read.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-release-hold-selective-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable order, places two requesting-app holds, records selective release, releases the remaining hold, then cancels the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Cross-app hold ownership rejection remains runtime-test-backed because the current conformance target has one app credential.',
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-move-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-move-validation-conformance.ts',

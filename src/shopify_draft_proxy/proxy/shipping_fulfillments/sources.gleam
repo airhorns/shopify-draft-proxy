@@ -15,7 +15,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcString, get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
-  store_property_bool_field,
+  captured_array_field, captured_int_field, store_property_bool_field,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/types as shipping_types
 import shopify_draft_proxy/shopify/resource_ids
@@ -219,14 +219,23 @@ pub fn shipping_order_source(
     store.list_effective_fulfillments(store)
     |> list.filter(fn(fulfillment) { fulfillment.order_id == Some(order.id) })
     |> list.map(fulfillment_source)
-  let fulfillment_orders =
+  let fulfillment_order_records =
     store.list_effective_fulfillment_orders(store)
     |> list.filter(fn(fulfillment_order) {
       fulfillment_order.order_id == Some(order.id)
     })
+  let fulfillment_orders =
+    fulfillment_order_records
     |> list.map(fulfillment_order_source)
   case captured_json_source(order.data) {
-    SrcObject(fields) ->
+    SrcObject(fields) -> {
+      let fields = case
+        order_display_status_is_on_hold(fulfillment_order_records)
+      {
+        True ->
+          dict.insert(fields, "displayFulfillmentStatus", SrcString("ON_HOLD"))
+        False -> fields
+      }
       SrcObject(
         fields
         |> dict.insert("__typename", SrcString("Order"))
@@ -237,14 +246,62 @@ pub fn shipping_order_source(
           source_connection(fulfillment_orders),
         ),
       )
+    }
     _ ->
       src_object([
         #("__typename", SrcString("Order")),
         #("id", SrcString(order.id)),
+        #(
+          "displayFulfillmentStatus",
+          case order_display_status_is_on_hold(fulfillment_order_records) {
+            True -> SrcString("ON_HOLD")
+            False -> SrcNull
+          },
+        ),
         #("fulfillments", SrcList(fulfillments)),
         #("fulfillmentOrders", source_connection(fulfillment_orders)),
       ])
   }
+}
+
+fn has_held_fulfillment_order(
+  fulfillment_orders: List(FulfillmentOrderRecord),
+) -> Bool {
+  list.any(fulfillment_orders, fn(fulfillment_order) {
+    fulfillment_order.status == "ON_HOLD"
+    || !list.is_empty(captured_array_field(
+      fulfillment_order.data,
+      "fulfillmentHolds",
+      "",
+    ))
+    || !list.is_empty(captured_array_field(
+      fulfillment_order.data,
+      "fulfillmentHolds",
+      "nodes",
+    ))
+  })
+}
+
+fn order_display_status_is_on_hold(
+  fulfillment_orders: List(FulfillmentOrderRecord),
+) -> Bool {
+  has_held_fulfillment_order(fulfillment_orders)
+  && !list.any(fulfillment_orders, fn(fulfillment_order) {
+    fulfillment_order.status != "CLOSED"
+    && fulfillment_order.status != "ON_HOLD"
+    && fulfillment_order_has_remaining_quantity(fulfillment_order)
+  })
+}
+
+fn fulfillment_order_has_remaining_quantity(
+  fulfillment_order: FulfillmentOrderRecord,
+) -> Bool {
+  captured_array_field(fulfillment_order.data, "lineItems", "nodes")
+  |> list.any(fn(line_item) {
+    captured_int_field(line_item, "remainingQuantity", "")
+    |> option.unwrap(0)
+    > 0
+  })
 }
 
 @internal

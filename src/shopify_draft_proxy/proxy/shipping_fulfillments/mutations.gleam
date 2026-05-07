@@ -9,6 +9,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_document_fragments,
 }
@@ -83,6 +84,7 @@ pub fn process_mutation(
         fragments,
         variables,
         upstream,
+        app_identity.read_requesting_api_client_id(upstream.headers),
       )
     }
   }
@@ -96,6 +98,7 @@ pub fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [], [])
   let #(data_entries, final_store, final_identity, staged_ids, drafts, errors) =
@@ -265,6 +268,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "fulfillmentOrderReleaseHold" ->
               Some(handle_fulfillment_order_release_hold(
@@ -273,6 +277,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "fulfillmentOrderMove" ->
               Some(handle_fulfillment_order_move(
