@@ -54,14 +54,20 @@ describe('conformance capture index', () => {
     expect(markdown).not.toContain('## customers');
   });
 
-  it('profiles checked-in live Shopify fixtures without recorder-declared outputs', () => {
+  it('enforces recorder-declared outputs for every checked-in live Shopify fixture', () => {
     const profile = profileConformanceFixtureProvenance(repoRoot);
 
     expect(profile.fixtureCount).toBeGreaterThan(0);
     expect(profile.liveShopifyFixtureCount).toBeGreaterThan(0);
     expect(profile.localRuntimeFixtureCount).toBeGreaterThan(0);
     expect(profile.indexedFixtureOutputPatterns.length).toBeGreaterThan(0);
-    expect(profile.orphanedFixturePaths).not.toContainEqual(expect.stringContaining('/local-runtime/'));
-    expect(profile.orphanedFixturePaths).toMatchSnapshot();
+    expect(
+      profile.orphanedFixturePaths.filter((fixturePath) => fixturePath.includes('/local-runtime/')),
+      'local-runtime fixtures are executable runtime evidence and must remain exempt from live Shopify recorder-output enforcement',
+    ).toEqual([]);
+    expect(
+      profile.orphanedFixturePaths,
+      'every checked-in live Shopify fixture under fixtures/conformance/**/*.json must be declared by a capture index fixtureOutputs entry',
+    ).toEqual([]);
   });
 });

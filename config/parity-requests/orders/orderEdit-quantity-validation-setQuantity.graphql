@@ -1,9 +1,4 @@
-mutation OrderEditQuantityValidationSetQuantity(
-  $id: ID!
-  $lineItemId: ID!
-  $quantity: Int!
-  $restock: Boolean
-) {
+mutation OrderEditQuantityValidationSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!, $restock: Boolean) {
   orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity, restock: $restock) {
     calculatedOrder {
       id

@@ -18,7 +18,8 @@ import shopify_draft_proxy/proxy/customers/hydration.{
 }
 import shopify_draft_proxy/proxy/customers/inputs.{
   build_merged_customer, customer_metafield_key, json_get, json_get_int,
-  json_get_string, non_null_json, option_to_result, read_obj_string,
+  json_get_string, non_null_json, normalize_customer_email_for_comparison,
+  option_to_result, read_customer_email, read_obj_string,
 }
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
@@ -1037,7 +1038,7 @@ pub fn find_customer_by_identifier(
   case read_obj_string(identifier, "id") {
     Some(id) -> store.get_effective_customer_by_id(store, id)
     None -> {
-      let email = read_obj_string(identifier, "emailAddress")
+      let email = read_customer_email(identifier, "emailAddress")
       let phone =
         read_obj_string(identifier, "phoneNumber")
         |> option.map(fn(value) {
@@ -1064,7 +1065,8 @@ pub fn find_customer_by_email_or_phone(
     [customer, ..rest] -> {
       let email_match = case email, customer.email {
         Some(needle), Some(value) ->
-          string.lowercase(needle) == string.lowercase(value)
+          normalize_customer_email_for_comparison(needle)
+          == normalize_customer_email_for_comparison(value)
         _, _ -> False
       }
       let phone_match = case phone, customer.default_phone_number {

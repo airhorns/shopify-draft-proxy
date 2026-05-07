@@ -577,10 +577,7 @@
         "order": {
           "email": "order-edit-quantity-validation-20260507033224@example.com",
           "note": "orderEdit quantity validation capture 20260507033224",
-          "tags": [
-            "order-edit-quantity-validation",
-            "20260507033224"
-          ],
+          "tags": ["order-edit-quantity-validation", "20260507033224"],
           "test": true,
           "currency": "CAD",
           "shippingAddress": {
@@ -624,10 +621,7 @@
                 "name": "#1331",
                 "email": "order-edit-quantity-validation-20260507033224@example.com",
                 "note": "orderEdit quantity validation capture 20260507033224",
-                "tags": [
-                  "20260507033224",
-                  "order-edit-quantity-validation"
-                ],
+                "tags": ["20260507033224", "order-edit-quantity-validation"],
                 "createdAt": "2026-05-07T03:32:25Z",
                 "updatedAt": "2026-05-07T03:32:25Z",
                 "cancelledAt": null,
@@ -711,10 +705,7 @@
               "name": "#1331",
               "email": "order-edit-quantity-validation-20260507033224@example.com",
               "note": "orderEdit quantity validation capture 20260507033224",
-              "tags": [
-                "20260507033224",
-                "order-edit-quantity-validation"
-              ],
+              "tags": ["20260507033224", "order-edit-quantity-validation"],
               "createdAt": "2026-05-07T03:32:25Z",
               "updatedAt": "2026-05-07T03:32:25Z",
               "cancelledAt": null,
@@ -863,9 +854,7 @@
               "orderEditSession": null,
               "userErrors": [
                 {
-                  "field": [
-                    "quantity"
-                  ],
+                  "field": ["quantity"],
                   "message": "must be greater than or equal to 0"
                 }
               ]
@@ -903,9 +892,7 @@
               "orderEditSession": null,
               "userErrors": [
                 {
-                  "field": [
-                    "quantity"
-                  ],
+                  "field": ["quantity"],
                   "message": "must be greater than 0"
                 }
               ]
@@ -943,15 +930,11 @@
               "orderEditSession": null,
               "userErrors": [
                 {
-                  "field": [
-                    "quantity"
-                  ],
+                  "field": ["quantity"],
                   "message": "must be greater than 0"
                 },
                 {
-                  "field": [
-                    "quantity"
-                  ],
+                  "field": ["quantity"],
                   "message": "must be greater than or equal to 0"
                 }
               ]
@@ -1120,10 +1103,7 @@
               "name": "#1331",
               "email": "order-edit-quantity-validation-20260507033224@example.com",
               "note": "orderEdit quantity validation capture 20260507033224",
-              "tags": [
-                "20260507033224",
-                "order-edit-quantity-validation"
-              ],
+              "tags": ["20260507033224", "order-edit-quantity-validation"],
               "createdAt": "2026-05-07T03:32:25Z",
               "updatedAt": "2026-05-07T03:32:25Z",
               "cancelledAt": null,

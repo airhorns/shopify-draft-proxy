@@ -1,17 +1,8 @@
 {
   "scenarioId": "orderEdit-quantity-validation",
-  "operationNames": [
-    "orderEditBegin",
-    "orderEditSetQuantity",
-    "orderEditAddVariant"
-  ],
+  "operationNames": ["orderEditBegin", "orderEditSetQuantity", "orderEditAddVariant"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "read-after-write-parity",
-    "known-projection-gap"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write-parity", "known-projection-gap"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderEdit-quantity-validation.json"
   ],
@@ -30,11 +21,7 @@
         "name": "begin-session-baseline",
         "capturePath": "$.begin.response.payload.data.orderEditBegin",
         "proxyPath": "$.data.orderEditBegin",
-        "excludedPaths": [
-          "$.calculatedOrder.id",
-          "$.calculatedOrder.lineItems.nodes[*].id",
-          "$.orderEditSession.id"
-        ]
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.lineItems.nodes[*].id", "$.orderEditSession.id"]
       },
       {
         "name": "negative-set-quantity-user-error",

@@ -115,7 +115,9 @@ function assertQuantityUserError(label: string, captureResult: GraphqlCapture, r
   const errors = readArray(root['userErrors']);
   const fields = errors.map(readRecord).map((error) => readArray(error?.['field']));
   if (errors.length === 0 || fields.some((field) => JSON.stringify(field) !== JSON.stringify(['quantity']))) {
-    throw new Error(`${label} expected quantity userErrors: ${JSON.stringify(captureResult.response.payload, null, 2)}`);
+    throw new Error(
+      `${label} expected quantity userErrors: ${JSON.stringify(captureResult.response.payload, null, 2)}`,
+    );
   }
 }
 
