@@ -5971,6 +5971,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-move-hold-multi-line',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-move-hold-multi-line-conformance.ts',
+    purpose: 'fulfillmentOrderMove and fulfillmentOrderHold multi-line-item partial quantity handling.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-move-multi-line.json`,
+      `${CAPTURE_ROOT}fulfillment-order-hold-multi-line.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-move-multi-line.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-hold-multi-line.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-move-hold-multi-line-locations.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-move-multi-line.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-hold-multi-line.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable multi-line orders, captures partial move and hold branches, releases created holds, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-merge-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-merge-validation-conformance.ts',
