@@ -1798,6 +1798,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-field-key-min-length',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-field-key-min-length-conformance.ts',
+    purpose:
+      'Metaobject definition create/update fieldDefinitions key minimum-length validation for single-character keys, empty keys, and the two-character accepted boundary.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinition-field-key-min-length.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinition-field-key-min-length.json',
+      'config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinition-field-key-min-length-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable setup and boundary definitions; deletes successful definitions during cleanup. Validation branches create no records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-field-operation-errors',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-field-operation-errors-conformance.ts',
