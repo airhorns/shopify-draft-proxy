@@ -814,6 +814,29 @@ pub fn graphql_saved_search_create_allows_product_collection_id_alone_test() {
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"query\":\"collection_id:\\\"12345\\\"\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[]}}}"
 }
 
+pub fn graphql_saved_search_create_projects_range_and_exists_filters_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Advanced filters\\\", query: \\\"inventory_total:<10 inventory_total:>2 sku:* -inventory_total:<3\\\", resourceType: PRODUCT }) { savedSearch { query searchTerms filters { key value } } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"query\":\"inventory_total:<10 inventory_total:>2 sku:* -inventory_total:<3\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"inventory_total_max\",\"value\":\"10\"},{\"key\":\"inventory_total_min\",\"value\":\"3\"},{\"key\":\"sku\",\"value\":\"true\"}]},\"userErrors\":[]}}}"
+
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(first: 1, reverse: true) { nodes { name query searchTerms filters { key value } } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Advanced filters\",\"query\":\"inventory_total:<10 inventory_total:>=3 sku:*\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"inventory_total_max\",\"value\":\"10\"},{\"key\":\"inventory_total_min\",\"value\":\"3\"},{\"key\":\"sku\",\"value\":\"true\"}]}]}}}"
+}
+
 pub fn graphql_saved_search_create_rejects_unknown_product_filter_test() {
   let proxy = draft_proxy.new()
   let request =

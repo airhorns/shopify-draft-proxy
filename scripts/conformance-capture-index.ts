@@ -1788,6 +1788,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-filter-projection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-filter-projection-conformance.ts',
+    purpose:
+      'SavedSearch filters projection for range comparators, exists syntax, bounded ranges, and negated range terms.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-filter-projection.json`,
+      'config/parity-specs/saved-searches/saved-search-filter-projection.json',
+      'config/parity-requests/saved-searches/saved-search-filter-projection-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-filter-projection-delete.graphql',
+      'config/parity-requests/saved-searches/saved-search-filter-projection-read-after-create.graphql',
+    ],
+    cleanupBehavior: 'Creates five disposable product saved searches and deletes each one during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-query-grammar-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-query-grammar-validation-conformance.ts',
