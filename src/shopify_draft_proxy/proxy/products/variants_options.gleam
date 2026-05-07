@@ -45,7 +45,8 @@ import shopify_draft_proxy/proxy/products/products_core.{
 import shopify_draft_proxy/proxy/products/shared.{
   is_known_missing_shopify_gid, read_bool_field, read_int_field,
   read_non_empty_string_field, read_numeric_field, read_object_field,
-  read_object_list_field, read_string_field, user_errors_source,
+  read_object_list_field, read_string_field, read_string_list_field,
+  user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_helpers.{
   bulk_variant_option_field_name, compare_variant_price, find_product_option,
@@ -64,7 +65,8 @@ import shopify_draft_proxy/proxy/products/variants_options_core.{
   option_name_exists_excluding, option_value_combinations, product_option_source,
   product_set_option_positions, product_set_variant_signature,
   product_uses_only_default_option_state, read_option_value_create_names,
-  read_option_value_names, read_variant_sku, sort_and_position_options,
+  read_option_value_linked_metafield_values, read_option_value_names,
+  read_variant_sku, sort_and_position_options,
   sync_product_options_with_variants, take_matching_option,
   upsert_option_selection_loop, validate_bulk_variant_required_options,
   validate_bulk_variant_selected_options, variant_for_combination,
@@ -76,9 +78,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductOperationUserErrorRecord, type ProductOptionRecord,
-  type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, ProductOperationUserErrorRecord,
+  type ProductOperationUserErrorRecord, type ProductOptionLinkedMetafieldRecord,
+  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  ProductOperationUserErrorRecord, ProductOptionLinkedMetafieldRecord,
   ProductOptionRecord, ProductOptionValueRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord,
 }
@@ -243,6 +246,10 @@ pub fn product_set_option_value_records(
             ),
           has_variants: option.map(existing, fn(value) { value.has_variants })
             |> option.unwrap(False),
+          linked_metafield_value: option.map(existing, fn(value) {
+            value.linked_metafield_value
+          })
+            |> option.unwrap(None),
         )
       #([value, ..records], next_identity, list.append(collected_ids, ids))
     })
@@ -840,27 +847,86 @@ pub fn reorder_product_options(
 
 @internal
 pub fn make_created_option_record(
+  store_in: Option(Store),
   identity: SyntheticIdentityRegistry,
   product_id: String,
   input: Dict(String, ResolvedValue),
 ) -> #(ProductOptionRecord, SyntheticIdentityRegistry) {
   let #(id, identity_after_id) =
     synthetic_identity.make_synthetic_gid(identity, "ProductOption")
+  let linked_values = read_linked_metafield_values(input)
+  let value_names = case read_option_value_names(input) {
+    [] -> linked_option_value_names(store_in, linked_values)
+    names -> names
+  }
   let #(values, final_identity) =
-    make_created_option_value_records(
-      identity_after_id,
-      read_option_value_names(input),
-    )
+    make_created_option_value_records(identity_after_id, value_names)
   #(
     ProductOptionRecord(
       id: id,
       product_id: product_id,
       name: read_string_field(input, "name") |> option.unwrap(""),
       position: read_int_field(input, "position") |> option.unwrap(9999),
-      option_values: values,
+      linked_metafield: read_linked_metafield(input),
+      option_values: link_option_values(values, linked_values),
     ),
     final_identity,
   )
+}
+
+fn read_linked_metafield(
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductOptionLinkedMetafieldRecord) {
+  case read_object_field(input, "linkedMetafield") {
+    Some(linked_metafield) ->
+      case
+        read_string_field(linked_metafield, "namespace"),
+        read_string_field(linked_metafield, "key")
+      {
+        Some(namespace), Some(key) ->
+          Some(ProductOptionLinkedMetafieldRecord(
+            namespace: namespace,
+            key: key,
+            metafield_definition_id: None,
+          ))
+        _, _ -> None
+      }
+    None -> None
+  }
+}
+
+fn read_linked_metafield_values(
+  input: Dict(String, ResolvedValue),
+) -> List(String) {
+  case read_object_field(input, "linkedMetafield") {
+    Some(linked_metafield) -> {
+      let linked_values =
+        read_string_list_field(linked_metafield, "values")
+        |> option.unwrap([])
+      case linked_values {
+        [] -> read_option_value_linked_metafield_values(input)
+        _ -> linked_values
+      }
+    }
+    None -> read_option_value_linked_metafield_values(input)
+  }
+}
+
+fn link_option_values(
+  values: List(ProductOptionValueRecord),
+  linked_values: List(String),
+) -> List(ProductOptionValueRecord) {
+  case values, linked_values {
+    [], _ -> []
+    [value, ..rest], [linked_value, ..linked_rest] -> [
+      ProductOptionValueRecord(
+        ..value,
+        linked_metafield_value: Some(linked_value),
+      ),
+      ..link_option_values(rest, linked_rest)
+    ]
+    [value, ..rest], [] -> [value, ..link_option_values(rest, [])]
+  }
 }
 
 @internal
@@ -907,8 +973,10 @@ pub fn upsert_option_selection(
                 id: value_id,
                 name: selected.value,
                 has_variants: True,
+                linked_metafield_value: None,
               ),
             ],
+            linked_metafield: None,
           ),
         ]),
         identity_after_value,
@@ -1038,6 +1106,10 @@ pub fn product_set_option_records(
             ),
           position: read_int_field(input, "position")
             |> option.unwrap(index + 1),
+          linked_metafield: option.map(existing, fn(option) {
+            option.linked_metafield
+          })
+            |> option.unwrap(None),
           option_values: values,
         )
       #(
@@ -1112,21 +1184,23 @@ pub fn create_option_value_errors(
   replacing_default: Bool,
 ) -> List(ProductUserError) {
   let values = read_object_list_field(input, "values")
+  let linked_values = read_linked_metafield_values(input)
+  let has_values = !list.is_empty(values) || !list.is_empty(linked_values)
   let requires_existing_variant_values =
     !replacing_default && !list.is_empty(existing_variants)
   let value_presence_errors = case
     dict.has_key(input, "values"),
-    values,
+    has_values,
     requires_existing_variant_values
   {
-    False, _, True -> [
+    False, False, True -> [
       ProductUserError(
         ["options", int.to_string(index), "values"],
         "New option must have at least one value for existing variants.",
         Some("NEW_OPTION_WITHOUT_VALUE_FOR_EXISTING_VARIANTS"),
       ),
     ]
-    _, [], _ -> [
+    _, False, _ -> [
       ProductUserError(
         ["options", int.to_string(index)],
         "Option '"
@@ -1137,9 +1211,11 @@ pub fn create_option_value_errors(
     ]
     _, _, _ -> []
   }
-  let value_limit_errors = case
-    list.length(values) > product_set_option_value_limit
-  {
+  let value_count = case values {
+    [] -> list.length(linked_values)
+    _ -> list.length(values)
+  }
+  let value_limit_errors = case value_count > product_set_option_value_limit {
     True -> [
       ProductUserError(
         ["options", int.to_string(index), "values"],
@@ -1254,6 +1330,7 @@ pub fn update_product_option_record(
 
 @internal
 pub fn make_created_option_records(
+  store_in: Option(Store),
   identity: SyntheticIdentityRegistry,
   product_id: String,
   inputs: List(Dict(String, ResolvedValue)),
@@ -1262,10 +1339,32 @@ pub fn make_created_option_records(
     list.fold(inputs, #([], identity), fn(acc, input) {
       let #(records, current_identity) = acc
       let #(option, next_identity) =
-        make_created_option_record(current_identity, product_id, input)
+        make_created_option_record(
+          store_in,
+          current_identity,
+          product_id,
+          input,
+        )
       #([option, ..records], next_identity)
     })
   #(list.reverse(reversed), final_identity)
+}
+
+fn linked_option_value_names(
+  store_in: Option(Store),
+  linked_values: List(String),
+) -> List(String) {
+  list.map(linked_values, fn(id) {
+    case store_in {
+      Some(store_value) ->
+        case store.get_effective_metaobject_by_id(store_value, id) {
+          Some(metaobject) ->
+            option.unwrap(metaobject.display_name, metaobject.handle)
+          None -> id
+        }
+      None -> id
+    }
+  })
 }
 
 @internal
@@ -1341,7 +1440,7 @@ pub fn make_product_create_option_graph(
     }
     _ -> {
       let #(options, identity_after_options) =
-        make_created_option_records(identity, product.id, option_inputs)
+        make_created_option_records(None, identity, product.id, option_inputs)
       let positioned_options = sort_and_position_options(options)
       let #(default_variant, final_identity, variant_ids) =
         make_default_variant_for_options(

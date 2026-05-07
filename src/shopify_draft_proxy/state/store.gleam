@@ -748,6 +748,8 @@ pub const get_effective_metaobject_definition_by_id = metaobjects.get_effective_
 
 pub const find_effective_metaobject_definition_by_type = metaobjects.find_effective_metaobject_definition_by_type
 
+pub const link_metaobject_definition_to_product_option = metaobjects.link_metaobject_definition_to_product_option
+
 pub const list_effective_metaobject_definitions = metaobjects.list_effective_metaobject_definitions
 
 pub const upsert_base_metaobjects = metaobjects.upsert_base_metaobjects

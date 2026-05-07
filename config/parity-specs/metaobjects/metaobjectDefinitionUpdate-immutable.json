@@ -1,6 +1,15 @@
 {
   "scenarioId": "metaobjectDefinitionUpdate-immutable",
-  "operationNames": ["standardMetaobjectDefinitionEnable", "metaobjectDefinitionUpdate", "metaobjectDefinition"],
+  "operationNames": [
+    "standardMetaobjectDefinitionEnable",
+    "metaobjectDefinitionUpdate",
+    "metaobjectDefinition",
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metafieldDefinitionCreate",
+    "productCreate",
+    "productOptionsCreate"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [
@@ -49,8 +58,182 @@
           },
           "apiVersion": "2026-04"
         }
+      },
+      {
+        "name": "linked-definition-create",
+        "capturePath": "$.linkedDefinition.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedDefinition.request.query",
+          "variablesCapturePath": "$.linkedDefinition.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "linked-metaobject-one-create",
+        "capturePath": "$.linkedMetaobjects[0].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedMetaobjects[0].request.query",
+          "variablesCapturePath": "$.linkedMetaobjects[0].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "linked-metaobject-two-create",
+        "capturePath": "$.linkedMetaobjects[1].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedMetaobjects[1].request.query",
+          "variablesCapturePath": "$.linkedMetaobjects[1].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "linked-metafield-definition-create",
+        "capturePath": "$.linkedMetafieldDefinition.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedMetafieldDefinition.request.query",
+          "variables": {
+            "definition": {
+              "ownerType": {
+                "fromCapturePath": "$.linkedMetafieldDefinition.request.variables.definition.ownerType"
+              },
+              "namespace": {
+                "fromCapturePath": "$.linkedMetafieldDefinition.request.variables.definition.namespace"
+              },
+              "key": {
+                "fromCapturePath": "$.linkedMetafieldDefinition.request.variables.definition.key"
+              },
+              "name": {
+                "fromCapturePath": "$.linkedMetafieldDefinition.request.variables.definition.name"
+              },
+              "type": {
+                "fromCapturePath": "$.linkedMetafieldDefinition.request.variables.definition.type"
+              },
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": {
+                    "fromProxyResponse": "linked-definition-create",
+                    "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "linked-product-create",
+        "capturePath": "$.linkedProduct.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedProduct.request.query",
+          "variablesCapturePath": "$.linkedProduct.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "linked-product-options-create",
+        "capturePath": "$.linkedProductOptions.response.data.productOptionsCreate",
+        "proxyPath": "$.data.productOptionsCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Product IDs are synthetic in local replay and captured from Shopify in live evidence."
+          },
+          {
+            "path": "$.product.options[0].id",
+            "matcher": "shopify-gid:ProductOption",
+            "reason": "Product option IDs are synthetic in local replay and captured from Shopify in live evidence."
+          },
+          {
+            "path": "$.product.options[0].optionValues[*].id",
+            "matcher": "shopify-gid:ProductOptionValue",
+            "reason": "Product option value IDs are synthetic in local replay and captured from Shopify in live evidence."
+          },
+          {
+            "path": "$.product.options[0].optionValues[*].linkedMetafieldValue",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "Linked metaobject IDs are synthetic in local replay and captured from Shopify in live evidence."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedProductOptions.request.query",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "linked-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantStrategy": {
+              "fromCapturePath": "$.linkedProductOptions.request.variables.variantStrategy"
+            },
+            "options": [
+              {
+                "name": {
+                  "fromCapturePath": "$.linkedProductOptions.request.variables.options[0].name"
+                },
+                "linkedMetafield": {
+                  "namespace": {
+                    "fromCapturePath": "$.linkedProductOptions.request.variables.options[0].linkedMetafield.namespace"
+                  },
+                  "key": {
+                    "fromCapturePath": "$.linkedProductOptions.request.variables.options[0].linkedMetafield.key"
+                  },
+                  "values": [
+                    {
+                      "fromProxyResponse": "linked-metaobject-one-create",
+                      "path": "$.data.metaobjectCreate.metaobject.id"
+                    },
+                    {
+                      "fromProxyResponse": "linked-metaobject-two-create",
+                      "path": "$.data.metaobjectCreate.metaobject.id"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "linked-display-name-update-immutable",
+        "capturePath": "$.linkedDisplayNameUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql",
+          "documentCapturePath": "$.linkedDisplayNameUpdate.request.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "linked-definition-create",
+              "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.linkedDisplayNameUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectDefinitionUpdate immutability. The executable parity targets prove a standard definition enabled from Shopify's template catalog returns one IMMUTABLE userError and remains unchanged on immediate read-after-reject. The same live fixture records that this shop cannot create arbitrary non-standard `shopify--*` definitions (`NOT_AUTHORIZED`) and that changing `displayNameKey` on a definition linked to product options returns Shopify's IMMUTABLE display-name error. Focused runtime tests cover deterministic local standard-template metadata, checked-in standard-template types without metadata, and reserved `shopify--` namespace staging because the local model can represent those cases. The local model does not yet represent Shopify's linked-product-options or app-config-managed definition flags, so endpoint docs state that limitation rather than fabricating parity targets."
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectDefinitionUpdate immutability. The executable parity targets prove a standard definition enabled from Shopify's template catalog returns one IMMUTABLE userError and remains unchanged on immediate read-after-reject. The linked-product-options executable targets replay the captured local setup path through metaobjectDefinitionCreate, metaobjectCreate, metafieldDefinitionCreate, productCreate, productOptionsCreate, and then verify the captured IMMUTABLE display-name userError when updating the linked definition. The same live fixture records that this shop cannot create arbitrary non-standard `shopify--*` definitions (`NOT_AUTHORIZED`). Focused runtime tests cover deterministic local standard-template metadata, checked-in standard-template types without metadata, reserved `shopify--` namespace staging, linked product-option state, and the linked display-name guard. The local model does not yet represent Shopify's app-config-managed definition flag, so endpoint docs state that boundary rather than fabricating parity targets."
 }

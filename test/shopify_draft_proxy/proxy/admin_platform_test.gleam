@@ -442,16 +442,19 @@ fn seeded_product_option_store() {
       product_id: "gid://shopify/Product/optioned",
       name: "Color",
       position: 1,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/red",
           name: "Red",
           has_variants: True,
+          linked_metafield_value: None,
         ),
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/blue",
           name: "Blue",
           has_variants: False,
+          linked_metafield_value: None,
         ),
       ],
     ),

@@ -11,9 +11,7 @@ import shopify_draft_proxy/state/store/shared.{
 import shopify_draft_proxy/state/store/types.{
   type Store, BaseState, StagedState, Store,
 }
-import shopify_draft_proxy/state/types.{
-  type MetaobjectDefinitionRecord, type MetaobjectRecord,
-} as _
+import shopify_draft_proxy/state/types as state_types
 
 // ---------------------------------------------------------------------------
 // Metaobjects slice
@@ -21,7 +19,7 @@ import shopify_draft_proxy/state/types.{
 
 pub fn upsert_base_metaobject_definitions(
   store: Store,
-  records: List(MetaobjectDefinitionRecord),
+  records: List(state_types.MetaobjectDefinitionRecord),
 ) -> Store {
   list.fold(records, store, fn(acc, record) {
     let base = acc.base_state
@@ -57,8 +55,8 @@ pub fn upsert_base_metaobject_definitions(
 
 pub fn upsert_staged_metaobject_definition(
   store: Store,
-  record: MetaobjectDefinitionRecord,
-) -> #(MetaobjectDefinitionRecord, Store) {
+  record: state_types.MetaobjectDefinitionRecord,
+) -> #(state_types.MetaobjectDefinitionRecord, Store) {
   let staged = store.staged_state
   let base = store.base_state
   let already_known =
@@ -104,7 +102,7 @@ pub fn delete_staged_metaobject_definition(store: Store, id: String) -> Store {
 pub fn get_effective_metaobject_definition_by_id(
   store: Store,
   id: String,
-) -> Option(MetaobjectDefinitionRecord) {
+) -> Option(state_types.MetaobjectDefinitionRecord) {
   case dict_has(store.staged_state.deleted_metaobject_definition_ids, id) {
     True -> None
     False ->
@@ -122,16 +120,66 @@ pub fn get_effective_metaobject_definition_by_id(
 pub fn find_effective_metaobject_definition_by_type(
   store: Store,
   type_: String,
-) -> Option(MetaobjectDefinitionRecord) {
+) -> Option(state_types.MetaobjectDefinitionRecord) {
   list.find(list_effective_metaobject_definitions(store), fn(record) {
     record.type_ == type_
   })
   |> option.from_result
 }
 
+pub fn link_metaobject_definition_to_product_option(
+  store: Store,
+  definition_id: String,
+  owner_type: String,
+  linked_metafield: state_types.ProductOptionLinkedMetafieldRecord,
+  product_id: String,
+  product_option_id: String,
+) -> Store {
+  case get_effective_metaobject_definition_by_id(store, definition_id) {
+    None -> store
+    Some(definition) -> {
+      let linked =
+        state_types.MetaobjectDefinitionLinkedMetafieldRecord(
+          owner_type: owner_type,
+          namespace: linked_metafield.namespace,
+          key: linked_metafield.key,
+          metafield_definition_id: linked_metafield.metafield_definition_id,
+          product_id: product_id,
+          product_option_id: product_option_id,
+        )
+      let updated =
+        state_types.MetaobjectDefinitionRecord(
+          ..definition,
+          linked_metafields: upsert_definition_linked_metafield(
+            definition.linked_metafields,
+            linked,
+          ),
+        )
+      let #(_, next_store) = upsert_staged_metaobject_definition(store, updated)
+      next_store
+    }
+  }
+}
+
+fn upsert_definition_linked_metafield(
+  records: List(state_types.MetaobjectDefinitionLinkedMetafieldRecord),
+  candidate: state_types.MetaobjectDefinitionLinkedMetafieldRecord,
+) -> List(state_types.MetaobjectDefinitionLinkedMetafieldRecord) {
+  let filtered =
+    list.filter(records, fn(record) {
+      !{
+        record.owner_type == candidate.owner_type
+        && record.namespace == candidate.namespace
+        && record.key == candidate.key
+        && record.product_option_id == candidate.product_option_id
+      }
+    })
+  [candidate, ..filtered]
+}
+
 pub fn list_effective_metaobject_definitions(
   store: Store,
-) -> List(MetaobjectDefinitionRecord) {
+) -> List(state_types.MetaobjectDefinitionRecord) {
   let ordered_ids =
     list.append(
       store.base_state.metaobject_definition_order,
@@ -172,7 +220,7 @@ pub fn list_effective_metaobject_definitions(
 
 pub fn upsert_base_metaobjects(
   store: Store,
-  records: List(MetaobjectRecord),
+  records: List(state_types.MetaobjectRecord),
 ) -> Store {
   list.fold(records, store, fn(acc, record) {
     let base = acc.base_state
@@ -201,8 +249,8 @@ pub fn upsert_base_metaobjects(
 
 pub fn upsert_staged_metaobject(
   store: Store,
-  record: MetaobjectRecord,
-) -> #(MetaobjectRecord, Store) {
+  record: state_types.MetaobjectRecord,
+) -> #(state_types.MetaobjectRecord, Store) {
   let staged = store.staged_state
   let base = store.base_state
   let already_known =
@@ -244,7 +292,7 @@ pub fn delete_staged_metaobject(store: Store, id: String) -> Store {
 pub fn get_effective_metaobject_by_id(
   store: Store,
   id: String,
-) -> Option(MetaobjectRecord) {
+) -> Option(state_types.MetaobjectRecord) {
   case dict_has(store.staged_state.deleted_metaobject_ids, id) {
     True -> None
     False ->
@@ -263,14 +311,16 @@ pub fn find_effective_metaobject_by_handle(
   store: Store,
   type_: String,
   handle: String,
-) -> Option(MetaobjectRecord) {
+) -> Option(state_types.MetaobjectRecord) {
   list.find(list_effective_metaobjects(store), fn(record) {
     record.type_ == type_ && record.handle == handle
   })
   |> option.from_result
 }
 
-pub fn list_effective_metaobjects(store: Store) -> List(MetaobjectRecord) {
+pub fn list_effective_metaobjects(
+  store: Store,
+) -> List(state_types.MetaobjectRecord) {
   let ordered_ids =
     list.append(
       store.base_state.metaobject_order,
@@ -309,7 +359,7 @@ pub fn list_effective_metaobjects(store: Store) -> List(MetaobjectRecord) {
 pub fn list_effective_metaobjects_by_type(
   store: Store,
   type_: String,
-) -> List(MetaobjectRecord) {
+) -> List(state_types.MetaobjectRecord) {
   list.filter(list_effective_metaobjects(store), fn(record) {
     record.type_ == type_
   })
@@ -322,8 +372,8 @@ pub fn has_effective_metaobjects(store: Store) -> Bool {
 }
 
 fn compare_metaobject_definitions(
-  left: MetaobjectDefinitionRecord,
-  right: MetaobjectDefinitionRecord,
+  left: state_types.MetaobjectDefinitionRecord,
+  right: state_types.MetaobjectDefinitionRecord,
 ) -> order.Order {
   case string.compare(left.type_, right.type_) {
     order.Eq -> string_compare(left.id, right.id)
@@ -332,8 +382,8 @@ fn compare_metaobject_definitions(
 }
 
 fn compare_metaobjects(
-  left: MetaobjectRecord,
-  right: MetaobjectRecord,
+  left: state_types.MetaobjectRecord,
+  right: state_types.MetaobjectRecord,
 ) -> order.Order {
   case string.compare(left.type_, right.type_) {
     order.Eq ->
