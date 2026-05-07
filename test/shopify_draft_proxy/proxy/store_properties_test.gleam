@@ -425,6 +425,71 @@ pub fn shop_policy_update_reuses_existing_policy_test() {
   assert !string.contains(serialized, "\"updatedAt\":\"2026-04-25T11:52:29Z\"")
 }
 
+pub fn shop_policy_update_invalid_type_variable_returns_invalid_variable_test() {
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"BOGUS_TYPE\",\"body\":\"ok\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Variable $shopPolicy of type ShopPolicyInput! was provided invalid value for type",
+  )
+  assert string.contains(
+    serialized,
+    "Expected \\\"BOGUS_TYPE\\\" to be one of: REFUND_POLICY, SHIPPING_POLICY, PRIVACY_POLICY, TERMS_OF_SERVICE, TERMS_OF_SALE, LEGAL_NOTICE, SUBSCRIPTION_POLICY, CONTACT_INFORMATION",
+  )
+  assert !string.contains(serialized, "\"shopPolicyUpdate\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn shop_policy_update_missing_body_variable_returns_invalid_variable_test() {
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"REFUND_POLICY\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Variable $shopPolicy of type ShopPolicyInput! was provided invalid value for body (Expected value to not be null)",
+  )
+  assert string.contains(
+    serialized,
+    "\"problems\":[{\"path\":[\"body\"],\"explanation\":\"Expected value to not be null\"}]",
+  )
+  assert !string.contains(serialized, "\"shopPolicyUpdate\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn shop_policy_update_null_body_variable_returns_invalid_variable_test() {
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"REFUND_POLICY\",\"body\":null}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Variable $shopPolicy of type ShopPolicyInput! was provided invalid value for body (Expected value to not be null)",
+  )
+  assert !string.contains(serialized, "\"shopPolicyUpdate\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
 pub fn oversized_shop_policy_body_returns_user_error_test() {
   let too_big = string.repeat("x", 524_288)
   let mutation_body =

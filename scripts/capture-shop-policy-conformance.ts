@@ -319,6 +319,29 @@ const tooBigVariables = {
     body: 'x'.repeat(524_288),
   },
 };
+const invalidTypeVariables = {
+  shopPolicy: {
+    type: 'BOGUS_TYPE',
+    body: 'ok',
+  },
+};
+const missingBodyVariables = {
+  shopPolicy: {
+    type: 'REFUND_POLICY',
+  },
+};
+const nullBodyVariables = {
+  shopPolicy: {
+    type: 'REFUND_POLICY',
+    body: null,
+  },
+};
+const blankRefundVariables = {
+  shopPolicy: {
+    type: 'REFUND_POLICY',
+    body: '',
+  },
+};
 
 const privacyMutation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, privacyVariables);
 assertNoTopLevelErrors(privacyMutation, 'privacy policy shopPolicyUpdate mutation');
@@ -339,6 +362,12 @@ assertNoTopLevelErrors(maxBodyMutation, 'maximum body shopPolicyUpdate mutation'
 
 const tooBigValidation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, tooBigVariables);
 assertNoTopLevelErrors(tooBigValidation, 'too-big body shopPolicyUpdate validation');
+
+const invalidTypeValidation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, invalidTypeVariables);
+const missingBodyValidation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, missingBodyVariables);
+const nullBodyValidation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, nullBodyVariables);
+const blankRefundMutation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, blankRefundVariables);
+assertNoTopLevelErrors(blankRefundMutation, 'blank refund policy shopPolicyUpdate mutation');
 
 const privacyCleanup = await runGraphqlRequest(shopPolicyUpdateMutation, {
   shopPolicy: {
@@ -452,6 +481,60 @@ const titleUrlBodyFixture = {
   ],
 };
 
+const userErrorCodesFixture = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
+  readOnlyBaselines: {
+    shop: baselineHydratePayload,
+  },
+  invalidTypeValidation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: invalidTypeVariables,
+    response: invalidTypeValidation.payload,
+  },
+  missingBodyValidation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: missingBodyVariables,
+    response: missingBodyValidation.payload,
+  },
+  nullBodyValidation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: nullBodyVariables,
+    response: nullBodyValidation.payload,
+  },
+  blankRefundMutation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: blankRefundVariables,
+    response: blankRefundMutation.payload,
+  },
+  tooBigValidation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: tooBigVariables,
+    response: tooBigValidation.payload,
+  },
+  cleanup: {
+    privacy: privacyCleanup.payload,
+    refund: refundCleanup.payload,
+  },
+  upstreamCalls: [
+    {
+      operationName: 'StorePropertiesShopBaselineHydrate',
+      variables: {},
+      query: 'sha:hand-synthesized-StorePropertiesShopBaselineHydrate',
+      response: {
+        status: 200,
+        body: baselineHydratePayload,
+      },
+    },
+  ],
+};
+
 await mkdir(outputDir, { recursive: true });
 const outputPath = path.join(outputDir, 'shop-policy-update-parity.json');
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
@@ -459,3 +542,6 @@ console.log(`Wrote ${outputPath}`);
 const titleUrlBodyOutputPath = path.join(outputDir, 'shop-policy-update-title-url-and-body-rendering.json');
 await writeFile(titleUrlBodyOutputPath, `${JSON.stringify(titleUrlBodyFixture, null, 2)}\n`, 'utf8');
 console.log(`Wrote ${titleUrlBodyOutputPath}`);
+const userErrorCodesOutputPath = path.join(outputDir, 'shop-policy-update-user-error-codes.json');
+await writeFile(userErrorCodesOutputPath, `${JSON.stringify(userErrorCodesFixture, null, 2)}\n`, 'utf8');
+console.log(`Wrote ${userErrorCodesOutputPath}`);
