@@ -1,0 +1,416 @@
+{
+  "scenarioId": "functions-cart-transform-create-metafields",
+  "capturedAt": "2026-05-07T08:19:56.415Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "cartTransformCreate metafield validation, valid metafield persistence, singular lookup, and downstream cartTransforms read evidence.",
+  "shopifyFunctions": {
+    "cartTransform": {
+      "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "title": "conformance-cart-transform",
+      "handle": "conformance-cart-transform",
+      "apiType": "cart_transform",
+      "description": "conformance-cart-transform",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    }
+  },
+  "functionRead": {
+    "query": "query ReadCartTransformMetafieldFunctions {\n  shopifyFunctions(first: 50) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupBefore": [],
+  "cartTransformCreateMissingValue": {
+    "query": "mutation CartTransformCreateInvalidMetafields($functionId: String!, $metafields: [MetafieldInput!]) {\n  cartTransformCreate(functionId: $functionId, metafields: $metafields) {\n    cartTransform {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "metafields": [
+        {
+          "namespace": "bundles",
+          "key": "missing_value",
+          "type": "single_line_text_field"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "may not be empty",
+                "code": "INVALID_METAFIELDS"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformCreateInvalidJson": {
+    "query": "mutation CartTransformCreateInvalidMetafields($functionId: String!, $metafields: [MetafieldInput!]) {\n  cartTransformCreate(functionId: $functionId, metafields: $metafields) {\n    cartTransform {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "metafields": [
+        {
+          "namespace": "bundles",
+          "key": "bad_json",
+          "type": "json",
+          "value": "not-json"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "is invalid JSON: unexpected token 'not-json' at line 1 column 1.",
+                "code": "INVALID_METAFIELDS"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformCreateMetafields": {
+    "query": "mutation CartTransformCreateMetafields(\n  $functionId: String!\n  $blockOnFailure: Boolean\n  $metafields: [MetafieldInput!]\n) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "blockOnFailure": false,
+      "metafields": [
+        {
+          "namespace": "bundles",
+          "key": "config",
+          "type": "json",
+          "value": "{\"enabled\":true}"
+        },
+        {
+          "namespace": "bundles",
+          "key": "mode",
+          "type": "single_line_text_field",
+          "value": "strict"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": {
+              "id": "gid://shopify/CartTransform/115474738",
+              "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "blockOnFailure": false,
+              "metafield": {
+                "id": "gid://shopify/Metafield/43120296722738",
+                "namespace": "bundles",
+                "key": "config",
+                "type": "json",
+                "value": "{\"enabled\":true}",
+                "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
+                "ownerType": "CARTTRANSFORM",
+                "createdAt": "2026-05-07T08:19:55Z",
+                "updatedAt": "2026-05-07T08:19:55Z"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43120296722738",
+                    "namespace": "bundles",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"enabled\":true}",
+                    "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
+                    "ownerType": "CARTTRANSFORM",
+                    "createdAt": "2026-05-07T08:19:55Z",
+                    "updatedAt": "2026-05-07T08:19:55Z"
+                  },
+                  {
+                    "id": "gid://shopify/Metafield/43120296755506",
+                    "namespace": "bundles",
+                    "key": "mode",
+                    "type": "single_line_text_field",
+                    "value": "strict",
+                    "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
+                    "ownerType": "CARTTRANSFORM",
+                    "createdAt": "2026-05-07T08:19:55Z",
+                    "updatedAt": "2026-05-07T08:19:55Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformsAfterMetafields": {
+    "query": "query CartTransformsMetafields($first: Int!) {\n  cartTransforms(first: $first) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"mode\") {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "first": 5
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CartTransform/115474738",
+                "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "blockOnFailure": false,
+                "metafield": {
+                  "id": "gid://shopify/Metafield/43120296755506",
+                  "namespace": "bundles",
+                  "key": "mode",
+                  "type": "single_line_text_field",
+                  "value": "strict",
+                  "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
+                  "ownerType": "CARTTRANSFORM",
+                  "createdAt": "2026-05-07T08:19:55Z",
+                  "updatedAt": "2026-05-07T08:19:55Z"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43120296722738",
+                      "namespace": "bundles",
+                      "key": "config",
+                      "type": "json",
+                      "value": "{\"enabled\":true}",
+                      "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
+                      "ownerType": "CARTTRANSFORM",
+                      "createdAt": "2026-05-07T08:19:55Z",
+                      "updatedAt": "2026-05-07T08:19:55Z"
+                    },
+                    {
+                      "id": "gid://shopify/Metafield/43120296755506",
+                      "namespace": "bundles",
+                      "key": "mode",
+                      "type": "single_line_text_field",
+                      "value": "strict",
+                      "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
+                      "ownerType": "CARTTRANSFORM",
+                      "createdAt": "2026-05-07T08:19:55Z",
+                      "updatedAt": "2026-05-07T08:19:55Z"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupAfter": {
+    "cartTransformDelete": {
+      "data": {
+        "cartTransformDelete": {
+          "deletedId": "gid://shopify/CartTransform/115474738",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+      },
+      "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "title": "conformance-cart-transform",
+              "handle": "conformance-cart-transform",
+              "apiType": "cart_transform",
+              "description": "conformance-cart-transform",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "validation": "Invalid branches are captured before the success path so they prove INVALID_METAFIELDS without colliding with the one-cart-transform-per-Function constraint. Public Shopify Admin 2026-04 accepted an empty namespace during exploratory capture, so empty namespace is not modeled as a cartTransformCreate rejection here.",
+    "sideEffectBoundary": "The invalid branches return cartTransform null; the success branch creates one disposable cart transform that is cleaned up after the fixture is written."
+  }
+}

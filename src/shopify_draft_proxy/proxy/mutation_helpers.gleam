@@ -1307,6 +1307,17 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "MetafieldAccessInput"
+                      | "MetafieldAccessUpdateInput"
+                      | "StandardMetafieldDefinitionAccessInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       _ -> []
                     }
                   Some(schema_field) ->
@@ -1713,8 +1724,32 @@ fn scalar_value_problems(
 ) -> List(ValueProblem) {
   case type_name {
     "Decimal" -> decimal_value_problems(resolved, path)
+    "ID" -> id_value_problems(resolved, path)
     "URL" -> url_value_problems(resolved, path)
     _ -> []
+  }
+}
+
+fn id_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved, path_ends_with_publication_id(path) {
+    root_field.StringVal(""), True -> [
+      ValueProblem(
+        path: path,
+        explanation: "Invalid global id ''",
+        message: Some("Invalid global id ''"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn path_ends_with_publication_id(path: List(PathSegment)) -> Bool {
+  case list.reverse(path) {
+    [StringSegment("publicationId"), ..] -> True
+    _ -> False
   }
 }
 
@@ -1832,6 +1867,24 @@ fn collect_unknown_variable_fields(
           message: None,
         ))
       "LocationAddAddressInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "MetafieldAccessInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "MetafieldAccessUpdateInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "StandardMetafieldDefinitionAccessInput", None ->
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
           explanation: "Field is not defined on " <> io.name,

@@ -1140,6 +1140,22 @@ pub fn webhook_subscription_create_duplicate_topic_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address for this topic has already been taken\"}]}}}"
 }
 
+pub fn webhook_subscription_create_duplicate_name_is_case_insensitive_test() {
+  let first_document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/orderhook\", name: \"OrderHook\" }) { webhookSubscription { id name } userErrors { field message } } }"
+  let first_outcome = run_mutation_outcome(store.new(), first_document)
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"name\":\"OrderHook\"},\"userErrors\":[]}}}"
+
+  let second_document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/orderhook-lower\", name: \"orderhook\" }) { webhookSubscription { id name } userErrors { field message } } }"
+  let second_outcome =
+    run_mutation_outcome(first_outcome.store, second_document)
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name already exists, no duplicate allowed\"}]}}}"
+  assert second_outcome.staged_resource_ids == []
+}
+
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
   // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
   // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
@@ -1242,6 +1258,39 @@ pub fn webhook_subscription_update_modifies_record_test() {
   let body = run_mutation(s, document)
   assert body
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\"},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_duplicate_name_is_case_insensitive_test() {
+  let existing =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("SHOP_UPDATE"),
+      Some("https://old.example.com/hook"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/hook")),
+      ),
+    )
+  let named =
+    WebhookSubscriptionRecord(
+      ..existing,
+      id: "gid://shopify/WebhookSubscription/2",
+      uri: Some("https://old.example.com/named"),
+      name: Some("Foo"),
+      endpoint: Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/named")),
+      ),
+    )
+  let seeded_store =
+    store.upsert_base_webhook_subscriptions(store.new(), [existing, named])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { name: \"FOO\" }) { webhookSubscription { id name } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name already exists, no duplicate allowed\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn webhook_subscription_update_preserves_existing_null_filter_test() {

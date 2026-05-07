@@ -1,0 +1,25 @@
+mutation MetafieldDefinitionAccessValidationStandardEnable(
+  $ownerType: MetafieldOwnerType!
+  $namespace: String
+  $key: String
+  $id: ID
+  $access: StandardMetafieldDefinitionAccessInput
+) {
+  standardMetafieldDefinitionEnable(ownerType: $ownerType, namespace: $namespace, key: $key, id: $id, access: $access) {
+    createdDefinition {
+      id
+      namespace
+      key
+      access {
+        admin
+        storefront
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

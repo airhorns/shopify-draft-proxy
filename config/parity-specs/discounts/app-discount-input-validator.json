@@ -1,0 +1,239 @@
+{
+  "scenarioId": "app-discount-input-validator",
+  "operationNames": [
+    "discountCodeAppCreate",
+    "discountAutomaticAppCreate",
+    "discountCodeAppUpdate",
+    "discountAutomaticAppUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "app-discount-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/app-discount-input-validator.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/app-discount-input-validator-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-code-userErrors",
+        "capturePath": "$.setup.response.data.codeSetup.userErrors",
+        "proxyPath": "$.data.codeSetup.userErrors"
+      },
+      {
+        "name": "setup-automatic-userErrors",
+        "capturePath": "$.setup.response.data.automaticSetup.userErrors",
+        "proxyPath": "$.data.automaticSetup.userErrors"
+      },
+      {
+        "name": "code-create-missing-code-userErrors",
+        "capturePath": "$.cases.codeCreateMissingCode.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateMissingCode.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-create-blank-code-userErrors",
+        "capturePath": "$.cases.codeCreateBlankCode.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateBlankCode.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-create-missing-starts-at-userErrors",
+        "capturePath": "$.cases.codeCreateMissingStartsAt.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateMissingStartsAt.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-create-empty-discount-classes-userErrors",
+        "capturePath": "$.cases.codeCreateEmptyDiscountClasses.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateEmptyDiscountClasses.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-create-combines-with-product-on-order-class-userErrors",
+        "capturePath": "$.cases.codeCreateCombinesWithProductOnOrderClass.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateCombinesWithProductOnOrderClass.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-create-empty-customer-segments-userErrors",
+        "capturePath": "$.cases.codeCreateEmptyCustomerSegmentsAdd.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateEmptyCustomerSegmentsAdd.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-create-empty-customers-userErrors",
+        "capturePath": "$.cases.codeCreateEmptyCustomersAdd.response.data.discountCodeAppCreate.userErrors",
+        "proxyPath": "$.data.discountCodeAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+          "variablesCapturePath": "$.cases.codeCreateEmptyCustomersAdd.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-create-blank-title-userErrors",
+        "capturePath": "$.cases.automaticCreateBlankTitle.response.data.discountAutomaticAppCreate.userErrors",
+        "proxyPath": "$.data.discountAutomaticAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+          "variablesCapturePath": "$.cases.automaticCreateBlankTitle.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-create-missing-starts-at-userErrors",
+        "capturePath": "$.cases.automaticCreateMissingStartsAt.response.data.discountAutomaticAppCreate.userErrors",
+        "proxyPath": "$.data.discountAutomaticAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+          "variablesCapturePath": "$.cases.automaticCreateMissingStartsAt.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-create-empty-discount-classes-userErrors",
+        "capturePath": "$.cases.automaticCreateEmptyDiscountClasses.response.data.discountAutomaticAppCreate.userErrors",
+        "proxyPath": "$.data.discountAutomaticAppCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+          "variablesCapturePath": "$.cases.automaticCreateEmptyDiscountClasses.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-update-blank-code-userErrors",
+        "capturePath": "$.cases.codeUpdateBlankCode.response.data.discountCodeAppUpdate.userErrors",
+        "proxyPath": "$.data.discountCodeAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.codeSetup.codeAppDiscount.discountId" },
+            "input": { "fromCapturePath": "$.cases.codeUpdateBlankCode.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-update-missing-starts-at-userErrors",
+        "capturePath": "$.cases.codeUpdateMissingStartsAt.response.data.discountCodeAppUpdate.userErrors",
+        "proxyPath": "$.data.discountCodeAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.codeSetup.codeAppDiscount.discountId" },
+            "input": { "fromCapturePath": "$.cases.codeUpdateMissingStartsAt.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-update-empty-discount-classes-userErrors",
+        "capturePath": "$.cases.codeUpdateEmptyDiscountClasses.response.data.discountCodeAppUpdate.userErrors",
+        "proxyPath": "$.data.discountCodeAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.codeSetup.codeAppDiscount.discountId" },
+            "input": { "fromCapturePath": "$.cases.codeUpdateEmptyDiscountClasses.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-update-empty-customers-userErrors",
+        "capturePath": "$.cases.codeUpdateEmptyCustomersAdd.response.data.discountCodeAppUpdate.userErrors",
+        "proxyPath": "$.data.discountCodeAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.codeSetup.codeAppDiscount.discountId" },
+            "input": { "fromCapturePath": "$.cases.codeUpdateEmptyCustomersAdd.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-update-blank-title-userErrors",
+        "capturePath": "$.cases.automaticUpdateBlankTitle.response.data.discountAutomaticAppUpdate.userErrors",
+        "proxyPath": "$.data.discountAutomaticAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticAppDiscount.discountId"
+            },
+            "input": { "fromCapturePath": "$.cases.automaticUpdateBlankTitle.request.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-update-missing-starts-at-userErrors",
+        "capturePath": "$.cases.automaticUpdateMissingStartsAt.response.data.discountAutomaticAppUpdate.userErrors",
+        "proxyPath": "$.data.discountAutomaticAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticAppDiscount.discountId"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.automaticUpdateMissingStartsAt.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-update-empty-discount-classes-userErrors",
+        "capturePath": "$.cases.automaticUpdateEmptyDiscountClasses.response.data.discountAutomaticAppUpdate.userErrors",
+        "proxyPath": "$.data.discountAutomaticAppUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticAppDiscount.discountId"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.automaticUpdateEmptyDiscountClasses.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for app-discount input validation on code and automatic app-discount create/update roots. The scenario replays setup through the proxy, then validates captured userErrors for blank or missing app code, blank automatic title, create-only missing startsAt, empty discountClasses, and empty customer/customer-segment selections. Shopify accepted combinesWith.productDiscounts on an order-class app discount in this capture. Public Admin GraphQL rejected automatic customerSelection, automatic channelIds, and code markets fields before mutation userErrors, so those schema rejections are retained in the fixture but not compared as local mutation userErrors."
+}

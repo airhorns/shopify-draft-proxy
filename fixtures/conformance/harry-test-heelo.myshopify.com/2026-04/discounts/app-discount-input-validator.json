@@ -1,0 +1,1248 @@
+{
+  "scenarioId": "app-discount-input-validator",
+  "capturedAt": "2026-05-07T04:28:18.524Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "functionCatalog": {
+    "query": "#graphql\n  query AppDiscountInputValidatorFunctionCatalog {\n    shopifyFunctions(first: 50) {\n      nodes {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "discountFunction": {
+    "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+    "title": "conformance-discount",
+    "handle": "conformance-discount",
+    "apiType": "discount",
+    "description": "conformance-discount",
+    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "title": "hermes-conformance-products",
+      "handle": "hermes-conformance-products",
+      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+    }
+  },
+  "setup": {
+    "request": {
+      "documentPath": "config/parity-requests/discounts/app-discount-input-validator-setup.graphql",
+      "variables": {
+        "codeInput": {
+          "title": "Conformance code setup 1778128094745",
+          "code": "APPVALIDSETUP1778128094745",
+          "startsAt": "2026-05-05T00:00:00Z",
+          "functionHandle": "conformance-discount",
+          "discountClasses": ["ORDER"]
+        },
+        "automaticInput": {
+          "title": "Conformance automatic setup 1778128094745",
+          "startsAt": "2026-05-05T00:00:00Z",
+          "functionHandle": "conformance-discount",
+          "discountClasses": ["ORDER"]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "codeSetup": {
+          "codeAppDiscount": {
+            "discountId": "gid://shopify/DiscountCodeNode/1640671412530",
+            "title": "Conformance code setup 1778128094745"
+          },
+          "userErrors": []
+        },
+        "automaticSetup": {
+          "automaticAppDiscount": {
+            "discountId": "gid://shopify/DiscountAutomaticNode/1640671445298",
+            "title": "Conformance automatic setup 1778128094745"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "codeCreateMissingCode": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code MISSINGCODE 1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "code"],
+                "message": "Discount code can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateBlankCode": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code BLANK 1778128094745",
+            "code": "",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "code"],
+                "message": "Discount code can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateMissingStartsAt": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code NOSTART 1778128094745",
+            "code": "APPVALIDNOSTART1778128094745",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "startsAt"],
+                "message": "Starts at can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateEmptyDiscountClasses": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code EMPTYCLASS 1778128094745",
+            "code": "APPVALIDEMPTYCLASS1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "discountClasses"],
+                "message": "Discount classes can't be empty.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateCombinesWithProductOnOrderClass": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code COMBINES 1778128094745",
+            "code": "APPVALIDCOMBINES1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"],
+            "combinesWith": {
+              "productDiscounts": true
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": {
+              "discountId": "gid://shopify/DiscountCodeNode/1640671478066",
+              "title": "Conformance code COMBINES 1778128094745",
+              "startsAt": "2026-05-05T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateEmptyCustomerSegmentsAdd": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code SEGEMPTY 1778128094745",
+            "code": "APPVALIDSEGEMPTY1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"],
+            "customerSelection": {
+              "customerSegments": {
+                "add": []
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "customerSelection"],
+                "message": "a minimum of one prerequisite segment or prerequisite customer must be provided",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeCreateEmptyCustomersAdd": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance code CUSTEMPTY 1778128094745",
+            "code": "APPVALIDCUSTEMPTY1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"],
+            "customerSelection": {
+              "customers": {
+                "add": []
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppCreate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "customerSelection"],
+                "message": "a minimum of one prerequisite segment or prerequisite customer must be provided",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateBlankTitle": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+        "variables": {
+          "input": {
+            "title": "",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticAppCreate": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "title"],
+                "message": "Title can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateMissingStartsAt": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance automatic NOSTART 1778128094745",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticAppCreate": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "startsAt"],
+                "message": "Starts at can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticCreateEmptyDiscountClasses": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance automatic EMPTYCLASS 1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticAppCreate": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "discountClasses"],
+                "message": "Discount classes can't be empty.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateBlankCode": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountCodeNode/1640671412530",
+          "input": {
+            "title": "Conformance code UPBLANK 1778128094745",
+            "code": "",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppUpdate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "code"],
+                "message": "Discount code can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateMissingStartsAt": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountCodeNode/1640671412530",
+          "input": {
+            "title": "Conformance code UPNOSTART 1778128094745",
+            "code": "APPVALIDUPNOSTART1778128094745",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppUpdate": {
+            "codeAppDiscount": {
+              "discountId": "gid://shopify/DiscountCodeNode/1640671412530",
+              "title": "Conformance code UPNOSTART 1778128094745",
+              "startsAt": "2026-05-05T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateEmptyDiscountClasses": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountCodeNode/1640671412530",
+          "input": {
+            "title": "Conformance code UPEMPTYCLASS 1778128094745",
+            "code": "APPVALIDUPEMPTYCLASS1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppUpdate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "discountClasses"],
+                "message": "Discount classes can't be empty.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "codeUpdateEmptyCustomersAdd": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-code-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountCodeNode/1640671412530",
+          "input": {
+            "title": "Conformance code UPCUSTEMPTY 1778128094745",
+            "code": "APPVALIDUPCUSTEMPTY1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"],
+            "customerSelection": {
+              "customers": {
+                "add": []
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeAppUpdate": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "customerSelection"],
+                "message": "a minimum of one prerequisite segment or prerequisite customer must be provided",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateBlankTitle": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountAutomaticNode/1640671445298",
+          "input": {
+            "title": "",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticAppUpdate": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "title"],
+                "message": "Title can't be blank.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateMissingStartsAt": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountAutomaticNode/1640671445298",
+          "input": {
+            "title": "Conformance automatic UPNOSTART 1778128094745",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticAppUpdate": {
+            "automaticAppDiscount": {
+              "discountId": "gid://shopify/DiscountAutomaticNode/1640671445298",
+              "title": "Conformance automatic UPNOSTART 1778128094745",
+              "startsAt": "2026-05-05T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "automaticUpdateEmptyDiscountClasses": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountAutomaticNode/1640671445298",
+          "input": {
+            "title": "Conformance automatic UPEMPTYCLASS 1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticAppUpdate": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "discountClasses"],
+                "message": "Discount classes can't be empty.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemaRejectedCases": {
+    "automaticUpdateCustomerSelection": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-update.graphql",
+        "variables": {
+          "id": "gid://shopify/DiscountAutomaticNode/1640671445298",
+          "input": {
+            "title": "Conformance automatic UPSEGEMPTY 1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"],
+            "customerSelection": {
+              "customerSegments": {
+                "add": []
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticAppInput! was provided invalid value for customerSelection (Field is not defined on DiscountAutomaticAppInput)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 61
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance automatic UPSEGEMPTY 1778128094745",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "conformance-discount",
+                "discountClasses": ["ORDER"],
+                "customerSelection": {
+                  "customerSegments": {
+                    "add": []
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerSelection"],
+                  "explanation": "Field is not defined on DiscountAutomaticAppInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticCreateCustomerSelection": {
+      "request": {
+        "documentPath": "config/parity-requests/discounts/app-discount-input-validator-automatic-create.graphql",
+        "variables": {
+          "input": {
+            "title": "Conformance automatic CUSTEMPTY 1778128094745",
+            "startsAt": "2026-05-05T00:00:00Z",
+            "functionHandle": "conformance-discount",
+            "discountClasses": ["ORDER"],
+            "customerSelection": {
+              "customers": {
+                "add": []
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type DiscountAutomaticAppInput! was provided invalid value for customerSelection (Field is not defined on DiscountAutomaticAppInput)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 51
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "title": "Conformance automatic CUSTEMPTY 1778128094745",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "conformance-discount",
+                "discountClasses": ["ORDER"],
+                "customerSelection": {
+                  "customers": {
+                    "add": []
+                  }
+                }
+              },
+              "problems": [
+                {
+                  "path": ["customerSelection"],
+                  "explanation": "Field is not defined on DiscountAutomaticAppInput"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "automaticCreateChannelIds": {
+      "request": {
+        "query": "#graphql\n  mutation AppDiscountInputValidatorAutomaticChannelIds($functionHandle: String!, $channelId: ID!) {\n    discountAutomaticAppCreate(\n      automaticAppDiscount: {\n        title: \"Conformance automatic channelIds\"\n        startsAt: \"2026-05-05T00:00:00Z\"\n        functionHandle: $functionHandle\n        discountClasses: [ORDER]\n        channelIds: [$channelId]\n      }\n    ) {\n      automaticAppDiscount {\n        discountId\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+        "variables": {
+          "functionHandle": "conformance-discount",
+          "channelId": "gid://shopify/Channel/1"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "InputObject 'DiscountAutomaticAppInput' doesn't accept argument 'channelIds'",
+            "locations": [
+              {
+                "line": 9,
+                "column": 9
+              }
+            ],
+            "path": [
+              "mutation AppDiscountInputValidatorAutomaticChannelIds",
+              "discountAutomaticAppCreate",
+              "automaticAppDiscount",
+              "channelIds"
+            ],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "DiscountAutomaticAppInput",
+              "typeName": "InputObject",
+              "argumentName": "channelIds"
+            }
+          },
+          {
+            "message": "Variable $channelId is declared by AppDiscountInputValidatorAutomaticChannelIds but not used",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["mutation AppDiscountInputValidatorAutomaticChannelIds"],
+            "extensions": {
+              "code": "variableNotUsed",
+              "variableName": "channelId"
+            }
+          }
+        ]
+      }
+    },
+    "codeCreateMarketsRemoveAllWithAdd": {
+      "request": {
+        "query": "#graphql\n  mutation AppDiscountInputValidatorMarketsRemoveAll($functionHandle: String!, $marketId: ID!) {\n    discountCodeAppCreate(\n      codeAppDiscount: {\n        title: \"Conformance markets removeAll\"\n        code: \"APPVALIDMARKETS\"\n        startsAt: \"2026-05-05T00:00:00Z\"\n        functionHandle: $functionHandle\n        discountClasses: [ORDER]\n        markets: { removeAllMarkets: true, add: [$marketId] }\n      }\n    ) {\n      codeAppDiscount {\n        discountId\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+        "variables": {
+          "functionHandle": "conformance-discount",
+          "marketId": "gid://shopify/Market/1"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "InputObject 'DiscountCodeAppInput' doesn't accept argument 'markets'",
+            "locations": [
+              {
+                "line": 10,
+                "column": 9
+              }
+            ],
+            "path": [
+              "mutation AppDiscountInputValidatorMarketsRemoveAll",
+              "discountCodeAppCreate",
+              "codeAppDiscount",
+              "markets"
+            ],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "DiscountCodeAppInput",
+              "typeName": "InputObject",
+              "argumentName": "markets"
+            }
+          },
+          {
+            "message": "Variable $marketId is declared by AppDiscountInputValidatorMarketsRemoveAll but not used",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["mutation AppDiscountInputValidatorMarketsRemoveAll"],
+            "extensions": {
+              "code": "variableNotUsed",
+              "variableName": "marketId"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "kind": "code",
+      "id": "gid://shopify/DiscountCodeNode/1640671412530",
+      "response": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640671412530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "code",
+      "id": "gid://shopify/DiscountCodeNode/1640671478066",
+      "response": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640671478066",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "automatic",
+      "id": "gid://shopify/DiscountAutomaticNode/1640671445298",
+      "response": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1640671445298",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShopifyFunctionByHandle",
+      "variables": {
+        "handle": "conformance-discount"
+      },
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                  "title": "conformance-discount",
+                  "handle": "conformance-discount",
+                  "apiType": "discount",
+                  "description": "conformance-discount",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Live Shopify app-discount input validator capture using a deployed disposable conformance-discount Function. channelIds and markets.removeAllMarkets probes are recorded separately because the public Admin schema may reject them before mutation userErrors."
+}

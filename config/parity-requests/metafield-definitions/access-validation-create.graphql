@@ -1,0 +1,19 @@
+mutation MetafieldDefinitionAccessValidationCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      access {
+        admin
+        storefront
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

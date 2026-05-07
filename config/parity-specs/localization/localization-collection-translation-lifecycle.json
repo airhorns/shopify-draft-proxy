@@ -1,0 +1,112 @@
+{
+  "scenarioId": "localization-collection-translation-lifecycle",
+  "operationNames": [
+    "shopLocales",
+    "translatableResource",
+    "translatableResources",
+    "translatableResourcesByIds",
+    "translationsRegister",
+    "translationsRemove"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-collection-translation-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-collection-translation-read.graphql",
+    "variablesCapturePath": "$.readBeforeRegister.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "collection-read-before-register",
+        "capturePath": "$.readBeforeRegister.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.resources.nodes[0].resourceId",
+          "$.resources.nodes[0].translatableContent",
+          "$.resources.nodes[0].translations",
+          "$.byIds.nodes[0].resourceId",
+          "$.byIds.nodes[0].translatableContent",
+          "$.byIds.nodes[0].translations",
+          "$.single.resourceId",
+          "$.single.translatableContent",
+          "$.single.translations"
+        ]
+      },
+      {
+        "name": "collection-remove-noop-data",
+        "capturePath": "$.removeBeforeRegister.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
+          "variablesCapturePath": "$.removeBeforeRegister.request.variables"
+        }
+      },
+      {
+        "name": "collection-register-data",
+        "capturePath": "$.register.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "variablesCapturePath": "$.register.request.variables"
+        }
+      },
+      {
+        "name": "collection-read-after-register",
+        "capturePath": "$.readAfterRegister.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.resources.nodes[0].resourceId",
+          "$.resources.nodes[0].translations",
+          "$.byIds.nodes[0].resourceId",
+          "$.byIds.nodes[0].translations",
+          "$.single.resourceId",
+          "$.single.translations"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-collection-translation-read.graphql",
+          "variablesCapturePath": "$.readAfterRegister.request.variables"
+        }
+      },
+      {
+        "name": "collection-remove-data",
+        "capturePath": "$.remove.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
+          "variablesCapturePath": "$.remove.request.variables"
+        }
+      },
+      {
+        "name": "collection-read-after-remove",
+        "capturePath": "$.readAfterRemoveSingle.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "variablesCapturePath": "$.readAfterRemoveSingle.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable custom Collection, ensures French is enabled, records Collection translatable content for the read roots, proves translationsRemove no-op success before registration, registers a Collection title translation, observes it through translatableResource(s) reads, removes it, verifies the downstream empty read, then deletes the Collection and restores the locale only when the script enabled it."
+}

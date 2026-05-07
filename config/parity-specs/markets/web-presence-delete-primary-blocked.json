@@ -1,0 +1,45 @@
+{
+  "scenarioId": "web-presence-delete-primary-blocked",
+  "operationNames": ["webPresences", "shop", "webPresenceDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "market-web-presence-delete"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-delete-primary-setup-read.graphql",
+    "variablesCapturePath": "$.cases[12].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-setup-read",
+        "capturePath": "$.cases[12].response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "primary-delete-blocked",
+        "capturePath": "$.cases[13].response.payload.data.webPresenceDelete",
+        "proxyPath": "$.data.webPresenceDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.cases[13].variables"
+        }
+      },
+      {
+        "name": "primary-web-presence-remains-after-blocked-delete",
+        "capturePath": "$.cases[14].response.payload.data.webPresences",
+        "proxyPath": "$.data.webPresences",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-read.graphql",
+          "variablesCapturePath": "$.cases[14].variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture identifies the shop primary-domain web presence by matching shop.primaryDomain.host against the captured webPresences domain/rootUrls, then attempts webPresenceDelete against it. Shopify returns deletedId null and SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE with message \"The shop must have a web presence that uses the primary domain.\", and the follow-up webPresences read still contains the primary web presence."
+}

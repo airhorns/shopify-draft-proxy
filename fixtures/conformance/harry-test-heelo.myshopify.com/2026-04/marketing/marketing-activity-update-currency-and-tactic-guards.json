@@ -1,0 +1,357 @@
+{
+  "scenarioId": "marketing-activity-update-currency-and-tactic-guards",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-07T06:49:10.327Z",
+  "operations": {
+    "primary": {
+      "query": "mutation MarketingActivityUpdateCurrencyAndTacticGuards(\n  $baselineInput: MarketingActivityCreateExternalInput!\n  $storefrontInput: MarketingActivityCreateExternalInput!\n  $baselineRemoteId: String!\n  $happyUpdateInput: MarketingActivityUpdateExternalInput!\n  $currencyMismatchInput: MarketingActivityUpdateExternalInput!\n  $toStorefrontUpdateInput: MarketingActivityUpdateExternalInput!\n  $toStorefrontUpsertInput: MarketingActivityUpsertExternalInput!\n) {\n  baselineCreate: marketingActivityCreateExternal(input: $baselineInput) {\n    marketingActivity {\n      id\n      title\n      tactic\n      adSpend {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  happyUpdate: marketingActivityUpdateExternal(remoteId: $baselineRemoteId, input: $happyUpdateInput) {\n    marketingActivity {\n      id\n      title\n      tactic\n      adSpend {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  storefrontCreate: marketingActivityCreateExternal(input: $storefrontInput) {\n    marketingActivity {\n      id\n      title\n      tactic\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  currencyMismatchUpdate: marketingActivityUpdateExternal(\n    remoteId: $baselineRemoteId\n    input: $currencyMismatchInput\n  ) {\n    marketingActivity {\n      id\n      title\n      tactic\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateToStorefront: marketingActivityUpdateExternal(\n    remoteId: $baselineRemoteId\n    input: $toStorefrontUpdateInput\n  ) {\n    marketingActivity {\n      id\n      title\n      tactic\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  upsertToStorefront: marketingActivityUpsertExternal(input: $toStorefrontUpsertInput) {\n    marketingActivity {\n      id\n      title\n      tactic\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "baselineRemoteId": "marketing-guard-baseline-1778136549349-265qys",
+        "baselineInput": {
+          "title": "Marketing guard baseline 1778136549349-265qys",
+          "remoteId": "marketing-guard-baseline-1778136549349-265qys",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/marketing-guard-baseline-1778136549349-265qys",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "budget": {
+            "budgetType": "DAILY",
+            "total": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            }
+          },
+          "utm": {
+            "campaign": "marketing-guard-baseline-1778136549349-265qys-campaign",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        },
+        "happyUpdateInput": {
+          "title": "Marketing guard happy 1778136549349-265qys"
+        },
+        "storefrontInput": {
+          "title": "Marketing guard storefront 1778136549349-265qys",
+          "remoteId": "marketing-guard-storefront-1778136549349-265qys",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/marketing-guard-storefront-1778136549349-265qys",
+          "tactic": "STOREFRONT_APP",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "marketing-guard-storefront-1778136549349-265qys-campaign",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        },
+        "currencyMismatchInput": {
+          "title": "Marketing guard currency should not stage 1778136549349-265qys",
+          "budget": {
+            "budgetType": "DAILY",
+            "total": {
+              "amount": "1.00",
+              "currencyCode": "USD"
+            }
+          },
+          "adSpend": {
+            "amount": "1.00",
+            "currencyCode": "EUR"
+          }
+        },
+        "toStorefrontUpdateInput": {
+          "title": "Marketing guard update should not stage 1778136549349-265qys",
+          "tactic": "STOREFRONT_APP"
+        },
+        "toStorefrontUpsertInput": {
+          "title": "Marketing guard upsert should not stage 1778136549349-265qys",
+          "remoteId": "marketing-guard-baseline-1778136549349-265qys",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/marketing-guard-baseline-1778136549349-265qys-upsert",
+          "tactic": "STOREFRONT_APP",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "marketing-guard-baseline-1778136549349-265qys-campaign",
+            "source": "email",
+            "medium": "newsletter"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "baselineCreate": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197064851762",
+                "title": "Marketing guard baseline 1778136549349-265qys",
+                "tactic": "NEWSLETTER",
+                "adSpend": null
+              },
+              "userErrors": []
+            },
+            "happyUpdate": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197064851762",
+                "title": "Marketing guard happy 1778136549349-265qys",
+                "tactic": "NEWSLETTER",
+                "adSpend": null
+              },
+              "userErrors": []
+            },
+            "storefrontCreate": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197064884530",
+                "title": "Marketing guard storefront 1778136549349-265qys",
+                "tactic": "STOREFRONT_APP"
+              },
+              "userErrors": []
+            },
+            "currencyMismatchUpdate": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Currency code is not matching between budget and ad spend",
+                  "code": null
+                }
+              ]
+            },
+            "updateToStorefront": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+                  "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
+                }
+              ]
+            },
+            "upsertToStorefront": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+                  "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 60,
+              "actualQueryCost": 60,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1940,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readBaseline": {
+      "query": "query MarketingActivityUpdateCurrencyAndTacticGuardsRead($activityId: ID!) {\n  marketingActivity(id: $activityId) {\n    id\n    title\n    tactic\n    adSpend {\n      amount\n      currencyCode\n    }\n  }\n}\n",
+      "variables": {
+        "activityId": "gid://shopify/MarketingActivity/197064851762"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/197064851762",
+              "title": "Marketing guard happy 1778136549349-265qys",
+              "tactic": "NEWSLETTER",
+              "adSpend": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateFromStorefront": {
+      "query": "mutation MarketingActivityUpdateFromStorefrontGuard(\n  $marketingActivityId: ID!\n  $input: MarketingActivityUpdateExternalInput!\n) {\n  marketingActivityUpdateExternal(marketingActivityId: $marketingActivityId, input: $input) {\n    marketingActivity {\n      id\n      title\n      tactic\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "marketingActivityId": "gid://shopify/MarketingActivity/197064884530",
+        "input": {
+          "title": "Marketing guard storefront should not stage 1778136549349-265qys",
+          "tactic": "NEWSLETTER"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpdateExternal": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "You can not update an activity tactic from STOREFRONT_APP.",
+                  "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readStorefront": {
+      "query": "query MarketingActivityUpdateCurrencyAndTacticGuardsRead($activityId: ID!) {\n  marketingActivity(id: $activityId) {\n    id\n    title\n    tactic\n    adSpend {\n      amount\n      currencyCode\n    }\n  }\n}\n",
+      "variables": {
+        "activityId": "gid://shopify/MarketingActivity/197064884530"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/197064884530",
+              "title": "Marketing guard storefront 1778136549349-265qys",
+              "tactic": "STOREFRONT_APP",
+              "adSpend": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "baselineByRemote": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197064851762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "baselineById": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "storefrontByRemote": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "storefrontById": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197064884530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": "The live shop allows creating an external STOREFRONT_APP activity and rejects updateExternal by marketingActivityId when changing it to NEWSLETTER. A same-remoteId upsert after STOREFRONT_APP creation is not used as live evidence because Shopify does not resolve that activity through the upsert remoteId update path on this conformance shop.",
+  "upstreamCalls": []
+}

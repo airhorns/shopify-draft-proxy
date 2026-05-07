@@ -1,0 +1,11 @@
+query MarketingActivityUpdateCurrencyAndTacticGuardsRead($activityId: ID!) {
+  marketingActivity(id: $activityId) {
+    id
+    title
+    tactic
+    adSpend {
+      amount
+      currencyCode
+    }
+  }
+}

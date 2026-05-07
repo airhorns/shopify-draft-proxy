@@ -67,6 +67,8 @@ HAR-687 extends external delete guard coverage:
 HAR-681 extends existing external activity update/upsert validation:
 
 - existing external activities reject immutable `channelHandle`, `urlParameterValue`, UTM, invalid `parentRemoteId`, and `hierarchyLevel` changes with Shopify's captured `MarketingActivityUserError.code` values and `marketingActivity: null`
+- updateExternal and the update branch of upsertExternal reject mismatched `budget.total.currencyCode` / `adSpend.currencyCode` with `field: ["input"]`, message `Currency code is not matching between budget and ad spend`, no code, `marketingActivity: null`, and no staged activity changes
+- updateExternal and the update branch of upsertExternal reject attempts to change an existing activity to `STOREFRONT_APP` with `CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP`; changing any originally `STOREFRONT_APP` activity to another supplied tactic returns `CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP`. Both branches return `field: ["input"]`, `marketingActivity: null`, and leave downstream reads unchanged.
 - the shared local validator also rejects non-external activity records, external records whose nested marketing event is absent, and parent changes to a different resolved marketing event before staging any update
 - the live parity capture covers the branches the current disposable shop can create: channel-handle, URL-parameter, UTM, invalid-parent-remote-id, and hierarchy-level rejections. The immutable-parent-id branch is runtime-test-backed because the conformance app/store has no recognized channel handle, while Shopify requires one to create the campaign-level parent activity needed for that live branch.
 

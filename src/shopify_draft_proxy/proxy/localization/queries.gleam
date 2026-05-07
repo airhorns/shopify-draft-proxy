@@ -119,6 +119,7 @@ fn should_fetch_upstream_in_live_hybrid(
 fn has_local_localization_query_state(proxy: DraftProxy) -> Bool {
   store.has_localization_state(proxy.store)
   || !list.is_empty(store.list_effective_products(proxy.store))
+  || !list.is_empty(store.list_effective_collections(proxy.store))
 }
 
 fn fetch_and_hydrate_live_hybrid_query(
