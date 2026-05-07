@@ -258,14 +258,15 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
 The proxy runtime lives under `src/shopify_draft_proxy/` with tests under
 `test/`, and compiles to both Erlang/BEAM and JavaScript.
 
-- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables). Use
-  `GLEAM_PORT_LOG.md` only as historical context when older porting decisions
-  matter for the task.
+- **Read first:** `docs/gleam-runtime.md` for the public runtime surface.
+  Use `docs/GLEAM_PORT_LOG.md` only as historical context when older porting
+  decisions matter for the task.
 - **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
   `.agents/skills/gleam/SKILL.md`.
-- **Both targets, every change:** `gleam test --target erlang` AND
-  `gleam test --target javascript`. Drift between them is the most
-  expensive bug class.
+- **Runtime validation/toolchain workflow** (both JS/Erlang targets, Thompson
+  OTP 25, checked-in mise OTP 28, stale BEAM artifacts) lives in
+  `.agents/skills/gleam-runtime-validation/SKILL.md`. Use it before treating
+  local Erlang/OTP availability as a blocker or falling back to Docker.
 
 The legacy TypeScript runtime has been removed. Do not add TypeScript
 runtime behavior back under `src/`; new operation handling, fidelity

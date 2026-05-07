@@ -1,0 +1,43 @@
+{
+  "scenarioId": "price-list-delete-clears-fixed-prices",
+  "operationNames": ["priceListDelete", "catalog", "priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "delete-cascade", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/delete-cascades-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-delete-clears-fixed-prices-setup-read.graphql",
+    "variablesCapturePath": "$.priceListDeleteClearFixedPrices.setupRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Admin GraphQL 2026-04 capture creates a disposable price list attached to a market catalog and adds a fixed variant price before the setup read. After live priceListDelete, Shopify returns priceList(id:) as null and detaches the surviving catalog's priceList field. The proxy replay hydrates the captured fixed-price setup from cassette, stages priceListDelete locally, and compares the same downstream read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-delete-payload",
+        "capturePath": "$.priceListDeleteClearFixedPrices.delete.response.payload.data.priceListDelete",
+        "proxyPath": "$.data.priceListDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-delete-clears-fixed-prices-delete.graphql",
+          "variablesCapturePath": "$.priceListDeleteClearFixedPrices.delete.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "price-list-delete-clears-fixed-prices-downstream-read",
+        "capturePath": "$.priceListDeleteClearFixedPrices.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-delete-clears-fixed-prices-read.graphql",
+          "variablesCapturePath": "$.priceListDeleteClearFixedPrices.downstreamRead.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
