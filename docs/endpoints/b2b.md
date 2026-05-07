@@ -266,11 +266,14 @@ resolver runs, an update with no tax settings knob returns `NO_INPUT` at
 Company location create/update input validation enforces HAR-612's
 `billingSameAsShipping` and `billingAddress` guardrails before local staging:
 `billingSameAsShipping: true` rejects a non-empty explicit `billingAddress`,
-`billingSameAsShipping: false` rejects a missing or blank `billingAddress`, and
-explicit `taxExempt: null` rejects with `INVALID_INPUT`. `companyCreate`
-applies the same checks to its nested `companyLocation` input. The 2026-04
+`billingSameAsShipping: true` rejects missing or explicit null
+`shippingAddress` on create inputs, `billingSameAsShipping: false` rejects a
+missing or blank `billingAddress`, and explicit `taxExempt: null` rejects with
+`INVALID_INPUT`. `companyCreate` applies the same create checks to its nested
+`companyLocation` input. The 2026-04
 `b2b-billing-same-as-shipping-validation` capture gives strict executable
 evidence for the live-reproduced payload userErrors: explicit billing while
+`billingSameAsShipping` is true, missing/null shipping while
 `billingSameAsShipping` is true, and `taxExempt: null`, on `companyCreate` and
 `companyLocationCreate`. That capture also records public-schema boundaries:
 the active live target accepts the `billingSameAsShipping: false` / no billing
