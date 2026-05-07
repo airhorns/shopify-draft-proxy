@@ -1429,6 +1429,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-default-record-update-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-default-record-update-delete-conformance.ts',
+    purpose: 'SavedSearch update/delete behavior for persisted ORDER and DRAFT_ORDER default saved-search records.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-default-record-update-delete.json`,
+      'config/parity-specs/saved-searches/saved-search-default-record-update-delete.json',
+      'config/parity-requests/saved-searches/saved-search-default-records-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-default-record-update-order.graphql',
+      'config/parity-requests/saved-searches/saved-search-default-record-read-updated-order.graphql',
+      'config/parity-requests/saved-searches/saved-search-default-record-delete-draft-order.graphql',
+      'config/parity-requests/saved-searches/saved-search-default-record-read-deleted-draft-order.graphql',
+    ],
+    cleanupBehavior:
+      'Restores the updated ORDER default fields and recreates the deleted DRAFT_ORDER default by name/query/resourceType.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-query-grammar',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-query-grammar-conformance.ts',
