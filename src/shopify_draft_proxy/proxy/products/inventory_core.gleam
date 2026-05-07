@@ -597,6 +597,30 @@ pub fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
 }
 
 @internal
+pub fn valid_inventory_adjustment_reason(reason: String) -> Bool {
+  case reason {
+    "correction"
+    | "cycle_count_available"
+    | "damaged"
+    | "movement_canceled"
+    | "movement_created"
+    | "movement_received"
+    | "movement_updated"
+    | "other"
+    | "promotion"
+    | "quality_control"
+    | "received"
+    | "reservation_created"
+    | "reservation_deleted"
+    | "reservation_updated"
+    | "restock"
+    | "safety_stock"
+    | "shrinkage" -> True
+    _ -> False
+  }
+}
+
+@internal
 pub fn variant_tracks_inventory(variant: ProductVariantRecord) -> Bool {
   case variant.inventory_item {
     Some(item) ->
@@ -841,7 +865,21 @@ pub fn find_variable_definition_location_in_definitions(
 pub fn read_inventory_set_quantity_inputs(
   input: Dict(String, ResolvedValue),
 ) -> List(InventorySetQuantityInput) {
-  case dict.get(input, "quantities") {
+  read_inventory_set_quantity_inputs_from(input, "quantities")
+}
+
+@internal
+pub fn read_inventory_set_on_hand_quantity_inputs(
+  input: Dict(String, ResolvedValue),
+) -> List(InventorySetQuantityInput) {
+  read_inventory_set_quantity_inputs_from(input, "setQuantities")
+}
+
+fn read_inventory_set_quantity_inputs_from(
+  input: Dict(String, ResolvedValue),
+  field_name: String,
+) -> List(InventorySetQuantityInput) {
+  case dict.get(input, field_name) {
     Ok(ListVal(values)) ->
       list.filter_map(values, fn(value) {
         case value {
@@ -1352,6 +1390,15 @@ pub fn invalid_inventory_adjust_quantity_name_error(
     field,
     "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.",
     Some("INVALID"),
+  )
+}
+
+@internal
+pub fn invalid_inventory_adjustment_reason_error() -> ProductUserError {
+  ProductUserError(
+    ["input", "reason"],
+    "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
+    Some("INVALID_REASON"),
   )
 }
 

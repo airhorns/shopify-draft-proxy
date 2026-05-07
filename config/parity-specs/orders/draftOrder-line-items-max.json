@@ -1,0 +1,27 @@
+{
+  "scenarioId": "draftOrder-line-items-max",
+  "operationNames": ["draftOrderCreate", "draftOrderUpdate", "draftOrderCalculate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrder-line-items-max.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrder-line-items-max.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 max-input-size behavior for DraftOrderInput.lineItems. Shopify returns only top-level MAX_INPUT_SIZE_EXCEEDED errors for 500 line items on draftOrderCreate, draftOrderUpdate, and draftOrderCalculate; no mutation payload data is returned.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "line-items-max-errors",
+        "capturePath": "$.mutation.response.payload.errors",
+        "proxyPath": "$.errors"
+      }
+    ]
+  }
+}

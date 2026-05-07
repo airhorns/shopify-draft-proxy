@@ -80,6 +80,7 @@
               "name": "Codex Updated Definition",
               "description": "Updated locally.",
               "displayNameKey": "body",
+              "resetFieldOrder": true,
               "access": {
                 "storefront": "PUBLIC_READ"
               },

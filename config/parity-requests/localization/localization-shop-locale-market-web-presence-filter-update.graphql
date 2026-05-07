@@ -1,0 +1,19 @@
+mutation LocalizationShopLocaleMarketWebPresenceFilterUpdate($locale: String!, $shopLocale: ShopLocaleInput!) {
+  shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+    shopLocale {
+      locale
+      published
+      marketWebPresences {
+        id
+        __typename
+        defaultLocale {
+          locale
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

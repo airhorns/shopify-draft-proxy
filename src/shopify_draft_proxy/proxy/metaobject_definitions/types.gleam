@@ -207,6 +207,8 @@ pub fn build_create_definition_validation_errors(
   let name = read_string(input, "name")
   let description = read_string(input, "description")
   let access = read_object(input, "access")
+  let normalized_type =
+    normalized_definition_type_from_input(input, requesting_api_client_id)
   []
   |> append_if(
     is_missing_definition_type(type_),
@@ -235,10 +237,51 @@ pub fn build_create_definition_validation_errors(
     ),
   )
   |> append_definition_type_validation_errors(type_, requesting_api_client_id)
+  |> append_create_reserved_type_user_errors(
+    normalized_type,
+    read_bool(input, "implementStandardTemplate") == Some(True),
+  )
   |> append_create_field_definition_input_errors(
     read_list(input, "fieldDefinitions"),
-    normalized_definition_type_from_input(input, requesting_api_client_id),
+    normalized_type,
     read_string(input, "displayNameKey"),
+  )
+}
+
+@internal
+pub fn append_create_reserved_type_user_errors(
+  errors: List(UserError),
+  normalized_type: Option(String),
+  implement_standard_template: Bool,
+) -> List(UserError) {
+  case normalized_type, implement_standard_template {
+    Some(type_), False ->
+      append_if(
+        errors,
+        is_standard_template_type(type_)
+          || is_shopify_reserved_definition_type(type_),
+        reserved_definition_type_user_error(),
+      )
+    _, _ -> errors
+  }
+}
+
+@internal
+pub fn is_standard_template_type(type_: String) -> Bool {
+  case standard_template(type_) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+@internal
+pub fn reserved_definition_type_user_error() -> UserError {
+  UserError(
+    Some(["definition"]),
+    "Not authorized. This type is reserved for use by another application.",
+    "NOT_AUTHORIZED",
+    None,
+    None,
   )
 }
 
@@ -840,6 +883,10 @@ pub fn build_definition_from_create_input(
       name: read_string(input, "name"),
       description: read_string(input, "description"),
       display_name_key: read_string(input, "displayNameKey"),
+      online_store_url_handle: read_definition_online_store_url_handle(
+        read_object(input, "capabilities"),
+        None,
+      ),
       access: build_definition_access(
         read_object(input, "access"),
         default_definition_access(),
@@ -855,6 +902,11 @@ pub fn build_definition_from_create_input(
       has_thumbnail_field: Some(False),
       metaobjects_count: Some(0),
       standard_template: None,
+      standard_template_id: None,
+      standard_template_dependent_on_app: False,
+      app_config_managed: False,
+      enabled_by_shopify: False,
+      enabled_by_shopify_at: None,
       linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
@@ -939,6 +991,14 @@ fn apply_mutable_definition_update(
       name: name,
       description: description,
       display_name_key: display_name_key,
+      online_store_url_handle: case read_object(input, "capabilities") {
+        Some(capabilities) ->
+          read_definition_online_store_url_handle(
+            Some(capabilities),
+            existing.online_store_url_handle,
+          )
+        None -> existing.online_store_url_handle
+      },
       access: case read_object(input, "access") {
         Some(access) -> build_definition_access(Some(access), existing.access)
         None -> existing.access
@@ -1273,6 +1333,45 @@ pub fn linked_product_options_display_name_immutable_user_error() -> UserError {
 }
 
 @internal
+pub fn build_definition_delete_guard_user_errors(
+  definition: MetaobjectDefinitionRecord,
+) -> List(UserError) {
+  case definition.app_config_managed {
+    True -> [app_config_managed_delete_user_error()]
+    False ->
+      case
+        definition.standard_template_id,
+        definition.standard_template_dependent_on_app
+      {
+        Some(_), True -> [standard_definition_dependent_on_app_user_error()]
+        _, _ -> []
+      }
+  }
+}
+
+@internal
+pub fn app_config_managed_delete_user_error() -> UserError {
+  UserError(
+    Some(["id"]),
+    "App-managed metaobject definitions cannot be deleted by other apps.",
+    "APP_CONFIG_MANAGED",
+    None,
+    None,
+  )
+}
+
+@internal
+pub fn standard_definition_dependent_on_app_user_error() -> UserError {
+  UserError(
+    Some(["id"]),
+    "Standard metaobject definition is in use by an installed app.",
+    "STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP",
+    None,
+    None,
+  )
+}
+
+@internal
 pub fn build_update_definition_type_user_errors(
   store: Store,
   existing_id: String,
@@ -1365,6 +1464,7 @@ pub fn standard_template(
 pub fn build_standard_definition(
   identity: SyntheticIdentityRegistry,
   template: standard_templates.StandardMetaobjectTemplate,
+  enabled_by_shopify: Bool,
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
   let #(id, after_id) =
     synthetic_identity.make_proxy_synthetic_gid(
@@ -1379,15 +1479,31 @@ pub fn build_standard_definition(
       name: Some(template.name),
       description: template.description,
       display_name_key: Some(template.display_name_key),
+      online_store_url_handle: None,
       access: template.access,
       capabilities: template.capabilities,
       field_definitions: template.field_definitions,
       has_thumbnail_field: template.has_thumbnail_field,
       metaobjects_count: Some(0),
-      standard_template: Some(MetaobjectStandardTemplateRecord(
-        Some(template.type_),
-        Some(template.name),
-      )),
+      standard_template: Some(
+        MetaobjectStandardTemplateRecord(
+          type_: Some(template.type_),
+          name: Some(template.name),
+          enabled_by_shopify: enabled_by_shopify,
+          enabled_by_shopify_at: case enabled_by_shopify {
+            True -> Some(now)
+            False -> None
+          },
+        ),
+      ),
+      standard_template_id: Some(template.type_),
+      standard_template_dependent_on_app: False,
+      app_config_managed: False,
+      enabled_by_shopify: enabled_by_shopify,
+      enabled_by_shopify_at: case enabled_by_shopify {
+        True -> Some(now)
+        False -> None
+      },
       linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
@@ -3084,6 +3200,25 @@ pub fn merge_definition_capability(
         None -> base
       }
     None -> base
+  }
+}
+
+@internal
+pub fn read_definition_online_store_url_handle(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  base: Option(String),
+) -> Option(String) {
+  case raw {
+    None -> base
+    Some(capabilities) ->
+      case read_object(capabilities, "onlineStore") {
+        Some(online_store) ->
+          case read_object(online_store, "data") {
+            Some(data) -> read_string(data, "urlHandle") |> option.or(base)
+            None -> base
+          }
+        None -> base
+      }
   }
 }
 

@@ -1,0 +1,287 @@
+{
+  "capturedAt": "2026-05-07T11:28:02.378Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "localization-shop-locale-market-web-presence-filter",
+  "fabricatedWebPresenceId": "gid://shopify/MarketWebPresence/9999999999",
+  "setup": {
+    "request": {
+      "variables": {}
+    },
+    "response": {
+      "data": {
+        "allShopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null,
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "enable": {
+    "request": {
+      "variables": {
+        "locale": "fr",
+        "marketWebPresenceIds": [
+          "gid://shopify/MarketWebPresence/62842765618",
+          "gid://shopify/MarketWebPresence/9999999999"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleEnable": {
+          "shopLocale": {
+            "locale": "fr",
+            "published": false,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterEnable": {
+    "request": {
+      "variables": {}
+    },
+    "response": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "en",
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          },
+          {
+            "locale": "fr",
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "request": {
+      "variables": {
+        "locale": "fr",
+        "shopLocale": {
+          "marketWebPresenceIds": [
+            "gid://shopify/MarketWebPresence/62842765618",
+            "gid://shopify/MarketWebPresence/9999999999"
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleUpdate": {
+          "shopLocale": {
+            "locale": "fr",
+            "published": false,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUpdate": {
+    "request": {
+      "variables": {}
+    },
+    "response": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "en",
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          },
+          {
+            "locale": "fr",
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "shopLocaleDisable": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": "fr",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationShopLocaleMarketWebPresenceFilterSetup",
+      "variables": {},
+      "query": "query LocalizationShopLocaleMarketWebPresenceFilterSetup {\n  allShopLocales: shopLocales {\n    locale\n    name\n    primary\n    published\n    marketWebPresences {\n      id\n      subfolderSuffix\n      __typename\n      defaultLocale {\n        locale\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "allShopLocales": [
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": {
+                      "locale": "en"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -13,6 +13,17 @@ Shared helpers for GraphQL Admin proxy serializers.
 
 Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
 
+## `src/shopify_draft_proxy/proxy/handles.gleam`
+
+Shared helpers for Shopify-like handle normalization.
+
+- lowercases and dash-collapses captured separator runs
+- preserves Shopify-accepted non-Latin handle graphemes and underscores
+- applies captured Latin transliterations for localization handle translations
+- exposes the captured fallback handle used by punctuation-only handle translations
+
+Use this module before adding product-, collection-, localization-, or other resource-local handle slugification helpers. Resource-specific fallback families and uniqueness validation should stay in the owning mutation handler.
+
 ## `src/shopify_draft_proxy/proxy/app_identity.gleam`
 
 Shared helper for request-owned app identity.
@@ -20,6 +31,7 @@ Shared helper for request-owned app identity.
 - reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
 - trims blank values to `None`
 - resolves `$app:<suffix>` namespace shorthands to `app--<api_client_id>--<suffix>` when a request-owned API client ID is available, preserving the suffix bytes captured for webhook subscription namespace allowlists
+- reads the `x-shopify-draft-proxy-internal-visibility` header case-insensitively for local branches that emulate Shopify internal Admin visibility
 
 Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 
@@ -67,7 +79,7 @@ Use this module before adding resource-local custom-data parsers or serializers.
 
 ## `src/shopify_draft_proxy/search_query_parser.gleam`
 
-Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, term-list guards, and primitive term matching.
+Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, parsed field-name collection for allowlist validators, term-list guards, and primitive term matching.
 
 Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
 

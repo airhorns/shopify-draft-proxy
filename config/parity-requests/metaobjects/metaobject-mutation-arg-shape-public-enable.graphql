@@ -1,0 +1,17 @@
+mutation MetaobjectMutationArgShapePublicEnable {
+  standardMetaobjectDefinitionEnable(type: "shopify--color-pattern", enabledByShopify: true) {
+    metaobjectDefinition {
+      id
+      type
+      standardTemplate {
+        type
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

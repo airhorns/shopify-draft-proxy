@@ -1,0 +1,414 @@
+{
+  "capturedAt": "2026-05-07T08:18:13.660Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "metafieldAdd": {
+      "name": "metafieldAdd",
+      "query": "#graphql\nfragment LocationAddMetafieldFields on Location {\n  id\n  name\n  metafield(namespace: \"custom\", key: \"har1041\") {\n    id\n    namespace\n    key\n    value\n    type\n  }\n  metafields(first: 5, namespace: \"custom\") {\n    nodes {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n\nmutation LocationAddMetafields($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      ...LocationAddMetafieldFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Proxy Metafields 20260507081813",
+          "address": {
+            "address1": "3 Spadina",
+            "city": "Toronto",
+            "countryCode": "CA",
+            "zip": "M5T 2C4"
+          },
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "har1041",
+              "type": "single_line_text_field",
+              "value": "9-5"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112871833906",
+                "name": "Proxy Metafields 20260507081813",
+                "metafield": {
+                  "id": "gid://shopify/Metafield/43120290234674",
+                  "namespace": "custom",
+                  "key": "har1041",
+                  "value": "9-5",
+                  "type": "single_line_text_field"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43120290234674",
+                      "namespace": "custom",
+                      "key": "har1041",
+                      "value": "9-5",
+                      "type": "single_line_text_field"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "metafieldRead": {
+      "name": "metafieldRead",
+      "query": "#graphql\nfragment LocationAddMetafieldFields on Location {\n  id\n  name\n  metafield(namespace: \"custom\", key: \"har1041\") {\n    id\n    namespace\n    key\n    value\n    type\n  }\n  metafields(first: 5, namespace: \"custom\") {\n    nodes {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n\nquery LocationAddMetafieldsRead($id: ID!) {\n  location(id: $id) {\n    ...LocationAddMetafieldFields\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Location/112871833906"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112871833906",
+              "name": "Proxy Metafields 20260507081813",
+              "metafield": {
+                "id": "gid://shopify/Metafield/43120290234674",
+                "namespace": "custom",
+                "key": "har1041",
+                "value": "9-5",
+                "type": "single_line_text_field"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43120290234674",
+                    "namespace": "custom",
+                    "key": "har1041",
+                    "value": "9-5",
+                    "type": "single_line_text_field"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidMetafieldType": {
+      "name": "invalidMetafieldType",
+      "query": "#graphql\nfragment LocationAddMetafieldFields on Location {\n  id\n  name\n  metafield(namespace: \"custom\", key: \"har1041\") {\n    id\n    namespace\n    key\n    value\n    type\n  }\n  metafields(first: 5, namespace: \"custom\") {\n    nodes {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n\nmutation LocationAddMetafields($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      ...LocationAddMetafieldFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Proxy Invalid Metafield 20260507081813",
+          "address": {
+            "countryCode": "CA"
+          },
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "har1041",
+              "type": "bogus_type",
+              "value": "x"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": null,
+              "userErrors": [
+                {
+                  "field": ["input", "metafields", "0", "type"],
+                  "message": "Type must be one of the following: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, float, frequency, id, illuminance, inductance, integer, json_string, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.boolean, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.multi_line_text_field, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, string, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
+                  "code": "INVALID_TYPE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "blankMetafieldValue": {
+      "name": "blankMetafieldValue",
+      "query": "#graphql\nfragment LocationAddMetafieldFields on Location {\n  id\n  name\n  metafield(namespace: \"custom\", key: \"har1041\") {\n    id\n    namespace\n    key\n    value\n    type\n  }\n  metafields(first: 5, namespace: \"custom\") {\n    nodes {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n\nmutation LocationAddMetafields($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      ...LocationAddMetafieldFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Proxy Blank Metafield Value 20260507081813",
+          "address": {
+            "countryCode": "CA"
+          },
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "har1041_blank",
+              "type": "single_line_text_field",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112871866674",
+                "name": "Proxy Blank Metafield Value 20260507081813",
+                "metafield": null,
+                "metafields": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "blankMetafieldKey": {
+      "name": "blankMetafieldKey",
+      "query": "#graphql\nfragment LocationAddMetafieldFields on Location {\n  id\n  name\n  metafield(namespace: \"custom\", key: \"har1041\") {\n    id\n    namespace\n    key\n    value\n    type\n  }\n  metafields(first: 5, namespace: \"custom\") {\n    nodes {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n\nmutation LocationAddMetafields($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      ...LocationAddMetafieldFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Proxy Blank Metafield 20260507081813",
+          "address": {
+            "countryCode": "CA"
+          },
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "",
+              "type": "single_line_text_field",
+              "value": "x"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "key can't be blank",
+              "locations": [
+                {
+                  "line": 28,
+                  "column": 3
+                },
+                {
+                  "line": 27,
+                  "column": 32
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["locationAdd"]
+            }
+          ],
+          "data": {
+            "locationAdd": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanupDeactivate-metafieldAdd",
+      "query": "#graphql\n  mutation LocationAddMetafieldsCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112871833906",
+        "idempotencyKey": "location-add-metafields-cleanup-metafieldAdd-20260507081813-112871833906"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112871833906",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete-metafieldAdd",
+      "query": "#graphql\n  mutation LocationAddMetafieldsCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112871833906"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112871833906",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDeactivate-blankMetafieldValue",
+      "query": "#graphql\n  mutation LocationAddMetafieldsCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112871866674",
+        "idempotencyKey": "location-add-metafields-cleanup-blankMetafieldValue-20260507081813-112871866674"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112871866674",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete-blankMetafieldValue",
+      "query": "#graphql\n  mutation LocationAddMetafieldsCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112871866674"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112871866674",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -66,6 +66,11 @@ const customerSetMutation = `#graphql
   }
 `;
 
+const customerSetIdNotAllowedMutation = await readFile(
+  'config/parity-requests/customers/customer-set-id-not-allowed.graphql',
+  'utf8',
+);
+
 const downstreamReadQuery = `#graphql
   query CustomerSetDownstream($createdId: ID!, $upsertedId: ID!, $upsertedEmail: String!, $query: String!, $first: Int!) {
     created: customer(id: $createdId) {
@@ -112,6 +117,29 @@ const deleteMutation = `#graphql
 
 async function runCustomerSet(variables) {
   return runGraphql(customerSetMutation, variables);
+}
+
+async function runCustomerSetIdNotAllowed(variables) {
+  return runGraphql(customerSetIdNotAllowedMutation, variables);
+}
+
+function assertIdNotAllowed(result, context) {
+  assertNoTopLevelErrors(result, context);
+  const userErrors = result.payload?.data?.customerSet?.userErrors;
+  if (!Array.isArray(userErrors) || userErrors.length !== 1) {
+    throw new Error(`${context} did not return exactly one userError: ${JSON.stringify(result.payload, null, 2)}`);
+  }
+  const [error] = userErrors;
+  if (
+    JSON.stringify(error.field) !== JSON.stringify(['input']) ||
+    error.message !== 'The id field is not allowed if identifier is provided.' ||
+    error.code !== 'ID_NOT_ALLOWED'
+  ) {
+    throw new Error(`${context} returned unexpected userError: ${JSON.stringify(error, null, 2)}`);
+  }
+  if (result.payload?.data?.customerSet?.customer !== null) {
+    throw new Error(`${context} unexpectedly returned a customer: ${JSON.stringify(result.payload, null, 2)}`);
+  }
 }
 
 async function main() {
@@ -352,6 +380,52 @@ async function main() {
     throw new Error(`customerSet customId branch unexpectedly succeeded: ${JSON.stringify(customId.payload, null, 2)}`);
   }
 
+  const inputId = 'gid://shopify/Customer/999999999999998';
+  const idNotAllowedByIdVariables = {
+    identifier: { id: createdCustomerId },
+    input: {
+      id: inputId,
+      email: `customer-set-id-not-allowed-id-${stamp}@example.com`,
+      firstName: 'IdNotAllowed',
+    },
+  };
+  const idNotAllowedById = await runCustomerSetIdNotAllowed(idNotAllowedByIdVariables);
+  assertIdNotAllowed(idNotAllowedById, 'customerSet input.id with identifier.id validation');
+
+  const idNotAllowedByEmailVariables = {
+    identifier: { email: `customer-set-id-not-allowed-email-${stamp}@example.com` },
+    input: {
+      id: inputId,
+      email: `customer-set-id-not-allowed-email-${stamp}@example.com`,
+      firstName: 'IdNotAllowed',
+    },
+  };
+  const idNotAllowedByEmail = await runCustomerSetIdNotAllowed(idNotAllowedByEmailVariables);
+  assertIdNotAllowed(idNotAllowedByEmail, 'customerSet input.id with identifier.email validation');
+
+  const idNotAllowedByPhoneVariables = {
+    identifier: { phone: `+1${String(stamp + 3).slice(-10)}` },
+    input: {
+      id: inputId,
+      phone: `+1${String(stamp + 3).slice(-10)}`,
+      firstName: 'IdNotAllowed',
+    },
+  };
+  const idNotAllowedByPhone = await runCustomerSetIdNotAllowed(idNotAllowedByPhoneVariables);
+  assertIdNotAllowed(idNotAllowedByPhone, 'customerSet input.id with identifier.phone validation');
+
+  const idNotAllowedByCustomIdVariables = {
+    identifier: {
+      customId: { namespace: 'custom', key: 'external_id', value: `customer-set-id-not-allowed-${stamp}` },
+    },
+    input: {
+      id: inputId,
+      firstName: 'IdNotAllowed',
+    },
+  };
+  const idNotAllowedByCustomId = await runCustomerSetIdNotAllowed(idNotAllowedByCustomIdVariables);
+  assertIdNotAllowed(idNotAllowedByCustomId, 'customerSet input.id with identifier.customId validation');
+
   const deletedIdentifierCleanup = await runGraphql(deleteMutation, { input: { id: phoneUpsertedCustomerId } });
   cleanupIds.delete(phoneUpsertedCustomerId);
   const deletedIdentifierVariables = {
@@ -367,6 +441,7 @@ async function main() {
   }
 
   const capture = {
+    expectedEmptyMutationLog: [],
     mutation: {
       variables: createVariables,
       response: createResult.payload,
@@ -415,6 +490,24 @@ async function main() {
       customId: {
         variables: customIdVariables,
         response: customId.payload,
+      },
+      idNotAllowed: {
+        byId: {
+          variables: idNotAllowedByIdVariables,
+          response: idNotAllowedById.payload,
+        },
+        byEmail: {
+          variables: idNotAllowedByEmailVariables,
+          response: idNotAllowedByEmail.payload,
+        },
+        byPhone: {
+          variables: idNotAllowedByPhoneVariables,
+          response: idNotAllowedByPhone.payload,
+        },
+        byCustomId: {
+          variables: idNotAllowedByCustomIdVariables,
+          response: idNotAllowedByCustomId.payload,
+        },
       },
       duplicateEmail: {
         variables: duplicateEmailVariables,

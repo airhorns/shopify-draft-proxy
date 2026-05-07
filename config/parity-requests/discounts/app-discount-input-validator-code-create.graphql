@@ -1,0 +1,15 @@
+mutation AppDiscountInputValidatorCodeCreate($input: DiscountCodeAppInput!) {
+  discountCodeAppCreate(codeAppDiscount: $input) {
+    codeAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

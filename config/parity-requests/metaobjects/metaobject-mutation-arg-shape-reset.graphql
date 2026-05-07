@@ -1,0 +1,12 @@
+mutation MetaobjectMutationArgShapeTopLevelReset($id: ID!) {
+  metaobjectDefinitionUpdate(id: $id, resetFieldOrder: true, definition: { name: "Arg Shape Probe" }) {
+    metaobjectDefinition {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,28 @@
+mutation B2BLocationDeleteCheckCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      mainContact {
+        id
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+      contactRoles(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

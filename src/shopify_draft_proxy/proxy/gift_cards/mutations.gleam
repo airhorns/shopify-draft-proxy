@@ -141,6 +141,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream,
                 "CREDIT",
                 "creditAmount",
                 "creditInput",
@@ -154,6 +155,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream,
                 "DEBIT",
                 "debitAmount",
                 "debitInput",
@@ -939,6 +941,39 @@ query GiftCardCreateConfiguration {
   }
 }
 
+fn maybe_hydrate_gift_card_configuration_for_credit(
+  store: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  case configured_issue_limit(store) {
+    Some(_) -> store
+    None -> {
+      let query =
+        "
+query GiftCardCreditConfiguration {
+  giftCardConfiguration {
+    issueLimit { amount currencyCode }
+    purchaseLimit { amount currencyCode }
+  }
+}
+"
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "GiftCardCreditConfiguration",
+          query,
+          json.object([]),
+        )
+      {
+        Ok(value) -> hydrate_gift_card_from_upstream_response(store, value)
+        Error(_) -> store
+      }
+    }
+  }
+}
+
 fn gift_card_create_issue_limit_user_error(
   store: Store,
   initial_value: Money,
@@ -1207,6 +1242,7 @@ fn handle_gift_card_transaction(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
   kind: String,
   preferred_amount_key: String,
   preferred_input_key: String,
@@ -1219,15 +1255,21 @@ fn handle_gift_card_transaction(
   let raw_money =
     read_mutation_money(args, preferred_amount_key, preferred_input_key)
   let magnitude = parse_decimal_amount(root_field.StringVal(raw_money.amount))
+  let store_for_validation = case kind {
+    "CREDIT" ->
+      maybe_hydrate_gift_card_configuration_for_credit(store, upstream)
+    _ -> store
+  }
   let existing =
     id
     |> option.then(fn(value) {
-      store.get_effective_gift_card_by_id(store, value)
+      store.get_effective_gift_card_by_id(store_for_validation, value)
     })
   let processed_at_explicit =
     read_mutation_processed_at(args, preferred_input_key)
   let validation_error =
     validate_gift_card_transaction(
+      store_for_validation,
       existing,
       raw_money,
       magnitude,
@@ -1246,7 +1288,7 @@ fn handle_gift_card_transaction(
         field,
         fragments,
         variables,
-        store,
+        store_for_validation,
         identity,
       )
     Some(current), None -> {
@@ -1289,7 +1331,8 @@ fn handle_gift_card_transaction(
           updated_at: now,
           transactions: list.append(current.transactions, [transaction]),
         )
-      let #(_, store_after) = store.stage_update_gift_card(store, updated)
+      let #(_, store_after) =
+        store.stage_update_gift_card(store_for_validation, updated)
       let payload =
         GiftCardPayload(
           gift_card: Some(updated),
@@ -1323,7 +1366,7 @@ fn handle_gift_card_transaction(
         field,
         fragments,
         variables,
-        store,
+        store_for_validation,
         identity,
       )
   }
@@ -1360,6 +1403,7 @@ fn gift_card_transaction_error_result(
 }
 
 fn validate_gift_card_transaction(
+  store: Store,
   existing: Option(GiftCardRecord),
   raw_money: Money,
   magnitude: Float,
@@ -1380,6 +1424,7 @@ fn validate_gift_card_transaction(
         None -> Some(not_found_user_error())
         Some(current) ->
           validate_existing_gift_card_transaction(
+            store,
             current,
             raw_money,
             magnitude,
@@ -1393,6 +1438,7 @@ fn validate_gift_card_transaction(
 }
 
 fn validate_existing_gift_card_transaction(
+  store: Store,
   current: GiftCardRecord,
   raw_money: Money,
   magnitude: Float,
@@ -1412,6 +1458,7 @@ fn validate_existing_gift_card_transaction(
               Some(invalid_user_error(["id"], "The gift card is deactivated."))
             True ->
               validate_gift_card_transaction_money(
+                store,
                 current,
                 raw_money,
                 magnitude,
@@ -1464,6 +1511,7 @@ fn validate_processed_at(
 }
 
 fn validate_gift_card_transaction_money(
+  store: Store,
   current: GiftCardRecord,
   raw_money: Money,
   magnitude: Float,
@@ -1491,9 +1539,47 @@ fn validate_gift_card_transaction_money(
             code: Some("INSUFFICIENT_FUNDS"),
             message: "The gift card does not have sufficient funds to satisfy the request.",
           ))
-        False -> None
+        False ->
+          gift_card_credit_limit_user_error(
+            store,
+            current,
+            magnitude,
+            kind,
+            preferred_amount_key,
+            preferred_input_key,
+          )
       }
     }
+  }
+}
+
+fn gift_card_credit_limit_user_error(
+  store: Store,
+  current: GiftCardRecord,
+  magnitude: Float,
+  kind: String,
+  preferred_amount_key: String,
+  preferred_input_key: String,
+) -> Option(gift_card_types.UserError) {
+  case kind {
+    "CREDIT" -> {
+      let current_balance =
+        parse_decimal_amount(root_field.StringVal(current.balance.amount))
+      case configured_issue_limit(store) {
+        Some(#(_, limit_amount)) ->
+          case current_balance +. magnitude >. limit_amount {
+            True ->
+              Some(gift_card_types.UserError(
+                field: [preferred_input_key, preferred_amount_key, "amount"],
+                code: Some("GIFT_CARD_LIMIT_EXCEEDED"),
+                message: "The gift card's value exceeds the allowed limits.",
+              ))
+            False -> None
+          }
+        None -> None
+      }
+    }
+    _ -> None
   }
 }
 

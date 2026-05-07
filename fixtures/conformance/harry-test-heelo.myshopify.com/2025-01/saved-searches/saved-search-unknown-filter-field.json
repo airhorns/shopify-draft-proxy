@@ -1,10 +1,11 @@
 {
-  "capturedAt": "2026-05-06T02:27:33.370Z",
+  "capturedAt": "2026-05-07T11:28:04.252Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "token": "SSF-motft0f4",
+  "token": "SSF-movejytu",
   "notes": [
     "SavedSearch PRODUCT create rejects made_up_filter as an invalid filter with field [\"input\", \"query\"].",
+    "SavedSearch PRODUCT update rejects made_up_filter as an invalid filter with field [\"input\", \"query\"].",
     "SavedSearch PRODUCT create accepts vendor as a valid filter and returns an empty userErrors list.",
     "The positive-control saved search is deleted during cleanup."
   ],
@@ -13,12 +14,12 @@
     "variables": {
       "unknownProduct": {
         "resourceType": "PRODUCT",
-        "name": "Unknown Filter SSF-motft0f4",
+        "name": "Unknown Filter SSF-movejytu",
         "query": "made_up_filter:foo"
       },
       "productPositive": {
         "resourceType": "PRODUCT",
-        "name": "Known Vendor SSF-motft0f4",
+        "name": "Known Vendor SSF-movejytu",
         "query": "vendor:Acme"
       }
     },
@@ -35,8 +36,8 @@
         },
         "productPositive": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4008061763890",
-            "name": "Known Vendor SSF-motft0f4",
+            "id": "gid://shopify/SavedSearch/4008950333746",
+            "name": "Known Vendor SSF-movejytu",
             "query": "vendor:Acme",
             "resourceType": "PRODUCT",
             "filters": [
@@ -60,19 +61,57 @@
           }
         }
       }
+    },
+    "updateUnknownProduct": {
+      "documentPath": "config/parity-requests/saved-searches/saved-search-unknown-filter-field-update.graphql",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/SavedSearch/4008950333746",
+          "query": "made_up_filter:foo"
+        }
+      },
+      "payload": {
+        "data": {
+          "savedSearchUpdate": {
+            "savedSearch": {
+              "id": "gid://shopify/SavedSearch/4008950333746",
+              "name": "Known Vendor SSF-movejytu",
+              "query": "made_up_filter:foo",
+              "resourceType": "PRODUCT"
+            },
+            "userErrors": [
+              {
+                "field": ["input", "query"],
+                "message": "Query is invalid, 'made_up_filter' is not a valid filter"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     }
   },
   "cleanupDelete": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4008061763890"
+        "id": "gid://shopify/SavedSearch/4008950333746"
       }
     },
     "payload": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4008061763890",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4008950333746",
           "userErrors": []
         }
       },
@@ -82,7 +121,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1985,
             "restoreRate": 100
           }
         }
