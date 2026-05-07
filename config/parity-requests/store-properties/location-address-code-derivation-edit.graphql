@@ -1,0 +1,19 @@
+mutation LocationAddressCodeDerivationEdit($id: ID!, $input: LocationEditInput!) {
+  locationEdit(id: $id, input: $input) {
+    location {
+      id
+      name
+      address {
+        country
+        countryCode
+        province
+        provinceCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

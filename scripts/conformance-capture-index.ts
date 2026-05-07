@@ -4104,6 +4104,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-address-code-derivation',
+    scriptPath: 'scripts/capture-location-address-code-derivation-conformance.mts',
+    purpose:
+      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode plus immediate read-after-write behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-address-code-derivation.json`,
+      'config/parity-specs/store-properties/location-address-code-derivation.json',
+      'config/parity-requests/store-properties/location-address-code-derivation-add.graphql',
+      'config/parity-requests/store-properties/location-address-code-derivation-edit.graphql',
+      'config/parity-requests/store-properties/location-address-code-derivation-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable non-online-fulfilling GB, AU, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-edit-fields-and-state-machine',
     scriptPath: 'scripts/capture-location-edit-fields-and-state-machine-conformance.mts',
     purpose:

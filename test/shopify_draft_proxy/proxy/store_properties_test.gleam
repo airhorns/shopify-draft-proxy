@@ -779,6 +779,62 @@ pub fn location_add_stages_address_defaults_test() {
   )
 }
 
+pub fn location_add_derives_country_and_province_names_from_codes_test() {
+  let gb_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"GB\\\", address: { countryCode: GB } }) { location { id name address { country countryCode province provinceCode } } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: gb_status, body: gb_json, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(gb_body))
+  let gb_serialized = json.to_string(gb_json)
+
+  assert gb_status == 200
+  assert string.contains(gb_serialized, "\"userErrors\":[]")
+  assert string.contains(gb_serialized, "\"country\":\"United Kingdom\"")
+  assert string.contains(gb_serialized, "\"countryCode\":\"GB\"")
+  assert string.contains(gb_serialized, "\"province\":null")
+  assert string.contains(gb_serialized, "\"provinceCode\":null")
+
+  let au_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"AU\\\", address: { countryCode: AU, provinceCode: \\\"NSW\\\" } }) { location { id name address { country countryCode province provinceCode } } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: au_status, body: au_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(au_body))
+  let au_serialized = json.to_string(au_json)
+
+  assert au_status == 200
+  assert string.contains(au_serialized, "\"userErrors\":[]")
+  assert string.contains(au_serialized, "\"country\":\"Australia\"")
+  assert string.contains(au_serialized, "\"countryCode\":\"AU\"")
+  assert string.contains(au_serialized, "\"province\":\"New South Wales\"")
+  assert string.contains(au_serialized, "\"provinceCode\":\"NSW\"")
+
+  let fallback_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"ZZ\\\", address: { countryCode: ZZ, provinceCode: \\\"UNKNOWN\\\" } }) { location { id name address { country countryCode province provinceCode } } userErrors { field message code } } }\"}"
+  let #(
+    proxy_state.Response(status: fallback_status, body: fallback_json, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(fallback_body))
+  let fallback_serialized = json.to_string(fallback_json)
+
+  assert fallback_status == 200
+  assert string.contains(fallback_serialized, "\"userErrors\":[]")
+  assert string.contains(fallback_serialized, "\"country\":\"ZZ\"")
+  assert string.contains(fallback_serialized, "\"countryCode\":\"ZZ\"")
+  assert string.contains(fallback_serialized, "\"province\":\"UNKNOWN\"")
+  assert string.contains(fallback_serialized, "\"provinceCode\":\"UNKNOWN\"")
+
+  let read_body =
+    "{\"query\":\"query { gb: location(id: \\\"gid://shopify/Location/1\\\") { name address { country countryCode province provinceCode } } au: location(id: \\\"gid://shopify/Location/3\\\") { name address { country countryCode province provinceCode } } fallback: location(id: \\\"gid://shopify/Location/5\\\") { name address { country countryCode province provinceCode } } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_json)
+
+  assert read_status == 200
+  assert string.contains(read_serialized, "\"country\":\"United Kingdom\"")
+  assert string.contains(read_serialized, "\"country\":\"Australia\"")
+  assert string.contains(read_serialized, "\"province\":\"New South Wales\"")
+  assert string.contains(read_serialized, "\"country\":\"ZZ\"")
+  assert string.contains(read_serialized, "\"province\":\"UNKNOWN\"")
+}
+
 pub fn location_add_honors_explicit_fulfills_online_orders_false_test() {
   let body =
     "{\"query\":\"mutation { locationAdd(input: { name: \\\"Sub\\\", address: { city: \\\"Toronto\\\", countryCode: CA }, fulfillsOnlineOrders: false }) { location { id fulfillsOnlineOrders address { city countryCode } } userErrors { field message code } } }\"}"
@@ -1195,6 +1251,56 @@ pub fn location_edit_updates_address_fulfillment_and_metafields_test() {
   assert string.contains(read, "\"fulfillsOnlineOrders\":false")
   assert string.contains(read, "\"city\":\"Toronto\"")
   assert string.contains(read, "\"value\":\"1\"")
+}
+
+pub fn location_edit_derives_province_name_from_existing_country_code_test() {
+  let location =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Main")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(True)),
+      #(
+        "address",
+        location_address(
+          "1 Test St",
+          "Toronto",
+          "Canada",
+          "CA",
+          "QC",
+          "M5T 2C2",
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, location),
+    )
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id address { country countryCode province provinceCode } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"address\":{\"provinceCode\":\"ON\"}}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"country\":\"Canada\"")
+  assert string.contains(serialized, "\"countryCode\":\"CA\"")
+  assert string.contains(serialized, "\"province\":\"Ontario\"")
+  assert string.contains(serialized, "\"provinceCode\":\"ON\"")
+
+  let read_body =
+    "{\"query\":\"query($id: ID!) { location(id: $id) { address { country countryCode province provinceCode } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\"}}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read = json.to_string(read_json)
+
+  assert read_status == 200
+  assert string.contains(read, "\"country\":\"Canada\"")
+  assert string.contains(read, "\"countryCode\":\"CA\"")
+  assert string.contains(read, "\"province\":\"Ontario\"")
+  assert string.contains(read, "\"provinceCode\":\"ON\"")
 }
 
 pub fn location_edit_rejects_duplicate_name_without_staging_test() {
