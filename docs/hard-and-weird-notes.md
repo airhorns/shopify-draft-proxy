@@ -64,6 +64,21 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: paymentTermsCreate public Order eligibility differs from internal notes
+
+A 2026-04 `paymentTermsCreate` Order-owner eligibility capture against
+disposable test Orders showed that the public API rejects paid Orders with
+`field: null`, `PAYMENT_TERMS_CREATION_UNSUCCESSFUL`, and the paid-in-full
+message before creating payment terms. The same capture accepted unpaid closed
+and cancelled Orders, returning `paymentTerms.id` and empty `userErrors`,
+contrary to the internal-source expectation that closed/cancelled Orders would
+be rejected as not pending or partially paid.
+
+Practical rule: model the recorded public Admin behavior for this proxy unless a
+new version-specific capture proves Shopify changed the public API branch. The
+checked-in anchor is
+`config/parity-specs/payments/payment-terms-create-order-eligibility.json`.
+
 ## Current: Customer address Atlas validation normalizes some apparent conflicts
 
 HAR-776 captured Admin GraphQL 2025-01 customer address validation against
