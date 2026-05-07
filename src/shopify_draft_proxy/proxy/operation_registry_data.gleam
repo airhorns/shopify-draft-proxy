@@ -3828,7 +3828,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages local inventory adjustments. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route while preserving 2025-01 fixture behavior.",
+        "Stages local inventory adjustments. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route while preserving 2025-01 fixture behavior. Unknown public adjustment reasons are rejected before staging.",
       ),
     ),
     RegistryEntry(
@@ -3840,7 +3840,22 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["inventorySetQuantities", "InventorySetQuantities"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities uses compareQuantity/ignoreCompareQuantity, mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route.",
+        "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities uses compareQuantity/ignoreCompareQuantity, mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route. Unknown public adjustment reasons are rejected before staging.",
+      ),
+    ),
+    RegistryEntry(
+      name: "inventorySetOnHandQuantities",
+      type_: Mutation,
+      domain: Products,
+      execution: StageLocally,
+      implemented: True,
+      match_names: [
+        "inventorySetOnHandQuantities",
+        "InventorySetOnHandQuantities",
+      ],
+      runtime_tests: ["test/parity_test.gleam"],
+      support_notes: Some(
+        "Deprecated Shopify inventory set-on-hand mutation modeled as an on_hand inventory quantity set over product-backed inventory levels. Unknown adjustment reasons are rejected locally before staging.",
       ),
     ),
     RegistryEntry(
@@ -3852,7 +3867,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["inventoryMoveQuantities", "InventoryMoveQuantities"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag.",
+        "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag. Unknown public adjustment reasons are rejected before staging.",
       ),
     ),
     RegistryEntry(

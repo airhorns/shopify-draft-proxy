@@ -2411,7 +2411,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -3199,11 +3199,15 @@ Captured facts:
 - `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
 - `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
 - selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+- On the captured 2025-01 shop, `giftCardConfiguration.issueLimit` was `3000.0 CAD` while `purchaseLimit` was `14000.0 CAD`; a card created at exactly the issue limit rejected a one-cent `giftCardCredit` with `GIFT_CARD_LIMIT_EXCEEDED`, so credit limit validation follows the issue-limit ceiling rather than the larger purchase limit in this public Admin path
+- The credit over-limit message is not the create-time formatted limit message. Public Admin returned `The gift card's value exceeds the allowed limits.` on `["creditInput", "creditAmount", "amount"]`
+- A one-cent `giftCardDebit` after the rejected credit succeeded with empty `userErrors`; debit decreases balance and did not surface `GIFT_CARD_LIMIT_EXCEEDED` in this path
 
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
+- credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

@@ -107,6 +107,9 @@ pub type FileRecord {
     image_url: Option(String),
     image_width: Option(Int),
     image_height: Option(Int),
+    preview_image_url: Option(String),
+    preview_image_width: Option(Int),
+    preview_image_height: Option(Int),
     update_failure_acknowledged_at: Option(String),
   )
 }

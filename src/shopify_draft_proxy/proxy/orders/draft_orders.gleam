@@ -14,8 +14,10 @@ import gleam/option.{type Option, None, Some}
 
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/location as graphql_location
 
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_field_response_key,
@@ -67,6 +69,8 @@ import shopify_draft_proxy/state/types.{
   CapturedString, DraftOrderRecord,
 }
 
+pub const draft_order_line_items_max_input_size = 499
+
 @internal
 pub fn handle_draft_order_create(
   store: Store,
@@ -102,63 +106,98 @@ pub fn handle_draft_order_create(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          // Pattern 2: draftOrderCreate stays local, but real variant IDs in
-          // captured inputs need a narrow upstream variant/catalog hydration.
-          let hydrated_store =
-            maybe_hydrate_draft_order_variant_catalog_from_input(
-              store,
+          let max_input_errors =
+            validate_draft_order_line_items_max_input_size(
+              "draftOrderCreate",
+              document,
+              field,
               input,
-              upstream,
             )
-            |> maybe_hydrate_draft_order_customer_from_input(input, upstream)
-          let user_errors =
-            validate_draft_order_create_input(hydrated_store, input)
-          case user_errors {
+          case max_input_errors {
+            [_, ..] -> #(
+              key,
+              json.null(),
+              store,
+              identity,
+              [],
+              max_input_errors,
+              [],
+            )
             [] -> {
-              let #(draft_order, next_identity) =
-                build_draft_order_from_input(hydrated_store, identity, input)
-              let next_store =
-                store.stage_draft_order(hydrated_store, draft_order)
-              let payload =
-                serialize_draft_order_mutation_payload(
-                  field,
-                  Some(draft_order),
-                  [],
-                  fragments,
+              // Pattern 2: draftOrderCreate stays local, but real variant IDs in
+              // captured inputs need a narrow upstream variant/catalog hydration.
+              let hydrated_store =
+                maybe_hydrate_draft_order_variant_catalog_from_input(
+                  store,
+                  input,
+                  upstream,
                 )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderCreate",
-                  [draft_order.id],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged draftOrderCreate in shopify-draft-proxy.",
-                  ),
+                |> maybe_hydrate_draft_order_customer_from_input(
+                  input,
+                  upstream,
                 )
-              #(key, payload, next_store, next_identity, [draft_order.id], [], [
-                draft,
-              ])
-            }
-            _ -> {
-              let payload =
-                serialize_draft_order_nullable_error_payload(
-                  field,
-                  None,
-                  user_errors,
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderCreate",
-                  [],
-                  store_types.Failed,
-                  "orders",
-                  "stage-locally",
-                  Some("Locally rejected draftOrderCreate validation branch."),
-                )
-              #(key, payload, store, identity, [], [], [draft])
+              let user_errors =
+                validate_draft_order_create_input(hydrated_store, input)
+              case user_errors {
+                [] -> {
+                  let #(draft_order, next_identity) =
+                    build_draft_order_from_input(
+                      hydrated_store,
+                      identity,
+                      input,
+                    )
+                  let next_store =
+                    store.stage_draft_order(hydrated_store, draft_order)
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      Some(draft_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCreate",
+                      [draft_order.id],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged draftOrderCreate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(
+                    key,
+                    payload,
+                    next_store,
+                    next_identity,
+                    [draft_order.id],
+                    [],
+                    [draft],
+                  )
+                }
+                _ -> {
+                  let payload =
+                    serialize_draft_order_nullable_error_payload(
+                      field,
+                      None,
+                      user_errors,
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCreate",
+                      [],
+                      store_types.Failed,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally rejected draftOrderCreate validation branch.",
+                      ),
+                    )
+                  #(key, payload, store, identity, [], [], [draft])
+                }
+              }
             }
           }
         }
@@ -556,6 +595,87 @@ pub fn source_order_line_item_variant(
           ])
         None -> CapturedNull
       }
+  }
+}
+
+@internal
+pub fn validate_draft_order_line_items_max_input_size(
+  operation_name: String,
+  document: String,
+  field: Selection,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  let line_item_count = draft_order_line_items_input_size(input)
+  case line_item_count > draft_order_line_items_max_input_size {
+    True -> [
+      draft_order_line_items_max_input_size_error(
+        operation_name,
+        document,
+        field,
+        line_item_count,
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn draft_order_line_items_input_size(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Int {
+  case dict.get(input, "lineItems") {
+    Ok(root_field.ListVal(items)) -> list.length(items)
+    _ -> 0
+  }
+}
+
+fn draft_order_line_items_max_input_size_error(
+  operation_name: String,
+  document: String,
+  field: Selection,
+  line_item_count: Int,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(line_item_count)
+        <> " is greater than the maximum allowed of "
+        <> int.to_string(draft_order_line_items_max_input_size)
+        <> ".",
+      ),
+    ),
+  ]
+  let with_locations = case field_location(field, document) {
+    Some(locations) -> list.append(base, [#("locations", locations)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", json.array([operation_name, "input", "lineItems"], json.string)),
+      #(
+        "extensions",
+        json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+      ),
+    ]),
+  )
+}
+
+fn field_location(field: Selection, document: String) -> Option(Json) {
+  case field {
+    Field(loc: Some(loc), ..) -> {
+      let source = graphql_source.new(document)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Some(
+        json.preprocessed_array([
+          json.object([
+            #("line", json.int(computed.line)),
+            #("column", json.int(computed.column)),
+          ]),
+        ]),
+      )
+    }
+    _ -> None
   }
 }
 

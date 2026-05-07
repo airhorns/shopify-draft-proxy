@@ -1,0 +1,269 @@
+{
+  "scenarioId": "media-staged-uploads-create-non-merchandising",
+  "operationNames": ["stagedUploadsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "graphql-validation-parity", "access-scope-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-staged-uploads-create-non-merchandising.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify Admin GraphQL 2026-04 stagedUploadsCreate target metadata for non-merchandising resources. BULK_MUTATION_VARIABLES, URL_REDIRECT_IMPORT, RETURN_LABEL, and DISPUTE_FILE_UPLOAD share the Google form POST shape; each captured PUT case uses the two-field PUT shape. SHOP_IMAGE is present in the enum but returns ACCESS_DENIED with the current conformance app scopes. CUSTOMER_IMPORT, INVENTORY_IMPORT, ARTICLE_IMAGE, THEME_ARCHIVE, and TRANSLATIONS_IMPORT are not public 2026-04 enum values on this store and are compared as INVALID_VARIABLE schema rejections.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulk-mutation-variables-post-target",
+        "capturePath": "$.cases[0].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage URLs; the proxy returns inert local placeholder URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage resource URLs; the proxy returns inert local placeholder resource URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].parameters[*].value",
+            "matcher": "non-empty-string",
+            "reason": "Captured storage parameter values include key, signing, and policy material; the proxy may return inert placeholders while matching parameter names and order."
+          }
+        ]
+      },
+      {
+        "name": "bulk-mutation-variables-put-target",
+        "capturePath": "$.cases[1].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT URL; the proxy returns an inert local placeholder URL."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT resource URL; the proxy returns an inert local placeholder resource URL."
+          }
+        ]
+      },
+      {
+        "name": "url-redirect-import-post-target",
+        "capturePath": "$.cases[2].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage URLs; the proxy returns inert local placeholder URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage resource URLs; the proxy returns inert local placeholder resource URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].parameters[*].value",
+            "matcher": "non-empty-string",
+            "reason": "Captured storage parameter values include key, signing, and policy material; the proxy may return inert placeholders while matching parameter names and order."
+          }
+        ]
+      },
+      {
+        "name": "url-redirect-import-put-target",
+        "capturePath": "$.cases[3].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT URL; the proxy returns an inert local placeholder URL."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT resource URL; the proxy returns an inert local placeholder resource URL."
+          }
+        ]
+      },
+      {
+        "name": "return-label-post-target",
+        "capturePath": "$.cases[4].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage URLs; the proxy returns inert local placeholder URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage resource URLs; the proxy returns inert local placeholder resource URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].parameters[*].value",
+            "matcher": "non-empty-string",
+            "reason": "Captured storage parameter values include key, signing, and policy material; the proxy may return inert placeholders while matching parameter names and order."
+          }
+        ]
+      },
+      {
+        "name": "return-label-put-target",
+        "capturePath": "$.cases[5].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT URL; the proxy returns an inert local placeholder URL."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT resource URL; the proxy returns an inert local placeholder resource URL."
+          }
+        ]
+      },
+      {
+        "name": "dispute-file-upload-post-target",
+        "capturePath": "$.cases[6].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[6].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage URLs; the proxy returns inert local placeholder URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns signed storage resource URLs; the proxy returns inert local placeholder resource URLs."
+          },
+          {
+            "path": "$.stagedTargets[0].parameters[*].value",
+            "matcher": "non-empty-string",
+            "reason": "Captured storage parameter values include key, signing, and policy material; the proxy may return inert placeholders while matching parameter names and order."
+          }
+        ]
+      },
+      {
+        "name": "dispute-file-upload-put-target",
+        "capturePath": "$.cases[7].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[7].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedTargets[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT URL; the proxy returns an inert local placeholder URL."
+          },
+          {
+            "path": "$.stagedTargets[0].resourceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed PUT resource URL; the proxy returns an inert local placeholder resource URL."
+          }
+        ]
+      },
+      {
+        "name": "customer-import-invalid-resource",
+        "capturePath": "$.cases[9].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[9].request.variables"
+        }
+      },
+      {
+        "name": "inventory-import-invalid-resource",
+        "capturePath": "$.cases[10].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[10].request.variables"
+        }
+      },
+      {
+        "name": "article-image-invalid-resource",
+        "capturePath": "$.cases[11].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[11].request.variables"
+        }
+      },
+      {
+        "name": "theme-archive-invalid-resource",
+        "capturePath": "$.cases[12].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[12].request.variables"
+        }
+      },
+      {
+        "name": "translations-import-invalid-resource",
+        "capturePath": "$.cases[13].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].extensions.code", "$[0].extensions.problems"],
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-non-merchandising.graphql",
+          "variablesCapturePath": "$.cases[13].request.variables"
+        }
+      }
+    ]
+  }
+}
