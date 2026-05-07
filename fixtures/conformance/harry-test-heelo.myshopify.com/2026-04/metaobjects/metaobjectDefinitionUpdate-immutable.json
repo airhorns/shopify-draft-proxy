@@ -1,17 +1,17 @@
 {
-  "capturedAt": "2026-05-06T18:21:04.989Z",
+  "capturedAt": "2026-05-07T02:57:04.381Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "summary": "MetaobjectDefinitionUpdate immutability capture for standard definitions, reserved Shopify prefixes, and display-name changes on definitions linked to product options.",
   "seed": {
-    "runId": "1778091660825",
+    "runId": "1778122620049",
     "standardType": "shopify--qa-pair",
     "standardDefinitionPreexisting": false,
-    "linkedMetaobjectIds": ["gid://shopify/Metaobject/188249964850", "gid://shopify/Metaobject/188249997618"],
-    "standardDefinitionId": "gid://shopify/MetaobjectDefinition/17904795954",
-    "linkedDefinitionId": "gid://shopify/MetaobjectDefinition/17904828722",
-    "linkedMetafieldDefinitionId": "gid://shopify/MetafieldDefinition/207010988338",
-    "linkedProductId": "gid://shopify/Product/10178831286578"
+    "linkedMetaobjectIds": ["gid://shopify/Metaobject/188305604914", "gid://shopify/Metaobject/188305637682"],
+    "standardDefinitionId": "gid://shopify/MetaobjectDefinition/17917575474",
+    "linkedDefinitionId": "gid://shopify/MetaobjectDefinition/17917608242",
+    "linkedMetafieldDefinitionId": "gid://shopify/MetafieldDefinition/207116763442",
+    "linkedProductId": "gid://shopify/Product/10179272868146"
   },
   "beforeStandard": {
     "name": "before-standard-definition-by-type",
@@ -52,7 +52,7 @@
       "data": {
         "standardMetaobjectDefinitionEnable": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17904795954",
+            "id": "gid://shopify/MetaobjectDefinition/17917575474",
             "type": "shopify--qa-pair",
             "name": "Question and Answer Pairs",
             "description": "Question and answer pairs that describe a merchant's shop.",
@@ -138,9 +138,9 @@
     "request": {
       "query": "mutation MetaobjectDefinitionUpdateImmutable($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      name\n      description\n      displayNameKey\n      standardTemplate {\n        type\n        name\n      }\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17904795954",
+        "id": "gid://shopify/MetaobjectDefinition/17917575474",
         "definition": {
-          "name": "Immutable Rename 1778091660825",
+          "name": "Immutable Rename 1778122620049",
           "fieldDefinitions": [
             {
               "delete": {
@@ -185,7 +185,7 @@
     "request": {
       "query": "query MetaobjectDefinitionUpdateImmutableRead($id: ID!) {\n  metaobjectDefinition(id: $id) {\n    name\n    description\n    displayNameKey\n    standardTemplate {\n      type\n      name\n    }\n    fieldDefinitions {\n      key\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17904795954"
+        "id": "gid://shopify/MetaobjectDefinition/17917575474"
       }
     },
     "status": 200,
@@ -231,7 +231,7 @@
       "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableReservedProbe($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
       "variables": {
         "definition": {
-          "type": "shopify--immutable-probe-1778091660825",
+          "type": "shopify--immutable-probe-1778122620049",
           "name": "Reserved Probe",
           "displayNameKey": "title",
           "fieldDefinitions": [
@@ -280,7 +280,7 @@
       "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableCreateDefinition($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n        name\n        displayNameKey\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
       "variables": {
         "definition": {
-          "type": "immutable_linked_1778091660825",
+          "type": "immutable_linked_1778122620049",
           "name": "Linked Product Option Definition",
           "displayNameKey": "label",
           "fieldDefinitions": [
@@ -305,8 +305,8 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17904828722",
-            "type": "immutable_linked_1778091660825",
+            "id": "gid://shopify/MetaobjectDefinition/17917608242",
+            "type": "immutable_linked_1778122620049",
             "name": "Linked Product Option Definition",
             "displayNameKey": "label"
           },
@@ -319,7 +319,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -333,8 +333,8 @@
         "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableCreateMetaobject($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        id\n        handle\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "immutable_linked_1778091660825",
-            "handle": "one-1778091660825",
+            "type": "immutable_linked_1778122620049",
+            "handle": "one-1778122620049",
             "fields": [
               {
                 "key": "label",
@@ -353,8 +353,8 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188249964850",
-              "handle": "one-1778091660825"
+              "id": "gid://shopify/Metaobject/188305604914",
+              "handle": "one-1778122620049"
             },
             "userErrors": []
           }
@@ -378,8 +378,8 @@
         "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableCreateMetaobject($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        id\n        handle\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "immutable_linked_1778091660825",
-            "handle": "two-1778091660825",
+            "type": "immutable_linked_1778122620049",
+            "handle": "two-1778122620049",
             "fields": [
               {
                 "key": "label",
@@ -398,8 +398,8 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188249997618",
-              "handle": "two-1778091660825"
+              "id": "gid://shopify/Metaobject/188305637682",
+              "handle": "two-1778122620049"
             },
             "userErrors": []
           }
@@ -425,14 +425,14 @@
       "variables": {
         "definition": {
           "ownerType": "PRODUCT",
-          "namespace": "linked_option_1778091660825",
+          "namespace": "linked_option_1778122620049",
           "key": "choice",
           "name": "Linked option choice",
           "type": "list.metaobject_reference",
           "validations": [
             {
               "name": "metaobject_definition_id",
-              "value": "gid://shopify/MetaobjectDefinition/17904828722"
+              "value": "gid://shopify/MetaobjectDefinition/17917608242"
             }
           ]
         }
@@ -443,8 +443,8 @@
       "data": {
         "metafieldDefinitionCreate": {
           "createdDefinition": {
-            "id": "gid://shopify/MetafieldDefinition/207010988338",
-            "namespace": "linked_option_1778091660825",
+            "id": "gid://shopify/MetafieldDefinition/207116763442",
+            "namespace": "linked_option_1778122620049",
             "key": "choice",
             "type": {
               "name": "list.metaobject_reference"
@@ -452,7 +452,7 @@
             "validations": [
               {
                 "name": "metaobject_definition_id",
-                "value": "gid://shopify/MetaobjectDefinition/17904828722"
+                "value": "gid://shopify/MetaobjectDefinition/17917608242"
               }
             ]
           },
@@ -478,7 +478,7 @@
       "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Linked Product Option 1778091660825",
+          "title": "Linked Product Option 1778122620049",
           "status": "DRAFT"
         }
       }
@@ -488,8 +488,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10178831286578",
-            "title": "Linked Product Option 1778091660825"
+            "id": "gid://shopify/Product/10179272868146",
+            "title": "Linked Product Option 1778122620049"
           },
           "userErrors": []
         }
@@ -512,15 +512,15 @@
     "request": {
       "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableCreateProductOptions(\n    $productId: ID!\n    $options: [OptionCreateInput!]!\n    $variantStrategy: ProductOptionCreateVariantStrategy\n  ) {\n    productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {\n      product {\n        id\n        options {\n          id\n          name\n          linkedMetafield {\n            namespace\n            key\n          }\n          optionValues {\n            id\n            name\n            linkedMetafieldValue\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10178831286578",
+        "productId": "gid://shopify/Product/10179272868146",
         "variantStrategy": "LEAVE_AS_IS",
         "options": [
           {
             "name": "Linked Choice",
             "linkedMetafield": {
-              "namespace": "linked_option_1778091660825",
+              "namespace": "linked_option_1778122620049",
               "key": "choice",
-              "values": ["gid://shopify/Metaobject/188249964850", "gid://shopify/Metaobject/188249997618"]
+              "values": ["gid://shopify/Metaobject/188305604914", "gid://shopify/Metaobject/188305637682"]
             }
           }
         ]
@@ -531,25 +531,25 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/10178831286578",
+            "id": "gid://shopify/Product/10179272868146",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12726864675122",
+                "id": "gid://shopify/ProductOption/12727747477810",
                 "name": "Linked Choice",
                 "linkedMetafield": {
-                  "namespace": "linked_option_1778091660825",
+                  "namespace": "linked_option_1778122620049",
                   "key": "choice"
                 },
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8016698999090",
+                    "id": "gid://shopify/ProductOptionValue/8018712068402",
                     "name": "One",
-                    "linkedMetafieldValue": "gid://shopify/Metaobject/188249964850"
+                    "linkedMetafieldValue": "gid://shopify/Metaobject/188305604914"
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8016699031858",
+                    "id": "gid://shopify/ProductOptionValue/8018712101170",
                     "name": "Two",
-                    "linkedMetafieldValue": "gid://shopify/Metaobject/188249997618"
+                    "linkedMetafieldValue": "gid://shopify/Metaobject/188305637682"
                   }
                 ]
               }
@@ -576,7 +576,7 @@
     "request": {
       "query": "mutation MetaobjectDefinitionUpdateImmutable($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      name\n      description\n      displayNameKey\n      standardTemplate {\n        type\n        name\n      }\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17904828722",
+        "id": "gid://shopify/MetaobjectDefinition/17917608242",
         "definition": {
           "displayNameKey": "alt"
         }
@@ -618,7 +618,7 @@
         "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10178831286578"
+            "id": "gid://shopify/Product/10179272868146"
           }
         }
       },
@@ -626,7 +626,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10178831286578",
+            "deletedProductId": "gid://shopify/Product/10179272868146",
             "userErrors": []
           }
         },
@@ -648,7 +648,7 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableDeleteMetafieldDefinition(\n    $id: ID!\n    $deleteAllAssociatedMetafields: Boolean!\n  ) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/207010988338",
+          "id": "gid://shopify/MetafieldDefinition/207116763442",
           "deleteAllAssociatedMetafields": true
         }
       },
@@ -656,7 +656,7 @@
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207010988338",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207116763442",
             "userErrors": []
           }
         },
@@ -678,14 +678,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188249964850"
+          "id": "gid://shopify/Metaobject/188305604914"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188249964850",
+            "deletedId": "gid://shopify/Metaobject/188305604914",
             "userErrors": []
           }
         },
@@ -707,14 +707,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectDefinitionUpdateImmutableDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188249997618"
+          "id": "gid://shopify/Metaobject/188305637682"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/188249997618",
+            "deletedId": "gid://shopify/Metaobject/188305637682",
             "userErrors": []
           }
         },
@@ -736,14 +736,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17904828722"
+          "id": "gid://shopify/MetaobjectDefinition/17917608242"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17904828722",
+            "deletedId": "gid://shopify/MetaobjectDefinition/17917608242",
             "userErrors": []
           }
         },
@@ -765,14 +765,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17904795954"
+          "id": "gid://shopify/MetaobjectDefinition/17917575474"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17904795954",
+            "deletedId": "gid://shopify/MetaobjectDefinition/17917575474",
             "userErrors": []
           }
         },
