@@ -421,59 +421,149 @@ fn stage_location_add(
             fragments,
           )
         _, Ok(_) -> {
-          let #(id, next_identity) =
-            synthetic_identity.make_synthetic_gid(identity, "Location")
-          let fields = [
-            #("__typename", StorePropertyString("Location")),
-            #("id", StorePropertyString(id)),
-            #("name", StorePropertyString(value)),
-            #("isActive", StorePropertyBool(True)),
-            #("activatable", StorePropertyBool(False)),
-            #("deactivatable", StorePropertyBool(True)),
-            #("deletable", StorePropertyBool(False)),
-            #(
-              "fulfillsOnlineOrders",
-              StorePropertyBool(
-                read_arg_bool(input_values, "fulfillsOnlineOrders")
-                |> option.unwrap(True),
-              ),
-            ),
-            #(
-              "address",
-              StorePropertyObject(location_add_address_data(address_values)),
-            ),
-          ]
-          let record =
-            StorePropertyRecord(
-              id: id,
-              cursor: None,
-              data: dict.from_list(fields),
+          let top_level_errors =
+            validate_location_add_metafield_top_level_errors(
+              input_values,
+              field,
             )
-          let #(_, next_store) =
-            store.upsert_staged_store_property_location(store, record)
-          let payload_source =
-            src_object([
-              #("location", store_property_data_to_source(record.data)),
-              #("userErrors", SrcList([])),
-            ])
-          store_properties_types.GenericMutationResult(
-            payload: project_graphql_value(
-              payload_source,
-              selected_children(field),
-              fragments,
-            ),
-            store: next_store,
-            identity: next_identity,
-            staged_resource_ids: [id],
-            top_level_errors: [],
-            should_log: True,
-          )
+          let errors = validate_location_add_metafield_user_errors(input_values)
+          case top_level_errors, errors {
+            [_, ..], _ ->
+              store_properties_types.GenericMutationResult(
+                payload: json.null(),
+                store: store,
+                identity: identity,
+                staged_resource_ids: [],
+                top_level_errors: top_level_errors,
+                should_log: False,
+              )
+            [], [_, ..] ->
+              location_add_result(
+                store,
+                identity,
+                field,
+                fragments,
+                variables,
+                None,
+                errors,
+                [],
+                False,
+              )
+            [], [] -> {
+              let #(id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Location")
+              let fields = [
+                #("__typename", StorePropertyString("Location")),
+                #("id", StorePropertyString(id)),
+                #("name", StorePropertyString(value)),
+                #("isActive", StorePropertyBool(True)),
+                #("activatable", StorePropertyBool(False)),
+                #("deactivatable", StorePropertyBool(True)),
+                #("deletable", StorePropertyBool(False)),
+                #(
+                  "fulfillsOnlineOrders",
+                  StorePropertyBool(
+                    read_arg_bool(input_values, "fulfillsOnlineOrders")
+                    |> option.unwrap(True),
+                  ),
+                ),
+                #(
+                  "address",
+                  StorePropertyObject(location_add_address_data(address_values)),
+                ),
+              ]
+              let record =
+                StorePropertyRecord(
+                  id: id,
+                  cursor: None,
+                  data: dict.from_list(fields),
+                )
+              let #(_, location_store) =
+                store.upsert_staged_store_property_location(store, record)
+              let #(metafield_store, final_identity, metafield_ids) =
+                apply_location_add_metafields(
+                  location_store,
+                  next_identity,
+                  id,
+                  input_values,
+                )
+              location_add_result(
+                metafield_store,
+                final_identity,
+                field,
+                fragments,
+                variables,
+                Some(record),
+                [],
+                [id, ..metafield_ids],
+                True,
+              )
+            }
+          }
         }
       }
     _, _, _ -> {
       location_add_blank_name_result(store, identity, field, fragments)
     }
   }
+}
+
+fn location_add_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  location: Option(StorePropertyRecord),
+  errors: List(store_properties_types.LocationEditUserError),
+  staged_resource_ids: List(String),
+  should_log: Bool,
+) -> store_properties_types.GenericMutationResult {
+  let payload =
+    json.object(
+      list.map(selected_children(field), fn(selection) {
+        let key = get_field_response_key(selection)
+        case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "location" -> #(key, case location {
+                Some(record) ->
+                  serialize_location_record(
+                    store,
+                    record,
+                    selection,
+                    fragments,
+                    variables,
+                  )
+                None -> json.null()
+              })
+              "userErrors" -> #(
+                key,
+                project_graphql_field_value(
+                  src_object([
+                    #(
+                      "userErrors",
+                      SrcList(list.map(errors, location_edit_error_source)),
+                    ),
+                  ]),
+                  selection,
+                  fragments,
+                ),
+              )
+              _ -> #(key, json.null())
+            }
+          _ -> #(key, json.null())
+        }
+      }),
+    )
+  store_properties_types.GenericMutationResult(
+    payload: payload,
+    store: store,
+    identity: identity,
+    staged_resource_ids: staged_resource_ids,
+    top_level_errors: [],
+    should_log: should_log,
+  )
 }
 
 fn location_add_blank_name_result(
@@ -594,6 +684,50 @@ fn validate_location_add_country_code(
     }
     None -> Error(Nil)
   }
+}
+
+fn validate_location_add_metafield_user_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(store_properties_types.LocationEditUserError) {
+  read_object_list(input, "metafields")
+  |> list.index_map(fn(metafield_input, index) {
+    validate_location_edit_metafield_type(metafield_input, index)
+  })
+  |> list.flatten
+}
+
+fn validate_location_add_metafield_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+) -> List(Json) {
+  read_object_list(input, "metafields")
+  |> list.map(fn(metafield_input) {
+    case read_arg_string(metafield_input, "key") {
+      Some(value) ->
+        case string.trim(value) {
+          "" -> [location_add_metafield_key_blank_top_level_error(field)]
+          _ -> []
+        }
+      None -> [location_add_metafield_key_blank_top_level_error(field)]
+    }
+  })
+  |> list.flatten
+}
+
+fn location_add_metafield_key_blank_top_level_error(field: Selection) -> Json {
+  let path = case field {
+    Field(alias: Some(alias), ..) -> alias.value
+    Field(name: name, ..) -> name.value
+    _ -> "locationAdd"
+  }
+  json.object([
+    #("message", json.string("key can't be blank")),
+    #(
+      "extensions",
+      json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+    ),
+    #("path", json.array([path], json.string)),
+  ])
 }
 
 fn stage_location_edit(
@@ -1043,6 +1177,30 @@ fn apply_location_edit_metafields(
       #(next_store, next_identity, list.map(changed, fn(record) { record.id }))
     }
   }
+}
+
+fn apply_location_add_metafields(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let input =
+    dict.insert(
+      input,
+      "metafields",
+      root_field.ListVal(
+        read_object_list(input, "metafields")
+        |> list.filter(fn(metafield_input) {
+          case read_arg_string(metafield_input, "value") {
+            Some(value) -> string.trim(value) != ""
+            None -> True
+          }
+        })
+        |> list.map(root_field.ObjectVal),
+      ),
+    )
+  apply_location_edit_metafields(store, identity, owner_id, input)
 }
 
 fn upsert_location_metafields(

@@ -717,6 +717,101 @@ pub fn location_add_honors_explicit_fulfills_online_orders_false_test() {
   )
 }
 
+pub fn location_add_stages_metafields_for_response_and_reads_test() {
+  let add_body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id name metafield(namespace: \\\"custom\\\", key: \\\"hours\\\") { namespace key value type } metafields(first: 5) { nodes { namespace key value type } pageInfo { hasNextPage hasPreviousPage } } } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Meta\",\"address\":{\"countryCode\":\"CA\"},\"metafields\":[{\"namespace\":\"custom\",\"key\":\"hours\",\"value\":\"9-5\",\"type\":\"single_line_text_field\"}]}}}"
+  let #(proxy_state.Response(status: add_status, body: add_json, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(add_body))
+  let added = json.to_string(add_json)
+
+  assert add_status == 200
+  assert string.contains(added, "\"userErrors\":[]")
+  assert string.contains(added, "\"name\":\"Meta\"")
+  assert string.contains(added, "\"namespace\":\"custom\"")
+  assert string.contains(added, "\"key\":\"hours\"")
+  assert string.contains(added, "\"value\":\"9-5\"")
+  assert string.contains(added, "\"type\":\"single_line_text_field\"")
+
+  let read_body =
+    "{\"query\":\"query($id: ID!) { location(id: $id) { id metafield(namespace: \\\"custom\\\", key: \\\"hours\\\") { namespace key value type } metafields(first: 5) { nodes { namespace key value type } } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\"}}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read = json.to_string(read_json)
+
+  assert read_status == 200
+  assert string.contains(read, "\"namespace\":\"custom\"")
+  assert string.contains(read, "\"key\":\"hours\"")
+  assert string.contains(read, "\"value\":\"9-5\"")
+  assert string.contains(read, "\"type\":\"single_line_text_field\"")
+}
+
+pub fn location_add_invalid_metafield_type_returns_error_without_staging_test() {
+  let body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Bad Meta\",\"address\":{\"countryCode\":\"CA\"},\"metafields\":[{\"namespace\":\"custom\",\"key\":\"hours\",\"value\":\"x\",\"type\":\"bogus_type\"}]}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"metafields\",\"0\",\"type\"]",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_TYPE\"")
+  assert !string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "locationAdd",
+  )
+  assert !string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(proxy)),
+    "gid://shopify/Location/1",
+  )
+}
+
+pub fn location_add_blank_metafield_key_returns_top_level_error_without_staging_test() {
+  let body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Blank Meta\",\"address\":{\"countryCode\":\"CA\"},\"metafields\":[{\"namespace\":\"custom\",\"key\":\"\",\"value\":\"x\",\"type\":\"single_line_text_field\"}]}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"message\":\"key can't be blank\"")
+  assert string.contains(serialized, "\"code\":\"INVALID_FIELD_ARGUMENTS\"")
+  assert string.contains(serialized, "\"data\":{\"locationAdd\":null}")
+  assert !string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "locationAdd",
+  )
+  assert !string.contains(
+    json.to_string(draft_proxy.get_state_snapshot(proxy)),
+    "gid://shopify/Location/1",
+  )
+}
+
+pub fn location_add_blank_metafield_value_stages_location_without_metafield_test() {
+  let body =
+    "{\"query\":\"mutation($input: LocationAddInput!) { locationAdd(input: $input) { location { id name metafield(namespace: \\\"custom\\\", key: \\\"empty\\\") { value } metafields(first: 5, namespace: \\\"custom\\\") { nodes { namespace key value type } pageInfo { hasNextPage hasPreviousPage } } } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Blank Value Meta\",\"address\":{\"countryCode\":\"CA\"},\"metafields\":[{\"namespace\":\"custom\",\"key\":\"empty\",\"value\":\"\",\"type\":\"single_line_text_field\"}]}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"name\":\"Blank Value Meta\"")
+  assert string.contains(serialized, "\"metafield\":null")
+  assert string.contains(
+    serialized,
+    "\"metafields\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false}}",
+  )
+  assert string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "locationAdd",
+  )
+}
+
 pub fn location_add_blank_name_user_error_includes_code_test() {
   let body =
     "{\"query\":\"mutation { locationAdd(input: { name: \\\"\\\", address: { countryCode: CA } }) { location { id } userErrors { field message code } } }\"}"

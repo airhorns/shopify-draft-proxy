@@ -1,0 +1,125 @@
+{
+  "scenarioId": "location-add-metafields",
+  "operationNames": ["locationAdd", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-metafields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-add-metafields.graphql",
+    "variablesCapturePath": "$.cases.metafieldAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "metafield-add-payload",
+        "capturePath": "$.cases.metafieldAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.location.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy creates a deterministic synthetic Location metafield ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.location.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy creates a deterministic synthetic Location metafield ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "metafield-read-after-add",
+        "capturePath": "$.cases.metafieldRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-metafields-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy reads back the stable synthetic Location ID from the staged add."
+          },
+          {
+            "path": "$.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy reads back the deterministic synthetic Location metafield ID from staged state."
+          },
+          {
+            "path": "$.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy reads back the deterministic synthetic Location metafield ID from staged state."
+          }
+        ]
+      },
+      {
+        "name": "invalid-metafield-type-user-errors",
+        "capturePath": "$.cases.invalidMetafieldType.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-metafields.graphql",
+          "variablesCapturePath": "$.cases.invalidMetafieldType.variables"
+        }
+      },
+      {
+        "name": "blank-metafield-value-add-payload",
+        "capturePath": "$.cases.blankMetafieldValue.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-metafields.graphql",
+          "variablesCapturePath": "$.cases.blankMetafieldValue.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "blank-metafield-key-top-level-error",
+        "capturePath": "$.cases.blankMetafieldKey.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-metafields.graphql",
+          "variablesCapturePath": "$.cases.blankMetafieldKey.variables"
+        },
+        "selectedPaths": [
+          "$.errors[0].message",
+          "$.errors[0].extensions.code",
+          "$.errors[0].path",
+          "$.data.locationAdd"
+        ]
+      }
+    ]
+  },
+  "notes": "Captures locationAdd input.metafields behavior against Admin GraphQL 2026-04. The recorder creates one disposable location with a location-owned metafield, reads the metafield through location.metafield and location.metafields, then deactivates/deletes it. Validation branches prove INVALID_TYPE userErrors return without creating a Location, blank metafield values create the Location without a metafield, and blank metafield keys return a top-level INVALID_FIELD_ARGUMENTS error with data.locationAdd null."
+}
