@@ -1838,6 +1838,53 @@ pub fn code_basic_update_rejects_same_code_after_redeem_code_bulk_add_test() {
     == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot update the code of a bulk discount.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
 }
 
+pub fn redeem_code_bulk_add_rejects_existing_local_codes_test() {
+  let first =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"First\", code: \"EXISTING-A\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let second =
+    run_mutation_from(
+      first.store,
+      first.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Second\", code: \"EXISTING-B\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let bulk_added =
+    run_mutation_from(
+      second.store,
+      second.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [{ code: \"EXISTING-A\" }, { code: \"EXISTING-B\" }, { code: \"FRESH\" }]) { bulkCreation { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { id code } } } } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(bulk_added.data)
+    == "{\"data\":{\"discountRedeemCodeBulkAdd\":{\"bulkCreation\":{\"done\":false,\"codesCount\":3,\"importedCount\":0,\"failedCount\":0,\"codes\":{\"nodes\":[{\"code\":\"EXISTING-A\",\"errors\":[],\"discountRedeemCode\":null},{\"code\":\"EXISTING-B\",\"errors\":[],\"discountRedeemCode\":null},{\"code\":\"FRESH\",\"errors\":[],\"discountRedeemCode\":null}]}},\"userErrors\":[]}}}"
+
+  let assert [bulk_record] =
+    dict.values(bulk_added.store.staged_state.discount_bulk_operations)
+
+  let assert Ok(creation_read) =
+    discounts.handle_discount_query(
+      bulk_added.store,
+      "query { discountRedeemCodeBulkCreation(id: \""
+        <> bulk_record.id
+        <> "\") { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { code } } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(creation_read)
+    == "{\"discountRedeemCodeBulkCreation\":{\"done\":true,\"codesCount\":3,\"importedCount\":1,\"failedCount\":2,\"codes\":{\"nodes\":[{\"code\":\"EXISTING-A\",\"errors\":[{\"field\":[\"code\"],\"message\":\"must be unique. Please try a different code.\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"EXISTING-B\",\"errors\":[{\"field\":[\"code\"],\"message\":\"must be unique. Please try a different code.\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"FRESH\",\"errors\":[],\"discountRedeemCode\":{\"code\":\"FRESH\"}}]}}}"
+
+  let assert Ok(read) =
+    discounts.handle_discount_query(
+      bulk_added.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } fresh: codeDiscountNodeByCode(code: \"FRESH\") { id } }",
+      dict.new(),
+    )
+
+  assert json.to_string(read)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"codes\":{\"nodes\":[{\"code\":\"EXISTING-A\"},{\"code\":\"FRESH\"}]},\"codesCount\":{\"count\":2,\"precision\":\"EXACT\"}}},\"fresh\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"}}"
+}
+
 pub fn code_basic_update_rejects_code_taken_by_another_local_discount_test() {
   let first =
     run_mutation(
