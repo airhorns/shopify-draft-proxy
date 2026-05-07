@@ -1,18 +1,37 @@
 {
-  "capturedAt": "2026-04-25T20:31:12.295Z",
+  "capturedAt": "2026-05-06T22:27:17.865Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "functionCatalog": {
-    "nodes": []
+    "nodes": [
+      {
+        "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+        "title": "conformance-payment-customization",
+        "apiType": "payment_customization",
+        "description": "conformance-payment-customization"
+      },
+      {
+        "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+        "title": "conformance-validation",
+        "apiType": "cart_checkout_validation",
+        "description": "conformance-validation"
+      },
+      {
+        "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+        "title": "conformance-cart-transform",
+        "apiType": "cart_transform",
+        "description": "conformance-cart-transform"
+      }
+    ]
   },
   "variables": {
     "badCreate": {
-      "title": "Hermes invalid payment customization",
+      "title": "Invalid payment customization",
       "enabled": true,
       "functionId": "gid://shopify/ShopifyFunction/0"
     },
     "missingFunction": {
-      "title": "Hermes missing function",
+      "title": "Missing function",
       "enabled": true
     },
     "missingTitle": {
@@ -20,12 +39,12 @@
       "functionId": "gid://shopify/ShopifyFunction/0"
     },
     "missingEnabled": {
-      "title": "Hermes missing enabled",
+      "title": "Missing enabled",
       "functionId": "gid://shopify/ShopifyFunction/0"
     },
     "unknownId": "gid://shopify/PaymentCustomization/0",
     "badUpdate": {
-      "title": "Hermes unknown update",
+      "title": "Unknown update",
       "enabled": false,
       "functionId": "gid://shopify/ShopifyFunction/0"
     },

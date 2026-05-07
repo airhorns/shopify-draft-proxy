@@ -1,0 +1,987 @@
+{
+  "capturedAt": "2026-05-06T21:25:02.575Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "Markets delete cascades for marketDelete, catalogDelete, and priceListDelete",
+  "liveSetup": {
+    "productId": "gid://shopify/Product/9801098789170",
+    "variantId": "gid://shopify/ProductVariant/49875425296690",
+    "marketCountryCode": "BR"
+  },
+  "marketDeleteCascade": {
+    "setupRead": {
+      "name": "market delete cascade setup read",
+      "query": "query MarketDeleteCascadeSetupRead($marketId: ID!, $catalogId: ID!, $webPresencesFirst: Int!) {\n  market(id: $marketId) {\n    __typename\n    id\n    name\n    handle\n    status\n    enabled\n    type\n    conditions {\n      conditionTypes\n      regionsCondition {\n        applicationLevel\n        regions(first: 10) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    webPresences(first: 10) {\n      nodes {\n        id\n      }\n    }\n    catalogs(first: 10) {\n      nodes {\n        id\n      }\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      __typename\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      rootUrls {\n        locale\n        url\n      }\n      markets(first: 10) {\n        nodes {\n          __typename\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    priceList {\n      id\n    }\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          __typename\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "marketId": "gid://shopify/Market/97986543922",
+          "catalogId": "gid://shopify/MarketCatalog/145809015090",
+          "webPresencesFirst": 100
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "__typename": "Market",
+              "id": "gid://shopify/Market/97986543922",
+              "name": "Delete Cascade cvvombjclk",
+              "handle": "delete-cascade-cvvombjclk",
+              "status": "DRAFT",
+              "enabled": false,
+              "type": "REGION",
+              "conditions": {
+                "conditionTypes": ["REGION"],
+                "regionsCondition": {
+                  "applicationLevel": "SPECIFIED",
+                  "regions": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/MarketRegionCountry/4229040210226",
+                        "name": "Brazil"
+                      }
+                    ]
+                  }
+                }
+              },
+              "webPresences": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/69692490034"
+                  }
+                ]
+              },
+              "catalogs": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MarketCatalog/145809015090"
+                  }
+                ]
+              }
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "__typename": "MarketWebPresence",
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/"
+                    }
+                  ],
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "__typename": "MarketWebPresence",
+                  "id": "gid://shopify/MarketWebPresence/69692490034",
+                  "subfolderSuffix": "hcvvombjclk",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/en-hcvvombjclk/"
+                    }
+                  ],
+                  "markets": {
+                    "nodes": [
+                      {
+                        "__typename": "Market",
+                        "id": "gid://shopify/Market/97986543922",
+                        "name": "Delete Cascade cvvombjclk",
+                        "handle": "delete-cascade-cvvombjclk",
+                        "status": "DRAFT",
+                        "type": "REGION"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/145809015090",
+              "title": "Delete Cascade Catalog cvvombjclk",
+              "status": "ACTIVE",
+              "priceList": null,
+              "markets": {
+                "nodes": [
+                  {
+                    "__typename": "Market",
+                    "id": "gid://shopify/Market/97986543922",
+                    "name": "Delete Cascade cvvombjclk",
+                    "handle": "delete-cascade-cvvombjclk",
+                    "status": "DRAFT",
+                    "type": "REGION"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 121,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "name": "market delete cascade delete",
+      "query": "mutation MarketDeleteCascadeDelete($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "id": "gid://shopify/Market/97986543922"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97986543922",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "name": "market delete cascade downstream read",
+      "query": "query MarketDeleteCascadeRead($marketId: ID!, $catalogId: ID!, $webPresencesFirst: Int!) {\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      markets(first: 10) {\n        nodes {\n          id\n        }\n      }\n    }\n  }\n  market(id: $marketId) {\n    id\n  }\n  catalog(id: $catalogId) {\n    id\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          id\n        }\n      }\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "marketId": "gid://shopify/Market/97986543922",
+          "catalogId": "gid://shopify/MarketCatalog/145809015090",
+          "webPresencesFirst": 100
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ]
+            },
+            "market": null,
+            "catalog": {
+              "id": "gid://shopify/MarketCatalog/145809015090",
+              "markets": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 73,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "catalogDeleteDetachPriceList": {
+    "setupRead": {
+      "name": "catalog delete setup read",
+      "query": "query CatalogDeleteDetachesPriceListSetupRead($catalogId: ID!, $priceListId: ID!) {\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    priceList {\n      id\n      name\n      currency\n    }\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          __typename\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n  priceList(id: $priceListId) {\n    __typename\n    id\n    name\n    currency\n    fixedPricesCount\n    catalog {\n      id\n      title\n      status\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "catalogId": "gid://shopify/MarketCatalog/145809047858",
+          "priceListId": "gid://shopify/PriceList/32263438642"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/145809047858",
+              "title": "Catalog Delete Cascade cvvombjclk",
+              "status": "ACTIVE",
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263438642",
+                "name": "Catalog Delete Cascade cvvombjclk",
+                "currency": "USD"
+              },
+              "markets": {
+                "nodes": [
+                  {
+                    "__typename": "Market",
+                    "id": "gid://shopify/Market/97986576690",
+                    "name": "Catalog Delete Cascade cvvombjclk",
+                    "handle": "catalog-delete-cascade-cvvombjclk",
+                    "status": "DRAFT",
+                    "type": "NONE"
+                  }
+                ]
+              }
+            },
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32263438642",
+              "name": "Catalog Delete Cascade cvvombjclk",
+              "currency": "USD",
+              "fixedPricesCount": 0,
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809047858",
+                "title": "Catalog Delete Cascade cvvombjclk",
+                "status": "ACTIVE"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "name": "catalog delete detaches price list",
+      "query": "mutation CatalogDeleteDetachesPriceListDelete($id: ID!) {\n  catalogDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "id": "gid://shopify/MarketCatalog/145809047858"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145809047858",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "name": "catalog delete downstream read",
+      "query": "query CatalogDeleteDetachesPriceListRead($catalogId: ID!, $priceListId: ID!) {\n  priceList(id: $priceListId) {\n    id\n    catalog {\n      id\n    }\n  }\n  catalog(id: $catalogId) {\n    id\n  }\n}\n",
+      "request": {
+        "variables": {
+          "catalogId": "gid://shopify/MarketCatalog/145809047858",
+          "priceListId": "gid://shopify/PriceList/32263438642"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceList": null,
+            "catalog": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "priceListDeleteClearFixedPrices": {
+    "fixedPriceSetup": {
+      "query": "#graphql\nmutation DeleteCascadeFixedPricesAdd($priceListId: ID!, $prices: [PriceListPriceInput!]!) {\n  priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {\n    prices {\n      price {\n        amount\n        currencyCode\n      }\n      compareAtPrice {\n        amount\n        currencyCode\n      }\n      originType\n      variant {\n        id\n        sku\n        product {\n          id\n          title\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/32263471410",
+          "variantId": "gid://shopify/ProductVariant/49875425296690",
+          "productId": "gid://shopify/Product/9801098789170"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListFixedPricesAdd": {
+              "prices": [
+                {
+                  "price": {
+                    "amount": "12.5",
+                    "currencyCode": "USD"
+                  },
+                  "compareAtPrice": {
+                    "amount": "14.0",
+                    "currencyCode": "USD"
+                  },
+                  "originType": "FIXED",
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/49875425296690",
+                    "sku": "sku-untracked-1",
+                    "product": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard"
+                    }
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setupRead": {
+      "name": "price list delete setup read",
+      "query": "query PriceListDeleteClearsFixedPricesSetupRead($catalogId: ID!, $priceListId: ID!) {\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    priceList {\n      id\n    }\n  }\n  priceList(id: $priceListId) {\n    __typename\n    id\n    name\n    currency\n    fixedPricesCount\n    catalog {\n      id\n      title\n      status\n    }\n    prices(first: 10, originType: FIXED) {\n      nodes {\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        originType\n        variant {\n          id\n          sku\n          product {\n            id\n            title\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "catalogId": "gid://shopify/MarketCatalog/145809080626",
+          "priceListId": "gid://shopify/PriceList/32263471410"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/145809080626",
+              "title": "Price List Delete Cascade cvvombjclk",
+              "status": "ACTIVE",
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263471410"
+              }
+            },
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32263471410",
+              "name": "Price List Delete Cascade cvvombjclk",
+              "currency": "USD",
+              "fixedPricesCount": 1,
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809080626",
+                "title": "Price List Delete Cascade cvvombjclk",
+                "status": "ACTIVE"
+              },
+              "prices": {
+                "nodes": [
+                  {
+                    "price": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "compareAtPrice": {
+                      "amount": "14.0",
+                      "currencyCode": "USD"
+                    },
+                    "originType": "FIXED",
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "sku": "sku-untracked-1",
+                      "product": {
+                        "id": "gid://shopify/Product/9801098789170",
+                        "title": "The Inventory Not Tracked Snowboard"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "name": "price list delete clears fixed prices",
+      "query": "mutation PriceListDeleteClearsFixedPricesDelete($id: ID!) {\n  priceListDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "id": "gid://shopify/PriceList/32263471410"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32263471410",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "name": "price list delete downstream read",
+      "query": "query PriceListDeleteClearsFixedPricesRead($catalogId: ID!, $priceListId: ID!) {\n  catalog(id: $catalogId) {\n    id\n    priceList {\n      id\n    }\n  }\n  priceList(id: $priceListId) {\n    id\n    fixedPricesCount\n    prices(first: 10, originType: FIXED) {\n      nodes {\n        variant {\n          id\n        }\n      }\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "catalogId": "gid://shopify/MarketCatalog/145809080626",
+          "priceListId": "gid://shopify/PriceList/32263471410"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalog": {
+              "id": "gid://shopify/MarketCatalog/145809080626",
+              "priceList": null
+            },
+            "priceList": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/145809080626",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145809080626",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/145809015090",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/145809015090",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "fixedPrice",
+      "id": "gid://shopify/PriceList/32263438642",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListFixedPricesDelete": {
+              "deletedFixedPriceVariantIds": null,
+              "userErrors": [
+                {
+                  "field": ["priceListId"],
+                  "message": "Price list does not exist.",
+                  "code": "PRICE_LIST_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32263438642",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Price list does not exist.",
+                  "code": "PRICE_LIST_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "market",
+      "id": "gid://shopify/Market/97986609458",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97986609458",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "market",
+      "id": "gid://shopify/Market/97986576690",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97986576690",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MarketDeleteCascadeSetupRead",
+      "variables": {
+        "marketId": "gid://shopify/Market/97986543922",
+        "catalogId": "gid://shopify/MarketCatalog/145809015090",
+        "webPresencesFirst": 100
+      },
+      "query": "query MarketDeleteCascadeSetupRead($marketId: ID!, $catalogId: ID!, $webPresencesFirst: Int!) {\n  market(id: $marketId) {\n    __typename\n    id\n    name\n    handle\n    status\n    enabled\n    type\n    conditions {\n      conditionTypes\n      regionsCondition {\n        applicationLevel\n        regions(first: 10) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    webPresences(first: 10) {\n      nodes {\n        id\n      }\n    }\n    catalogs(first: 10) {\n      nodes {\n        id\n      }\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      __typename\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      rootUrls {\n        locale\n        url\n      }\n      markets(first: 10) {\n        nodes {\n          __typename\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    priceList {\n      id\n    }\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          __typename\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "market": {
+              "__typename": "Market",
+              "id": "gid://shopify/Market/97986543922",
+              "name": "Delete Cascade cvvombjclk",
+              "handle": "delete-cascade-cvvombjclk",
+              "status": "DRAFT",
+              "enabled": false,
+              "type": "REGION",
+              "conditions": {
+                "conditionTypes": ["REGION"],
+                "regionsCondition": {
+                  "applicationLevel": "SPECIFIED",
+                  "regions": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/MarketRegionCountry/4229040210226",
+                        "name": "Brazil"
+                      }
+                    ]
+                  }
+                }
+              },
+              "webPresences": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/69692490034"
+                  }
+                ]
+              },
+              "catalogs": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MarketCatalog/145809015090"
+                  }
+                ]
+              }
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "__typename": "MarketWebPresence",
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/"
+                    }
+                  ],
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "__typename": "MarketWebPresence",
+                  "id": "gid://shopify/MarketWebPresence/69692490034",
+                  "subfolderSuffix": "hcvvombjclk",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/en-hcvvombjclk/"
+                    }
+                  ],
+                  "markets": {
+                    "nodes": [
+                      {
+                        "__typename": "Market",
+                        "id": "gid://shopify/Market/97986543922",
+                        "name": "Delete Cascade cvvombjclk",
+                        "handle": "delete-cascade-cvvombjclk",
+                        "status": "DRAFT",
+                        "type": "REGION"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/145809015090",
+              "title": "Delete Cascade Catalog cvvombjclk",
+              "status": "ACTIVE",
+              "priceList": null,
+              "markets": {
+                "nodes": [
+                  {
+                    "__typename": "Market",
+                    "id": "gid://shopify/Market/97986543922",
+                    "name": "Delete Cascade cvvombjclk",
+                    "handle": "delete-cascade-cvvombjclk",
+                    "status": "DRAFT",
+                    "type": "REGION"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 121,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CatalogDeleteDetachesPriceListSetupRead",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/145809047858",
+        "priceListId": "gid://shopify/PriceList/32263438642"
+      },
+      "query": "query CatalogDeleteDetachesPriceListSetupRead($catalogId: ID!, $priceListId: ID!) {\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    priceList {\n      id\n      name\n      currency\n    }\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          __typename\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n  priceList(id: $priceListId) {\n    __typename\n    id\n    name\n    currency\n    fixedPricesCount\n    catalog {\n      id\n      title\n      status\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/145809047858",
+              "title": "Catalog Delete Cascade cvvombjclk",
+              "status": "ACTIVE",
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263438642",
+                "name": "Catalog Delete Cascade cvvombjclk",
+                "currency": "USD"
+              },
+              "markets": {
+                "nodes": [
+                  {
+                    "__typename": "Market",
+                    "id": "gid://shopify/Market/97986576690",
+                    "name": "Catalog Delete Cascade cvvombjclk",
+                    "handle": "catalog-delete-cascade-cvvombjclk",
+                    "status": "DRAFT",
+                    "type": "NONE"
+                  }
+                ]
+              }
+            },
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32263438642",
+              "name": "Catalog Delete Cascade cvvombjclk",
+              "currency": "USD",
+              "fixedPricesCount": 0,
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809047858",
+                "title": "Catalog Delete Cascade cvvombjclk",
+                "status": "ACTIVE"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PriceListDeleteClearsFixedPricesSetupRead",
+      "variables": {
+        "catalogId": "gid://shopify/MarketCatalog/145809080626",
+        "priceListId": "gid://shopify/PriceList/32263471410"
+      },
+      "query": "query PriceListDeleteClearsFixedPricesSetupRead($catalogId: ID!, $priceListId: ID!) {\n  catalog(id: $catalogId) {\n    __typename\n    id\n    title\n    status\n    priceList {\n      id\n    }\n  }\n  priceList(id: $priceListId) {\n    __typename\n    id\n    name\n    currency\n    fixedPricesCount\n    catalog {\n      id\n      title\n      status\n    }\n    prices(first: 10, originType: FIXED) {\n      nodes {\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        originType\n        variant {\n          id\n          sku\n          product {\n            id\n            title\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "catalog": {
+              "__typename": "MarketCatalog",
+              "id": "gid://shopify/MarketCatalog/145809080626",
+              "title": "Price List Delete Cascade cvvombjclk",
+              "status": "ACTIVE",
+              "priceList": {
+                "id": "gid://shopify/PriceList/32263471410"
+              }
+            },
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32263471410",
+              "name": "Price List Delete Cascade cvvombjclk",
+              "currency": "USD",
+              "fixedPricesCount": 1,
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/145809080626",
+                "title": "Price List Delete Cascade cvvombjclk",
+                "status": "ACTIVE"
+              },
+              "prices": {
+                "nodes": [
+                  {
+                    "price": {
+                      "amount": "12.5",
+                      "currencyCode": "USD"
+                    },
+                    "compareAtPrice": {
+                      "amount": "14.0",
+                      "currencyCode": "USD"
+                    },
+                    "originType": "FIXED",
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "sku": "sku-untracked-1",
+                      "product": {
+                        "id": "gid://shopify/Product/9801098789170",
+                        "title": "The Inventory Not Tracked Snowboard"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
