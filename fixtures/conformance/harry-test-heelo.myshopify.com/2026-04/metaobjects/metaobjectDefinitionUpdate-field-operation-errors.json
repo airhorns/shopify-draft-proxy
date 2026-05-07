@@ -97,13 +97,7 @@
             "metaobjectDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition",
-                  "fieldDefinitions",
-                  "0",
-                  "create",
-                  "key"
-                ],
+                "field": ["definition", "fieldDefinitions", "0", "create", "key"],
                 "message": "Field definition \"title\" is already taken",
                 "code": "OBJECT_FIELD_TAKEN",
                 "elementKey": "title",
@@ -150,13 +144,7 @@
             "metaobjectDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition",
-                  "fieldDefinitions",
-                  "0",
-                  "update",
-                  "key"
-                ],
+                "field": ["definition", "fieldDefinitions", "0", "update", "key"],
                 "message": "Field definition \"missing_update\" does not exist",
                 "code": "UNDEFINED_OBJECT_FIELD",
                 "elementKey": "missing_update",
@@ -202,13 +190,7 @@
             "metaobjectDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition",
-                  "fieldDefinitions",
-                  "0",
-                  "delete",
-                  "key"
-                ],
+                "field": ["definition", "fieldDefinitions", "0", "delete", "key"],
                 "message": "Field definition \"missing_delete\" does not exist",
                 "code": "UNDEFINED_OBJECT_FIELD",
                 "elementKey": "missing_delete",
@@ -267,39 +249,21 @@
             "metaobjectDefinition": null,
             "userErrors": [
               {
-                "field": [
-                  "definition",
-                  "fieldDefinitions",
-                  "0",
-                  "update",
-                  "key"
-                ],
+                "field": ["definition", "fieldDefinitions", "0", "update", "key"],
                 "message": "Field definition \"missing_update\" does not exist",
                 "code": "UNDEFINED_OBJECT_FIELD",
                 "elementKey": "missing_update",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "definition",
-                  "fieldDefinitions",
-                  "1",
-                  "create",
-                  "key"
-                ],
+                "field": ["definition", "fieldDefinitions", "1", "create", "key"],
                 "message": "Field definition \"title\" is already taken",
                 "code": "OBJECT_FIELD_TAKEN",
                 "elementKey": "title",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "definition",
-                  "fieldDefinitions",
-                  "2",
-                  "delete",
-                  "key"
-                ],
+                "field": ["definition", "fieldDefinitions", "2", "delete", "key"],
                 "message": "Field definition \"missing_delete\" does not exist",
                 "code": "UNDEFINED_OBJECT_FIELD",
                 "elementKey": "missing_delete",
