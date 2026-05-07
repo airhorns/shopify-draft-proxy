@@ -1996,7 +1996,7 @@ pub fn orders_order_edit_quantity_validation_rejects_without_mutation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(add_valid_after_rejections.data)
-    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":{\"lineItems\":{\"nodes\":[{\"title\":\"Existing widget\",\"quantity\":3},{\"title\":\"Quantity validation product\",\"quantity\":2}]},\"addedLineItems\":{\"nodes\":[{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}}]}},\"calculatedLineItem\":{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":{\"lineItems\":{\"nodes\":[{\"title\":\"Existing widget\",\"quantity\":3}]},\"addedLineItems\":{\"nodes\":[{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}}]}},\"calculatedLineItem\":{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
 }
 
 pub fn orders_order_edit_commit_updates_history_fulfillment_orders_and_totals_test() {
