@@ -5636,6 +5636,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-create-rejects-nested-ids.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-delete-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-detail.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-email-normalization.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-addresses-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-validation-parity.json',
@@ -5713,6 +5714,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customerInputValidation-update.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-email-normalization',
+    scriptPath: 'scripts/capture-customer-email-normalization-conformance.ts',
+    purpose:
+      'Customer email whitespace stripping, RFC-style format validation, length cap, and normalized duplicate detection.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-email-normalization.json`,
+      'config/parity-specs/customers/customer-email-normalization.json',
+      'config/parity-requests/customers/customer-email-normalization-create.graphql',
+      'config/parity-requests/customers/customer-email-normalization-read.graphql',
+      'config/parity-requests/customers/customer-email-normalization-set.graphql',
+      'config/parity-requests/customers/customer-email-normalization-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customerCreate/customerSet records, records validation branches, and deletes created customers during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

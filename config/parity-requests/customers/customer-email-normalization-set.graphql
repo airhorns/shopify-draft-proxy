@@ -1,0 +1,15 @@
+mutation CustomerEmailNormalizationSet($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -100,7 +100,8 @@ pub fn should_passthrough_in_live_hybrid(
 ) -> Bool {
   case type_, primary_root_field {
     parse_operation.QueryOperation, "customersCount" -> True
-    parse_operation.QueryOperation, "customerByIdentifier" -> True
+    parse_operation.QueryOperation, "customerByIdentifier" ->
+      list.is_empty(store.list_effective_customers(proxy.store))
     parse_operation.QueryOperation, "customer" ->
       !local_has_customer_id(proxy, variables)
     parse_operation.QueryOperation, "customers" ->

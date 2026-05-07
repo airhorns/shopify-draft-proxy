@@ -1,0 +1,16 @@
+query CustomerEmailNormalizationRead($identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+  customerByIdentifier(identifier: $identifier) {
+    email
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+  }
+}
