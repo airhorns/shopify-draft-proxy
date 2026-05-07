@@ -9255,6 +9255,101 @@ pub fn orders_return_close_rejects_declined_return_test() {
   assert_return_status_read(outcome.store, "DECLINED", None)
 }
 
+pub fn orders_return_decline_rejects_invalid_decline_reason_test() {
+  let outcome =
+    run_return_decline_request(
+      seed: return_status_test_store("REQUESTED", 0),
+      extra_input: ", declineReason: BANANAS",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnDeclineRequest\":{\"return\":null,\"userErrors\":[{\"field\":[\"declineReason\"],\"message\":\"Expected \\\"BANANAS\\\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "REQUESTED", None)
+}
+
+pub fn orders_return_decline_canonicalizes_valid_decline_reason_test() {
+  let outcome =
+    run_return_decline_request(
+      seed: return_status_test_store("REQUESTED", 0),
+      extra_input: ", declineReason: \"other\", declineNote: \"policy exception\"",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnDeclineRequest\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"DECLINED\",\"decline\":{\"reason\":\"OTHER\",\"note\":\"policy exception\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/Return/status-guard"]
+
+  let assert Ok(read) =
+    orders.process(
+      outcome.store,
+      "
+        query {
+          return(id: \"gid://shopify/Return/status-guard\") {
+            id
+            status
+            decline { reason note }
+          }
+        }
+      ",
+      dict.new(),
+    )
+  assert json.to_string(read)
+    == "{\"data\":{\"return\":{\"id\":\"gid://shopify/Return/status-guard\",\"status\":\"DECLINED\",\"decline\":{\"reason\":\"OTHER\",\"note\":\"policy exception\"}}}}"
+}
+
+pub fn orders_return_decline_rejects_long_decline_note_test() {
+  let outcome =
+    run_return_decline_request(
+      seed: return_status_test_store("REQUESTED", 0),
+      extra_input: ", declineReason: OTHER, declineNote: \""
+        <> string.repeat("x", times: 501)
+        <> "\"",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnDeclineRequest\":{\"return\":null,\"userErrors\":[{\"field\":[\"input\",\"declineNote\"],\"message\":\"Decline note is too long (maximum is 500 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "REQUESTED", None)
+}
+
+pub fn orders_return_decline_rejects_invalid_notify_email_test() {
+  let outcome =
+    run_return_decline_request(
+      seed: return_status_test_store("REQUESTED", 0),
+      extra_input: ", declineReason: OTHER, notifyCustomer: true, tmp_notify_customer: { email_address: \"not-an-email\" }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnDeclineRequest\":{\"return\":null,\"userErrors\":[{\"field\":[\"input\",\"tmp_notify_customer\",\"email_address\"],\"message\":\"Email address is invalid\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "REQUESTED", None)
+}
+
+pub fn orders_return_approve_rejects_invalid_notify_email_test() {
+  let outcome =
+    run_return_approve_request(
+      seed: return_status_test_store("REQUESTED", 0),
+      extra_input: ", notifyCustomer: true, tmp_notify_customer: { email_address: \"not-an-email\" }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnApproveRequest\":{\"return\":null,\"userErrors\":[{\"field\":[\"input\",\"tmp_notify_customer\",\"email_address\"],\"message\":\"Email address is invalid\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert_return_status_read(outcome.store, "REQUESTED", None)
+}
+
+pub fn orders_return_request_rejects_invalid_notify_email_test() {
+  let outcome =
+    run_return_request_with_extra_input(
+      seed: store.new(),
+      extra_input: ", notifyCustomer: true, tmp_notify_customer: { email_address: \"not-an-email\" }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"returnRequest\":{\"return\":null,\"userErrors\":[{\"field\":[\"input\",\"tmp_notify_customer\",\"email_address\"],\"message\":\"Email address is invalid\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn orders_return_close_on_closed_return_is_idempotent_test() {
   let outcome =
     run_return_status_mutation(
@@ -9519,6 +9614,71 @@ fn run_return_status_mutation(
     "mutation {
       " <> root_name <> "(id: \"" <> return_id <> "\") {
         " <> selection <> "
+        userErrors { field message code }
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn run_return_decline_request(
+  seed seed: store.Store,
+  extra_input extra_input: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    "mutation {
+      returnDeclineRequest(input: { id: \"gid://shopify/Return/status-guard\"" <> extra_input <> " }) {
+        return { id status decline { reason note } }
+        userErrors { field message code }
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn run_return_approve_request(
+  seed seed: store.Store,
+  extra_input extra_input: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    "mutation {
+      returnApproveRequest(input: { id: \"gid://shopify/Return/status-guard\"" <> extra_input <> " }) {
+        return { id status }
+        userErrors { field message code }
+      }
+    }",
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
+fn run_return_request_with_extra_input(
+  seed seed: store.Store,
+  extra_input extra_input: String,
+) -> MutationOutcome {
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    "mutation {
+      returnRequest(input: {
+        orderId: \"gid://shopify/Order/missing\"
+        returnLineItems: [
+          {
+            fulfillmentLineItemId: \"gid://shopify/FulfillmentLineItem/missing\"
+            quantity: 1
+          }
+        ]" <> extra_input <> "
+      }) {
+        return { id status }
         userErrors { field message code }
       }
     }",

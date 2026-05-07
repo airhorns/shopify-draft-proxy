@@ -18,6 +18,42 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "invalid-decline-reason",
+        "capturePath": "$.expected.invalidDeclineReason",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              },
+              "declineReason": "BANANAS"
+            }
+          }
+        }
+      },
+      {
+        "name": "invalid-decline-notify-email",
+        "capturePath": "$.expected.invalidDeclineNotifyEmail",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              },
+              "declineReason": "OTHER",
+              "notifyCustomer": true,
+              "tmp_notify_customer": {
+                "email_address": "not-an-email"
+              }
+            }
+          }
+        }
+      },
+      {
         "name": "return-decline-request",
         "capturePath": "$.expected.declineRequest",
         "proxyPath": "$",

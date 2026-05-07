@@ -504,6 +504,34 @@
         }
       }
     },
+    "invalidDeclineReason": {
+      "data": {
+        "returnDeclineRequest": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["declineReason"],
+              "message": "Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    },
+    "invalidDeclineNotifyEmail": {
+      "data": {
+        "returnDeclineRequest": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["input", "tmp_notify_customer", "email_address"],
+              "message": "Email address is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    },
     "statePreconditionErrors": {
       "approveOpen": {
         "data": {

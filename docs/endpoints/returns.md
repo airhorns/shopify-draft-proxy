@@ -34,14 +34,22 @@ Local staged mutations:
   already consumed by non-canceled returns on the same fulfillment line item before staging. The original raw mutation is
   retained in the meta log for explicit commit replay.
 - `returnRequest` stages the same order-backed shape with status `REQUESTED` and uses the same already-returned quantity
-  cap as `returnCreate`.
+  cap as `returnCreate`. When `notifyCustomer: true` is supplied, the proxy validates the hidden
+  `tmp_notify_customer.email_address` input with the shared basic email guard but does not send notification side
+  effects.
 - `returnApproveRequest` transitions a local `REQUESTED` return to `OPEN`, clears any decline metadata, and creates a
   reverse fulfillment order with line work for the approved return line quantities. Approving a return whose status is no
   longer `REQUESTED` returns `INVALID` on `["id"]` with `return_request_status_invalid`, does not change the return, and
-  does not create additional reverse fulfillment order work.
+  does not create additional reverse fulfillment order work. When `notifyCustomer: true` is supplied, the proxy validates
+  `tmp_notify_customer.email_address` with the shared basic email guard but does not send notification side effects.
 - `returnDeclineRequest` transitions a local `REQUESTED` return to `DECLINED` and stores the selected decline reason/note.
+  Decline reasons are canonicalized to Shopify enum casing and must be `RETURN_PERIOD_ENDED`, `FINAL_SALE`, or `OTHER`;
+  unknown values return `INVALID` on `["declineReason"]` with Shopify-like enum deserialization wording. Decline notes
+  longer than 500 characters return `TOO_LONG` on `["input", "declineNote"]`. When `notifyCustomer: true` is supplied,
+  the proxy validates `tmp_notify_customer.email_address` with the shared basic email guard but does not send
+  notification side effects.
   Declining a non-`REQUESTED` return returns the same `INVALID` / `return_request_status_invalid` user error and leaves
-  local return state unchanged. Customer notification side effects are not sent.
+  local return state unchanged.
 - `returnClose` transitions `OPEN` returns to `CLOSED` and records a local `closedAt` timestamp. Already `CLOSED`
   returns are returned unchanged without re-stamping `closedAt` or order `updatedAt`. Other statuses, except
   line-item-empty `REQUESTED` returns, return `INVALID_STATE` on `["id"]` with Shopify's captured
@@ -79,6 +87,8 @@ Local staged mutations:
   The current checked-in evidence uses the local parity harness plus live 2026-04 root/type introspection; success-path live
   return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
   refund-transfer, exchange, notification, or inventory movement fidelity.
+- `return-request-decline-local-staging` also covers invalid `returnDeclineRequest` decline reasons and invalid
+  `tmp_notify_customer.email_address` notification payloads against the local runtime staging fixture.
 - HAR-589 adds executable local-runtime parity for return quantity validation:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` hydrates an order with an existing `OPEN` return consuming
   part of the fulfilled quantity and verifies over-cap `returnRequest` and `returnCreate` calls return a quantity userError
@@ -114,6 +124,9 @@ Local staged mutations:
   `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,
   `config/parity-specs/orders/return-request-decline-local-staging.json`, and
   `config/parity-specs/orders/removeFromReturn-local-staging.json`
+- Return decline/request validation parity:
+  `config/parity-specs/orders/return-request-decline-local-staging.json`, backed by
+  `fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json`.
 - HAR-589 quantity validation parity:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` and
   `config/parity-specs/orders/removeFromReturn-quantity-validation.json`
