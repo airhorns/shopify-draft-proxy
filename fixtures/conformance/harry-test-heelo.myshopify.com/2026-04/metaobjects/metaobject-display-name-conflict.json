@@ -1,0 +1,540 @@
+{
+  "capturedAt": "2026-05-07T18:12:17.388Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Metaobject display-name conflict validation for update/upsert when a competing row is referenced by a product option linked through a product metafield definition.",
+  "seed": {
+    "runId": "1778177534497",
+    "type": "display_name_conflict_1778177534497",
+    "namespace": "linked_option_1778177534497",
+    "definitionId": "gid://shopify/MetaobjectDefinition/17935139122",
+    "oneId": "gid://shopify/Metaobject/188389065010",
+    "twoId": "gid://shopify/Metaobject/188389097778",
+    "metafieldDefinitionId": "gid://shopify/MetafieldDefinition/207294595378",
+    "productId": "gid://shopify/Product/10180010639666"
+  },
+  "setup": {
+    "definitionCreate": {
+      "name": "definition-create",
+      "request": {
+        "query": "mutation MetaobjectDisplayNameConflictDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "display_name_conflict_1778177534497",
+            "name": "Display name conflict 1778177534497",
+            "displayNameKey": "label",
+            "fieldDefinitions": [
+              {
+                "key": "label",
+                "name": "Label",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "alt",
+                "name": "Alt",
+                "type": "single_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17935139122",
+              "type": "display_name_conflict_1778177534497",
+              "displayNameKey": "label"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "entries": [
+      {
+        "name": "one-entry-create",
+        "request": {
+          "query": "mutation MetaobjectDisplayNameConflictEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "display_name_conflict_1778177534497",
+              "handle": "one-1778177534497",
+              "fields": [
+                {
+                  "key": "label",
+                  "value": "One"
+                },
+                {
+                  "key": "alt",
+                  "value": "Alt One"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188389065010",
+                "handle": "one-1778177534497",
+                "displayName": "One"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "two-entry-create",
+        "request": {
+          "query": "mutation MetaobjectDisplayNameConflictEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "display_name_conflict_1778177534497",
+              "handle": "two-1778177534497",
+              "fields": [
+                {
+                  "key": "label",
+                  "value": "Two"
+                },
+                {
+                  "key": "alt",
+                  "value": "Alt Two"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188389097778",
+                "handle": "two-1778177534497",
+                "displayName": "Two"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "metafieldDefinitionCreate": {
+      "name": "metafield-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDisplayNameConflictMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      type {\n        name\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "ownerType": "PRODUCT",
+            "namespace": "linked_option_1778177534497",
+            "key": "choice",
+            "name": "Linked option choice",
+            "type": "list.metaobject_reference",
+            "validations": [
+              {
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/17935139122"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/207294595378",
+              "namespace": "linked_option_1778177534497",
+              "key": "choice",
+              "type": {
+                "name": "list.metaobject_reference"
+              },
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/17935139122"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreate": {
+      "name": "product-create",
+      "request": {
+        "query": "mutation MetaobjectDisplayNameConflictProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Display name conflict 1778177534497",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10180010639666",
+              "title": "Display name conflict 1778177534497"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productOptionsCreate": {
+      "name": "product-options-create",
+      "request": {
+        "query": "mutation MetaobjectDisplayNameConflictProductOptionsCreate(\n  $productId: ID!\n  $options: [OptionCreateInput!]!\n  $variantStrategy: ProductOptionCreateVariantStrategy\n) {\n  productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10180010639666",
+          "variantStrategy": "LEAVE_AS_IS",
+          "options": [
+            {
+              "name": "Linked Choice",
+              "linkedMetafield": {
+                "namespace": "linked_option_1778177534497",
+                "key": "choice",
+                "values": ["gid://shopify/Metaobject/188389065010", "gid://shopify/Metaobject/188389097778"]
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productOptionsCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10180010639666"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "updateConflict": {
+      "name": "update-display-name-conflict",
+      "request": {
+        "query": "mutation MetaobjectDisplayNameConflictUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188389097778",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "label",
+                "value": "One"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.",
+                "code": "DISPLAY_NAME_CONFLICT",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "upsertConflict": {
+      "name": "upsert-display-name-conflict",
+      "request": {
+        "query": "mutation MetaobjectDisplayNameConflictUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "handle": {
+            "type": "display_name_conflict_1778177534497",
+            "handle": "two-1778177534497"
+          },
+          "metaobject": {
+            "fields": [
+              {
+                "key": "label",
+                "value": "One"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpsert": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.",
+                "code": "DISPLAY_NAME_CONFLICT",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-product-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDisplayNameConflictDeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10180010639666"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10180010639666",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metafield-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDisplayNameConflictDeleteMetafieldDefinition(\n    $id: ID!\n    $deleteAllAssociatedMetafields: Boolean!\n  ) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/207294595378",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207294595378",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDisplayNameConflictDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188389097778"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188389097778",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDisplayNameConflictDeleteMetaobject($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188389065010"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188389065010",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDisplayNameConflictDeleteDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17935139122"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17935139122",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
