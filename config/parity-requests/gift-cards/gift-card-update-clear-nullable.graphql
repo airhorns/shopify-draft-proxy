@@ -1,0 +1,44 @@
+mutation GiftCardUpdateClearNullable($id: ID!) {
+  noteClear: giftCardUpdate(id: $id, input: { note: null }) {
+    giftCard {
+      id
+      note
+      expiresOn
+      templateSuffix
+      updatedAt
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  expiresClear: giftCardUpdate(id: $id, input: { expiresOn: null }) {
+    giftCard {
+      id
+      note
+      expiresOn
+      templateSuffix
+      updatedAt
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  templateClear: giftCardUpdate(id: $id, input: { templateSuffix: null }) {
+    giftCard {
+      id
+      note
+      expiresOn
+      templateSuffix
+      updatedAt
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

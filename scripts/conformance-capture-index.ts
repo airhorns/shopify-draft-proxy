@@ -5605,6 +5605,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-update-clear-nullable',
+    scriptPath: 'scripts/capture-gift-card-update-clear-nullable-conformance.ts',
+    purpose:
+      'Gift-card update behavior for explicit null note, expiresOn, and templateSuffix fields against a populated gift card, including downstream readback.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-update-clear-nullable.json`,
+      'config/parity-specs/gift-cards/gift-card-update-clear-nullable.json',
+      'config/parity-requests/gift-cards/gift-card-update-clear-nullable.graphql',
+      'config/parity-requests/gift-cards/gift-card-update-clear-nullable-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-update-clear-nullable-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable gift card with known nullable fields, records explicit-null clear branches and readback, and deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',

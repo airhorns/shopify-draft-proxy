@@ -619,6 +619,50 @@ pub fn gift_card_update_accepts_noop_expiry_and_template_suffix_test() {
     == "{\"data\":{\"noopExpires\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-date-template\",\"expiresOn\":\"2030-01-01\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]},\"noopTemplate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-date-template\",\"templateSuffix\":\"birthday\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"},\"userErrors\":[]}}}"
 }
 
+pub fn gift_card_update_clears_nullable_scalars_with_explicit_null_test() {
+  let id = "gid://shopify/GiftCard/clear-nullable"
+  let existing =
+    GiftCardRecord(
+      ..transaction_card(id, True, Some("2030-01-01"), "50.0", "CAD"),
+      note: Some("current note"),
+      template_suffix: Some("birthday"),
+      updated_at: "2023-12-31T23:59:59.000Z",
+    )
+  let outcome =
+    run_mutation_outcome(
+      store.new() |> seed_card(existing),
+      "mutation { clearNote: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { note: null }) { giftCard { id note expiresOn templateSuffix updatedAt } userErrors { field code message } } clearExpires: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: null }) { giftCard { id note expiresOn templateSuffix updatedAt } userErrors { field code message } } clearTemplate: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { templateSuffix: null }) { giftCard { id note expiresOn templateSuffix updatedAt } userErrors { field code message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"clearNote\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/clear-nullable\",\"note\":null,\"expiresOn\":\"2030-01-01\",\"templateSuffix\":\"birthday\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]},\"clearExpires\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/clear-nullable\",\"note\":null,\"expiresOn\":null,\"templateSuffix\":\"birthday\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"},\"userErrors\":[]},\"clearTemplate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/clear-nullable\",\"note\":null,\"expiresOn\":null,\"templateSuffix\":null,\"updatedAt\":\"2024-01-01T00:00:02.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [id, id, id]
+  let assert Some(updated) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert updated.note == None
+  assert updated.expires_on == None
+  assert updated.template_suffix == None
+  assert updated.updated_at == "2024-01-01T00:00:02.000Z"
+
+  let read_after =
+    gift_cards.handle_gift_card_query(
+      outcome.store,
+      "{ giftCard(id: \""
+        <> id
+        <> "\") { id note expiresOn templateSuffix updatedAt } }",
+      dict.new(),
+    )
+  let assert Ok(read_data) = read_after
+  assert json.to_string(read_data)
+    == "{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/clear-nullable\",\"note\":null,\"expiresOn\":null,\"templateSuffix\":null,\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}}"
+}
+
 pub fn gift_card_update_missing_card_uses_typed_not_found_error_test() {
   let body =
     run_mutation(
@@ -642,6 +686,26 @@ pub fn gift_card_update_rejects_deactivated_card_protected_field_test() {
     )
   assert body
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_deactivated_card_expiry_clear_test() {
+  let id = "gid://shopify/GiftCard/update-deactivated-clear-expiry"
+  let card = transaction_card(id, False, Some("2030-01-01"), "50.0", "CAD")
+  let s = store.new() |> seed_card(card)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: null }) { giftCard { id enabled expiresOn } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert Some(unchanged) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert unchanged.expires_on == Some("2030-01-01")
+  assert unchanged.updated_at == card.updated_at
 }
 
 pub fn gift_card_update_deactivated_multi_field_uses_first_blocked_field_test() {
