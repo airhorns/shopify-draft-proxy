@@ -7530,11 +7530,7 @@
                 "column": 3
               }
             ],
-            "path": [
-              "draftOrderCreate",
-              "input",
-              "lineItems"
-            ],
+            "path": ["draftOrderCreate", "input", "lineItems"],
             "extensions": {
               "code": "MAX_INPUT_SIZE_EXCEEDED"
             }
@@ -7547,11 +7543,7 @@
                 "column": 3
               }
             ],
-            "path": [
-              "draftOrderUpdate",
-              "input",
-              "lineItems"
-            ],
+            "path": ["draftOrderUpdate", "input", "lineItems"],
             "extensions": {
               "code": "MAX_INPUT_SIZE_EXCEEDED"
             }
@@ -7564,11 +7556,7 @@
                 "column": 3
               }
             ],
-            "path": [
-              "draftOrderCalculate",
-              "input",
-              "lineItems"
-            ],
+            "path": ["draftOrderCalculate", "input", "lineItems"],
             "extensions": {
               "code": "MAX_INPUT_SIZE_EXCEEDED"
             }
