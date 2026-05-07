@@ -411,7 +411,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-billing-same-as-shipping-conformance.mts',
     purpose:
-      'B2B billingSameAsShipping/billingAddress mutual-exclusion and taxExempt null validation for company location create/update inputs.',
+      'B2B billingSameAsShipping billingAddress/shippingAddress mutual-exclusion and taxExempt null validation for company location create/update inputs.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-billing-same-as-shipping-validation.json`,

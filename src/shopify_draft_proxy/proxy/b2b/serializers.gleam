@@ -1401,6 +1401,17 @@ pub fn has_non_empty_object_field(
 }
 
 @internal
+pub fn has_object_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Bool {
+  case dict.get(input, field) {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+}
+
+@internal
 pub fn has_explicit_null_field(
   input: Dict(String, root_field.ResolvedValue),
   field: String,
@@ -1470,13 +1481,22 @@ pub fn location_update_empty_input_error() -> b2b_types.UserError {
 pub fn validate_billing_same_as_shipping(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
+  require_shipping_address: Bool,
 ) -> List(b2b_types.UserError) {
   let billing_address_present =
     has_non_empty_object_field(input, "billingAddress")
+  let shipping_address_present = has_object_field(input, "shippingAddress")
   case read_bool(input, "billingSameAsShipping") {
     Some(True) if billing_address_present -> [
       user_error(
         Some(field_path(prefix, "billingAddress")),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    Some(True) if require_shipping_address && !shipping_address_present -> [
+      user_error(
+        Some(field_path(prefix, "shippingAddress")),
         "Invalid input.",
         user_error_code.invalid_input,
       ),
@@ -1620,9 +1640,25 @@ pub fn validate_contact_name_field(
 }
 
 @internal
+pub fn validate_location_create_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  validate_location_input_with_options(input, prefix, True)
+}
+
+@internal
 pub fn validate_location_input(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  validate_location_input_with_options(input, prefix, False)
+}
+
+fn validate_location_input_with_options(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  require_shipping_address: Bool,
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   let input = sanitize_name_field(input)
   let errors =
@@ -1644,7 +1680,11 @@ pub fn validate_location_input(
       b2b_types.notes_max_length,
       True,
     ))
-    |> list.append(validate_billing_same_as_shipping(input, prefix))
+    |> list.append(validate_billing_same_as_shipping(
+      input,
+      prefix,
+      require_shipping_address,
+    ))
     |> list.append(validate_tax_exempt_input(input, prefix))
     |> list.append(validate_external_id_field(input, prefix))
     |> list.append(validate_nested_address_input(

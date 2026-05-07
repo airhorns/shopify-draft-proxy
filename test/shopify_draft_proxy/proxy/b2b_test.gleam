@@ -1398,6 +1398,37 @@ pub fn b2b_company_create_rejects_location_billing_and_tax_guardrails_test() {
   )
   assert string.contains(conflict_json, "\"code\":\"INVALID_INPUT\"")
 
+  let #(Response(status: no_shipping_status, body: no_shipping_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"B2B Missing Shipping\" }, companyLocation: { name: \"HQ\", billingSameAsShipping: true } }) { company { id } userErrors { field message code } } }",
+    )
+  assert no_shipping_status == 200
+  let no_shipping_json = json.to_string(no_shipping_body)
+  assert string.contains(no_shipping_json, "\"company\":null")
+  assert string.contains(
+    no_shipping_json,
+    "\"field\":[\"input\",\"companyLocation\",\"shippingAddress\"]",
+  )
+  assert string.contains(no_shipping_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(
+    Response(status: null_shipping_status, body: null_shipping_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"B2B Null Shipping\" }, companyLocation: { name: \"HQ\", billingSameAsShipping: true, shippingAddress: null } }) { company { id } userErrors { field message code } } }",
+    )
+  assert null_shipping_status == 200
+  let null_shipping_json = json.to_string(null_shipping_body)
+  assert string.contains(null_shipping_json, "\"company\":null")
+  assert string.contains(
+    null_shipping_json,
+    "\"field\":[\"input\",\"companyLocation\",\"shippingAddress\"]",
+  )
+  assert string.contains(null_shipping_json, "\"code\":\"INVALID_INPUT\"")
+
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(
       proxy,
@@ -1459,6 +1490,37 @@ pub fn b2b_location_create_rejects_billing_and_tax_guardrails_test() {
   )
   assert string.contains(conflict_json, "\"code\":\"INVALID_INPUT\"")
 
+  let #(Response(status: no_shipping_status, body: no_shipping_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Missing Shipping\", billingSameAsShipping: true }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert no_shipping_status == 200
+  let no_shipping_json = json.to_string(no_shipping_body)
+  assert string.contains(no_shipping_json, "\"companyLocation\":null")
+  assert string.contains(
+    no_shipping_json,
+    "\"field\":[\"input\",\"shippingAddress\"]",
+  )
+  assert string.contains(no_shipping_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(
+    Response(status: null_shipping_status, body: null_shipping_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Null Shipping\", billingSameAsShipping: true, shippingAddress: null }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert null_shipping_status == 200
+  let null_shipping_json = json.to_string(null_shipping_body)
+  assert string.contains(null_shipping_json, "\"companyLocation\":null")
+  assert string.contains(
+    null_shipping_json,
+    "\"field\":[\"input\",\"shippingAddress\"]",
+  )
+  assert string.contains(null_shipping_json, "\"code\":\"INVALID_INPUT\"")
+
   let #(Response(status: missing_status, body: missing_body, ..), proxy) =
     graphql(
       proxy,
@@ -1495,6 +1557,8 @@ pub fn b2b_location_create_rejects_billing_and_tax_guardrails_test() {
     "\"nodes\":[{\"id\":\"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\",\"name\":\"HQ\"}]",
   )
   assert !string.contains(read_json, "Conflict")
+  assert !string.contains(read_json, "Missing Shipping")
+  assert !string.contains(read_json, "Null Shipping")
   assert !string.contains(read_json, "Missing Billing")
   assert !string.contains(read_json, "Null Tax")
 }

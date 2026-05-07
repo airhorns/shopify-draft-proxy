@@ -13,7 +13,7 @@
   },
   "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
-  "notes": "Executable parity coverage for the HAR-612 B2B validation branches reproduced by the active 2026-04 Admin target: companyCreate/companyLocationCreate reject billingSameAsShipping=true with explicit billingAddress and reject taxExempt:null. The same capture records ticket-required branches that the live target does not currently replay as payload userErrors: companyCreate/companyLocationCreate accept billingSameAsShipping=false without billingAddress, and CompanyLocationUpdateInput rejects billingSameAsShipping/billingAddress/taxExempt as undefined variable fields. Those branches remain covered by focused runtime tests because the ticket cites internal Shopify mutation guardrails beyond the active public schema.",
+  "notes": "Executable parity coverage for the B2B billingSameAsShipping validation branches reproduced by the active 2026-04 Admin target: companyCreate/companyLocationCreate reject billingSameAsShipping=true with explicit billingAddress, reject billingSameAsShipping=true with missing or null shippingAddress, and reject taxExempt:null. The same capture records ticket-required branches that the live target does not currently replay as payload userErrors: companyCreate/companyLocationCreate accept billingSameAsShipping=false without billingAddress, and CompanyLocationUpdateInput rejects billingSameAsShipping/billingAddress/taxExempt as undefined variable fields. Those branches remain covered by focused runtime tests because the ticket cites internal Shopify mutation guardrails beyond the active public schema.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -39,6 +39,26 @@
         }
       },
       {
+        "name": "company-create-billing-same-as-shipping-missing-shipping",
+        "capturePath": "$.companyCreateBillingSameAsShippingMissingShipping.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-billing-same-as-shipping-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateBillingSameAsShippingMissingShipping.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-create-billing-same-as-shipping-null-shipping",
+        "capturePath": "$.companyCreateBillingSameAsShippingNullShipping.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-billing-same-as-shipping-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateBillingSameAsShippingNullShipping.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "location-create-billing-same-as-shipping-explicit-billing",
         "capturePath": "$.locationCreateBillingSameAsShippingWithExplicitBilling.response.data.companyLocationCreate",
         "proxyPath": "$.data.companyLocationCreate",
@@ -48,6 +68,36 @@
             "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
             "input": {
               "fromCapturePath": "$.locationCreateBillingSameAsShippingWithExplicitBilling.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-billing-same-as-shipping-missing-shipping",
+        "capturePath": "$.locationCreateBillingSameAsShippingMissingShipping.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-billing-same-as-shipping-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": {
+              "fromCapturePath": "$.locationCreateBillingSameAsShippingMissingShipping.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-billing-same-as-shipping-null-shipping",
+        "capturePath": "$.locationCreateBillingSameAsShippingNullShipping.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-billing-same-as-shipping-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": {
+              "fromCapturePath": "$.locationCreateBillingSameAsShippingNullShipping.request.variables.input"
             }
           },
           "apiVersion": "2026-04"

@@ -1,11 +1,10 @@
 {
   "scenarioId": "b2b-billing-same-as-shipping-validation",
-  "capturedAt": "2026-05-05T11:50:16.299Z",
+  "capturedAt": "2026-05-07T13:37:36.385Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
-    "ticket": "HAR-612",
-    "plan": "Record B2B billingSameAsShipping/billingAddress mutual-exclusion validation and taxExempt null validation for companyCreate, companyLocationCreate, and companyLocationUpdate."
+    "plan": "Record B2B billingSameAsShipping/billingAddress/shippingAddress mutual-exclusion validation and taxExempt null validation for companyCreate, companyLocationCreate, and companyLocationUpdate."
   },
   "companyCreateBillingSameAsShippingWithExplicitBilling": {
     "request": {
@@ -13,10 +12,10 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-612 B2B billing 1777981814197 company create conflict"
+            "name": "B2B billing same-as-shipping 1778161054002 company create conflict"
           },
           "companyLocation": {
-            "name": "HAR-612 B2B billing 1777981814197 conflict HQ",
+            "name": "B2B billing same-as-shipping 1778161054002 conflict HQ",
             "billingSameAsShipping": true,
             "shippingAddress": {
               "address1": "Ship St"
@@ -55,16 +54,101 @@
       }
     }
   },
+  "companyCreateBillingSameAsShippingMissingShipping": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBillingSameAsShippingCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B billing same-as-shipping 1778161054002 company create missing shipping"
+          },
+          "companyLocation": {
+            "name": "B2B billing same-as-shipping 1778161054002 missing shipping HQ",
+            "billingSameAsShipping": true
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "companyLocation", "shippingAddress"],
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreateBillingSameAsShippingNullShipping": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBillingSameAsShippingCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B billing same-as-shipping 1778161054002 company create null shipping"
+          },
+          "companyLocation": {
+            "name": "B2B billing same-as-shipping 1778161054002 null shipping HQ",
+            "billingSameAsShipping": true,
+            "shippingAddress": null
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "companyLocation", "shippingAddress"],
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "companyCreateBillingSameAsShippingFalseNoBilling": {
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        locations(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-612 B2B billing 1777981814197 company create missing billing"
+            "name": "B2B billing same-as-shipping 1778161054002 company create missing billing"
           },
           "companyLocation": {
-            "name": "HAR-612 B2B billing 1777981814197 missing billing HQ",
+            "name": "B2B billing same-as-shipping 1778161054002 missing billing HQ",
             "billingSameAsShipping": false
           }
         }
@@ -75,12 +159,12 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5435818290",
+            "id": "gid://shopify/Company/5447450930",
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8243708210",
-                  "name": "HAR-612 B2B billing 1777981814197 missing billing HQ"
+                  "id": "gid://shopify/CompanyLocation/8275001650",
+                  "name": "B2B billing same-as-shipping 1778161054002 missing billing HQ"
                 }
               ]
             }
@@ -94,7 +178,7 @@
           "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -107,10 +191,10 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-612 B2B billing 1777981814197 company create null tax"
+            "name": "B2B billing same-as-shipping 1778161054002 company create null tax"
           },
           "companyLocation": {
-            "name": "HAR-612 B2B billing 1777981814197 null tax HQ",
+            "name": "B2B billing same-as-shipping 1778161054002 null tax HQ",
             "taxExempt": null
           }
         }
@@ -149,10 +233,10 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-612 B2B billing 1777981814197 setup"
+            "name": "B2B billing same-as-shipping 1778161054002 setup"
           },
           "companyLocation": {
-            "name": "HAR-612 B2B billing 1777981814197 setup HQ"
+            "name": "B2B billing same-as-shipping 1778161054002 setup HQ"
           }
         }
       }
@@ -162,12 +246,12 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5435851058",
+            "id": "gid://shopify/Company/5447483698",
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8243740978",
-                  "name": "HAR-612 B2B billing 1777981814197 setup HQ"
+                  "id": "gid://shopify/CompanyLocation/8275034418",
+                  "name": "B2B billing same-as-shipping 1778161054002 setup HQ"
                 }
               ]
             }
@@ -192,9 +276,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5435851058",
+        "companyId": "gid://shopify/Company/5447483698",
         "input": {
-          "name": "HAR-612 B2B billing 1777981814197 create conflict",
+          "name": "B2B billing same-as-shipping 1778161054002 create conflict",
           "billingSameAsShipping": true,
           "shippingAddress": {
             "address1": "Ship St"
@@ -232,13 +316,90 @@
       }
     }
   },
+  "locationCreateBillingSameAsShippingMissingShipping": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447483698",
+        "input": {
+          "name": "B2B billing same-as-shipping 1778161054002 create missing shipping",
+          "billingSameAsShipping": true
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress"],
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateBillingSameAsShippingNullShipping": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447483698",
+        "input": {
+          "name": "B2B billing same-as-shipping 1778161054002 create null shipping",
+          "billingSameAsShipping": true,
+          "shippingAddress": null
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "shippingAddress"],
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "locationCreateBillingSameAsShippingFalseNoBilling": {
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5435851058",
+        "companyId": "gid://shopify/Company/5447483698",
         "input": {
-          "name": "HAR-612 B2B billing 1777981814197 create missing billing",
+          "name": "B2B billing same-as-shipping 1778161054002 create missing billing",
           "billingSameAsShipping": false
         }
       }
@@ -248,8 +409,8 @@
       "data": {
         "companyLocationCreate": {
           "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8243773746",
-            "name": "HAR-612 B2B billing 1777981814197 create missing billing"
+            "id": "gid://shopify/CompanyLocation/8275067186",
+            "name": "B2B billing same-as-shipping 1778161054002 create missing billing"
           },
           "userErrors": []
         }
@@ -271,9 +432,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5435851058",
+        "companyId": "gid://shopify/Company/5447483698",
         "input": {
-          "name": "HAR-612 B2B billing 1777981814197 create null tax",
+          "name": "B2B billing same-as-shipping 1778161054002 create null tax",
           "taxExempt": null
         }
       }
@@ -309,9 +470,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8243740978",
+        "companyLocationId": "gid://shopify/CompanyLocation/8275034418",
         "input": {
-          "name": "HAR-612 B2B billing 1777981814197 update conflict",
+          "name": "B2B billing same-as-shipping 1778161054002 update conflict",
           "billingSameAsShipping": true,
           "billingAddress": {
             "address1": "Bill St"
@@ -333,7 +494,7 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "name": "HAR-612 B2B billing 1777981814197 update conflict",
+              "name": "B2B billing same-as-shipping 1778161054002 update conflict",
               "billingSameAsShipping": true,
               "billingAddress": {
                 "address1": "Bill St"
@@ -358,9 +519,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8243740978",
+        "companyLocationId": "gid://shopify/CompanyLocation/8275034418",
         "input": {
-          "name": "HAR-612 B2B billing 1777981814197 update missing billing",
+          "name": "B2B billing same-as-shipping 1778161054002 update missing billing",
           "billingSameAsShipping": false
         }
       }
@@ -379,7 +540,7 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "name": "HAR-612 B2B billing 1777981814197 update missing billing",
+              "name": "B2B billing same-as-shipping 1778161054002 update missing billing",
               "billingSameAsShipping": false
             },
             "problems": [
@@ -397,9 +558,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BBillingSameAsShippingLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8243740978",
+        "companyLocationId": "gid://shopify/CompanyLocation/8275034418",
         "input": {
-          "name": "HAR-612 B2B billing 1777981814197 update null tax",
+          "name": "B2B billing same-as-shipping 1778161054002 update null tax",
           "taxExempt": null
         }
       }
@@ -418,7 +579,7 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "name": "HAR-612 B2B billing 1777981814197 update null tax",
+              "name": "B2B billing same-as-shipping 1778161054002 update null tax",
               "taxExempt": null
             },
             "problems": [
@@ -433,18 +594,18 @@
     }
   },
   "cleanup": {
-    "companyDelete:gid://shopify/Company/5435818290": {
+    "companyDelete:gid://shopify/Company/5447450930": {
       "request": {
         "query": "#graphql\n  mutation B2BBillingSameAsShippingCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5435818290"
+          "id": "gid://shopify/Company/5447450930"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5435818290",
+            "deletedCompanyId": "gid://shopify/Company/5447450930",
             "userErrors": []
           }
         },
@@ -461,18 +622,18 @@
         }
       }
     },
-    "companyDelete:gid://shopify/Company/5435851058": {
+    "companyDelete:gid://shopify/Company/5447483698": {
       "request": {
         "query": "#graphql\n  mutation B2BBillingSameAsShippingCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5435851058"
+          "id": "gid://shopify/Company/5447483698"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5435851058",
+            "deletedCompanyId": "gid://shopify/Company/5447483698",
             "userErrors": []
           }
         },
