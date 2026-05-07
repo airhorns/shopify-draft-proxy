@@ -1,0 +1,108 @@
+{
+  "scenarioId": "segment-mutations-required-argument-validation",
+  "operationNames": ["segmentCreate", "segmentUpdate", "segmentDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-mutations-required-argument-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-required-args-missing-both.graphql",
+    "variables": {},
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live validation-only evidence that segmentCreate, segmentUpdate, and segmentDelete omitted or literal-null required top-level arguments fail during GraphQL coercion before resolver execution, emit no data payload, and do not stage local segment state. Blank string values remain separate resolver-level userError branches covered by segment runtime tests and existing user-error parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-missing-name-and-query",
+        "capturePath": "$.cases[0].response.payload",
+        "proxyPath": "$"
+      },
+      {
+        "name": "segment-create-missing-name",
+        "capturePath": "$.cases[1].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-required-args-missing-name.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-create-null-name",
+        "capturePath": "$.cases[2].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-required-args-null-name.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-create-missing-query",
+        "capturePath": "$.cases[3].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-required-args-missing-query.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-create-null-query",
+        "capturePath": "$.cases[4].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-required-args-null-query.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-update-missing-id",
+        "capturePath": "$.cases[5].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-required-id-missing.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-update-null-id",
+        "capturePath": "$.cases[6].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-required-id-null.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-delete-missing-id",
+        "capturePath": "$.cases[7].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-required-id-missing.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-delete-null-id",
+        "capturePath": "$.cases[8].response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-required-id-null.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
