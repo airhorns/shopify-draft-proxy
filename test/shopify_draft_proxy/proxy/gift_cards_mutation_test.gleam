@@ -11,9 +11,15 @@ import gleam/dict
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/mutation_helpers
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, UpstreamContext, empty_upstream_context,
+}
+import shopify_draft_proxy/shopify/upstream_client.{
+  type SyncTransport, SyncTransport,
+}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -32,6 +38,18 @@ fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
 ) -> mutation_helpers.MutationOutcome {
+  run_mutation_outcome_with_upstream(
+    store_in,
+    document,
+    empty_upstream_context(),
+  )
+}
+
+fn run_mutation_outcome_with_upstream(
+  store_in: store.Store,
+  document: String,
+  upstream: UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let outcome =
     gift_cards.process_mutation(
@@ -40,7 +58,7 @@ fn run_mutation_outcome(
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
-      empty_upstream_context(),
+      upstream,
     )
   outcome
 }
@@ -87,6 +105,22 @@ fn seed_gift_card_configuration(
       purchase_limit: issue_limit,
     ),
   )
+}
+
+fn upstream_context_with_response(body: String) -> UpstreamContext {
+  let transport = ok_transport(body)
+  UpstreamContext(
+    transport: Some(transport),
+    origin: "https://example.myshopify.com",
+    headers: dict.new(),
+    allow_upstream_reads: True,
+  )
+}
+
+fn ok_transport(body: String) -> SyncTransport {
+  SyncTransport(send: fn(_req) {
+    Ok(commit.HttpOutcome(status: 200, body: body, headers: []))
+  })
 }
 
 fn notification_card(
@@ -918,6 +952,53 @@ pub fn gift_card_credit_rejects_processed_at_bounds_test() {
     store.get_effective_gift_card_by_id(outcome.store, id)
   assert after.balance == money("10.0", "USD")
   assert after.transactions == []
+}
+
+pub fn gift_card_credit_rejects_over_limit_without_mutating_test() {
+  let id = "gid://shopify/GiftCard/credit-limit"
+  let s =
+    store.new()
+    |> seed_gift_card_configuration(money("100.0", "CAD"))
+    |> seed_card(transaction_card(id, True, Some("2099-01-01"), "99.0", "CAD"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/credit-limit\", creditInput: { creditAmount: { amount: \"2\", currencyCode: \"CAD\" } }) { giftCard { balance { amount currencyCode } } giftCardCreditTransaction { __typename } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":null,\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"creditAmount\",\"amount\"],\"code\":\"GIFT_CARD_LIMIT_EXCEEDED\",\"message\":\"The gift card's value exceeds the allowed limits.\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("99.0", "CAD")
+  assert after.transactions == []
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn gift_card_credit_hydrates_unknown_limit_before_rejecting_test() {
+  let id = "gid://shopify/GiftCard/credit-hydrate-limit"
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, Some("2099-01-01"), "99.0", "CAD"))
+  let upstream =
+    upstream_context_with_response(
+      "{\"data\":{\"giftCardConfiguration\":{\"issueLimit\":{\"amount\":\"100.0\",\"currencyCode\":\"CAD\"},\"purchaseLimit\":{\"amount\":\"100.0\",\"currencyCode\":\"CAD\"}}}}",
+    )
+  let outcome =
+    run_mutation_outcome_with_upstream(
+      s,
+      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/credit-hydrate-limit\", creditInput: { creditAmount: { amount: \"2\", currencyCode: \"CAD\" } }) { giftCard { balance { amount currencyCode } } giftCardCreditTransaction { __typename } userErrors { field code message } } }",
+      upstream,
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":null,\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"creditAmount\",\"amount\"],\"code\":\"GIFT_CARD_LIMIT_EXCEEDED\",\"message\":\"The gift card's value exceeds the allowed limits.\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("99.0", "CAD")
+  assert after.transactions == []
+  let hydrated_configuration =
+    store.get_effective_gift_card_configuration(outcome.store)
+  assert hydrated_configuration.issue_limit == money("100.0", "CAD")
+  assert outcome.staged_resource_ids == []
 }
 
 // ----------- giftCardDebit -----------

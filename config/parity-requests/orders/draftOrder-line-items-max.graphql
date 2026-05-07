@@ -1,0 +1,35 @@
+mutation DraftOrderLineItemsMax(
+  $createInput: DraftOrderInput!
+  $updateInput: DraftOrderInput!
+  $calculateInput: DraftOrderInput!
+) {
+  draftOrderCreate(input: $createInput) {
+    draftOrder {
+      id
+      totalQuantityOfLineItems
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  draftOrderUpdate(id: "gid://shopify/DraftOrder/0", input: $updateInput) {
+    draftOrder {
+      id
+      totalQuantityOfLineItems
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  draftOrderCalculate(input: $calculateInput) {
+    calculatedDraftOrder {
+      totalQuantityOfLineItems
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

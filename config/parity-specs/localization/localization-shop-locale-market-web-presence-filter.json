@@ -1,0 +1,63 @@
+{
+  "scenarioId": "localization-shop-locale-market-web-presence-filter",
+  "operationNames": ["shopLocaleEnable", "shopLocaleUpdate", "shopLocales"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-validation", "payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-market-web-presence-filter.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-enable-filters-unknown-market-web-presence",
+        "capturePath": "$.enable.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-payload-shapes-shop-locale-enable.graphql",
+          "variablesCapturePath": "$.enable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop-locales-read-after-enable-filters-unknown-market-web-presence",
+        "capturePath": "$.readAfterEnable.response.data.shopLocales",
+        "proxyPath": "$.data.shopLocales",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-read.graphql",
+          "variablesCapturePath": "$.readAfterEnable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop-locale-update-filters-unknown-market-web-presence",
+        "capturePath": "$.update.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-update.graphql",
+          "variablesCapturePath": "$.update.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop-locales-read-after-update-filters-unknown-market-web-presence",
+        "capturePath": "$.readAfterUpdate.response.data.shopLocales",
+        "proxyPath": "$.data.shopLocales",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-read.graphql",
+          "variablesCapturePath": "$.readAfterUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture sends one known MarketWebPresence ID plus fabricated gid://shopify/MarketWebPresence/9999999999 to shopLocaleEnable and shopLocaleUpdate. Shopify silently filters the fabricated ID from mutation payloads and downstream shopLocales reads."
+}

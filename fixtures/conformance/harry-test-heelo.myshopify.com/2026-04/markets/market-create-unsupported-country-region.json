@@ -1,0 +1,4136 @@
+{
+  "capturedAt": "2026-05-07T10:49:38.634Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "marketCreateUnsupportedCountryRegion",
+      "query": "#graphql\nmutation MarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Unsupported Region 20260507104904",
+          "regions": [
+            {
+              "countryCode": "CU"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "regions", "0", "countryCode"],
+                  "message": "CU is not a supported country or region code.",
+                  "code": "UNSUPPORTED_COUNTRY_REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "evidence": {
+    "source": "Live Admin GraphQL CountryCode enum plus per-code marketCreate resolver probes.",
+    "countryCodeEnumCase": {
+      "name": "countryCodeEnumValues",
+      "query": "#graphql\nquery MarketCountryCodeEnumValues {\n  __type(name: \"CountryCode\") {\n    enumValues {\n      name\n    }\n  }\n}",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "__type": {
+              "enumValues": [
+                {
+                  "name": "AF"
+                },
+                {
+                  "name": "AX"
+                },
+                {
+                  "name": "AL"
+                },
+                {
+                  "name": "DZ"
+                },
+                {
+                  "name": "AD"
+                },
+                {
+                  "name": "AO"
+                },
+                {
+                  "name": "AI"
+                },
+                {
+                  "name": "AG"
+                },
+                {
+                  "name": "AR"
+                },
+                {
+                  "name": "AM"
+                },
+                {
+                  "name": "AW"
+                },
+                {
+                  "name": "AC"
+                },
+                {
+                  "name": "AU"
+                },
+                {
+                  "name": "AT"
+                },
+                {
+                  "name": "AZ"
+                },
+                {
+                  "name": "BS"
+                },
+                {
+                  "name": "BH"
+                },
+                {
+                  "name": "BD"
+                },
+                {
+                  "name": "BB"
+                },
+                {
+                  "name": "BY"
+                },
+                {
+                  "name": "BE"
+                },
+                {
+                  "name": "BZ"
+                },
+                {
+                  "name": "BJ"
+                },
+                {
+                  "name": "BM"
+                },
+                {
+                  "name": "BT"
+                },
+                {
+                  "name": "BO"
+                },
+                {
+                  "name": "BA"
+                },
+                {
+                  "name": "BW"
+                },
+                {
+                  "name": "BV"
+                },
+                {
+                  "name": "BR"
+                },
+                {
+                  "name": "IO"
+                },
+                {
+                  "name": "BN"
+                },
+                {
+                  "name": "BG"
+                },
+                {
+                  "name": "BF"
+                },
+                {
+                  "name": "BI"
+                },
+                {
+                  "name": "KH"
+                },
+                {
+                  "name": "CA"
+                },
+                {
+                  "name": "CV"
+                },
+                {
+                  "name": "BQ"
+                },
+                {
+                  "name": "KY"
+                },
+                {
+                  "name": "CF"
+                },
+                {
+                  "name": "TD"
+                },
+                {
+                  "name": "CL"
+                },
+                {
+                  "name": "CN"
+                },
+                {
+                  "name": "CX"
+                },
+                {
+                  "name": "CC"
+                },
+                {
+                  "name": "CO"
+                },
+                {
+                  "name": "KM"
+                },
+                {
+                  "name": "CG"
+                },
+                {
+                  "name": "CD"
+                },
+                {
+                  "name": "CK"
+                },
+                {
+                  "name": "CR"
+                },
+                {
+                  "name": "HR"
+                },
+                {
+                  "name": "CU"
+                },
+                {
+                  "name": "CW"
+                },
+                {
+                  "name": "CY"
+                },
+                {
+                  "name": "CZ"
+                },
+                {
+                  "name": "CI"
+                },
+                {
+                  "name": "DK"
+                },
+                {
+                  "name": "DJ"
+                },
+                {
+                  "name": "DM"
+                },
+                {
+                  "name": "DO"
+                },
+                {
+                  "name": "EC"
+                },
+                {
+                  "name": "EG"
+                },
+                {
+                  "name": "SV"
+                },
+                {
+                  "name": "GQ"
+                },
+                {
+                  "name": "ER"
+                },
+                {
+                  "name": "EE"
+                },
+                {
+                  "name": "SZ"
+                },
+                {
+                  "name": "ET"
+                },
+                {
+                  "name": "FK"
+                },
+                {
+                  "name": "FO"
+                },
+                {
+                  "name": "FJ"
+                },
+                {
+                  "name": "FI"
+                },
+                {
+                  "name": "FR"
+                },
+                {
+                  "name": "GF"
+                },
+                {
+                  "name": "PF"
+                },
+                {
+                  "name": "TF"
+                },
+                {
+                  "name": "GA"
+                },
+                {
+                  "name": "GM"
+                },
+                {
+                  "name": "GE"
+                },
+                {
+                  "name": "DE"
+                },
+                {
+                  "name": "GH"
+                },
+                {
+                  "name": "GI"
+                },
+                {
+                  "name": "GR"
+                },
+                {
+                  "name": "GL"
+                },
+                {
+                  "name": "GD"
+                },
+                {
+                  "name": "GP"
+                },
+                {
+                  "name": "GT"
+                },
+                {
+                  "name": "GG"
+                },
+                {
+                  "name": "GN"
+                },
+                {
+                  "name": "GW"
+                },
+                {
+                  "name": "GY"
+                },
+                {
+                  "name": "HT"
+                },
+                {
+                  "name": "HM"
+                },
+                {
+                  "name": "VA"
+                },
+                {
+                  "name": "HN"
+                },
+                {
+                  "name": "HK"
+                },
+                {
+                  "name": "HU"
+                },
+                {
+                  "name": "IS"
+                },
+                {
+                  "name": "IN"
+                },
+                {
+                  "name": "ID"
+                },
+                {
+                  "name": "IR"
+                },
+                {
+                  "name": "IQ"
+                },
+                {
+                  "name": "IE"
+                },
+                {
+                  "name": "IM"
+                },
+                {
+                  "name": "IL"
+                },
+                {
+                  "name": "IT"
+                },
+                {
+                  "name": "JM"
+                },
+                {
+                  "name": "JP"
+                },
+                {
+                  "name": "JE"
+                },
+                {
+                  "name": "JO"
+                },
+                {
+                  "name": "KZ"
+                },
+                {
+                  "name": "KE"
+                },
+                {
+                  "name": "KI"
+                },
+                {
+                  "name": "KP"
+                },
+                {
+                  "name": "XK"
+                },
+                {
+                  "name": "KW"
+                },
+                {
+                  "name": "KG"
+                },
+                {
+                  "name": "LA"
+                },
+                {
+                  "name": "LV"
+                },
+                {
+                  "name": "LB"
+                },
+                {
+                  "name": "LS"
+                },
+                {
+                  "name": "LR"
+                },
+                {
+                  "name": "LY"
+                },
+                {
+                  "name": "LI"
+                },
+                {
+                  "name": "LT"
+                },
+                {
+                  "name": "LU"
+                },
+                {
+                  "name": "MO"
+                },
+                {
+                  "name": "MG"
+                },
+                {
+                  "name": "MW"
+                },
+                {
+                  "name": "MY"
+                },
+                {
+                  "name": "MV"
+                },
+                {
+                  "name": "ML"
+                },
+                {
+                  "name": "MT"
+                },
+                {
+                  "name": "MQ"
+                },
+                {
+                  "name": "MR"
+                },
+                {
+                  "name": "MU"
+                },
+                {
+                  "name": "YT"
+                },
+                {
+                  "name": "MX"
+                },
+                {
+                  "name": "MD"
+                },
+                {
+                  "name": "MC"
+                },
+                {
+                  "name": "MN"
+                },
+                {
+                  "name": "ME"
+                },
+                {
+                  "name": "MS"
+                },
+                {
+                  "name": "MA"
+                },
+                {
+                  "name": "MZ"
+                },
+                {
+                  "name": "MM"
+                },
+                {
+                  "name": "NA"
+                },
+                {
+                  "name": "NR"
+                },
+                {
+                  "name": "NP"
+                },
+                {
+                  "name": "NL"
+                },
+                {
+                  "name": "AN"
+                },
+                {
+                  "name": "NC"
+                },
+                {
+                  "name": "NZ"
+                },
+                {
+                  "name": "NI"
+                },
+                {
+                  "name": "NE"
+                },
+                {
+                  "name": "NG"
+                },
+                {
+                  "name": "NU"
+                },
+                {
+                  "name": "NF"
+                },
+                {
+                  "name": "MK"
+                },
+                {
+                  "name": "NO"
+                },
+                {
+                  "name": "OM"
+                },
+                {
+                  "name": "PK"
+                },
+                {
+                  "name": "PS"
+                },
+                {
+                  "name": "PA"
+                },
+                {
+                  "name": "PG"
+                },
+                {
+                  "name": "PY"
+                },
+                {
+                  "name": "PE"
+                },
+                {
+                  "name": "PH"
+                },
+                {
+                  "name": "PN"
+                },
+                {
+                  "name": "PL"
+                },
+                {
+                  "name": "PT"
+                },
+                {
+                  "name": "QA"
+                },
+                {
+                  "name": "CM"
+                },
+                {
+                  "name": "RE"
+                },
+                {
+                  "name": "RO"
+                },
+                {
+                  "name": "RU"
+                },
+                {
+                  "name": "RW"
+                },
+                {
+                  "name": "BL"
+                },
+                {
+                  "name": "SH"
+                },
+                {
+                  "name": "KN"
+                },
+                {
+                  "name": "LC"
+                },
+                {
+                  "name": "MF"
+                },
+                {
+                  "name": "PM"
+                },
+                {
+                  "name": "WS"
+                },
+                {
+                  "name": "SM"
+                },
+                {
+                  "name": "ST"
+                },
+                {
+                  "name": "SA"
+                },
+                {
+                  "name": "SN"
+                },
+                {
+                  "name": "RS"
+                },
+                {
+                  "name": "SC"
+                },
+                {
+                  "name": "SL"
+                },
+                {
+                  "name": "SG"
+                },
+                {
+                  "name": "SX"
+                },
+                {
+                  "name": "SK"
+                },
+                {
+                  "name": "SI"
+                },
+                {
+                  "name": "SB"
+                },
+                {
+                  "name": "SO"
+                },
+                {
+                  "name": "ZA"
+                },
+                {
+                  "name": "GS"
+                },
+                {
+                  "name": "KR"
+                },
+                {
+                  "name": "SS"
+                },
+                {
+                  "name": "ES"
+                },
+                {
+                  "name": "LK"
+                },
+                {
+                  "name": "VC"
+                },
+                {
+                  "name": "SD"
+                },
+                {
+                  "name": "SR"
+                },
+                {
+                  "name": "SJ"
+                },
+                {
+                  "name": "SE"
+                },
+                {
+                  "name": "CH"
+                },
+                {
+                  "name": "SY"
+                },
+                {
+                  "name": "TW"
+                },
+                {
+                  "name": "TJ"
+                },
+                {
+                  "name": "TZ"
+                },
+                {
+                  "name": "TH"
+                },
+                {
+                  "name": "TL"
+                },
+                {
+                  "name": "TG"
+                },
+                {
+                  "name": "TK"
+                },
+                {
+                  "name": "TO"
+                },
+                {
+                  "name": "TT"
+                },
+                {
+                  "name": "TA"
+                },
+                {
+                  "name": "TN"
+                },
+                {
+                  "name": "TR"
+                },
+                {
+                  "name": "TM"
+                },
+                {
+                  "name": "TC"
+                },
+                {
+                  "name": "TV"
+                },
+                {
+                  "name": "UG"
+                },
+                {
+                  "name": "UA"
+                },
+                {
+                  "name": "AE"
+                },
+                {
+                  "name": "GB"
+                },
+                {
+                  "name": "US"
+                },
+                {
+                  "name": "UM"
+                },
+                {
+                  "name": "UY"
+                },
+                {
+                  "name": "UZ"
+                },
+                {
+                  "name": "VU"
+                },
+                {
+                  "name": "VE"
+                },
+                {
+                  "name": "VN"
+                },
+                {
+                  "name": "VG"
+                },
+                {
+                  "name": "WF"
+                },
+                {
+                  "name": "EH"
+                },
+                {
+                  "name": "YE"
+                },
+                {
+                  "name": "ZM"
+                },
+                {
+                  "name": "ZW"
+                },
+                {
+                  "name": "ZZ"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "countryCodes": [
+      "AC",
+      "AD",
+      "AE",
+      "AF",
+      "AG",
+      "AI",
+      "AL",
+      "AM",
+      "AN",
+      "AO",
+      "AR",
+      "AT",
+      "AU",
+      "AW",
+      "AX",
+      "AZ",
+      "BA",
+      "BB",
+      "BD",
+      "BE",
+      "BF",
+      "BG",
+      "BH",
+      "BI",
+      "BJ",
+      "BL",
+      "BM",
+      "BN",
+      "BO",
+      "BQ",
+      "BR",
+      "BS",
+      "BT",
+      "BV",
+      "BW",
+      "BY",
+      "BZ",
+      "CA",
+      "CC",
+      "CD",
+      "CF",
+      "CG",
+      "CH",
+      "CI",
+      "CK",
+      "CL",
+      "CM",
+      "CN",
+      "CO",
+      "CR",
+      "CU",
+      "CV",
+      "CW",
+      "CX",
+      "CY",
+      "CZ",
+      "DE",
+      "DJ",
+      "DK",
+      "DM",
+      "DO",
+      "DZ",
+      "EC",
+      "EE",
+      "EG",
+      "EH",
+      "ER",
+      "ES",
+      "ET",
+      "FI",
+      "FJ",
+      "FK",
+      "FO",
+      "FR",
+      "GA",
+      "GB",
+      "GD",
+      "GE",
+      "GF",
+      "GG",
+      "GH",
+      "GI",
+      "GL",
+      "GM",
+      "GN",
+      "GP",
+      "GQ",
+      "GR",
+      "GS",
+      "GT",
+      "GW",
+      "GY",
+      "HK",
+      "HM",
+      "HN",
+      "HR",
+      "HT",
+      "HU",
+      "ID",
+      "IE",
+      "IL",
+      "IM",
+      "IN",
+      "IO",
+      "IQ",
+      "IR",
+      "IS",
+      "IT",
+      "JE",
+      "JM",
+      "JO",
+      "JP",
+      "KE",
+      "KG",
+      "KH",
+      "KI",
+      "KM",
+      "KN",
+      "KP",
+      "KR",
+      "KW",
+      "KY",
+      "KZ",
+      "LA",
+      "LB",
+      "LC",
+      "LI",
+      "LK",
+      "LR",
+      "LS",
+      "LT",
+      "LU",
+      "LV",
+      "LY",
+      "MA",
+      "MC",
+      "MD",
+      "ME",
+      "MF",
+      "MG",
+      "MK",
+      "ML",
+      "MM",
+      "MN",
+      "MO",
+      "MQ",
+      "MR",
+      "MS",
+      "MT",
+      "MU",
+      "MV",
+      "MW",
+      "MX",
+      "MY",
+      "MZ",
+      "NA",
+      "NC",
+      "NE",
+      "NF",
+      "NG",
+      "NI",
+      "NL",
+      "NO",
+      "NP",
+      "NR",
+      "NU",
+      "NZ",
+      "OM",
+      "PA",
+      "PE",
+      "PF",
+      "PG",
+      "PH",
+      "PK",
+      "PL",
+      "PM",
+      "PN",
+      "PS",
+      "PT",
+      "PY",
+      "QA",
+      "RE",
+      "RO",
+      "RS",
+      "RU",
+      "RW",
+      "SA",
+      "SB",
+      "SC",
+      "SD",
+      "SE",
+      "SG",
+      "SH",
+      "SI",
+      "SJ",
+      "SK",
+      "SL",
+      "SM",
+      "SN",
+      "SO",
+      "SR",
+      "SS",
+      "ST",
+      "SV",
+      "SX",
+      "SY",
+      "SZ",
+      "TA",
+      "TC",
+      "TD",
+      "TF",
+      "TG",
+      "TH",
+      "TJ",
+      "TK",
+      "TL",
+      "TM",
+      "TN",
+      "TO",
+      "TR",
+      "TT",
+      "TV",
+      "TW",
+      "TZ",
+      "UA",
+      "UG",
+      "UM",
+      "US",
+      "UY",
+      "UZ",
+      "VA",
+      "VC",
+      "VE",
+      "VG",
+      "VN",
+      "VU",
+      "WF",
+      "WS",
+      "XK",
+      "YE",
+      "YT",
+      "ZA",
+      "ZM",
+      "ZW",
+      "ZZ"
+    ],
+    "unsupportedCountryCodes": ["AN", "BV", "CU", "HM", "IR", "KP", "SY"],
+    "probes": [
+      {
+        "countryCode": "AC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AN",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "AN is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AX",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "AZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BB",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BJ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BQ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BV",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "BV is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "BZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CU",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "CU is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CV",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CX",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "CZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "DE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "DJ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "DK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "DM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "DO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "DZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "EC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "EE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "EG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "EH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ER",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ES",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ET",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "FI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "FJ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "FK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "FO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "FR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GB",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GP",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GQ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "GY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "HK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "HM",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "HM is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "HN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "HR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "HT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "HU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ID",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IQ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IR",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "IR is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "IT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "JE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "JM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "JO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "JP",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KP",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "KP is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "KZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LB",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LV",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "LY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ME",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ML",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MQ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MV",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MX",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "MZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NP",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "NZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "OM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "PY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "QA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "RE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "RO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "RS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "RU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "RW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SB",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "Code has already been taken",
+            "code": "TAKEN"
+          },
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SI",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SJ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ST",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SV",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SX",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SY",
+        "outcome": "unsupported",
+        "userErrors": [
+          {
+            "field": ["input", "regions", "0", "countryCode"],
+            "message": "SY is not a supported country or region code.",
+            "code": "UNSUPPORTED_COUNTRY_REGION"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "SZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TD",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TH",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TJ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TL",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TO",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TR",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TV",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "TZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "UA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "UG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "UM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "US",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "UY",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "UZ",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "VA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "VC",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "VE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "VG",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "VN",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "VU",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "WF",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "WS",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "XK",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "YE",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "YT",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ZA",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ZM",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ZW",
+        "outcome": "supported",
+        "userErrors": [
+          {
+            "field": ["input", "name"],
+            "message": "Name is too short (minimum is 2 characters)",
+            "code": "TOO_SHORT"
+          }
+        ],
+        "errorMessages": []
+      },
+      {
+        "countryCode": "ZZ",
+        "outcome": "error",
+        "userErrors": [],
+        "errorMessages": [
+          "Internal error. Looks like something went wrong on our end.\nRequest ID: 9f1c19d6-a472-4dbc-9d23-4bc646fb0799-1778150978 (include this in support requests)."
+        ]
+      }
+    ]
+  },
+  "upstreamCalls": []
+}

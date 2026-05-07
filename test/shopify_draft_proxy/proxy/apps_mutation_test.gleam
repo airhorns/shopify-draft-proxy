@@ -297,6 +297,16 @@ pub fn app_uninstall_no_installation_returns_app_not_installed_test() {
   assert draft.status == store_types.Failed
 }
 
+pub fn app_uninstall_user_errors_use_typed_fragment_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { appUninstall { app { id } userErrors { __typename field message ... on AppUninstallAppUninstallError { code } } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"__typename\":\"AppUninstallAppUninstallError\",\"field\":[\"base\"],\"message\":\"App is not installed on this shop.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
+}
+
 pub fn app_uninstall_unknown_input_id_returns_app_not_found_test() {
   let outcome =
     run_mutation_outcome(
@@ -516,6 +526,16 @@ pub fn revoke_access_scopes_unknown_app_id_test() {
     )
   assert body
     == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"The requested list of scopes to revoke includes invalid handles.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+}
+
+pub fn revoke_access_scopes_user_errors_use_typed_fragment_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appRevokeAccessScopes(scopes: [\"unicorn_dust\"]) { revoked { handle } userErrors { __typename field message ... on AppRevokeAccessScopesAppRevokeScopeError { code } } } }",
+    )
+  assert body
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"__typename\":\"AppRevokeAccessScopesAppRevokeScopeError\",\"field\":[\"scopes\"],\"message\":\"The requested list of scopes to revoke includes invalid handles.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
 }
 
 pub fn revoke_access_scopes_not_granted_known_scope_is_undeclared_test() {
@@ -1101,6 +1121,16 @@ pub fn purchase_create_requires_return_url_test() {
   assert json.to_string(outcome.data)
     == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"returnUrl\"],\"message\":\"Return URL is required.\",\"code\":null}]}}}"
   assert dict.size(outcome.store.staged_state.app_one_time_purchases) == 0
+}
+
+pub fn purchase_create_user_errors_remain_generic_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { __typename field message ... on UserError { code } } } }",
+    )
+  assert body
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"returnUrl\"],\"message\":\"Return URL is required.\",\"code\":null}]}}}"
 }
 
 pub fn purchase_create_rejects_blank_return_url_test() {

@@ -1,0 +1,13 @@
+mutation SegmentCreateForMemberQuerySegmentIdPaths($name: String!, $query: String!) {
+  segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+      query
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

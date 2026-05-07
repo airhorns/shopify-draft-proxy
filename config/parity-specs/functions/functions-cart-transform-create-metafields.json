@@ -1,0 +1,158 @@
+{
+  "scenarioId": "functions-cart-transform-create-metafields",
+  "operationNames": ["cartTransformCreate", "cartTransforms"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "metafield-persistence"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-cart-transform-create-metafields-invalid.graphql",
+    "variablesCapturePath": "$.cartTransformCreateMissingValue.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cart-transform-create-missing-value",
+        "capturePath": "$.cartTransformCreateMissingValue.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate"
+      },
+      {
+        "name": "cart-transform-create-invalid-json",
+        "capturePath": "$.cartTransformCreateInvalidJson.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-metafields-invalid.graphql",
+          "variablesCapturePath": "$.cartTransformCreateInvalidJson.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transform-create-metafields-success",
+        "capturePath": "$.cartTransformCreateMetafields.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-metafields-success.graphql",
+          "variablesCapturePath": "$.cartTransformCreateMetafields.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.cartTransform.id",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "Shopify and the local proxy generate independent CartTransform IDs."
+          },
+          {
+            "path": "$.cartTransform.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy generate independent Metafield IDs."
+          },
+          {
+            "path": "$.cartTransform.metafield.compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the local proxy derive independent metafield compare digests."
+          },
+          {
+            "path": "$.cartTransform.metafield.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.cartTransform.metafield.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.cartTransform.metafields.nodes[*].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy generate independent Metafield IDs."
+          },
+          {
+            "path": "$.cartTransform.metafields.nodes[*].compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the local proxy derive independent metafield compare digests."
+          },
+          {
+            "path": "$.cartTransform.metafields.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.cartTransform.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          }
+        ]
+      },
+      {
+        "name": "cart-transforms-metafields-readback",
+        "capturePath": "$.cartTransformsAfterMetafields.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-metafields-read.graphql",
+          "variablesCapturePath": "$.cartTransformsAfterMetafields.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "Shopify and the local proxy read independently generated CartTransform IDs."
+          },
+          {
+            "path": "$.nodes[0].metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy retain independent Metafield IDs."
+          },
+          {
+            "path": "$.nodes[0].metafield.compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the local proxy derive independent metafield compare digests."
+          },
+          {
+            "path": "$.nodes[0].metafield.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.nodes[0].metafield.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.nodes[0].metafields.nodes[*].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy retain independent Metafield IDs."
+          },
+          {
+            "path": "$.nodes[0].metafields.nodes[*].compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the local proxy derive independent metafield compare digests."
+          },
+          {
+            "path": "$.nodes[0].metafields.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          },
+          {
+            "path": "$.nodes[0].metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generate independent metafield timestamps."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 evidence for cartTransformCreate missing metafield value validation, malformed JSON metafield validation, valid cart-transform metafield persistence, singular metafield(namespace:, key:) lookup, and downstream cartTransforms read-after-write. The fixture starts with invalid branches so parity can then stage the success path from a cold local state without pre-seeding."
+}

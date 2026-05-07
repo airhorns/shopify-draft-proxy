@@ -1,0 +1,34 @@
+{
+  "scenarioId": "gift-card-credit-limit-exceeded",
+  "operationNames": ["giftCardCredit", "giftCardDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-credit-limit-exceeded.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-credit-limit-exceeded.graphql",
+    "variablesCapturePath": "$.proxyVariables.creditLimitExceeded"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures giftCardCredit over-limit validation against the shop giftCardConfiguration.issueLimit. The setup gift card is created at the exact issue limit and a one-cent credit returns GIFT_CARD_LIMIT_EXCEEDED on creditInput.creditAmount.amount without staging a transaction. The same fixture also captures a one-cent debit after the rejected credit; public Admin GraphQL debits decrease the balance and do not surface GIFT_CARD_LIMIT_EXCEEDED on this path.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "credit over issue limit is rejected",
+        "capturePath": "$.operations.creditLimitExceeded.response.payload.data.overLimitCredit",
+        "proxyPath": "$.data.overLimitCredit",
+        "selectedPaths": ["$.giftCard", "$.giftCardCreditTransaction", "$.userErrors"]
+      },
+      {
+        "name": "debit after rejected credit does not surface limit error",
+        "capturePath": "$.operations.debitAfterRejectedCredit.response.payload.data.debitAfterRejectedCredit",
+        "proxyPath": "$.data.debitAfterRejectedCredit",
+        "selectedPaths": ["$.giftCardDebitTransaction.__typename", "$.giftCardDebitTransaction.amount", "$.userErrors"]
+      }
+    ]
+  }
+}
