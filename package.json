@@ -36,7 +36,6 @@
     "elixir:smoke": "tsx scripts/elixir-smoke.ts",
     "conformance:check": "tsx ./scripts/conformance-check.ts",
     "conformance:parity": "corepack pnpm parity:run",
-    "conformance:run": "corepack pnpm parity",
     "conformance:capture:check": "vitest run tests/unit/conformance-capture-index.test.ts tests/unit/conformance-script-config.test.ts tests/unit/no-mjs-files.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
     "linear:cache": "tsx ./scripts/build-linear-issue-cache.ts",
