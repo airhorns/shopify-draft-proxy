@@ -1,13 +1,12 @@
 {
-  "capturedAt": "2026-05-05T20:22:33.000Z",
+  "capturedAt": "2026-05-06T22:26:32.718Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenario": "delegate-access-token-create-validation",
   "notes": [
-    "Captured live 2026-04 Admin GraphQL delegateAccessTokenCreate validation on harry-test-heelo.myshopify.com with the conformance credential.",
-    "The happy-path branch used expiresIn: 300 so it would not exceed the parent token's remaining lifetime; Shopify returned expiresIn: 299 after elapsed time.",
-    "The raw live delegate token returned by the happy path was destroyed immediately through delegateAccessTokenDestroy and is redacted in this fixture.",
-    "Parent-is-delegate validation requires swapping the active auth token between requests; the generic parity runner does not support that yet, so focused Gleam runtime tests cover that branch."
+    "Captured live Admin GraphQL delegateAccessTokenCreate validation with the conformance credential.",
+    "The happy-path branch used a short expiry and the returned raw delegate token was destroyed immediately.",
+    "The raw live delegate token is redacted in this fixture."
   ],
   "operationNames": ["delegateAccessTokenCreate"],
   "upstreamCalls": [],
@@ -19,7 +18,22 @@
           "data": {
             "delegateAccessTokenDestroy": {
               "status": true,
+              "shop": {
+                "id": "gid://shopify/Shop/92891250994",
+                "name": "harry-test-heelo"
+              },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -39,6 +53,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         },
         "negativeExpires": {
@@ -52,6 +77,17 @@
                   "code": "NEGATIVE_EXPIRES_IN"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         },
@@ -67,6 +103,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
           }
         },
         "happyPath": {
@@ -75,10 +122,21 @@
               "delegateAccessToken": {
                 "accessToken": "[redacted-live-delegate-token]",
                 "accessScopes": ["read_products"],
-                "createdAt": "2026-05-05T20:22:33Z",
+                "createdAt": "2026-05-06T22:26:32Z",
                 "expiresIn": 299
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
             }
           }
         }

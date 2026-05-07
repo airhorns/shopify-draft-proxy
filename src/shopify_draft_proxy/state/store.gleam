@@ -382,6 +382,8 @@ pub const delete_staged_market_localizations = markets.delete_staged_market_loca
 
 pub const list_effective_market_localizations = markets.list_effective_market_localizations
 
+pub const remove_staged_market_localizations = markets.remove_staged_market_localizations
+
 pub const upsert_staged_market = markets.upsert_staged_market
 
 pub const delete_staged_market = markets.delete_staged_market
