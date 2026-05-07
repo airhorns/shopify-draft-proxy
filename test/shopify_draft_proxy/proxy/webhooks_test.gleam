@@ -121,6 +121,7 @@ fn make_shop(primary_host: String, myshopify_domain: String) -> ShopRecord {
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: False,
       discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: False,
       storefront: False,
@@ -889,6 +890,28 @@ pub fn webhook_subscription_create_empty_filter_stores_empty_string_test() {
   assert list.map(records, fn(record) { record.filter }) == [Some("")]
 }
 
+pub fn webhook_subscription_create_customer_id_filter_stages_record_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: CUSTOMERS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/customer\", filter: \"customer_id:10586565673266\" }) { webhookSubscription { id topic filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"CUSTOMERS_UPDATE\",\"filter\":\"customer_id:10586565673266\"},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert list.map(records, fn(record) { record.filter })
+    == [Some("customer_id:10586565673266")]
+}
+
+pub fn webhook_subscription_create_invalid_filter_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: CUSTOMERS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/customer\", filter: \"totally bogus syntax\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
 pub fn webhook_subscription_create_blank_uri_user_error_test() {
   let document =
     "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
@@ -1361,7 +1384,34 @@ pub fn webhook_subscription_update_invalid_filter_user_error_test() {
     "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"invalid_field:*\" }) { webhookSubscription { id filter } userErrors { field message } } }"
   let body = run_mutation(seed_update_store(), document)
   assert body
-    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"filter\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
+}
+
+pub fn webhook_subscription_update_customer_id_filter_sets_value_test() {
+  let existing =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("CUSTOMERS_UPDATE"),
+      Some("https://old.example.com/hook"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/hook")),
+      ),
+    )
+  let s = store.upsert_base_webhook_subscriptions(store.new(), [existing])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"customer_id:10586565673266\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"customer_id:10586565673266\"},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"customer_id:10586565673266\"}}"
 }
 
 pub fn webhook_subscription_update_rejects_cloud_uri_validation_errors_test() {

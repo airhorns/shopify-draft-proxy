@@ -933,6 +933,7 @@ fn public_webhook_subscription_topics_message() -> String {
 fn validate_webhook_subscription_input(
   input: Dict(String, root_field.ResolvedValue),
   store: Store,
+  topic topic: Option(String),
   require_uri require_uri: Bool,
   requesting_api_client_id requesting_api_client_id: Option(String),
 ) -> List(webhook_types.UserError) {
@@ -943,7 +944,7 @@ fn validate_webhook_subscription_input(
       require_uri,
       requesting_api_client_id,
     ),
-    validate_webhook_filter_input(input),
+    validate_webhook_filter_input(input, topic),
   )
 }
 
@@ -959,6 +960,7 @@ fn validate_webhook_subscription_create_input(
     validate_webhook_subscription_input(
       input,
       store,
+      topic: topic,
       require_uri: True,
       requesting_api_client_id: requesting_api_client_id,
     )
@@ -980,6 +982,7 @@ fn validate_webhook_subscription_update_input(
   validate_webhook_subscription_input(
     input,
     store,
+    topic: existing.topic,
     require_uri: False,
     requesting_api_client_id: requesting_api_client_id,
   )
@@ -1756,6 +1759,7 @@ fn kafka_user_errors() -> List(webhook_types.UserError) {
 
 fn validate_webhook_filter_input(
   input: Dict(String, root_field.ResolvedValue),
+  topic: Option(String),
 ) -> List(webhook_types.UserError) {
   case dict.has_key(input, "filter") {
     False -> []
@@ -1764,16 +1768,40 @@ fn validate_webhook_filter_input(
         Some(raw) ->
           case string.trim(raw) {
             "" -> []
-            _ -> [
-              webhook_types.UserError(
-                field: ["webhookSubscription", "filter"],
-                message: "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.",
-              ),
-            ]
+            trimmed ->
+              case webhook_filter_allowed(topic, trimmed) {
+                True -> []
+                False -> [invalid_webhook_filter_user_error()]
+              }
           }
         None -> []
       }
   }
+}
+
+fn invalid_webhook_filter_user_error() -> webhook_types.UserError {
+  webhook_types.UserError(
+    field: ["webhookSubscription"],
+    message: "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.",
+  )
+}
+
+fn webhook_filter_allowed(topic: Option(String), filter: String) -> Bool {
+  case topic {
+    Some("CUSTOMERS_UPDATE") -> customer_id_webhook_filter(filter)
+    _ -> False
+  }
+}
+
+fn customer_id_webhook_filter(filter: String) -> Bool {
+  case string.split_once(filter, "customer_id:") {
+    Ok(#("", customer_id)) -> decimal_customer_id(customer_id)
+    _ -> False
+  }
+}
+
+fn decimal_customer_id(value: String) -> Bool {
+  value != "" && list.all(string.to_graphemes(value), is_digit)
 }
 
 fn normalize_uri_from_input(

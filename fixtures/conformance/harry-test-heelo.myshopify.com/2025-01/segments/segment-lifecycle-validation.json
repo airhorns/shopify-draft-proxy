@@ -1,11 +1,12 @@
 {
-  "capturedAt": "2026-04-25T16:16:00.000Z",
+  "scenarioId": "segment-lifecycle-validation",
+  "capturedAt": "2026-05-06T23:22:54.891Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "cases": [
     {
       "name": "segmentCreateBlankName",
-      "query": "#graphql\nmutation SegmentCreateBlankName($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment { id name query creationDate lastEditDate }\n    userErrors { field message }\n  }\n}",
+      "query": "#graphql\n    mutation SegmentCreateBlankName($name: String!, $query: String!) {\n      segmentCreate(name: $name, query: $query) {\n        segment { id name query creationDate lastEditDate }\n        userErrors { field message }\n      }\n    }\n  ",
       "variables": {
         "name": "",
         "query": "email_subscription_status = 'SUBSCRIBED'"
@@ -23,13 +24,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1957,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "segmentCreateInvalidQuery",
-      "query": "#graphql\nmutation SegmentCreateInvalidQuery($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment { id name query creationDate lastEditDate }\n    userErrors { field message }\n  }\n}",
+      "query": "mutation SegmentCreateInvalidQuery($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "name": "Invalid query",
         "query": "not a valid segment query ???"
@@ -51,13 +63,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1956,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "segmentUpdateUnknownId",
-      "query": "#graphql\nmutation SegmentUpdateUnknownId($id: ID!, $name: String) {\n  segmentUpdate(id: $id, name: $name) {\n    segment { id name query creationDate lastEditDate }\n    userErrors { field message }\n  }\n}",
+      "query": "mutation SegmentUpdateUnknownId($id: ID!, $name: String) {\n  segmentUpdate(id: $id, name: $name) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/Segment/999999999999",
         "name": "Nope"
@@ -75,13 +98,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1959,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "segmentDeleteUnknownId",
-      "query": "#graphql\nmutation SegmentDeleteUnknownId($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors { field message }\n  }\n}",
+      "query": "mutation SegmentDeleteUnknownId($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/Segment/999999999999"
       },
@@ -97,6 +131,17 @@
                   "message": "Segment does not exist"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1959,
+                "restoreRate": 100
+              }
             }
           }
         }

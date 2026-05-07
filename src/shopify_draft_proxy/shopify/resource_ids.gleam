@@ -46,7 +46,11 @@ pub fn shopify_gid_tail(id: String) -> Option(String) {
 /// compares numerically. Falls back to lexicographic compare.
 pub fn compare_shopify_resource_ids(left: String, right: String) -> Order {
   case extract_tail_int(left), extract_tail_int(right) {
-    Some(a), Some(b) -> int.compare(a, b)
+    Some(a), Some(b) ->
+      case int.compare(a, b) {
+        Eq -> string.compare(left, right)
+        order -> order
+      }
     _, _ -> string.compare(left, right)
   }
 }

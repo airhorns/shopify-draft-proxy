@@ -1,0 +1,53 @@
+query FulfillmentOrderReleaseHoldSelectiveHydrate($id: ID!) {
+  fulfillmentOrder(id: $id) {
+    id
+    status
+    requestStatus
+    fulfillAt
+    fulfillBy
+    updatedAt
+    supportedActions {
+      action
+    }
+    assignedLocation {
+      name
+      location {
+        id
+        name
+      }
+    }
+    fulfillmentHolds {
+      id
+      handle
+      reason
+      reasonNotes
+      displayReason
+      heldByRequestingApp
+    }
+    merchantRequests(first: 10) {
+      nodes {
+        kind
+        message
+        requestOptions
+      }
+    }
+    lineItems(first: 20) {
+      nodes {
+        id
+        totalQuantity
+        remainingQuantity
+        lineItem {
+          id
+          title
+          quantity
+          fulfillableQuantity
+        }
+      }
+    }
+    order {
+      id
+      name
+      displayFulfillmentStatus
+    }
+  }
+}

@@ -1,0 +1,24 @@
+fragment MetaobjectDefinitionFieldOperationErrorFields on MetaobjectDefinition {
+  id
+  type
+  displayNameKey
+  fieldDefinitions {
+    key
+    name
+  }
+}
+
+mutation MetaobjectDefinitionFieldOperationErrorsCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      ...MetaobjectDefinitionFieldOperationErrorFields
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

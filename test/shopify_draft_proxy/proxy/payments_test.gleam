@@ -1153,6 +1153,72 @@ pub fn payment_terms_create_rejects_multiple_schedules_with_shopify_code_test() 
   )
 }
 
+pub fn payment_terms_create_unknown_order_uses_null_field_reference_not_found_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/123\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\",
+          paymentSchedules: [{ issuedAt: \"2026-05-05T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Cannot find the specific Order with id 123.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(body, "\"field\":[\"referenceId\"]")
+  assert !string.contains(body, "Reference does not exist")
+}
+
+pub fn payment_terms_create_unknown_draft_order_uses_null_field_reference_not_found_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/DraftOrder/999999\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\",
+          paymentSchedules: [{ issuedAt: \"2026-05-05T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Cannot find the specific Draft order with id 999999.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(body, "\"field\":[\"referenceId\"]")
+  assert !string.contains(body, "Reference does not exist")
+}
+
 pub fn payment_terms_create_rejects_unknown_template_without_staging_test() {
   let proxy = seeded_order_proxy("57.00", "CAD")
   let mutation =
@@ -1849,6 +1915,7 @@ fn payment_guard_shop() -> ShopRecord {
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
       discounts_by_market_enabled: False,
+      markets_granted: 50,
       sells_subscriptions: False,
       show_metrics: True,
       storefront: True,
