@@ -1,0 +1,12 @@
+query MarketUpdateLinkageCatalogRead($id: ID!) {
+  catalog(id: $id) {
+    id
+    ... on MarketCatalog {
+      markets(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+}

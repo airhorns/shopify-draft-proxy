@@ -457,6 +457,7 @@ fn handle_create(
   let errors =
     validate_saved_search_input(input, RequireResourceType(True))
     |> validate_saved_search_query_grammar(input, None, CreateValidation)
+    |> validate_reserved_saved_search_name(store, input, None)
     |> validate_unique_saved_search_name(store, input, None)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     input,
@@ -526,6 +527,7 @@ fn handle_update(
         Some(record.resource_type),
         UpdateValidation,
       )
+      |> validate_reserved_saved_search_name(store, input, Some(record.id))
       |> validate_unique_saved_search_name(store, input, Some(record.id))
     None -> [
       saved_search_types.UserError(
@@ -688,6 +690,30 @@ fn validate_unique_saved_search_name(
   }
 }
 
+fn validate_reserved_saved_search_name(
+  errors: List(saved_search_types.UserError),
+  store: Store,
+  input: Option(dict.Dict(String, root_field.ResolvedValue)),
+  excluded_id: Option(String),
+) -> List(saved_search_types.UserError) {
+  case errors, input {
+    [], Some(fields) ->
+      case read_optional_string(fields, "name") {
+        Some(name) ->
+          case read_uniqueness_resource_type(store, fields, excluded_id) {
+            Some(resource_type) ->
+              case reserved_saved_search_name(resource_type, name) {
+                True -> [duplicate_name_error()]
+                False -> []
+              }
+            None -> []
+          }
+        None -> []
+      }
+    _, _ -> errors
+  }
+}
+
 fn read_uniqueness_resource_type(
   store: Store,
   fields: dict.Dict(String, root_field.ResolvedValue),
@@ -727,6 +753,26 @@ fn saved_search_name_taken(
       None -> True
     }
   })
+}
+
+fn reserved_saved_search_name(resource_type: String, name: String) -> Bool {
+  let normalized_name = string.lowercase(name)
+  reserved_names_for_resource_type(resource_type)
+  |> list.any(fn(reserved_name) {
+    string.lowercase(reserved_name) == normalized_name
+  })
+}
+
+fn reserved_names_for_resource_type(resource_type: String) -> List(String) {
+  case resource_type {
+    "PRODUCT" -> ["All products"]
+    "COLLECTION" -> ["All collections"]
+    "ORDER" -> ["All"]
+    "DRAFT_ORDER" -> ["All Drafts"]
+    "FILE" -> ["All Files"]
+    "CUSTOMER" -> ["All Customers"]
+    _ -> []
+  }
 }
 
 fn duplicate_name_error() -> saved_search_types.UserError {

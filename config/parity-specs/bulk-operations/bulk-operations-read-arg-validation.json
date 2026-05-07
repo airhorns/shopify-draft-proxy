@@ -1,0 +1,131 @@
+{
+  "scenarioId": "bulk-operations-read-arg-validation",
+  "operationNames": ["bulkOperation", "bulkOperations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "search-validation-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-read-arg-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-missingWindow.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin GraphQL 2026-04 read-side validation for BulkOperation roots. Window argument and malformed created_at cases return top-level BAD_REQUEST envelopes; invalid status and operation_type search values return an empty connection plus extensions.search warnings; malformed inline IDs and non-BulkOperation GIDs return the captured top-level ID errors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-window-errors",
+        "capturePath": "$.cases.missingWindow.response.errors",
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "missing-window-data-null",
+        "capturePath": "$.cases.missingWindow.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "first-and-last-errors",
+        "capturePath": "$.cases.firstAndLast.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-firstAndLast.graphql"
+        }
+      },
+      {
+        "name": "first-and-last-data-null",
+        "capturePath": "$.cases.firstAndLast.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-firstAndLast.graphql"
+        }
+      },
+      {
+        "name": "invalid-created-at-errors",
+        "capturePath": "$.cases.invalidCreatedAt.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-invalidCreatedAt.graphql"
+        }
+      },
+      {
+        "name": "invalid-created-at-data-null",
+        "capturePath": "$.cases.invalidCreatedAt.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-invalidCreatedAt.graphql"
+        }
+      },
+      {
+        "name": "invalid-status-expired-data",
+        "capturePath": "$.cases.invalidStatusExpired.response.data.bulkOperations",
+        "proxyPath": "$.data.bulkOperations",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-invalidStatusExpired.graphql"
+        }
+      },
+      {
+        "name": "invalid-status-expired-search-warning",
+        "capturePath": "$.cases.invalidStatusExpired.response.extensions.search",
+        "proxyPath": "$.extensions.search",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-invalidStatusExpired.graphql"
+        }
+      },
+      {
+        "name": "invalid-status-unknown-search-warning",
+        "capturePath": "$.cases.invalidStatusUnknown.response.extensions.search",
+        "proxyPath": "$.extensions.search",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-invalidStatusUnknown.graphql"
+        }
+      },
+      {
+        "name": "invalid-operation-type-search-warning",
+        "capturePath": "$.cases.invalidOperationType.response.extensions.search",
+        "proxyPath": "$.extensions.search",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-invalidOperationType.graphql"
+        }
+      },
+      {
+        "name": "malformed-inline-id-errors",
+        "capturePath": "$.cases.malformedInlineId.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-malformedInlineId.graphql"
+        }
+      },
+      {
+        "name": "non-bulk-operation-gid-errors",
+        "capturePath": "$.cases.nonBulkOperationGid.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-nonBulkOperationGid.graphql"
+        }
+      },
+      {
+        "name": "non-bulk-operation-gid-data",
+        "capturePath": "$.cases.nonBulkOperationGid.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-read-arg-validation-nonBulkOperationGid.graphql"
+        }
+      }
+    ]
+  }
+}

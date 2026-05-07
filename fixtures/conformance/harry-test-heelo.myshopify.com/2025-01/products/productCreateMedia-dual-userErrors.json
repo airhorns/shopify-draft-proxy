@@ -1,0 +1,110 @@
+{
+  "capturedAt": "2026-05-06T22:45:50.609Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "productCreate": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10178980348210",
+            "title": "Hermes Product Media Conformance 1778107543575"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1974,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10178980348210",
+      "media": [
+        {
+          "mediaContentType": "IMAGE",
+          "originalSource": "not-a-url",
+          "alt": "Invalid source"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productCreateMedia": {
+          "media": [],
+          "userErrors": [
+            {
+              "field": ["media", "0", "originalSource"],
+              "message": "Image URL is invalid"
+            }
+          ],
+          "mediaUserErrors": [
+            {
+              "field": ["media", "0", "originalSource"],
+              "message": "Image URL is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1931,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10178980348210"]
+      },
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        handle\n        status\n        media(first: 250) {\n          nodes {\n            __typename\n            id\n            alt\n            mediaContentType\n            status\n            preview {\n              image {\n                url\n                width\n                height\n              }\n            }\n            ... on MediaImage {\n              image {\n                id\n                url\n                altText\n                width\n                height\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178980348210",
+                "title": "Hermes Product Media Conformance 1778107543575",
+                "handle": "hermes-product-media-conformance-1778107543575",
+                "status": "DRAFT",
+                "media": {
+                  "nodes": []
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 47,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1919,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

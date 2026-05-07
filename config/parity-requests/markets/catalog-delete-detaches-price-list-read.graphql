@@ -1,0 +1,11 @@
+query CatalogDeleteDetachesPriceListRead($catalogId: ID!, $priceListId: ID!) {
+  priceList(id: $priceListId) {
+    id
+    catalog {
+      id
+    }
+  }
+  catalog(id: $catalogId) {
+    id
+  }
+}

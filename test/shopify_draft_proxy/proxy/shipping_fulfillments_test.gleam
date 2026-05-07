@@ -3292,6 +3292,103 @@ pub fn fulfillment_order_split_validates_indexed_inputs_test() {
     == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
 }
 
+pub fn fulfillment_order_submit_request_splits_partial_line_item_test() {
+  let order_id = "gid://shopify/FulfillmentOrder/partial-submit"
+  let line_item_id = "gid://shopify/FulfillmentOrderLineItem/partial-submit"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(order_id, [
+        #(line_item_id, "gid://shopify/LineItem/partial-submit", 2),
+      ]),
+    ])
+  let mutation =
+    "
+    mutation Submit($id: ID!, $items: [FulfillmentOrderLineItemInput!]) {
+      fulfillmentOrderSubmitFulfillmentRequest(
+        id: $id
+        fulfillmentOrderLineItems: $items
+        message: \"partial submit\"
+        notifyCustomer: false
+      ) {
+        originalFulfillmentOrder {
+          id
+          status
+          requestStatus
+          merchantRequests(first: 5) {
+            nodes { kind message requestOptions responseData }
+          }
+          lineItems(first: 5) {
+            nodes { id totalQuantity remainingQuantity lineItem { id } }
+          }
+        }
+        submittedFulfillmentOrder { id status requestStatus }
+        unsubmittedFulfillmentOrder {
+          id
+          status
+          requestStatus
+          lineItems(first: 5) {
+            nodes { totalQuantity remainingQuantity lineItem { id } }
+          }
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(order_id)),
+        #(
+          "items",
+          root_field.ListVal([
+            root_field.ObjectVal(
+              dict.from_list([
+                #("id", root_field.StringVal(line_item_id)),
+                #("quantity", root_field.IntVal(1)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"originalFulfillmentOrder\":{\"id\":\"" <> order_id,
+  )
+  assert string.contains(body, "\"requestStatus\":\"SUBMITTED\"")
+  assert string.contains(body, "\"kind\":\"FULFILLMENT_REQUEST\"")
+  assert string.contains(body, "\"message\":\"partial submit\"")
+  assert string.contains(body, "\"notify_customer\":false")
+  assert string.contains(body, "\"unsubmittedFulfillmentOrder\":{\"id\":\"")
+  assert string.contains(body, "\"requestStatus\":\"UNSUBMITTED\"")
+  assert string.contains(body, "\"totalQuantity\":1")
+  assert string.contains(body, "\"remainingQuantity\":1")
+
+  let assert [unsubmitted_id] =
+    store.list_effective_fulfillment_orders(outcome.store)
+    |> list.filter(fn(order) {
+      order.id != order_id && order.request_status == "UNSUBMITTED"
+    })
+    |> list.map(fn(order) { order.id })
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      outcome.store,
+      "query Read($id: ID!) { fulfillmentOrder(id: $id) { id status requestStatus lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id } } } } }",
+      dict.from_list([#("id", root_field.StringVal(unsubmitted_id))]),
+    )
+  let read_json = json.to_string(read_response)
+  assert string.contains(read_json, "\"id\":\"" <> unsubmitted_id <> "\"")
+  assert string.contains(read_json, "\"requestStatus\":\"UNSUBMITTED\"")
+  assert string.contains(read_json, "\"remainingQuantity\":1")
+}
+
 pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {
   let order_a_id = "gid://shopify/FulfillmentOrder/har-874-a"
   let order_b_id = "gid://shopify/FulfillmentOrder/har-874-b"

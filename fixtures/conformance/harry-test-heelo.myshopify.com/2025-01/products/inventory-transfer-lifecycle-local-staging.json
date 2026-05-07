@@ -2,19 +2,32 @@
   "scenario": "inventory-transfer-lifecycle-local-staging",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-04-27T20:12:58Z",
+  "capturedAt": "2026-05-06T22:19:31.208Z",
+  "setup": {
+    "productId": "gid://shopify/Product/10178961080626",
+    "variantId": "gid://shopify/ProductVariant/51133339304242",
+    "inventoryItemId": "gid://shopify/InventoryItem/53236505968946",
+    "originLocation": {
+      "id": "gid://shopify/Location/112865116466",
+      "name": "Inventory transfer conformance origin 1778105966307"
+    },
+    "destinationLocation": {
+      "id": "gid://shopify/Location/112865149234",
+      "name": "Inventory transfer conformance destination 1778105966307"
+    }
+  },
   "workflow": {
     "createDraft": {
       "variables": {
         "input": {
-          "originLocationId": "gid://shopify/Location/1",
-          "destinationLocationId": "gid://shopify/Location/2",
-          "referenceName": "HAR-307-PARITY",
-          "note": "transfer parity fixture",
-          "tags": ["har-307"],
+          "originLocationId": "gid://shopify/Location/112865116466",
+          "destinationLocationId": "gid://shopify/Location/112865149234",
+          "referenceName": "inventory-transfer-conformance-1778105969489",
+          "note": "inventory transfer conformance",
+          "tags": ["inventory-transfer-conformance"],
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/97011",
+              "inventoryItemId": "gid://shopify/InventoryItem/53236505968946",
               "quantity": 2
             }
           ]
@@ -23,62 +36,88 @@
     },
     "afterReadyInventoryRead": {
       "variables": {
-        "id": "gid://shopify/InventoryItem/97011"
+        "id": "gid://shopify/InventoryItem/53236505968946"
       }
     }
   },
-  "scopeProbe": {
-    "readReachedSchema": true,
-    "cancelUnknownId": {
-      "data": {
-        "inventoryTransferCancel": {
-          "inventoryTransfer": null,
-          "userErrors": [
+  "beforeReadyInventoryRead": {
+    "data": {
+      "inventoryItem": {
+        "variant": {
+          "inventoryQuantity": 5
+        },
+        "inventoryLevels": {
+          "nodes": [
             {
-              "field": ["id"],
-              "message": "The inventory transfer can't be found."
+              "location": {
+                "id": "gid://shopify/Location/106318430514"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0
+                }
+              ]
+            },
+            {
+              "location": {
+                "id": "gid://shopify/Location/112865116466"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 5
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 5
+                }
+              ]
+            },
+            {
+              "location": {
+                "id": "gid://shopify/Location/112865149234"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0
+                }
+              ]
             }
           ]
         }
       }
-    }
-  },
-  "emptyCatalogRead": {
-    "data": {
-      "inventoryTransfers": {
-        "nodes": [],
-        "pageInfo": {
-          "hasNextPage": false,
-          "hasPreviousPage": false,
-          "startCursor": null,
-          "endCursor": null
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 25,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1959,
+          "restoreRate": 100
         }
-      }
-    }
-  },
-  "lineItemSchema": {
-    "fields": [
-      "id",
-      "inventoryItem",
-      "pickedForShipmentQuantity",
-      "processableQuantity",
-      "shippableQuantity",
-      "shippedQuantity",
-      "title",
-      "totalQuantity"
-    ],
-    "notPresent": ["quantity"]
-  },
-  "untrackedItemCreateValidation": {
-    "data": {
-      "inventoryTransferCreate": {
-        "inventoryTransfer": null,
-        "userErrors": [
-          {
-            "field": ["input", "lineItems", "0", "inventoryItemId"],
-            "message": "The inventory item does not track inventory."
-          }
-        ]
       }
     }
   },
@@ -86,7 +125,8 @@
     "data": {
       "inventoryTransferCreate": {
         "inventoryTransfer": {
-          "name": "#T0002",
+          "id": "gid://shopify/InventoryTransfer/4558455090",
+          "name": "#T0020",
           "status": "DRAFT",
           "totalQuantity": 2,
           "lineItems": {
@@ -102,6 +142,17 @@
           }
         },
         "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 16,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1960,
+          "restoreRate": 100
+        }
       }
     }
   },
@@ -125,19 +176,17 @@
         },
         "userErrors": []
       }
-    }
-  },
-  "readyInventoryReadAfterWrite": {
-    "before": {
-      "available": 5,
-      "reserved": 0,
-      "on_hand": 5
     },
-    "afterReady": {
-      "available": 3,
-      "reserved": 2,
-      "on_hand": 5,
-      "variantInventoryQuantity": 3
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 16,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1975,
+          "restoreRate": 100
+        }
+      }
     }
   },
   "readyInventoryReadAfterWriteGraphql": {
@@ -150,7 +199,26 @@
           "nodes": [
             {
               "location": {
-                "id": "gid://shopify/Location/1"
+                "id": "gid://shopify/Location/106318430514"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0
+                }
+              ]
+            },
+            {
+              "location": {
+                "id": "gid://shopify/Location/112865116466"
               },
               "quantities": [
                 {
@@ -166,8 +234,38 @@
                   "quantity": 5
                 }
               ]
+            },
+            {
+              "location": {
+                "id": "gid://shopify/Location/112865149234"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0
+                }
+              ]
             }
           ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 25,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
         }
       }
     }
@@ -179,6 +277,17 @@
           "status": "CANCELED"
         },
         "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1990,
+          "restoreRate": 100
+        }
       }
     }
   },
@@ -193,97 +302,215 @@
           }
         ]
       }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1990,
+          "restoreRate": 100
+        }
+      }
     }
   },
   "cleanup": {
-    "productsDeleted": true,
     "readyTransferCanceled": true,
-    "canceledTransfersRemainBecauseShopifyRejectsNonDraftDelete": true
+    "canceledTransfersRemainBecauseShopifyRejectsNonDraftDelete": true,
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10178961080626",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationCleanup": {
+      "origin": {
+        "deactivate": {
+          "errors": [
+            {
+              "message": "Directive @idempotent is not defined",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 49
+                }
+              ],
+              "path": ["mutation InventoryTransferConformanceLocationDeactivate", "locationDeactivate"],
+              "extensions": {
+                "code": "undefinedDirective",
+                "directiveName": "idempotent"
+              }
+            },
+            {
+              "message": "Variable $idempotencyKey is declared by InventoryTransferConformanceLocationDeactivate but not used",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation InventoryTransferConformanceLocationDeactivate"],
+              "extensions": {
+                "code": "variableNotUsed",
+                "variableName": "idempotencyKey"
+              }
+            }
+          ]
+        },
+        "delete": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it is active.",
+                  "code": "LOCATION_IS_ACTIVE"
+                },
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it has inventory.",
+                  "code": "LOCATION_HAS_INVENTORY"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "destination": {
+        "deactivate": {
+          "errors": [
+            {
+              "message": "Directive @idempotent is not defined",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 49
+                }
+              ],
+              "path": ["mutation InventoryTransferConformanceLocationDeactivate", "locationDeactivate"],
+              "extensions": {
+                "code": "undefinedDirective",
+                "directiveName": "idempotent"
+              }
+            },
+            {
+              "message": "Variable $idempotencyKey is declared by InventoryTransferConformanceLocationDeactivate but not used",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation InventoryTransferConformanceLocationDeactivate"],
+              "extensions": {
+                "code": "variableNotUsed",
+                "variableName": "idempotencyKey"
+              }
+            }
+          ]
+        },
+        "delete": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it is active.",
+                  "code": "LOCATION_IS_ACTIVE"
+                },
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it has inventory.",
+                  "code": "LOCATION_HAS_INVENTORY"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productsDeleted": true
   },
   "upstreamCalls": [
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Location/1", "gid://shopify/Location/2", "gid://shopify/InventoryItem/97011"]
+        "ids": [
+          "gid://shopify/Location/112865116466",
+          "gid://shopify/Location/112865149234",
+          "gid://shopify/InventoryItem/53236505968946"
+        ]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on InventoryItem {\n        tracked\n        requiresShipping\n        measurement { weight { unit value } }\n        variant {\n          id\n          title\n          inventoryQuantity\n          selectedOptions { name value }\n          product {\n            id\n            title\n            handle\n            status\n            totalInventory\n            tracksInventory\n          }\n        }\n        inventoryLevels(first: 50) {\n          nodes {\n            id\n            location { id name }\n            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {\n              name\n              quantity\n              updatedAt\n            }\n          }\n        }\n      }\n      ... on Location {\n        id\n        name\n        isActive\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Location/1",
-                "name": "Shop location",
+                "__typename": "Location",
+                "id": "gid://shopify/Location/112865116466",
+                "name": "Inventory transfer conformance origin 1778105966307",
                 "isActive": true
               },
               {
-                "id": "gid://shopify/Location/2",
-                "name": "Overflow location",
+                "__typename": "Location",
+                "id": "gid://shopify/Location/112865149234",
+                "name": "Inventory transfer conformance destination 1778105966307",
                 "isActive": true
               },
               {
-                "id": "gid://shopify/InventoryItem/97011",
+                "__typename": "InventoryItem",
+                "id": "gid://shopify/InventoryItem/53236505968946",
                 "tracked": true,
                 "requiresShipping": true,
-                "inventoryLevels": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/InventoryLevel/97011-1?inventory_item_id=97011",
-                      "cursor": "opaque-transfer-origin",
-                      "location": {
-                        "id": "gid://shopify/Location/1",
-                        "name": "Shop location"
-                      },
-                      "quantities": [
-                        {
-                          "name": "available",
-                          "quantity": 5,
-                          "updatedAt": "2026-04-01T00:00:00.000Z"
-                        },
-                        {
-                          "name": "reserved",
-                          "quantity": 0,
-                          "updatedAt": null
-                        },
-                        {
-                          "name": "on_hand",
-                          "quantity": 5,
-                          "updatedAt": null
-                        }
-                      ]
-                    },
-                    {
-                      "id": "gid://shopify/InventoryLevel/97011-2?inventory_item_id=97011",
-                      "cursor": "opaque-transfer-destination",
-                      "location": {
-                        "id": "gid://shopify/Location/2",
-                        "name": "Overflow location"
-                      },
-                      "quantities": [
-                        {
-                          "name": "available",
-                          "quantity": 0,
-                          "updatedAt": "2026-04-01T00:00:00.000Z"
-                        },
-                        {
-                          "name": "reserved",
-                          "quantity": 0,
-                          "updatedAt": null
-                        },
-                        {
-                          "name": "on_hand",
-                          "quantity": 0,
-                          "updatedAt": null
-                        }
-                      ]
-                    }
-                  ]
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
                 },
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/97011",
+                  "id": "gid://shopify/ProductVariant/51133339304242",
                   "title": "Default Title",
-                  "sku": "TRANSFER-HOODIE",
                   "inventoryQuantity": 5,
                   "selectedOptions": [
                     {
@@ -292,16 +519,178 @@
                     }
                   ],
                   "product": {
-                    "id": "gid://shopify/Product/9701",
-                    "title": "Transfer Hoodie",
-                    "handle": "transfer-hoodie",
+                    "id": "gid://shopify/Product/10178961080626",
+                    "title": "Inventory transfer conformance 1778105966307",
+                    "handle": "inventory-transfer-conformance-1778105966307",
                     "status": "ACTIVE",
-                    "totalInventory": 5,
+                    "totalInventory": 0,
                     "tracksInventory": true
                   }
+                },
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53236505968946",
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-05-06T22:19:27Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/150060695858?inventory_item_id=53236505968946",
+                      "location": {
+                        "id": "gid://shopify/Location/112865116466",
+                        "name": "Inventory transfer conformance origin 1778105966307"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 5,
+                          "updatedAt": "2026-05-06T22:19:30Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 5,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": "2026-05-06T22:19:30Z"
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    },
+                    {
+                      "id": "gid://shopify/InventoryLevel/150060728626?inventory_item_id=53236505968946",
+                      "location": {
+                        "id": "gid://shopify/Location/112865149234",
+                        "name": "Inventory transfer conformance destination 1778105966307"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0,
+                          "updatedAt": "2026-05-06T22:19:28Z"
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "committed",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "incoming",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "reserved",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "damaged",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "quality_control",
+                          "quantity": 0,
+                          "updatedAt": null
+                        },
+                        {
+                          "name": "safety_stock",
+                          "quantity": 0,
+                          "updatedAt": null
+                        }
+                      ]
+                    }
+                  ]
                 }
               }
             ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

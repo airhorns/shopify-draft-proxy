@@ -1,0 +1,10 @@
+mutation MarketDeleteCascadeDelete($id: ID!) {
+  marketDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
