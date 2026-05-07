@@ -25,6 +25,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   read_optional_string, read_optional_string_array, single_root_log_draft,
   validate_required_field_arguments, validate_required_id_argument,
 }
+import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/webhooks/filters.{
   endpoint_from_uri, uri_from_endpoint, webhook_subscription_uri,
@@ -37,7 +38,7 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type WebhookSubscriptionRecord, WebhookSubscriptionRecord,
+  type ShopRecord, type WebhookSubscriptionRecord, WebhookSubscriptionRecord,
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +55,8 @@ type UriInput {
   UriBlank
   UriPresent(String)
 }
+
+const webhook_subscription_address_max_bytes = 65_535
 
 /// Predicate matching `isWebhookSubscriptionMutationRoot`. Three
 /// top-level mutations the TS handler dispatches.
@@ -78,6 +81,10 @@ pub fn process_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
+  let store = case upstream.allow_upstream_reads {
+    True -> store_properties.hydrate_shop_baseline_if_needed(store, upstream)
+    False -> store
+  }
   process_mutation_with_api_client(
     store,
     identity,
@@ -459,6 +466,7 @@ fn handle_update(
           validate_webhook_subscription_update_input(
             input_dict,
             existing_record,
+            store,
             requesting_api_client_id,
           )
         Some(_), None -> []
@@ -924,12 +932,18 @@ fn public_webhook_subscription_topics_message() -> String {
 
 fn validate_webhook_subscription_input(
   input: Dict(String, root_field.ResolvedValue),
+  store: Store,
   topic topic: Option(String),
   require_uri require_uri: Bool,
   requesting_api_client_id requesting_api_client_id: Option(String),
 ) -> List(webhook_types.UserError) {
   list.append(
-    validate_webhook_uri_input(input, require_uri, requesting_api_client_id),
+    validate_webhook_uri_input(
+      input,
+      store,
+      require_uri,
+      requesting_api_client_id,
+    ),
     validate_webhook_filter_input(input, topic),
   )
 }
@@ -945,6 +959,7 @@ fn validate_webhook_subscription_create_input(
   let errors =
     validate_webhook_subscription_input(
       input,
+      store,
       topic: topic,
       require_uri: True,
       requesting_api_client_id: requesting_api_client_id,
@@ -961,10 +976,12 @@ fn validate_webhook_subscription_create_input(
 fn validate_webhook_subscription_update_input(
   input: Dict(String, root_field.ResolvedValue),
   existing: WebhookSubscriptionRecord,
+  store: Store,
   requesting_api_client_id: Option(String),
 ) -> List(webhook_types.UserError) {
   validate_webhook_subscription_input(
     input,
+    store,
     topic: existing.topic,
     require_uri: False,
     requesting_api_client_id: requesting_api_client_id,
@@ -1220,6 +1237,7 @@ fn duplicate_webhook_subscription_address_user_error() -> webhook_types.UserErro
 
 fn validate_webhook_uri_input(
   input: Dict(String, root_field.ResolvedValue),
+  store: Store,
   require_uri: Bool,
   requesting_api_client_id: Option(String),
 ) -> List(webhook_types.UserError) {
@@ -1227,7 +1245,8 @@ fn validate_webhook_uri_input(
     UriAbsent, True -> [blank_address_user_error()]
     UriAbsent, False -> []
     UriBlank, _ -> [blank_address_user_error()]
-    UriPresent(uri), _ -> validate_webhook_uri(uri, requesting_api_client_id)
+    UriPresent(uri), _ ->
+      validate_webhook_uri(uri, store, requesting_api_client_id)
   }
 }
 
@@ -1286,15 +1305,16 @@ fn invalid_pubsub_user_error() -> webhook_types.UserError {
 fn address_too_long_user_error() -> webhook_types.UserError {
   webhook_types.UserError(
     field: ["webhookSubscription", "callbackUrl"],
-    message: "Address is too long",
+    message: "Address is too big (maximum is 64 KB)",
   )
 }
 
 fn validate_webhook_uri(
   uri: String,
+  store: Store,
   requesting_api_client_id: Option(String),
 ) -> List(webhook_types.UserError) {
-  case string.byte_size(uri) > 4096 {
+  case string.byte_size(uri) > webhook_subscription_address_max_bytes {
     True -> [address_too_long_user_error()]
     False ->
       case string.starts_with(uri, "pubsub://") {
@@ -1305,14 +1325,17 @@ fn validate_webhook_uri(
             False ->
               case string.starts_with(uri, "kafka://") {
                 True -> kafka_user_errors()
-                False -> validate_https_uri(uri)
+                False -> validate_https_uri(uri, store)
               }
           }
       }
   }
 }
 
-fn validate_https_uri(uri: String) -> List(webhook_types.UserError) {
+fn validate_https_uri(
+  uri: String,
+  store: Store,
+) -> List(webhook_types.UserError) {
   case string.starts_with(uri, "https://") {
     False ->
       case string.split_once(uri, "://") {
@@ -1328,10 +1351,64 @@ fn validate_https_uri(uri: String) -> List(webhook_types.UserError) {
         False ->
           case is_disallowed_host(host) {
             True -> [internal_domain_user_error()]
-            False -> []
+            False -> {
+              let denied_domains = shop_denied_webhook_domains(store)
+              case is_shop_denied_webhook_host(host, denied_domains) {
+                True -> [denied_domains_user_error(denied_domains)]
+                False -> []
+              }
+            }
           }
       }
     }
+  }
+}
+
+fn shop_denied_webhook_domains(store: Store) -> List(String) {
+  case store.get_effective_shop(store) {
+    Some(shop) -> denied_webhook_domains_from_shop(shop)
+    None -> []
+  }
+}
+
+fn denied_webhook_domains_from_shop(shop: ShopRecord) -> List(String) {
+  [
+    normalize_denied_webhook_domain(shop.primary_domain.host),
+  ]
+  |> list.filter_map(option_to_result)
+  |> list.filter(fn(domain) { !is_disallowed_webhook_domain(domain) })
+  |> unique_strings
+}
+
+fn normalize_denied_webhook_domain(domain: String) -> Option(String) {
+  let normalized =
+    domain |> string.trim |> trim_trailing_dot |> string.lowercase
+  case normalized {
+    "" -> None
+    value -> Some(value)
+  }
+}
+
+fn is_shop_denied_webhook_host(
+  host: String,
+  denied_domains: List(String),
+) -> Bool {
+  list.any(denied_domains, fn(domain) { host == domain })
+}
+
+fn unique_strings(values: List(String)) -> List(String) {
+  list.fold(values, [], fn(acc, value) {
+    case list.contains(acc, value) {
+      True -> acc
+      False -> list.append(acc, [value])
+    }
+  })
+}
+
+fn option_to_result(value: Option(a)) -> Result(a, Nil) {
+  case value {
+    Some(inner) -> Ok(inner)
+    None -> Error(Nil)
   }
 }
 
@@ -1447,6 +1524,16 @@ fn internal_domain_user_error() -> webhook_types.UserError {
   webhook_types.UserError(
     field: ["webhookSubscription", "callbackUrl"],
     message: "Address cannot be a Shopify or an internal domain",
+  )
+}
+
+fn denied_domains_user_error(
+  denied_domains: List(String),
+) -> webhook_types.UserError {
+  webhook_types.UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address cannot be any of the domains: "
+      <> string.join(denied_domains, ", "),
   )
 }
 
