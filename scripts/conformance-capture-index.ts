@@ -4171,6 +4171,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-create-order-eligibility',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-order-eligibility-conformance.ts',
+    purpose: 'paymentTermsCreate Order eligibility rejection for paid, closed, and cancelled disposable Orders.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-create-order-eligibility.json`,
+      `${CAPTURE_ROOT}payment-terms-create-order-eligibility-cleanup.json`,
+      'config/parity-specs/payments/payment-terms-create-order-eligibility.json',
+      'config/parity-requests/payments/payment-terms-create-order-eligibility.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable paid, closed, and cancelled test Orders, captures paymentTermsCreate eligibility payloads, deletes closed-order payment terms when Shopify accepts them, and best-effort cancels created Orders afterward.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-metafields-and-handle-update',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-metafields-conformance.ts',

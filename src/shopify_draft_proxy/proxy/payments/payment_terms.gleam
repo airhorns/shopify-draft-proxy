@@ -31,12 +31,18 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types as state_types
 
+const order_paid_in_full_payment_terms_message = "Cannot create payment terms on an Order that has already been paid in full."
+
 fn payment_terms_error(
   field: List(String),
   message: String,
   code: String,
 ) -> UserError {
   UserError(field: Some(field), message: message, code: Some(code))
+}
+
+fn payment_terms_root_error(message: String, code: String) -> UserError {
+  UserError(field: None, message: message, code: Some(code))
 }
 
 @internal
@@ -111,7 +117,7 @@ fn payment_terms_owner_hydrate_query(resource_type: String) -> String {
   case resource_type {
     "Order" ->
       "query PaymentTermsOwnerHydrate($id: ID!) {\n"
-      <> "  order(id: $id) { id paymentTerms { id } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }\n"
+      <> "  order(id: $id) { id displayFinancialStatus closed closedAt cancelledAt paymentTerms { id } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }\n"
       <> "}\n"
     _ ->
       "query PaymentTermsOwnerHydrate($id: ID!) {\n"
@@ -406,32 +412,10 @@ pub fn create_payment_terms(store, identity, field, fragments, variables) {
         Some(owner_id) -> {
           case payment_terms_owner_available(store, owner_id) {
             True -> {
-              let amount =
-                payment_terms_owner_money(store, owner_id)
-                |> option.unwrap(default_payment_terms_money())
               case
-                build_payment_terms(
-                  identity,
-                  owner_id,
-                  attrs,
-                  None,
-                  amount,
-                  ["paymentTermsAttributes"],
-                  payment_terms_creation_unsuccessful_code,
-                )
+                payment_terms_create_order_eligibility_error(store, owner_id)
               {
-                Ok(#(record, next_identity)) ->
-                  payment_terms_result(
-                    store.upsert_staged_payment_terms(store, record),
-                    next_identity,
-                    field,
-                    fragments,
-                    "paymentTermsCreate",
-                    Some(record),
-                    [],
-                    [record.id],
-                  )
-                Error(error) ->
+                Some(error) ->
                   payment_terms_result(
                     store,
                     identity,
@@ -442,6 +426,45 @@ pub fn create_payment_terms(store, identity, field, fragments, variables) {
                     [error],
                     [],
                   )
+                None -> {
+                  let amount =
+                    payment_terms_owner_money(store, owner_id)
+                    |> option.unwrap(default_payment_terms_money())
+                  case
+                    build_payment_terms(
+                      identity,
+                      owner_id,
+                      attrs,
+                      None,
+                      amount,
+                      ["paymentTermsAttributes"],
+                      payment_terms_creation_unsuccessful_code,
+                    )
+                  {
+                    Ok(#(record, next_identity)) ->
+                      payment_terms_result(
+                        store.upsert_staged_payment_terms(store, record),
+                        next_identity,
+                        field,
+                        fragments,
+                        "paymentTermsCreate",
+                        Some(record),
+                        [],
+                        [record.id],
+                      )
+                    Error(error) ->
+                      payment_terms_result(
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        "paymentTermsCreate",
+                        None,
+                        [error],
+                        [],
+                      )
+                  }
+                }
               }
             }
             False ->
@@ -481,6 +504,33 @@ pub fn create_payment_terms(store, identity, field, fragments, variables) {
             [],
           )
       }
+  }
+}
+
+fn payment_terms_create_order_eligibility_error(
+  store: Store,
+  owner_id: String,
+) -> Option(UserError) {
+  case is_shopify_gid(Some(owner_id), "Order") {
+    True ->
+      case store.get_order_by_id(store, owner_id) {
+        Some(order) -> payment_terms_create_order_error(order)
+        None -> None
+      }
+    False -> None
+  }
+}
+
+fn payment_terms_create_order_error(
+  order: state_types.OrderRecord,
+) -> Option(UserError) {
+  case captured_string_field(order.data, "displayFinancialStatus") {
+    Some("PAID") ->
+      Some(payment_terms_root_error(
+        order_paid_in_full_payment_terms_message,
+        payment_terms_creation_unsuccessful_code,
+      ))
+    _ -> None
   }
 }
 
