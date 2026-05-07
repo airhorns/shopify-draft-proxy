@@ -454,11 +454,15 @@ fn handle_create(
     Error(_) -> dict.new()
   }
   let input = read_input(args)
-  let errors =
+  let base_errors =
     validate_saved_search_input(input, RequireResourceType(True))
-    |> validate_saved_search_query_grammar(input, None, CreateValidation)
+  let name_errors =
+    base_errors
     |> validate_reserved_saved_search_name(store, input, None)
     |> validate_unique_saved_search_name(store, input, None)
+  let errors =
+    name_errors
+    |> validate_saved_search_query_grammar(input, None, CreateValidation)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     input,
     errors
@@ -520,15 +524,20 @@ fn handle_update(
     None -> None
   }
   let errors = case existing {
-    Some(record) ->
-      validate_saved_search_input(input, RequireResourceType(False))
+    Some(record) -> {
+      let base_errors =
+        validate_saved_search_input(input, RequireResourceType(False))
+      let name_errors =
+        base_errors
+        |> validate_reserved_saved_search_name(store, input, Some(record.id))
+        |> validate_unique_saved_search_name(store, input, Some(record.id))
+      name_errors
       |> validate_saved_search_query_grammar(
         input,
         Some(record.resource_type),
         UpdateValidation,
       )
-      |> validate_reserved_saved_search_name(store, input, Some(record.id))
-      |> validate_unique_saved_search_name(store, input, Some(record.id))
+    }
     None -> [
       saved_search_types.UserError(
         field: Some(["input", "id"]),
@@ -541,24 +550,30 @@ fn handle_update(
     _, _ -> None
   }
   let keep_payload_without_staging =
-    has_duplicate_name_error(errors) || has_query_grammar_error(errors)
+    has_duplicate_name_error(errors)
+    || has_name_validation_error(errors)
+    || has_query_grammar_error(errors)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     sanitized_input,
     existing,
+    errors,
     keep_payload_without_staging
   {
-    Some(d), Some(existing_record), True -> {
+    Some(d), Some(existing_record), [_, ..], True -> {
       let #(record, identity_after) =
         make_saved_search(identity, d, Some(existing_record))
       #(Some(record), store, identity_after, [])
     }
-    Some(d), Some(existing_record), False -> {
+    Some(_), Some(_), [_, ..], False -> {
+      #(None, store, identity, [])
+    }
+    Some(d), Some(existing_record), [], _ -> {
       let #(record, identity_after) =
         make_saved_search(identity, d, Some(existing_record))
       let #(_, store_after) = store.upsert_staged_saved_search(store, record)
       #(Some(record), store_after, identity_after, [record.id])
     }
-    _, _, _ -> #(None, store, identity, [])
+    _, _, _, _ -> #(None, store, identity, [])
   }
   let payload_record = case record_opt {
     Some(_) -> record_opt
@@ -670,8 +685,8 @@ fn validate_unique_saved_search_name(
   input: Option(dict.Dict(String, root_field.ResolvedValue)),
   excluded_id: Option(String),
 ) -> List(saved_search_types.UserError) {
-  case errors, input {
-    [], Some(fields) ->
+  case input {
+    Some(fields) ->
       case read_optional_string(fields, "name") {
         Some(name) ->
           case read_uniqueness_resource_type(store, fields, excluded_id) {
@@ -679,14 +694,14 @@ fn validate_unique_saved_search_name(
               case
                 saved_search_name_taken(store, resource_type, name, excluded_id)
               {
-                True -> [duplicate_name_error()]
-                False -> []
+                True -> append_user_error(errors, duplicate_name_error())
+                False -> errors
               }
-            None -> []
+            None -> errors
           }
-        None -> []
+        None -> errors
       }
-    _, _ -> errors
+    _ -> errors
   }
 }
 
@@ -696,22 +711,43 @@ fn validate_reserved_saved_search_name(
   input: Option(dict.Dict(String, root_field.ResolvedValue)),
   excluded_id: Option(String),
 ) -> List(saved_search_types.UserError) {
-  case errors, input {
-    [], Some(fields) ->
+  case input {
+    Some(fields) ->
       case read_optional_string(fields, "name") {
         Some(name) ->
           case read_uniqueness_resource_type(store, fields, excluded_id) {
             Some(resource_type) ->
               case reserved_saved_search_name(resource_type, name) {
-                True -> [duplicate_name_error()]
-                False -> []
+                True -> append_user_error(errors, duplicate_name_error())
+                False -> errors
               }
-            None -> []
+            None -> errors
           }
-        None -> []
+        None -> errors
       }
-    _, _ -> errors
+    _ -> errors
   }
+}
+
+fn append_user_error(
+  errors: List(saved_search_types.UserError),
+  error: saved_search_types.UserError,
+) -> List(saved_search_types.UserError) {
+  case
+    list.any(errors, fn(existing) {
+      existing.field == error.field && existing.message == error.message
+    })
+  {
+    True -> errors
+    False -> list.append(errors, [error])
+  }
+}
+
+fn append_user_errors(
+  errors: List(saved_search_types.UserError),
+  new_errors: List(saved_search_types.UserError),
+) -> List(saved_search_types.UserError) {
+  list.fold(new_errors, errors, fn(acc, error) { append_user_error(acc, error) })
 }
 
 fn read_uniqueness_resource_type(
@@ -788,6 +824,17 @@ fn has_duplicate_name_error(
   list.any(errors, fn(error) {
     error.field == Some(["input", "name"])
     && error.message == "Name has already been taken"
+  })
+}
+
+fn has_name_validation_error(
+  errors: List(saved_search_types.UserError),
+) -> Bool {
+  list.any(errors, fn(error) {
+    case error.field {
+      Some(["input", "name"]) -> True
+      _ -> False
+    }
   })
 }
 
@@ -941,8 +988,8 @@ fn validate_saved_search_query_grammar(
   existing_resource_type: Option(String),
   operation: SavedSearchValidationOperation,
 ) -> List(saved_search_types.UserError) {
-  case errors, input {
-    [], Some(fields) ->
+  case input {
+    Some(fields) ->
       case read_optional_string(fields, "query") {
         Some(query) -> {
           let resource_type = case
@@ -952,13 +999,19 @@ fn validate_saved_search_query_grammar(
             None -> existing_resource_type
           }
           case resource_type {
-            Some(rt) -> validate_query_for_resource_type(query, rt, operation)
-            None -> []
+            Some(rt) ->
+              errors
+              |> append_user_errors(validate_query_for_resource_type(
+                query,
+                rt,
+                operation,
+              ))
+            None -> errors
           }
         }
-        None -> []
+        None -> errors
       }
-    _, _ -> errors
+    _ -> errors
   }
 }
 
@@ -968,28 +1021,30 @@ fn validate_query_for_resource_type(
   operation: SavedSearchValidationOperation,
 ) -> List(saved_search_types.UserError) {
   let keys = saved_search_query_filter_keys(query)
-  case first_reserved_filter(resource_type, keys) {
+  let reserved_filters = reserved_filters_for_resource_type(resource_type)
+  let errors = case first_reserved_filter(resource_type, keys) {
     Some(filter) -> [reserved_filter_error(operation, filter)]
-    None ->
-      case unknown_filter_errors(resource_type, keys, operation) {
-        [_, ..] as errors -> errors
-        [] ->
-          case product_incompatible_filter_pair(resource_type, keys) {
-            Some(pair) -> {
-              let #(left, right) = pair
-              [
-                saved_search_types.UserError(
-                  field: Some(["input", "query"]),
-                  message: "Query has incompatible filters: "
-                    <> left
-                    <> ", "
-                    <> right,
-                ),
-              ]
-            }
-            None -> []
-          }
-      }
+    None -> []
+  }
+  let non_reserved_keys =
+    list.filter(keys, fn(key) { !list.contains(reserved_filters, key) })
+  let errors =
+    errors
+    |> append_user_errors(unknown_filter_errors(
+      resource_type,
+      non_reserved_keys,
+      operation,
+    ))
+  case product_incompatible_filter_pair(resource_type, keys) {
+    Some(pair) -> {
+      let #(left, right) = pair
+      errors
+      |> append_user_error(saved_search_types.UserError(
+        field: Some(["input", "query"]),
+        message: "Query has incompatible filters: " <> left <> ", " <> right,
+      ))
+    }
+    None -> errors
   }
 }
 
@@ -1077,7 +1132,7 @@ fn unknown_filter_error(
 ) -> saved_search_types.UserError {
   let field = case operation {
     CreateValidation -> ["input", "query"]
-    UpdateValidation -> ["input", "searchTerms"]
+    UpdateValidation -> ["input", "query"]
   }
   saved_search_types.UserError(
     field: Some(field),
