@@ -755,6 +755,7 @@ pub fn product_record_from_variant_node(
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      requires_selling_plan: None,
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,

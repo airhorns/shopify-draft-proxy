@@ -492,6 +492,7 @@ fn bundle_product_source(product: ProductRecord) -> SourceValue {
     SrcList([]),
     empty_connection_source(),
     count_source(0),
+    product.requires_selling_plan |> option.unwrap(False),
     "USD",
     None,
   )
@@ -1029,6 +1030,7 @@ fn stage_product_bundle_product(
           template_suffix: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: None,
+          requires_selling_plan: None,
           publication_ids: [],
           contextual_pricing: None,
           cursor: None,
@@ -1714,6 +1716,7 @@ pub fn product_source_with_relationships(
   options: SourceValue,
   selling_plan_groups: SourceValue,
   selling_plan_groups_count: SourceValue,
+  requires_selling_plan: Bool,
   currency_code: String,
   publication_id: Option(String),
 ) -> SourceValue {
@@ -1795,7 +1798,7 @@ pub fn product_source_with_relationships(
     #("images", empty_connection_source()),
     #("options", options),
     #("variants", variants),
-    #("requiresSellingPlan", SrcBool(False)),
+    #("requiresSellingPlan", SrcBool(requires_selling_plan)),
     #("sellingPlanGroups", selling_plan_groups),
     #("sellingPlanGroupsCount", selling_plan_groups_count),
   ])
