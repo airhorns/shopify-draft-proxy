@@ -1,0 +1,83 @@
+{
+  "scenarioId": "marketing-engagement-create-validation-order",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingEngagementCreate"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-validation-order.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-engagement-create-validation-order-setup.graphql",
+    "variablesCapturePath": "$.operations.createActivity.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify's marketingEngagementCreate validation order for observable branches: identifier-count validation precedes input currency mismatch, channel-handle validation precedes currency validation, and activity lookup follows input currency validation for single remote-id selectors. The live Admin API does not expose a public way to soft-delete a MarketingEvent while preserving its MarketingActivity; that branch is modeled locally with the MARKETING_EVENT_DOES_NOT_EXIST shape used by external activity update/upsert validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-activity-user-errors",
+        "capturePath": "$.operations.createActivity.response.data.marketingActivityCreateExternal.userErrors",
+        "proxyPath": "$.data.marketingActivityCreateExternal.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "multiple-activity-selectors-precede-currency",
+        "capturePath": "$.operations.multipleActivitySelectorsCurrencyMismatch.response.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-create-validation-order-multiple-activity-selectors.graphql",
+          "variablesCapturePath": "$.operations.multipleActivitySelectorsCurrencyMismatch.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "multiple-channel-selectors-precede-currency",
+        "capturePath": "$.operations.multipleChannelSelectorsCurrencyMismatch.response.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-create-validation-order-multiple-channel-selectors.graphql",
+          "variablesCapturePath": "$.operations.multipleChannelSelectorsCurrencyMismatch.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "channel-validation-precedes-currency",
+        "capturePath": "$.operations.unknownChannelCurrencyMismatch.response.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-create-validation-order-unknown-channel-currency.graphql",
+          "variablesCapturePath": "$.operations.unknownChannelCurrencyMismatch.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "remote-currency-precedes-activity-lookup",
+        "capturePath": "$.operations.unknownRemoteCurrencyMismatch.response.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-create-validation-order-unknown-remote-currency.graphql",
+          "variablesCapturePath": "$.operations.unknownRemoteCurrencyMismatch.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-remote-activity-missing",
+        "capturePath": "$.operations.unknownRemote.response.data.marketingEngagementCreate",
+        "proxyPath": "$.data.marketingEngagementCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-engagement-create-validation-order-unknown-remote.graphql",
+          "variablesCapturePath": "$.operations.unknownRemote.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

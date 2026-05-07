@@ -1,0 +1,310 @@
+{
+  "scenarioId": "b2b-contact-email-name-validation",
+  "capturedAt": "2026-05-06T23:12:42.451Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create a disposable B2B company and record public Admin validation payloads for contact email format, HTML contact names, update email format, and nested companyCreate contact email rejection."
+  },
+  "schemaProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BContactEmailNameValidationSchema {\n    userErrorType: __type(name: \"BusinessCustomerUserError\") {\n      fields { name }\n    }\n    contactInputType: __type(name: \"CompanyContactInput\") {\n      inputFields { name }\n    }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "userErrorType": {
+          "fields": [
+            {
+              "name": "code"
+            },
+            {
+              "name": "field"
+            },
+            {
+              "name": "message"
+            }
+          ]
+        },
+        "contactInputType": {
+          "inputFields": [
+            {
+              "name": "firstName"
+            },
+            {
+              "name": "lastName"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "phone"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setupCompany": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactEmailNameValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          customer {\n            id\n            email\n            firstName\n            lastName\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B contact validation 1778109161172"
+          },
+          "companyContact": {
+            "email": "b2b-contact-validation-1778109161172@example.com",
+            "firstName": "Safe",
+            "lastName": "Buyer"
+          },
+          "companyLocation": {
+            "name": "B2B contact validation HQ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5443518770",
+            "name": "B2B contact validation 1778109161172",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10163028274",
+              "customer": {
+                "id": "gid://shopify/Customer/10586388431154",
+                "email": "b2b-contact-validation-1778109161172@example.com",
+                "firstName": "Safe",
+                "lastName": "Buyer"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidEmailCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactEmailNameValidationContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5443518770",
+        "input": {
+          "email": "not-an-email",
+          "firstName": "Invalid",
+          "lastName": "Email"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "email"],
+              "message": "Email is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "htmlNameCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactEmailNameValidationContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5443518770",
+        "input": {
+          "email": "b2b-contact-html-name-1778109161172@example.com",
+          "firstName": "<b>Jane</b>",
+          "lastName": "Buyer"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input"],
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidEmailUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactEmailNameValidationContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10163028274",
+        "input": {
+          "email": "stillbad@"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "email"],
+              "message": "Email address is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nestedInvalidEmailCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactEmailNameValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          customer {\n            id\n            email\n            firstName\n            lastName\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B nested contact validation 1778109161172"
+          },
+          "companyContact": {
+            "email": "not-an-email",
+            "firstName": "Nested",
+            "lastName": "Buyer"
+          },
+          "companyLocation": {
+            "name": "B2B nested contact validation HQ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "companyContact", "email"],
+              "message": "Email is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BContactEmailNameValidationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5443518770"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5443518770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

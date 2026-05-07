@@ -1,0 +1,180 @@
+{
+  "scenarioId": "marketing-external-activity-url-scheme-validation",
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityUpdateExternal",
+    "marketingActivityUpsertExternal",
+    "marketingActivities"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-error-parity", "local-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-external-activity-url-scheme-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-create.graphql",
+    "variablesCapturePath": "$.cases.validHttpsCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "valid-https-create-payload",
+        "capturePath": "$.cases.validHttpsCreate.response.payload.data.marketingActivityCreateExternal",
+        "proxyPath": "$.data.marketingActivityCreateExternal",
+        "selectedPaths": [
+          "$.marketingActivity.title",
+          "$.marketingActivity.marketingEvent.remoteId",
+          "$.marketingActivity.marketingEvent.manageUrl",
+          "$.marketingActivity.marketingEvent.previewUrl",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "valid-http-update-payload",
+        "capturePath": "$.cases.validHttpUpdate.response.payload.data.marketingActivityUpdateExternal",
+        "proxyPath": "$.data.marketingActivityUpdateExternal",
+        "selectedPaths": [
+          "$.marketingActivity.title",
+          "$.marketingActivity.marketingEvent.remoteId",
+          "$.marketingActivity.marketingEvent.manageUrl",
+          "$.marketingActivity.marketingEvent.previewUrl",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-update.graphql",
+          "variablesCapturePath": "$.cases.validHttpUpdate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-update-remote-url-ftp-errors",
+        "capturePath": "$.cases.invalidUpdateRemoteUrlFtp.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-update.graphql",
+          "variablesCapturePath": "$.cases.invalidUpdateRemoteUrlFtp.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-update-remote-url-ftp-data",
+        "capturePath": "$.cases.invalidUpdateRemoteUrlFtp.response.payload.data.marketingActivityUpdateExternal",
+        "proxyPath": "$.data.marketingActivityUpdateExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-update.graphql",
+          "variablesCapturePath": "$.cases.invalidUpdateRemoteUrlFtp.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-update-preview-javascript-errors",
+        "capturePath": "$.cases.invalidUpdatePreviewJavascript.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-update.graphql",
+          "variablesCapturePath": "$.cases.invalidUpdatePreviewJavascript.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-invalid-update-unchanged",
+        "capturePath": "$.cases.readAfterInvalidUpdate.response.payload.data.marketingActivities.nodes",
+        "proxyPath": "$.data.marketingActivities.nodes",
+        "selectedPaths": [
+          "$[0].title",
+          "$[0].marketingEvent.remoteId",
+          "$[0].marketingEvent.manageUrl",
+          "$[0].marketingEvent.previewUrl"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterInvalidUpdate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-create-remote-url-ftp-errors",
+        "capturePath": "$.cases.invalidCreateRemoteUrlFtp.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-create.graphql",
+          "variablesCapturePath": "$.cases.invalidCreateRemoteUrlFtp.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-create-remote-url-ftp-data",
+        "capturePath": "$.cases.invalidCreateRemoteUrlFtp.response.payload.data.marketingActivityCreateExternal",
+        "proxyPath": "$.data.marketingActivityCreateExternal",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-create.graphql",
+          "variablesCapturePath": "$.cases.invalidCreateRemoteUrlFtp.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-invalid-create-empty",
+        "capturePath": "$.cases.readAfterInvalidCreate.response.payload.data.marketingActivities.nodes",
+        "proxyPath": "$.data.marketingActivities.nodes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterInvalidCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-create-preview-file-errors",
+        "capturePath": "$.cases.invalidCreatePreviewFile.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-create.graphql",
+          "variablesCapturePath": "$.cases.invalidCreatePreviewFile.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-create-remote-url-data-errors",
+        "capturePath": "$.cases.invalidCreateRemoteUrlData.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-create.graphql",
+          "variablesCapturePath": "$.cases.invalidCreateRemoteUrlData.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-upsert-remote-url-mailto-errors",
+        "capturePath": "$.cases.invalidUpsertRemoteUrlMailto.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-upsert.graphql",
+          "variablesCapturePath": "$.cases.invalidUpsertRemoteUrlMailto.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "invalid-upsert-preview-javascript-errors",
+        "capturePath": "$.cases.invalidUpsertPreviewJavascript.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-external-activity-url-scheme-upsert.graphql",
+          "variablesCapturePath": "$.cases.invalidUpsertPreviewJavascript.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 URL scheme validation for external marketing activities. Shopify accepts http/https, rejects ftp/file/mailto at the mutation field validator as top-level INVALID_FIELD_ARGUMENTS with data.<root> null, and rejects data:/javascript: through URL scalar coercion as INVALID_VARIABLE before resolver handling. The upsert root enforces the same rule in the captured public Admin API. Read-back targets prove rejected create/update inputs do not stage or mutate marketing activity state."
+}

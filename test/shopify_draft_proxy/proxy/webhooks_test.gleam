@@ -10,8 +10,12 @@ import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type WebhookSubscriptionRecord, WebhookEventBridgeEndpoint,
-  WebhookHttpEndpoint, WebhookPubSubEndpoint, WebhookSubscriptionRecord,
+  type ShopRecord, type WebhookSubscriptionRecord, PaymentSettingsRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord, WebhookEventBridgeEndpoint, WebhookHttpEndpoint,
+  WebhookPubSubEndpoint, WebhookSubscriptionRecord,
 }
 
 fn make_record(
@@ -35,6 +39,99 @@ fn make_record(
     created_at: created_at,
     updated_at: updated_at,
     endpoint: endpoint,
+  )
+}
+
+fn make_shop(primary_host: String, myshopify_domain: String) -> ShopRecord {
+  ShopRecord(
+    id: "gid://shopify/Shop/1",
+    name: "Webhook validation shop",
+    myshopify_domain: myshopify_domain,
+    url: "https://" <> primary_host,
+    primary_domain: ShopDomainRecord(
+      id: "gid://shopify/Domain/1",
+      host: primary_host,
+      url: "https://" <> primary_host,
+      ssl_enabled: True,
+    ),
+    contact_email: "",
+    email: "",
+    currency_code: "USD",
+    enabled_presentment_currencies: ["USD"],
+    iana_timezone: "UTC",
+    timezone_abbreviation: "UTC",
+    timezone_offset: "+0000",
+    timezone_offset_minutes: 0,
+    taxes_included: False,
+    tax_shipping: False,
+    unit_system: "IMPERIAL_SYSTEM",
+    weight_unit: "POUNDS",
+    shop_address: ShopAddressRecord(
+      id: "gid://shopify/ShopAddress/1",
+      address1: None,
+      address2: None,
+      city: None,
+      company: None,
+      coordinates_validated: False,
+      country: None,
+      country_code_v2: None,
+      formatted: [],
+      formatted_area: None,
+      latitude: None,
+      longitude: None,
+      phone: None,
+      province: None,
+      province_code: None,
+      zip: None,
+    ),
+    plan: ShopPlanRecord(
+      partner_development: True,
+      public_display_name: "Development",
+      shopify_plus: False,
+    ),
+    resource_limits: ShopResourceLimitsRecord(
+      location_limit: 1000,
+      max_product_options: 3,
+      max_product_variants: 2048,
+      redirect_limit_reached: False,
+    ),
+    features: ShopFeaturesRecord(
+      avalara_avatax: False,
+      branding: "SHOPIFY",
+      bundles: ShopBundlesFeatureRecord(
+        eligible_for_bundles: False,
+        ineligibility_reason: None,
+        sells_bundles: False,
+      ),
+      captcha: False,
+      cart_transform: ShopCartTransformFeatureRecord(
+        eligible_operations: ShopCartTransformEligibleOperationsRecord(
+          expand_operation: False,
+          merge_operation: False,
+          update_operation: False,
+        ),
+      ),
+      dynamic_remarketing: False,
+      eligible_for_subscription_migration: False,
+      eligible_for_subscriptions: False,
+      gift_cards: False,
+      harmonized_system_code: False,
+      legacy_subscription_gateway_enabled: False,
+      live_view: False,
+      paypal_express_subscription_gateway_status: "DISABLED",
+      reports: False,
+      discounts_by_market_enabled: False,
+      markets_granted: 50,
+      sells_subscriptions: False,
+      show_metrics: False,
+      storefront: False,
+      unified_markets: False,
+    ),
+    payment_settings: PaymentSettingsRecord(
+      supported_digital_wallets: [],
+      payment_gateways: [],
+    ),
+    shop_policies: [],
   )
 }
 
@@ -793,6 +890,28 @@ pub fn webhook_subscription_create_empty_filter_stores_empty_string_test() {
   assert list.map(records, fn(record) { record.filter }) == [Some("")]
 }
 
+pub fn webhook_subscription_create_customer_id_filter_stages_record_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: CUSTOMERS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/customer\", filter: \"customer_id:10586565673266\" }) { webhookSubscription { id topic filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"CUSTOMERS_UPDATE\",\"filter\":\"customer_id:10586565673266\"},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert list.map(records, fn(record) { record.filter })
+    == [Some("customer_id:10586565673266")]
+}
+
+pub fn webhook_subscription_create_invalid_filter_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: CUSTOMERS_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/customer\", filter: \"totally bogus syntax\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
 pub fn webhook_subscription_create_blank_uri_user_error_test() {
   let document =
     "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
@@ -887,6 +1006,29 @@ pub fn webhook_subscription_create_http_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
 }
 
+pub fn webhook_subscription_create_accepts_uri_under_shopify_byte_limit_test() {
+  let uri = "https://example.com/" <> string.repeat("a", times: 65_515)
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \""
+    <> uri
+    <> "\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic"]
+}
+
+pub fn webhook_subscription_create_rejects_uri_above_shopify_byte_limit_test() {
+  let uri = "https://example.com/" <> string.repeat("a", times: 65_516)
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \""
+    <> uri
+    <> "\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is too big (maximum is 64 KB)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn webhook_subscription_create_disallowed_host_user_error_test() {
   let examples = [
     "https://shopify.com/hook",
@@ -914,6 +1056,35 @@ pub fn webhook_subscription_create_disallowed_host_user_error_test() {
     assert outcome.staged_resource_ids == []
     assert store.list_effective_webhook_subscriptions(outcome.store) == []
   })
+}
+
+pub fn webhook_subscription_create_rejects_shop_primary_domain_user_error_test() {
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_shop(make_shop(
+      "cool-shop.com",
+      "cool-shop.myshopify.com",
+    ))
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://cool-shop.com/webhooks\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address cannot be any of the domains: cool-shop.com\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn webhook_subscription_create_accepts_shop_domain_subdomain_test() {
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_shop(make_shop(
+      "cool-shop.com",
+      "cool-shop.myshopify.com",
+    ))
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://www.cool-shop.com/webhooks\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic"]
 }
 
 pub fn webhook_subscription_create_json_only_topic_xml_user_error_test() {
@@ -1131,6 +1302,28 @@ pub fn webhook_subscription_update_http_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
 }
 
+pub fn webhook_subscription_update_accepts_uri_under_shopify_byte_limit_test() {
+  let uri = "https://example.com/" <> string.repeat("a", times: 65_515)
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \""
+    <> uri
+    <> "\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert outcome.staged_resource_ids == ["gid://shopify/WebhookSubscription/1"]
+}
+
+pub fn webhook_subscription_update_rejects_uri_above_shopify_byte_limit_test() {
+  let uri = "https://example.com/" <> string.repeat("a", times: 65_516)
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \""
+    <> uri
+    <> "\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is too big (maximum is 64 KB)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn webhook_subscription_update_callback_url_disallowed_host_user_error_test() {
   let document =
     "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { callbackUrl: \"https://shopify.com/hook\" }) { webhookSubscription { id uri } userErrors { field message } } }"
@@ -1143,6 +1336,39 @@ pub fn webhook_subscription_update_callback_url_disallowed_host_user_error_test(
       "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id uri } }",
     )
     == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://old.example.com/hook\"}}"
+}
+
+pub fn webhook_subscription_update_rejects_shop_primary_domain_user_error_test() {
+  let seeded_store =
+    seed_update_store()
+    |> store.upsert_base_shop(make_shop(
+      "cool-shop.com",
+      "cool-shop.myshopify.com",
+    ))
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://cool-shop.com/webhooks\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address cannot be any of the domains: cool-shop.com\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id uri } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://old.example.com/hook\"}}"
+}
+
+pub fn webhook_subscription_update_accepts_shop_domain_subdomain_test() {
+  let seeded_store =
+    seed_update_store()
+    |> store.upsert_base_shop(make_shop(
+      "cool-shop.com",
+      "cool-shop.myshopify.com",
+    ))
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://www.cool-shop.com/webhooks\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seeded_store, document)
+  assert outcome.staged_resource_ids == ["gid://shopify/WebhookSubscription/1"]
 }
 
 pub fn webhook_subscription_update_invalid_pubsub_uri_user_error_test() {
@@ -1158,7 +1384,34 @@ pub fn webhook_subscription_update_invalid_filter_user_error_test() {
     "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"invalid_field:*\" }) { webhookSubscription { id filter } userErrors { field message } } }"
   let body = run_mutation(seed_update_store(), document)
   assert body
-    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"filter\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\"],\"message\":\"The specified filter is invalid, please ensure you specify the field(s) you wish to filter on.\"}]}}}"
+}
+
+pub fn webhook_subscription_update_customer_id_filter_sets_value_test() {
+  let existing =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("CUSTOMERS_UPDATE"),
+      Some("https://old.example.com/hook"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(
+        WebhookHttpEndpoint(callback_url: Some("https://old.example.com/hook")),
+      ),
+    )
+  let s = store.upsert_base_webhook_subscriptions(store.new(), [existing])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"customer_id:10586565673266\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"customer_id:10586565673266\"},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"customer_id:10586565673266\"}}"
 }
 
 pub fn webhook_subscription_update_rejects_cloud_uri_validation_errors_test() {

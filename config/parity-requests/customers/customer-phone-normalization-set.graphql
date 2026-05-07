@@ -1,0 +1,17 @@
+mutation CustomerPhoneNormalizationSet($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+      phone
+      defaultPhoneNumber {
+        phoneNumber
+      }
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

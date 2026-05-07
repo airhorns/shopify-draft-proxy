@@ -1,0 +1,77 @@
+{
+  "scenarioId": "payment-terms-create-order-eligibility",
+  "operationNames": ["paymentTermsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "no-invalid-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-order-eligibility.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-create-order-eligibility.graphql",
+    "variablesCapturePath": "$.cases.paid.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "paid-order-error",
+        "capturePath": "$.cases.paid.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate"
+      },
+      {
+        "name": "closed-order-empty-errors",
+        "capturePath": "$.cases.closed.response.data.paymentTermsCreate.userErrors",
+        "proxyPath": "$.data.paymentTermsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-order-eligibility.graphql",
+          "variablesCapturePath": "$.cases.closed.variables"
+        }
+      },
+      {
+        "name": "closed-order-accepted",
+        "capturePath": "$.cases.closed.response.data.paymentTermsCreate.paymentTerms",
+        "proxyPath": "$.data.paymentTermsCreate.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-order-eligibility.graphql",
+          "variablesCapturePath": "$.cases.closed.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs for the accepted closed-order branch."
+          }
+        ]
+      },
+      {
+        "name": "cancelled-order-empty-errors",
+        "capturePath": "$.cases.cancelled.response.data.paymentTermsCreate.userErrors",
+        "proxyPath": "$.data.paymentTermsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-order-eligibility.graphql",
+          "variablesCapturePath": "$.cases.cancelled.variables"
+        }
+      },
+      {
+        "name": "cancelled-order-accepted",
+        "capturePath": "$.cases.cancelled.response.data.paymentTermsCreate.paymentTerms",
+        "proxyPath": "$.data.paymentTermsCreate.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-order-eligibility.graphql",
+          "variablesCapturePath": "$.cases.cancelled.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs for the accepted cancelled-order branch."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture proves paymentTermsCreate rejects paid Order owners with a null-field PAYMENT_TERMS_CREATION_UNSUCCESSFUL userError before creating payment terms. The same capture showed unpaid closed-only and cancelled Orders are accepted, contrary to earlier ticket notes; the replay preserves that observed public Admin API behavior. The replay starts from a cold proxy and hydrates each Order through the recorded PaymentTermsOwnerHydrate cassette."
+}

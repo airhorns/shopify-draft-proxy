@@ -1,0 +1,63 @@
+{
+  "scenarioId": "discount-activate-deactivate-noop-idempotence",
+  "operationNames": [
+    "discountCodeActivate",
+    "discountCodeDeactivate",
+    "discountAutomaticActivate",
+    "discountAutomaticDeactivate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-lifecycle", "timestamp-idempotence"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-activate-deactivate-noop-idempotence.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-noop-code-activate.graphql",
+    "variablesCapturePath": "$.requests.codeActivateNoop.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-active-activate-noop-preserves-dates",
+        "capturePath": "$.codeActivateNoop.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "code-expired-deactivate-noop-preserves-dates",
+        "capturePath": "$.codeDeactivateNoop.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-noop-code-deactivate.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.codeDeactivateNoop.variables"
+        }
+      },
+      {
+        "name": "automatic-active-activate-noop-preserves-dates",
+        "capturePath": "$.automaticActivateNoop.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-noop-automatic-activate.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.automaticActivateNoop.variables"
+        }
+      },
+      {
+        "name": "automatic-expired-deactivate-noop-preserves-dates",
+        "capturePath": "$.automaticDeactivateNoop.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-noop-automatic-deactivate.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.automaticDeactivateNoop.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture for idempotent active activate and expired deactivate branches across code-basic and automatic-basic discounts. The capture script asserts each no-op response preserves the prior startsAt, endsAt, status, and updatedAt values before writing the fixture, and the parity replay hydrates the live captured records from cassette-backed upstream reads so the proxy response must match those unchanged fields exactly."
+}

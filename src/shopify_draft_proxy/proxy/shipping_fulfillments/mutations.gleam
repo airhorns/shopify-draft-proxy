@@ -9,6 +9,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_document_fragments,
 }
@@ -83,6 +84,7 @@ pub fn process_mutation(
         fragments,
         variables,
         upstream,
+        app_identity.read_requesting_api_client_id(upstream.headers),
       )
     }
   }
@@ -96,6 +98,7 @@ pub fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], [], [])
   let #(data_entries, final_store, final_identity, staged_ids, drafts, errors) =
@@ -174,6 +177,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream.origin,
               ))
             "fulfillmentServiceUpdate" ->
               Some(handle_fulfillment_service_update(
@@ -182,6 +186,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream.origin,
               ))
             "fulfillmentServiceDelete" ->
               Some(handle_fulfillment_service_delete(
@@ -263,6 +268,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "fulfillmentOrderReleaseHold" ->
               Some(handle_fulfillment_order_release_hold(
@@ -271,6 +277,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "fulfillmentOrderMove" ->
               Some(handle_fulfillment_order_move(
@@ -498,6 +505,8 @@ pub fn hydrate_mutation_prerequisites(
 ) -> Store {
   let args = resolved_args(field, variables)
   case root_name {
+    "fulfillmentServiceCreate" | "fulfillmentServiceUpdate" ->
+      maybe_hydrate_fulfillment_services_catalog(store_in, upstream)
     "deliveryProfileCreate" -> {
       // Pattern 2: delivery profiles project `profileItems` with
       // product/variant titles, which are upstream product-domain data.
@@ -579,6 +588,37 @@ pub fn hydrate_mutation_prerequisites(
         upstream,
       )
     _ -> store_in
+  }
+}
+
+@internal
+pub fn maybe_hydrate_fulfillment_services_catalog(
+  store_in: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query ShippingFulfillmentServicesCatalogHydrate {
+  shop {
+    fulfillmentServices {
+      id handle serviceName callbackUrl inventoryManagement
+      requiresShippingMethod trackingSupport type
+      location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+    }
+  }
+}
+"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "ShippingFulfillmentServicesCatalogHydrate",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) -> hydrate_from_upstream_response(store_in, value)
+    Error(_) -> store_in
   }
 }
 

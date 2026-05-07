@@ -1,0 +1,87 @@
+query MarketDeleteCascadeSetupRead($marketId: ID!, $catalogId: ID!, $webPresencesFirst: Int!) {
+  market(id: $marketId) {
+    __typename
+    id
+    name
+    handle
+    status
+    enabled
+    type
+    conditions {
+      conditionTypes
+      regionsCondition {
+        applicationLevel
+        regions(first: 10) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+    webPresences(first: 10) {
+      nodes {
+        id
+      }
+    }
+    catalogs(first: 10) {
+      nodes {
+        id
+      }
+    }
+  }
+  webPresences(first: $webPresencesFirst) {
+    nodes {
+      __typename
+      id
+      subfolderSuffix
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      alternateLocales {
+        locale
+        name
+        primary
+        published
+      }
+      rootUrls {
+        locale
+        url
+      }
+      markets(first: 10) {
+        nodes {
+          __typename
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+  catalog(id: $catalogId) {
+    __typename
+    id
+    title
+    status
+    priceList {
+      id
+    }
+    ... on MarketCatalog {
+      markets(first: 10) {
+        nodes {
+          __typename
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+}

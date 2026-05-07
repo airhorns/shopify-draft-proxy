@@ -1,0 +1,15 @@
+mutation ArticlePageBlogLengthValidationsArticleCreate($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      handle
+      body
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,420 @@
+{
+  "capturedAt": "2026-05-06T23:52:11.945Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scopeEvidence": {
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "handle": "hermes-conformance-products",
+      "title": "hermes-conformance-products"
+    },
+    "accessScopes": ["read_marketing_events", "write_marketing_events"]
+  },
+  "schema": {
+    "marketingEngagementInput": {
+      "inputFields": [
+        {
+          "name": "occurredOn",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Date"
+            }
+          }
+        },
+        {
+          "name": "impressionsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "viewsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "clicksCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "sharesCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "favoritesCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "commentsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "unsubscribesCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "complaintsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "failsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "sendsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "uniqueViewsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "uniqueClicksCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "adSpend",
+          "type": {
+            "kind": "INPUT_OBJECT",
+            "name": "MoneyInput",
+            "ofType": null
+          }
+        },
+        {
+          "name": "isCumulative",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Boolean"
+            }
+          }
+        },
+        {
+          "name": "utcOffset",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "UtcOffset"
+            }
+          }
+        },
+        {
+          "name": "sales",
+          "type": {
+            "kind": "INPUT_OBJECT",
+            "name": "MoneyInput",
+            "ofType": null
+          }
+        },
+        {
+          "name": "sessionsCount",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "orders",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Decimal",
+            "ofType": null
+          }
+        },
+        {
+          "name": "firstTimeCustomers",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Decimal",
+            "ofType": null
+          }
+        },
+        {
+          "name": "returningCustomers",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Decimal",
+            "ofType": null
+          }
+        },
+        {
+          "name": "primaryConversions",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Decimal",
+            "ofType": null
+          }
+        },
+        {
+          "name": "allConversions",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Decimal",
+            "ofType": null
+          }
+        }
+      ]
+    }
+  },
+  "cases": {
+    "createActivity": {
+      "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-create-activity.graphql",
+      "variables": {
+        "input": {
+          "title": "Marketing Engagement Response Shape",
+          "remoteId": "marketing-engagement-response-shape-moupp2e4",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/marketing-engagement-response-shape-moupp2e4",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "marketing-engagement-response-shape-moupp2e4",
+            "source": "newsletter",
+            "medium": "email"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityCreateExternal": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197059739954"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fullInputEcho": {
+      "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-full.graphql",
+      "variables": {
+        "remoteId": "marketing-engagement-response-shape-moupp2e4"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingEngagementCreate": {
+              "marketingEngagement": {
+                "__typename": "MarketingEngagement",
+                "occurredOn": "2026-04-01",
+                "utcOffset": "-05:00",
+                "isCumulative": true,
+                "impressionsCount": 7,
+                "clicksCount": 3,
+                "adSpend": {
+                  "amount": "1.23",
+                  "currencyCode": "USD"
+                },
+                "orders": "2.5"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "sparseInput": {
+      "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-sparse.graphql",
+      "variables": {
+        "remoteId": "marketing-engagement-response-shape-moupp2e4"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'isCumulative' on InputObject 'MarketingEngagementInput' is required. Expected type Boolean!",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 26
+                }
+              ],
+              "path": [
+                "mutation MarketingEngagementResponseShapeSparse",
+                "marketingEngagementCreate",
+                "marketingEngagement",
+                "isCumulative"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "isCumulative",
+                "argumentType": "Boolean!",
+                "inputObjectType": "MarketingEngagementInput"
+              }
+            },
+            {
+              "message": "Argument 'utcOffset' on InputObject 'MarketingEngagementInput' is required. Expected type UtcOffset!",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 26
+                }
+              ],
+              "path": [
+                "mutation MarketingEngagementResponseShapeSparse",
+                "marketingEngagementCreate",
+                "marketingEngagement",
+                "utcOffset"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "utcOffset",
+                "argumentType": "UtcOffset!",
+                "inputObjectType": "MarketingEngagementInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "missingOccurredOn": {
+      "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-missing-occurred-on.graphql",
+      "variables": {
+        "remoteId": "marketing-engagement-response-shape-moupp2e4"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'occurredOn' on InputObject 'MarketingEngagementInput' is required. Expected type Date!",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 26
+                }
+              ],
+              "path": [
+                "mutation MarketingEngagementResponseShapeMissingOccurredOn",
+                "marketingEngagementCreate",
+                "marketingEngagement",
+                "occurredOn"
+              ],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "occurredOn",
+                "argumentType": "Date!",
+                "inputObjectType": "MarketingEngagementInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "cleanup": {
+      "documentPath": "<inline:delete-marketing-activity>",
+      "variables": {
+        "remoteId": "marketing-engagement-response-shape-moupp2e4"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197059739954",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": [
+    "Captures marketingEngagementCreate immediate response shape against Admin GraphQL 2026-04.",
+    "The full-input case proves Shopify echoes supplied engagement fields without synthesizing extra defaults.",
+    "The sparse and missing-occurredOn cases prove Shopify behavior for omitted required MarketingEngagementInput fields before the proxy stages local state.",
+    "A disposable external marketing activity is created for identifier resolution and deleted during cleanup."
+  ]
+}

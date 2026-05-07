@@ -98,6 +98,10 @@ fn processing_image() -> FileRecord {
   FileRecord(..ready_image(), file_status: "PROCESSING")
 }
 
+fn processing_image_with_id(id: String) -> FileRecord {
+  FileRecord(..processing_image(), id: id)
+}
+
 fn seeded_variant_media_proxy() {
   let product_id = "gid://shopify/Product/1"
   let media_id = "gid://shopify/MediaImage/1"
@@ -263,6 +267,42 @@ pub fn file_acknowledge_update_failed_rejects_non_ready_file_test() {
     == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"File with id gid://shopify/MediaImage/2 is not in the READY state.\",\"code\":\"NON_READY_STATE\"}]}}}"
 }
 
+pub fn file_acknowledge_update_failed_aggregates_missing_before_state_test() {
+  let proxy =
+    registry_proxy_with_files([
+      processing_image_with_id("gid://shopify/MediaImage/1"),
+      processing_image_with_id("gid://shopify/MediaImage/2"),
+    ])
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileAcknowledgeUpdateFailed(fileIds: [\"gid://shopify/MediaImage/999\", \"gid://shopify/MediaImage/1\", \"gid://shopify/MediaImage/2\"]) { files { id fileStatus } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"File id gid://shopify/MediaImage/999 does not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn file_acknowledge_update_failed_aggregates_non_ready_files_test() {
+  let proxy =
+    registry_proxy_with_files([
+      processing_image_with_id("gid://shopify/MediaImage/1"),
+      processing_image_with_id("gid://shopify/MediaImage/2"),
+    ])
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileAcknowledgeUpdateFailed(fileIds: [\"gid://shopify/MediaImage/1\", \"gid://shopify/MediaImage/2\"]) { files { id fileStatus } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"Files with ids gid://shopify/MediaImage/1, gid://shopify/MediaImage/2 are not in the READY state.\",\"code\":\"NON_READY_STATE\"}]}}}"
+}
+
 pub fn file_acknowledge_update_failed_ready_file_is_state_noop_test() {
   let proxy = registry_proxy_with_files([ready_image()])
 
@@ -420,6 +460,18 @@ pub fn file_delete_re_resolves_wrong_typed_gid_to_actual_file_type_test() {
     == "{\"data\":{\"fileDelete\":{\"deletedFileIds\":[\"gid://shopify/MediaImage/2\"],\"userErrors\":[]}}}"
 }
 
+pub fn file_delete_aggregates_missing_file_ids_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileDelete(fileIds: [\"gid://shopify/MediaImage/404\", \"gid://shopify/MediaImage/405\"]) { deletedFileIds userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileDelete\":{\"deletedFileIds\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"File ids gid://shopify/MediaImage/404,gid://shopify/MediaImage/405 do not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
+}
+
 pub fn file_delete_clears_variant_media_ids_test() {
   let #(Response(status: status, body: body, ..), proxy) =
     graphql(
@@ -483,6 +535,35 @@ pub fn file_update_rejects_non_ready_file_test() {
     graphql(
       registry_proxy_with_files([processing_image()]),
       "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", alt: \"New alt\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Non-ready files cannot be updated.\",\"code\":\"NON_READY_STATE\"}]}}}"
+}
+
+pub fn file_update_aggregates_missing_file_ids_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/404\", alt: \"Missing one\" }, { id: \"gid://shopify/MediaImage/405\", alt: \"Missing two\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File ids [\\\"gid://shopify/MediaImage/404\\\", \\\"gid://shopify/MediaImage/405\\\"] do not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn file_update_aggregates_non_ready_file_errors_test() {
+  let proxy =
+    registry_proxy_with_files([
+      processing_image_with_id("gid://shopify/MediaImage/1"),
+      processing_image_with_id("gid://shopify/MediaImage/2"),
+    ])
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", alt: \"First\" }, { id: \"gid://shopify/MediaImage/2\", alt: \"Second\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
     )
 
   assert status == 200

@@ -1,0 +1,18 @@
+mutation MarketingExternalActivityUrlSchemeCreate($input: MarketingActivityCreateExternalInput!) {
+  marketingActivityCreateExternal(input: $input) {
+    marketingActivity {
+      id
+      title
+      marketingEvent {
+        remoteId
+        manageUrl
+        previewUrl
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

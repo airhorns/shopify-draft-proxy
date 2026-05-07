@@ -1,0 +1,64 @@
+{
+  "scenarioId": "market-create-plan-limit-markets-home",
+  "operationNames": ["marketCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/market-create-plan-limit-markets-home.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-plan-limit.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL capture on a Markets Home conformance shop creates four disposable enabled markets and proves the fourth marketCreate succeeds without SHOP_REACHED_PLAN_MARKETS_LIMIT. Cleanup deletes the created markets in reverse order. The local proxy replays each marketCreate as a staged local mutation without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.market.id",
+        "matcher": "shopify-gid:Market",
+        "reason": "The local proxy generates deterministic synthetic Market ids while the capture stores disposable live Shopify Market ids."
+      }
+    ],
+    "targets": [
+      {
+        "name": "first-market-create",
+        "capturePath": "$.cases[0].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate"
+      },
+      {
+        "name": "second-market-create",
+        "capturePath": "$.cases[1].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-plan-limit.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "third-market-create",
+        "capturePath": "$.cases[2].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-plan-limit.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "fourth-market-create",
+        "capturePath": "$.cases[3].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-plan-limit.graphql",
+          "variablesCapturePath": "$.cases[3].variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

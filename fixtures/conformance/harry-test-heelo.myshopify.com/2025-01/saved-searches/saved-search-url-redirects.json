@@ -1,73 +1,71 @@
 {
-  "capturedAt": "2026-04-27T13:24:00.000Z",
+  "scenarioId": "saved-search-local-staging",
+  "capturedAt": "2026-05-06T23:22:54.461Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
-    "Schema introspection confirmed SavedSearchConnection roots and SavedSearch fields id, legacyResourceId, name, query, resourceType, searchTerms, and filters { key value }.",
-    "savedSearchCreate(resourceType: PRODUCT) succeeded and downstream productSavedSearches returned the created search with non-null cursors.",
-    "savedSearchUpdate and savedSearchDelete for gid://shopify/SavedSearch/0 returned userErrors field [\"input\", \"id\"], message \"Saved Search does not exist\".",
-    "urlRedirectSavedSearches and urlRedirectsCount were blocked by read_online_store_navigation; urlRedirects returned ACCESS_DENIED; urlRedirectCreate and urlRedirectImportCreate were blocked by write_online_store_navigation."
+    "SavedSearch create/read/update-validation/delete behavior was recorded from live Shopify.",
+    "URL redirect saved-search roots remain documented as access-scope blockers for the current conformance token."
   ],
-  "schema": {
-    "savedSearchFields": ["id", "legacyResourceId", "name", "query", "resourceType", "searchTerms", "filters"],
-    "searchFilterFields": ["key", "value"],
-    "urlRedirectFields": ["id", "path", "target"],
-    "urlRedirectImportFields": [
-      "id",
-      "finished",
-      "finishedAt",
-      "count",
-      "createdCount",
-      "updatedCount",
-      "failedCount",
-      "previewRedirects"
-    ]
-  },
   "savedSearchCreateProduct": {
     "variables": {
       "input": {
         "resourceType": "PRODUCT",
-        "name": "Codex Product Search 1777309108817",
-        "query": "title:Codex 1777309108817"
+        "name": "Recorder Product Search 1778109773860",
+        "query": "title:Recorder 1778109773860"
       }
     },
     "payload": {
       "data": {
         "savedSearchCreate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4002144682290",
-            "legacyResourceId": "4002144682290",
-            "name": "Codex Product Search 1777309108817",
-            "query": "title:Codex 1777309108817",
+            "id": "gid://shopify/SavedSearch/4008667021618",
+            "legacyResourceId": "4008667021618",
+            "name": "Recorder Product Search 1778109773860",
+            "query": "title:Recorder 1778109773860",
             "resourceType": "PRODUCT",
-            "searchTerms": "1777309108817",
+            "searchTerms": "1778109773860",
             "filters": [
               {
                 "key": "title",
-                "value": "Codex"
+                "value": "Recorder"
               }
             ]
           },
           "userErrors": []
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1955,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "productSavedSearchesAfterCreate": {
+    "request": {
+      "variables": {}
+    },
     "payload": {
       "data": {
         "productSavedSearches": {
           "nodes": [
             {
-              "id": "gid://shopify/SavedSearch/4002144682290",
-              "name": "Codex Product Search 1777309108817",
-              "query": "1777309108817 title:Codex",
+              "id": "gid://shopify/SavedSearch/4008667021618",
+              "name": "Recorder Product Search 1778109773860",
+              "query": "1778109773860 title:Recorder",
               "resourceType": "PRODUCT",
-              "searchTerms": "1777309108817",
+              "searchTerms": "1778109773860",
               "filters": [
                 {
                   "key": "title",
-                  "value": "Codex"
+                  "value": "Recorder"
                 }
               ]
             }
@@ -75,8 +73,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDAyMTQ0NjgyMjkwLCJsYXN0X3ZhbHVlIjoiNDAwMjE0NDY4MjI5MCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDAyMTQ0NjgyMjkwLCJsYXN0X3ZhbHVlIjoiNDAwMjE0NDY4MjI5MCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDA4NjY3MDIxNjE4LCJsYXN0X3ZhbHVlIjoiNDAwODY2NzAyMTYxOCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDA4NjY3MDIxNjE4LCJsYXN0X3ZhbHVlIjoiNDAwODY2NzAyMTYxOCJ9"
           }
         },
         "customerSavedSearches": {
@@ -88,19 +86,39 @@
             "endCursor": null
           }
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1961,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "savedSearchUpdateTooLongName": {
+    "request": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/SavedSearch/4008667021618",
+          "name": "Recorder Product Search Name That Is Too Long For Shopify",
+          "query": "status:ACTIVE 1778109773860"
+        }
+      }
+    },
     "payload": {
       "data": {
         "savedSearchUpdate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4002144682290",
-            "name": "Codex Product Search 1777309108817",
-            "query": "status:ACTIVE 1777309108817",
+            "id": "gid://shopify/SavedSearch/4008667021618",
+            "name": "Recorder Product Search 1778109773860",
+            "query": "status:ACTIVE 1778109773860",
             "resourceType": "PRODUCT",
-            "searchTerms": "1777309108817",
+            "searchTerms": "1778109773860",
             "filters": [
               {
                 "key": "status",
@@ -115,10 +133,32 @@
             }
           ]
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1962,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
   "missingSavedSearch": {
+    "request": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/SavedSearch/0",
+          "name": "Missing"
+        },
+        "deleteInput": {
+          "id": "gid://shopify/SavedSearch/0"
+        }
+      }
+    },
     "payload": {
       "data": {
         "savedSearchUpdate": {
@@ -138,6 +178,49 @@
               "message": "Saved Search does not exist"
             }
           ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1955,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "request": {
+      "query": "mutation SavedSearchDeleteShopPayload($input: SavedSearchDeleteInput!) {\n  savedSearchDelete(input: $input) {\n    deletedSavedSearchId\n    shop {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/SavedSearch/4008667021618"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4008667021618",
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1955,
+            "restoreRate": 100
+          }
         }
       }
     }

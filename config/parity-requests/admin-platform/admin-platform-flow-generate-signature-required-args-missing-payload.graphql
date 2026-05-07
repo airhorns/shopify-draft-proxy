@@ -1,0 +1,10 @@
+mutation FlowGenerateSignatureMissingPayloadRequiredArg {
+  flowGenerateSignature(id: "gid://shopify/FlowActionDefinition/0") {
+    signature
+    payload
+    userErrors {
+      field
+      message
+    }
+  }
+}

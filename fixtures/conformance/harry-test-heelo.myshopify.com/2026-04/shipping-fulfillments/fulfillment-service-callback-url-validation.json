@@ -1,0 +1,286 @@
+{
+  "capturedAt": "2026-05-07T00:25:17.019Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures current app-scoped FulfillmentService callbackUrl validation against live Shopify Admin GraphQL.",
+    "The current app credential accepts valid http:// and https:// callback URLs in the mock.shop host family and the configured shop origin host.",
+    "The same credential rejects ftp://mock.shop with a protocol-specific payload userError and rejects https://example.com plus https://shopify.com with the generic not-allowed callbackUrl userError.",
+    "The successful creates exist to target update validation and are deleted during cleanup."
+  ],
+  "primary": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation.graphql",
+    "variables": {
+      "validHttpsName": "Hermes Callback HTTPS 1778113515444",
+      "validHttpsCallbackUrl": "https://mock.shop/fulfillment-service-callback",
+      "validHttpName": "Hermes Callback HTTP 1778113515444",
+      "validHttpCallbackUrl": "http://mock.shop/fulfillment-service-callback",
+      "originName": "Hermes Callback Origin 1778113515444",
+      "originCallbackUrl": "https://harry-test-heelo.myshopify.com/fulfillment-service-callback",
+      "ftpName": "Hermes Callback FTP 1778113515444",
+      "ftpCallbackUrl": "ftp://mock.shop/fulfillment-service-callback",
+      "exampleName": "Hermes Callback Example 1778113515444",
+      "exampleCallbackUrl": "https://example.com/fulfillment-service-callback",
+      "shopifyName": "Hermes Callback Shopify 1778113515444",
+      "shopifyCallbackUrl": "https://shopify.com/fulfillment-service-callback"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validHttpsCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/71925825842?id=true",
+              "handle": "hermes-callback-https-1778113515444",
+              "serviceName": "Hermes Callback HTTPS 1778113515444",
+              "callbackUrl": "https://mock.shop/fulfillment-service-callback",
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": false,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/112866853170",
+                "name": "Hermes Callback HTTPS 1778113515444",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          },
+          "validHttpCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/71925858610?id=true",
+              "handle": "hermes-callback-http-1778113515444",
+              "serviceName": "Hermes Callback HTTP 1778113515444",
+              "callbackUrl": "http://mock.shop/fulfillment-service-callback",
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": false,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/112866885938",
+                "name": "Hermes Callback HTTP 1778113515444",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          },
+          "originCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/71925891378?id=true",
+              "handle": "hermes-callback-origin-1778113515444",
+              "serviceName": "Hermes Callback Origin 1778113515444",
+              "callbackUrl": "https://harry-test-heelo.myshopify.com/fulfillment-service-callback",
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": false,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/112866918706",
+                "name": "Hermes Callback Origin 1778113515444",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          },
+          "ftpCreate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["callbackUrl"],
+                "message": "Callback url protocol ftp:// is not supported"
+              }
+            ]
+          },
+          "exampleCreate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+              }
+            ]
+          },
+          "shopifyCreate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 63,
+            "actualQueryCost": 63,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1937,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateAllowed": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-allowed.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/71925825842?id=true",
+      "callbackUrl": "http://mock.shop/fulfillment-service-callback-updated"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceUpdate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/71925825842?id=true",
+              "callbackUrl": "http://mock.shop/fulfillment-service-callback-updated"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateDisallowed": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-disallowed.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/71925858610?id=true",
+      "callbackUrl": "https://example.com/fulfillment-service-callback-updated"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceUpdate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation FulfillmentServiceCallbackUrlValidationCleanup($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71925825842?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71925825842",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FulfillmentServiceCallbackUrlValidationCleanup($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71925858610?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71925858610",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FulfillmentServiceCallbackUrlValidationCleanup($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71925891378?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71925891378",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

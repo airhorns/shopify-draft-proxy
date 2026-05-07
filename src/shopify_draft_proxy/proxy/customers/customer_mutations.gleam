@@ -23,8 +23,8 @@ import shopify_draft_proxy/proxy/customers/inputs.{
   normalize_tags, option_to_result, read_customer_metafields,
   read_normalized_optional_string, read_normalized_string_with_blank,
   read_obj_addresses, read_obj_array_strings, read_obj_bool,
-  read_obj_list_objects, read_obj_string, result_to_option, update_nullable_note,
-  update_trimmed_nullable_string, validate_address_input,
+  read_obj_list_objects, read_obj_string, result_to_option, split_tags,
+  update_nullable_note, update_trimmed_nullable_string, validate_address_input,
 }
 import shopify_draft_proxy/proxy/customers/serializers.{
   address_customer_missing_result, address_id_mismatch_result,
@@ -35,7 +35,9 @@ import shopify_draft_proxy/proxy/customers/serializers.{
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_field_response_key,
 }
+import shopify_draft_proxy/proxy/phone_numbers
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -56,13 +58,19 @@ pub fn handle_customer_create(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input =
+  let raw_input =
     graphql_helpers.read_arg_object(
       graphql_helpers.field_args(field, variables),
       "input",
     )
     |> option.unwrap(dict.new())
-  let errors = validate_customer_create(store, input, upstream)
+  let #(input, phone_errors) =
+    normalize_customer_phone_input(store, raw_input, [])
+  let errors =
+    list.append(
+      phone_errors,
+      validate_customer_create(store, input, phone_errors, upstream),
+    )
   case errors {
     [] -> {
       let #(id, after_id) =
@@ -251,6 +259,7 @@ pub fn build_created_customer(
 pub fn validate_customer_create(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
+  phone_errors: List(UserError),
   upstream: UpstreamContext,
 ) -> List(UserError) {
   let email = read_obj_string(input, "email")
@@ -277,7 +286,8 @@ pub fn validate_customer_create(
       }
     _, _ -> []
   }
-  let local_errors = validate_customer_input_fields(store, input, None)
+  let local_errors =
+    validate_customer_input_fields(store, input, None, phone_errors)
   list.append(
     list.append(
       list.append(list.append(id_errors, presence_errors), nested_id_errors),
@@ -285,7 +295,12 @@ pub fn validate_customer_create(
     ),
     list.append(
       list.append(local_errors, address_errors),
-      validate_upstream_duplicate_customer(input, local_errors, None, upstream),
+      validate_upstream_duplicate_customer(
+        input,
+        list.append(phone_errors, local_errors),
+        None,
+        upstream,
+      ),
     ),
   )
 }
@@ -454,11 +469,15 @@ pub fn validate_customer_input_fields(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
   exclude_customer_id: Option(String),
+  preflight_errors: List(UserError),
 ) -> List(UserError) {
   let scalar_errors =
     [
       validate_email(store, input, exclude_customer_id),
-      validate_phone(store, input, exclude_customer_id),
+      case has_user_error_field(preflight_errors, ["phone"]) {
+        True -> Error(Nil)
+        False -> validate_phone(store, input, exclude_customer_id)
+      },
       validate_locale(input),
     ]
     |> list.filter_map(fn(item) { item })
@@ -466,10 +485,25 @@ pub fn validate_customer_input_fields(
     list.flatten([
       validate_max_length(input, "firstName", "First name", 255),
       validate_max_length(input, "lastName", "Last name", 255),
-      validate_max_length(input, "note", "Note", 5000),
+      validate_max_length_with_code(
+        input,
+        "note",
+        "Note",
+        5000,
+        Some(user_error_codes.too_long),
+      ),
       validate_tag_lengths(input),
+      validate_tag_count(input),
     ])
   list.append(scalar_errors, length_errors)
+}
+
+@internal
+pub fn has_user_error_field(
+  errors: List(UserError),
+  field: List(String),
+) -> Bool {
+  errors |> list.any(fn(error) { error.field == field })
 }
 
 @internal
@@ -513,12 +547,72 @@ pub fn validate_phone(
 ) -> Result(UserError, Nil) {
   use phone <- result.try(read_obj_string(input, "phone") |> option_to_result)
   case valid_phone(phone) {
-    False -> Ok(UserError(["phone"], "Phone is invalid", None))
+    False -> Ok(UserError(["phone"], "Phone is invalid", Some("INVALID")))
     True ->
       case customer_phone_exists(store, phone, exclude_customer_id) {
         True -> Ok(UserError(["phone"], "Phone has already been taken", None))
         False -> Error(Nil)
       }
+  }
+}
+
+@internal
+pub fn normalize_customer_phone_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  case dict.get(input, "phone") {
+    Ok(root_field.StringVal(value)) ->
+      case string.trim(value) == "" {
+        True -> #(input, [])
+        False ->
+          case string.length(value) > 255 {
+            True -> #(input, [
+              UserError(
+                list.append(field_prefix, ["phone"]),
+                "Phone is too long (maximum is 255 characters)",
+                Some("TOO_LONG"),
+              ),
+              UserError(
+                list.append(field_prefix, ["phone"]),
+                "Phone is invalid",
+                Some("INVALID"),
+              ),
+            ])
+            False ->
+              case phone_numbers.normalize_for_store(store, value) {
+                Ok(phone) -> #(
+                  dict.insert(input, "phone", root_field.StringVal(phone)),
+                  [],
+                )
+                Error(_) -> #(input, [
+                  UserError(
+                    list.append(field_prefix, ["phone"]),
+                    "Phone is invalid",
+                    Some("INVALID"),
+                  ),
+                ])
+              }
+          }
+      }
+    _ -> #(input, [])
+  }
+}
+
+@internal
+pub fn normalize_customer_phone_identifier(
+  store: Store,
+  identifier: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(identifier, "phone") {
+    Ok(root_field.StringVal(value)) ->
+      case phone_numbers.normalize_for_store(store, value) {
+        Ok(phone) ->
+          dict.insert(identifier, "phone", root_field.StringVal(phone))
+        Error(_) -> identifier
+      }
+    _ -> identifier
   }
 }
 
@@ -540,17 +634,40 @@ pub fn validate_max_length(
   label: String,
   max: Int,
 ) -> List(UserError) {
+  validate_max_length_at(input, field, label, max, [field], None)
+}
+
+@internal
+pub fn validate_max_length_with_code(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  label: String,
+  max: Int,
+  code: Option(String),
+) -> List(UserError) {
+  validate_max_length_at(input, field, label, max, [field], code)
+}
+
+@internal
+pub fn validate_max_length_at(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  label: String,
+  max: Int,
+  error_field: List(String),
+  code: Option(String),
+) -> List(UserError) {
   case read_obj_string(input, field) {
     Some(value) ->
       case string.length(value) > max {
         True -> [
           UserError(
-            [field],
+            error_field,
             label
               <> " is too long (maximum is "
               <> int.to_string(max)
               <> " characters)",
-            None,
+            code,
           ),
         ]
         False -> []
@@ -563,11 +680,46 @@ pub fn validate_max_length(
 pub fn validate_tag_lengths(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
+  validate_tag_lengths_at(input, ["tags"])
+}
+
+@internal
+pub fn validate_tag_lengths_at(
+  input: Dict(String, root_field.ResolvedValue),
+  field: List(String),
+) -> List(UserError) {
   read_obj_array_strings(input, "tags")
+  |> list.flat_map(split_tags)
   |> list.filter(fn(tag) { string.length(tag) > 255 })
   |> list.map(fn(_) {
-    UserError(["tags"], "Tags is too long (maximum is 255 characters)", None)
+    UserError(field, "Tags is too long (maximum is 255 characters)", None)
   })
+}
+
+@internal
+pub fn validate_tag_count(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  validate_tag_count_at(input, ["tags"])
+}
+
+@internal
+pub fn validate_tag_count_at(
+  input: Dict(String, root_field.ResolvedValue),
+  field: List(String),
+) -> List(UserError) {
+  let count =
+    normalize_tags(read_obj_array_strings(input, "tags")) |> list.length
+  case count > 250 {
+    True -> [
+      UserError(
+        field,
+        "Tags cannot be more than 250",
+        Some(user_error_codes.too_many_tags),
+      ),
+    ]
+    False -> []
+  }
 }
 
 @internal
@@ -590,13 +742,23 @@ pub fn customer_phone_exists(
   phone: String,
   exclude_customer_id: Option(String),
 ) -> Bool {
+  let normalized_phone =
+    phone_numbers.normalize_for_store(store, phone)
+    |> result.unwrap(phone)
   store.list_effective_customers(store)
   |> list.any(fn(customer) {
+    let existing_phone =
+      customer.default_phone_number
+      |> option.then(fn(value) { value.phone_number })
+    let normalized_existing =
+      existing_phone
+      |> option.map(fn(value) {
+        phone_numbers.normalize_for_store(store, value)
+        |> result.unwrap(value)
+      })
+      |> option.unwrap("")
     customer.id != option.unwrap(exclude_customer_id, "")
-    && customer.default_phone_number
-    |> option.then(fn(value) { value.phone_number })
-    |> option.unwrap("")
-    == phone
+    && normalized_existing == normalized_phone
   })
 }
 
@@ -604,22 +766,19 @@ pub fn customer_phone_exists(
 pub fn valid_phone(phone: String) -> Bool {
   string.starts_with(phone, "+")
   && string.length(phone) > 1
-  && all_digits(string.drop_start(phone, 1))
+  && phone_numbers.all_digits(string.drop_start(phone, 1))
 }
 
 @internal
 pub fn all_digits(value: String) -> Bool {
-  case string.pop_grapheme(value) {
-    Error(_) -> True
-    Ok(#(grapheme, rest)) -> is_digit_string(grapheme) && all_digits(rest)
-  }
+  phone_numbers.all_digits(value)
 }
 
 @internal
 pub fn is_digit_string(grapheme: String) -> Bool {
   case grapheme {
     "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
-    _ -> False
+    _ -> phone_numbers.all_digits(grapheme)
   }
 }
 
@@ -641,27 +800,35 @@ pub fn handle_customer_update(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let input =
+  let raw_input =
     graphql_helpers.read_arg_object(
       graphql_helpers.field_args(field, variables),
       "input",
     )
     |> option.unwrap(dict.new())
+  let #(input, phone_errors) =
+    normalize_customer_phone_input(store, raw_input, [])
   let id = read_obj_string(input, "id")
   case id {
     Some(customer_id) ->
       case store.get_effective_customer_by_id(store, customer_id) {
         Some(existing) -> {
           let input_errors =
-            validate_customer_input_fields(store, input, Some(customer_id))
+            validate_customer_input_fields(
+              store,
+              input,
+              Some(customer_id),
+              phone_errors,
+            )
           let validation_errors =
             list.flatten([
               inline_consent_update_errors(input),
+              phone_errors,
               input_errors,
               validate_customer_address_inputs(input, []),
               validate_upstream_duplicate_customer(
                 input,
-                input_errors,
+                list.append(phone_errors, input_errors),
                 Some(customer_id),
                 upstream,
               ),
@@ -864,11 +1031,14 @@ pub fn handle_customer_set(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
-  let input =
+  let raw_input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let identifier =
+  let raw_identifier =
     graphql_helpers.read_arg_object(args, "identifier")
     |> option.unwrap(dict.new())
+  let #(input, phone_errors) =
+    normalize_customer_phone_input(store, raw_input, ["input"])
+  let identifier = normalize_customer_phone_identifier(store, raw_identifier)
   case read_obj_string(identifier, "id") {
     Some(customer_id) ->
       case store.get_effective_customer_by_id(store, customer_id) {
@@ -879,6 +1049,7 @@ pub fn handle_customer_set(
               input,
               identifier,
               Some(existing),
+              phone_errors,
             )
           {
             [_, ..] as errors ->
@@ -904,7 +1075,15 @@ pub fn handle_customer_set(
       }
     None -> {
       let existing = find_customer_by_customer_set_identifier(store, identifier)
-      case customer_set_preflight_errors(store, input, identifier, existing) {
+      case
+        customer_set_preflight_errors(
+          store,
+          input,
+          identifier,
+          existing,
+          phone_errors,
+        )
+      {
         [_, ..] as errors ->
           customer_set_error_result(store, identity, field, fragments, errors)
         [] ->
@@ -956,13 +1135,34 @@ pub fn customer_set_preflight_errors(
   input: Dict(String, root_field.ResolvedValue),
   identifier: Dict(String, root_field.ResolvedValue),
   existing: Option(CustomerRecord),
+  phone_errors: List(UserError),
 ) -> List(UserError) {
   list.flatten([
+    phone_errors,
     validate_customer_address_inputs(input, ["input"]),
+    customer_set_tag_note_validation_errors(input),
     customer_set_tax_exempt_null_errors(input),
     customer_set_identifier_alignment_errors(input, identifier),
     customer_set_create_identity_errors(input, existing),
     customer_set_duplicate_identity_errors(store, input, existing),
+  ])
+}
+
+@internal
+pub fn customer_set_tag_note_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  list.flatten([
+    validate_max_length_at(
+      input,
+      "note",
+      "Note",
+      5000,
+      ["input", "note"],
+      Some(user_error_codes.too_long),
+    ),
+    validate_tag_lengths_at(input, ["input", "tags"]),
+    validate_tag_count_at(input, ["input", "tags"]),
   ])
 }
 
@@ -1093,7 +1293,7 @@ pub fn customer_set_duplicate_phone_errors(
 ) -> List(UserError) {
   case read_obj_string(input, "phone") {
     Some(phone) ->
-      case customer_phone_exists(store, phone, None) {
+      case valid_phone(phone) && customer_phone_exists(store, phone, None) {
         True -> [
           UserError(["input", "phone"], "Phone has already been taken", None),
         ]
