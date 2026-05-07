@@ -2851,6 +2851,98 @@ mutation HAR548ProductSetCommitReplay($input: ProductSetInput!, $synchronous: Bo
   assert string.contains(replay_body, "\"synchronous\":true")
 }
 
+pub fn product_set_rejects_input_id_when_identifier_supplied_test() {
+  let query =
+    "
+mutation ProductSetIdentifierIdRejection($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(identifier: $identifier, input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+"
+  let create_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #(
+          "variables",
+          json.object([
+            #("identifier", json.null()),
+            #(
+              "input",
+              json.object([
+                #("title", json.string("Identifier Seed")),
+                #("handle", json.string("identifier-seed")),
+              ]),
+            ),
+            #("synchronous", json.bool(True)),
+          ]),
+        ),
+      ]),
+    )
+  let #(Response(status: create_status, body: create_response, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_body(create_body),
+    )
+  assert create_status == 200
+  assert json.to_string(create_response)
+    == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Identifier Seed\",\"handle\":\"identifier-seed\"},\"userErrors\":[]}}}"
+
+  let reject_body =
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #(
+          "variables",
+          json.object([
+            #(
+              "identifier",
+              json.object([#("handle", json.string("identifier-seed"))]),
+            ),
+            #(
+              "input",
+              json.object([
+                #("id", json.string("gid://shopify/Product/999999999999")),
+                #("title", json.string("Should Not Stage")),
+              ]),
+            ),
+            #("synchronous", json.bool(True)),
+          ]),
+        ),
+      ]),
+    )
+  let #(Response(status: reject_status, body: reject_response, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request_body(reject_body))
+  assert reject_status == 200
+  assert json.to_string(reject_response)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"The id field is not allowed if identifier is provided.\",\"code\":\"ID_NOT_ALLOWED\"}]}}}"
+
+  let read_query =
+    "query { productByIdentifier(identifier: { handle: \\\"identifier-seed\\\" }) { id title handle } }"
+  let #(Response(status: read_status, body: read_response, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_response)
+    == "{\"data\":{\"productByIdentifier\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Identifier Seed\",\"handle\":\"identifier-seed\"}}}"
+
+  let assert [create_entry, reject_entry] = store.get_log(next_proxy.store)
+  assert create_entry.operation_name == Some("productSet")
+  assert create_entry.status == store_types.Staged
+  assert reject_entry.operation_name == Some("productSet")
+  assert reject_entry.status == store_types.Failed
+  assert reject_entry.staged_resource_ids == []
+}
+
 pub fn product_create_stages_product_default_variant_and_inventory_test() {
   let proxy = draft_proxy.new()
   let query =
