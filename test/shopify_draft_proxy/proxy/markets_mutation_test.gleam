@@ -1988,6 +1988,36 @@ pub fn market_create_rejects_status_enabled_mismatch_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"Invalid status and enabled combination.\",\"code\":\"INVALID_STATUS_AND_ENABLED_COMBINATION\"}]}}}"
 }
 
+pub fn market_create_projects_price_inclusions_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Pricing\", conditions: { regionsCondition: { regions: [{ countryCode: DK }] } }, priceInclusions: { taxPricingStrategy: ADD_TAXES_AT_CHECKOUT, dutiesPricingStrategy: INCLUDE_DUTIES_IN_PRICE } }) { market { id priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ market(id: \"gid://shopify/Market/1\") { id priceInclusions { inclusiveDutiesPricingStrategy inclusiveTaxPricingStrategy } } }",
+    )
+
+  assert status == 200
+  assert read_status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"priceInclusions\":{\"inclusiveDutiesPricingStrategy\":\"INCLUDE_DUTIES_IN_PRICE\",\"inclusiveTaxPricingStrategy\":\"ADD_TAXES_AT_CHECKOUT\"}},\"userErrors\":[]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"market\":{\"id\":\"gid://shopify/Market/1\",\"priceInclusions\":{\"inclusiveDutiesPricingStrategy\":\"INCLUDE_DUTIES_IN_PRICE\",\"inclusiveTaxPricingStrategy\":\"ADD_TAXES_AT_CHECKOUT\"}}}}"
+}
+
+pub fn market_create_rejects_inclusive_price_inclusions_for_locations_condition_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Location Pricing\", conditions: { locationsCondition: { locationIds: [\"gid://shopify/Location/1\"] } }, priceInclusions: { taxPricingStrategy: INCLUDES_TAXES_IN_PRICE, dutiesPricingStrategy: INCLUDE_DUTIES_IN_PRICE } }) { market { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"priceInclusions\"],\"message\":\"Inclusive pricing cannot be added to a market with the specified condition types.\",\"code\":\"INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES\"}]}}}"
+}
+
 pub fn market_create_rejects_plan_market_limit_test() {
   let #(Response(status: first_status, body: first_body, ..), proxy) =
     graphql_with_proxy(

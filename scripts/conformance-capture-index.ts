@@ -3001,6 +3001,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-price-inclusions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-price-inclusions-conformance.mts',
+    purpose:
+      'marketCreate nested priceInclusions success, downstream Market.priceInclusions read-after-write, and inclusive-pricing incompatibility validation for non-region market conditions.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-price-inclusions.json`,
+      'config/parity-specs/markets/market-create-price-inclusions.json',
+      'config/parity-requests/markets/market-create-price-inclusions.graphql',
+      'config/parity-requests/markets/market-price-inclusions-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable region market with explicit price inclusions, verifies read-after-write, records a rejected locations-condition branch, then deletes the created market.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-create-plan-limit-markets-home',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-market-create-plan-limit-conformance.mts',

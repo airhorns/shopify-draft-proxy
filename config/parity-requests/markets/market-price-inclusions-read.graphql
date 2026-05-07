@@ -1,0 +1,14 @@
+#graphql
+query MarketPriceInclusionsRead($id: ID!) {
+  market(id: $id) {
+    id
+    name
+    handle
+    status
+    type
+    priceInclusions {
+      inclusiveDutiesPricingStrategy
+      inclusiveTaxPricingStrategy
+    }
+  }
+}
