@@ -1,0 +1,647 @@
+{
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-07T12:06:37.708Z",
+  "scenarioId": "metaobject-update-redirect-new-handle",
+  "notes": "Captured live 2026-04 evidence for metaobjectUpdate redirectNewHandle nested in MetaobjectUpdateInput. Online-store renderable handle updates create URL redirects, while redirectNewHandle false and non-renderable definitions do not.",
+  "cases": {
+    "renderableWithRedirectTrue": {
+      "oldPath": "/pages/redirect-true-1778155595508/renderable-true-old-1778155595508",
+      "newPath": "/pages/redirect-true-1778155595508/renderable-true-new-1778155595508",
+      "definitionCreate": {
+        "name": "renderable-true-definition-create",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      capabilities {\n        publishable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "definition": {
+              "type": "codex_redirect_renderable-true_1778155595508",
+              "name": "Redirect true 1778155595508",
+              "displayNameKey": "title",
+              "access": {
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": true,
+                  "data": {
+                    "metaTitleKey": "title"
+                  }
+                },
+                "onlineStore": {
+                  "enabled": true,
+                  "data": {
+                    "urlHandle": "redirect-true-1778155595508"
+                  }
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "type": "single_line_text_field",
+                  "required": true
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectDefinitionCreate": {
+              "metaobjectDefinition": {
+                "id": "gid://shopify/MetaobjectDefinition/17928028466",
+                "type": "codex_redirect_renderable-true_1778155595508",
+                "displayNameKey": "title",
+                "capabilities": {
+                  "publishable": {
+                    "enabled": true
+                  },
+                  "renderable": {
+                    "enabled": true
+                  },
+                  "onlineStore": {
+                    "enabled": true
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "metaobjectCreate": {
+        "name": "renderable-true-metaobject-create",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "codex_redirect_renderable-true_1778155595508",
+              "handle": "renderable-true-old-1778155595508",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": {
+                  "templateSuffix": ""
+                }
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "renderable-true old title"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188360425778",
+                "handle": "renderable-true-old-1778155595508",
+                "type": "codex_redirect_renderable-true_1778155595508",
+                "displayName": "renderable-true old title",
+                "capabilities": {
+                  "publishable": {
+                    "status": "ACTIVE"
+                  },
+                  "onlineStore": {
+                    "templateSuffix": ""
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "metaobjectUpdate": {
+        "name": "renderable-true-metaobject-update",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "id": "gid://shopify/Metaobject/188360425778",
+            "metaobject": {
+              "handle": "renderable-true-new-1778155595508",
+              "redirectNewHandle": true,
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "renderable-true new title"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectUpdate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188360425778",
+                "handle": "renderable-true-new-1778155595508",
+                "displayName": "renderable-true new title",
+                "updatedAt": "2026-05-07T12:06:36Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "urlRedirects": {
+        "name": "renderable-true-url-redirects",
+        "request": {
+          "query": "query MetaobjectUpdateRedirectNewHandleUrlRedirects($query: String!) {\n  urlRedirects(first: 5, query: $query) {\n    nodes {\n      id\n      path\n      target\n    }\n  }\n}\n",
+          "variables": {
+            "query": "path:/pages/redirect-true-1778155595508/renderable-true-old-1778155595508"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "urlRedirects": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/UrlRedirect/559564128562",
+                  "path": "/pages/redirect-true-1778155595508/renderable-true-old-1778155595508",
+                  "target": "/pages/redirect-true-1778155595508/renderable-true-new-1778155595508"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "urlRedirect": {
+        "name": "renderable-true-url-redirect",
+        "request": {
+          "query": "query MetaobjectUpdateRedirectNewHandleUrlRedirect($id: ID!) {\n  urlRedirect(id: $id) {\n    id\n    path\n    target\n  }\n}\n",
+          "variables": {
+            "id": "gid://shopify/UrlRedirect/559564128562"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "urlRedirect": {
+              "id": "gid://shopify/UrlRedirect/559564128562",
+              "path": "/pages/redirect-true-1778155595508/renderable-true-old-1778155595508",
+              "target": "/pages/redirect-true-1778155595508/renderable-true-new-1778155595508"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "renderableWithRedirectFalse": {
+      "oldPath": "/pages/redirect-false-1778155595508/renderable-false-old-1778155595508",
+      "newPath": "/pages/redirect-false-1778155595508/renderable-false-new-1778155595508",
+      "definitionCreate": {
+        "name": "renderable-false-definition-create",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      capabilities {\n        publishable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "definition": {
+              "type": "codex_redirect_renderable-false_1778155595508",
+              "name": "Redirect false 1778155595508",
+              "displayNameKey": "title",
+              "access": {
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": true,
+                  "data": {
+                    "metaTitleKey": "title"
+                  }
+                },
+                "onlineStore": {
+                  "enabled": true,
+                  "data": {
+                    "urlHandle": "redirect-false-1778155595508"
+                  }
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "type": "single_line_text_field",
+                  "required": true
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectDefinitionCreate": {
+              "metaobjectDefinition": {
+                "id": "gid://shopify/MetaobjectDefinition/17928061234",
+                "type": "codex_redirect_renderable-false_1778155595508",
+                "displayNameKey": "title",
+                "capabilities": {
+                  "publishable": {
+                    "enabled": true
+                  },
+                  "renderable": {
+                    "enabled": true
+                  },
+                  "onlineStore": {
+                    "enabled": true
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "metaobjectCreate": {
+        "name": "renderable-false-metaobject-create",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "codex_redirect_renderable-false_1778155595508",
+              "handle": "renderable-false-old-1778155595508",
+              "capabilities": {
+                "publishable": {
+                  "status": "ACTIVE"
+                },
+                "onlineStore": {
+                  "templateSuffix": ""
+                }
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "renderable-false old title"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188360458546",
+                "handle": "renderable-false-old-1778155595508",
+                "type": "codex_redirect_renderable-false_1778155595508",
+                "displayName": "renderable-false old title",
+                "capabilities": {
+                  "publishable": {
+                    "status": "ACTIVE"
+                  },
+                  "onlineStore": {
+                    "templateSuffix": ""
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "metaobjectUpdate": {
+        "name": "renderable-false-metaobject-update",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "id": "gid://shopify/Metaobject/188360458546",
+            "metaobject": {
+              "handle": "renderable-false-new-1778155595508",
+              "redirectNewHandle": false,
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "renderable-false new title"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectUpdate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188360458546",
+                "handle": "renderable-false-new-1778155595508",
+                "displayName": "renderable-false new title",
+                "updatedAt": "2026-05-07T12:06:36Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "urlRedirects": {
+        "name": "renderable-false-url-redirects",
+        "request": {
+          "query": "query MetaobjectUpdateRedirectNewHandleUrlRedirects($query: String!) {\n  urlRedirects(first: 5, query: $query) {\n    nodes {\n      id\n      path\n      target\n    }\n  }\n}\n",
+          "variables": {
+            "query": "path:/pages/redirect-false-1778155595508/renderable-false-old-1778155595508"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "urlRedirects": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "nonRenderableWithRedirectTrue": {
+      "oldPath": "/pages/non-renderable-1778155595508/non-renderable-true-old-1778155595508",
+      "newPath": "/pages/non-renderable-1778155595508/non-renderable-true-new-1778155595508",
+      "definitionCreate": {
+        "name": "non-renderable-true-definition-create",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      capabilities {\n        publishable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "definition": {
+              "type": "codex_redirect_non-renderable-true_1778155595508",
+              "name": "Non-renderable redirect 1778155595508",
+              "displayNameKey": "title",
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "type": "single_line_text_field",
+                  "required": true
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectDefinitionCreate": {
+              "metaobjectDefinition": {
+                "id": "gid://shopify/MetaobjectDefinition/17928094002",
+                "type": "codex_redirect_non-renderable-true_1778155595508",
+                "displayNameKey": "title",
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "metaobjectCreate": {
+        "name": "non-renderable-true-metaobject-create",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "codex_redirect_non-renderable-true_1778155595508",
+              "handle": "non-renderable-true-old-1778155595508",
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "non-renderable-true old title"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188360491314",
+                "handle": "non-renderable-true-old-1778155595508",
+                "type": "codex_redirect_non-renderable-true_1778155595508",
+                "displayName": "non-renderable-true old title",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "metaobjectUpdate": {
+        "name": "non-renderable-true-metaobject-update",
+        "request": {
+          "query": "mutation MetaobjectUpdateRedirectNewHandleUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "id": "gid://shopify/Metaobject/188360491314",
+            "metaobject": {
+              "handle": "non-renderable-true-new-1778155595508",
+              "redirectNewHandle": true,
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "non-renderable-true new title"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectUpdate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/188360491314",
+                "handle": "non-renderable-true-new-1778155595508",
+                "displayName": "non-renderable-true new title",
+                "updatedAt": "2026-05-07T12:06:37Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "urlRedirects": {
+        "name": "non-renderable-true-url-redirects",
+        "request": {
+          "query": "query MetaobjectUpdateRedirectNewHandleUrlRedirects($query: String!) {\n  urlRedirects(first: 5, query: $query) {\n    nodes {\n      id\n      path\n      target\n    }\n  }\n}\n",
+          "variables": {
+            "query": "path:/pages/non-renderable-1778155595508/non-renderable-true-old-1778155595508"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "urlRedirects": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

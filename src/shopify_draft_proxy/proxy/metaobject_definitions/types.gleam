@@ -883,6 +883,10 @@ pub fn build_definition_from_create_input(
       name: read_string(input, "name"),
       description: read_string(input, "description"),
       display_name_key: read_string(input, "displayNameKey"),
+      online_store_url_handle: read_definition_online_store_url_handle(
+        read_object(input, "capabilities"),
+        None,
+      ),
       access: build_definition_access(
         read_object(input, "access"),
         default_definition_access(),
@@ -987,6 +991,14 @@ fn apply_mutable_definition_update(
       name: name,
       description: description,
       display_name_key: display_name_key,
+      online_store_url_handle: case read_object(input, "capabilities") {
+        Some(capabilities) ->
+          read_definition_online_store_url_handle(
+            Some(capabilities),
+            existing.online_store_url_handle,
+          )
+        None -> existing.online_store_url_handle
+      },
       access: case read_object(input, "access") {
         Some(access) -> build_definition_access(Some(access), existing.access)
         None -> existing.access
@@ -1467,6 +1479,7 @@ pub fn build_standard_definition(
       name: Some(template.name),
       description: template.description,
       display_name_key: Some(template.display_name_key),
+      online_store_url_handle: None,
       access: template.access,
       capabilities: template.capabilities,
       field_definitions: template.field_definitions,
@@ -3187,6 +3200,25 @@ pub fn merge_definition_capability(
         None -> base
       }
     None -> base
+  }
+}
+
+@internal
+pub fn read_definition_online_store_url_handle(
+  raw: Option(Dict(String, root_field.ResolvedValue)),
+  base: Option(String),
+) -> Option(String) {
+  case raw {
+    None -> base
+    Some(capabilities) ->
+      case read_object(capabilities, "onlineStore") {
+        Some(online_store) ->
+          case read_object(online_store, "data") {
+            Some(data) -> read_string(data, "urlHandle") |> option.or(base)
+            None -> base
+          }
+        None -> base
+      }
   }
 }
 

@@ -38,6 +38,7 @@ import shopify_draft_proxy/state/store.{
   list_effective_metaobject_definitions, list_effective_metaobjects_by_type,
   upsert_base_metaobject_definitions, upsert_base_metaobjects,
   upsert_staged_metaobject, upsert_staged_metaobject_definition,
+  upsert_staged_url_redirect,
 }
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -61,6 +62,7 @@ import shopify_draft_proxy/state/types.{
   MetaobjectInt, MetaobjectList, MetaobjectNull, MetaobjectObject,
   MetaobjectOnlineStoreCapabilityRecord, MetaobjectPublishableCapabilityRecord,
   MetaobjectRecord, MetaobjectStandardTemplateRecord, MetaobjectString,
+  UrlRedirectRecord,
 }
 
 @internal
@@ -900,6 +902,13 @@ fn handle_metaobject_update(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let input = metaobject_definition_types.read_object_arg(args, "metaobject")
+  let redirect_new_handle =
+    metaobject_definition_types.read_bool(input, "redirectNewHandle")
+    |> option.or(metaobject_definition_types.read_bool(
+      args,
+      "redirectNewHandle",
+    ))
+    |> option.unwrap(False)
   case metaobject_definition_types.read_string(args, "id") {
     None -> #(
       MutationFieldResult(
@@ -1000,27 +1009,36 @@ fn handle_metaobject_update(
                 [], Some(metaobject) -> {
                   let #(staged, next_store) =
                     upsert_staged_metaobject(store, metaobject)
+                  let #(final_store, final_identity, staged_ids) =
+                    maybe_stage_metaobject_handle_redirect(
+                      next_store,
+                      next_identity,
+                      definition,
+                      existing,
+                      staged,
+                      redirect_new_handle,
+                    )
                   #(
                     MutationFieldResult(
                       key,
                       metaobject_payload(
-                        next_store,
+                        final_store,
                         field,
                         fragments,
                         Some(staged),
                         [],
                       ),
-                      [staged.id],
+                      staged_ids,
                       [],
                       [
                         metaobject_definition_types.log_draft(
                           "metaobjectUpdate",
-                          [staged.id],
+                          staged_ids,
                         ),
                       ],
                     ),
-                    next_store,
-                    next_identity,
+                    final_store,
+                    final_identity,
                   )
                 }
               }
@@ -1028,6 +1046,70 @@ fn handle_metaobject_update(
           }
       }
     }
+  }
+}
+
+fn maybe_stage_metaobject_handle_redirect(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  definition: MetaobjectDefinitionRecord,
+  before: MetaobjectRecord,
+  after: MetaobjectRecord,
+  redirect_new_handle: Bool,
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let base_ids = [after.id]
+  case redirect_new_handle && before.handle != after.handle {
+    False -> #(store, identity, base_ids)
+    True ->
+      case
+        metaobject_storefront_path(definition, before),
+        metaobject_storefront_path(definition, after)
+      {
+        Some(path), Some(target) -> {
+          let #(id, after_id) =
+            synthetic_identity.make_proxy_synthetic_gid(identity, "UrlRedirect")
+          let #(now, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(after_id)
+          let redirect =
+            UrlRedirectRecord(
+              id: id,
+              path: path,
+              target: target,
+              cursor: None,
+              created_at: Some(now),
+              updated_at: Some(now),
+            )
+          let #(staged, next_store) =
+            upsert_staged_url_redirect(store, redirect)
+          #(next_store, next_identity, [after.id, staged.id])
+        }
+        _, _ -> #(store, identity, base_ids)
+      }
+  }
+}
+
+fn metaobject_storefront_path(
+  definition: MetaobjectDefinitionRecord,
+  metaobject: MetaobjectRecord,
+) -> Option(String) {
+  case
+    definition_capability_enabled(definition.capabilities.online_store),
+    definition_capability_enabled(definition.capabilities.renderable),
+    metaobject.capabilities.online_store,
+    definition.online_store_url_handle |> option.or(definition.display_name_key)
+  {
+    True, True, Some(_), Some(url_handle) ->
+      Some("/pages/" <> url_handle <> "/" <> metaobject.handle)
+    _, _, _, _ -> None
+  }
+}
+
+fn definition_capability_enabled(
+  capability: Option(MetaobjectDefinitionCapabilityRecord),
+) -> Bool {
+  case capability {
+    Some(MetaobjectDefinitionCapabilityRecord(enabled: True)) -> True
+    _ -> False
   }
 }
 
@@ -1907,6 +1989,9 @@ fn definition_from_json(
     field_definitions: json_array(json_get(value, "fieldDefinitions"))
       |> list.filter_map(field_definition_from_json),
     display_name_key: json_get_nullable_string(value, "displayNameKey"),
+    online_store_url_handle: definition_online_store_url_handle_from_json(
+      json_get(value, "capabilities"),
+    ),
     has_thumbnail_field: json_get_bool(value, "hasThumbnailField"),
     metaobjects_count: json_get_int(value, "metaobjectsCount"),
     standard_template: standard_template_from_json(json_get(
@@ -2027,6 +2112,23 @@ fn definition_capability_from_json(
         None -> None
       }
     None -> None
+  }
+}
+
+fn definition_online_store_url_handle_from_json(
+  value: Option(commit.JsonValue),
+) -> Option(String) {
+  case value {
+    None -> None
+    Some(object) ->
+      case json_get(object, "onlineStore") {
+        Some(online_store) ->
+          case json_get(online_store, "data") {
+            Some(data) -> json_get_string(data, "urlHandle")
+            None -> None
+          }
+        None -> None
+      }
   }
 }
 

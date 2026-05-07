@@ -11,7 +11,7 @@ import shopify_draft_proxy/state/store/types.{
 }
 import shopify_draft_proxy/state/types.{
   type OnlineStoreContentRecord, type OnlineStoreIntegrationRecord,
-  type SavedSearchRecord, type WebhookSubscriptionRecord,
+  type SavedSearchRecord, type UrlRedirectRecord, type WebhookSubscriptionRecord,
 } as _
 
 // ---------------------------------------------------------------------------
@@ -606,6 +606,112 @@ pub fn list_effective_online_store_integrations(
       case get_effective_online_store_integration_by_id(store, id) {
         Some(record) if record.kind == kind -> Ok(record)
         _ -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn upsert_base_url_redirects(
+  store: Store,
+  records: List(UrlRedirectRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        url_redirects: dict.insert(base.url_redirects, record.id, record),
+        url_redirect_order: append_unique_id(base.url_redirect_order, record.id),
+        deleted_url_redirect_ids: dict.delete(
+          base.deleted_url_redirect_ids,
+          record.id,
+        ),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_url_redirect_ids: dict.delete(
+          staged.deleted_url_redirect_ids,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+pub fn upsert_staged_url_redirect(
+  store: Store,
+  record: UrlRedirectRecord,
+) -> #(UrlRedirectRecord, Store) {
+  let staged = store.staged_state
+  let already_known =
+    list.contains(store.base_state.url_redirect_order, record.id)
+    || list.contains(staged.url_redirect_order, record.id)
+  let new_order = case already_known {
+    True -> staged.url_redirect_order
+    False -> list.append(staged.url_redirect_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      url_redirects: dict.insert(staged.url_redirects, record.id, record),
+      url_redirect_order: new_order,
+      deleted_url_redirect_ids: dict.delete(
+        staged.deleted_url_redirect_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn get_effective_url_redirect_by_id(
+  store: Store,
+  id: String,
+) -> Option(UrlRedirectRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_url_redirect_ids, id)
+    || dict_has(store.staged_state.deleted_url_redirect_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.url_redirects, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.url_redirects, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_url_redirects(store: Store) -> List(UrlRedirectRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.url_redirect_order,
+      store.staged_state.url_redirect_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_url_redirect_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.url_redirects, store.staged_state.url_redirects)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_url_redirect_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
       }
     })
   list.append(ordered_records, unordered_records)

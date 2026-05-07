@@ -2595,15 +2595,33 @@ pub fn default_registry() -> List(RegistryEntry) {
       ),
     ),
     RegistryEntry(
+      name: "urlRedirect",
+      type_: Query,
+      domain: OnlineStore,
+      execution: OverlayRead,
+      implemented: True,
+      match_names: ["urlRedirect", "UrlRedirect"],
+      runtime_tests: [
+        "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "test/parity_test.gleam",
+      ],
+      support_notes: Some(
+        "Resolves URL redirects produced by renderable metaobject handle renames; general URL redirect mutation lifecycle remains outside this entry.",
+      ),
+    ),
+    RegistryEntry(
       name: "urlRedirects",
       type_: Query,
       domain: OnlineStore,
       execution: OverlayRead,
-      implemented: False,
+      implemented: True,
       match_names: ["urlRedirects", "UrlRedirects"],
-      runtime_tests: [],
+      runtime_tests: [
+        "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "test/parity_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED for urlRedirects; local catalog/search/pageInfo support needs `read_online_store_navigation` capture.",
+        "Stages and reads URL redirects produced by renderable metaobject handle renames; general URL redirect mutation lifecycle remains outside this entry.",
       ),
     ),
     RegistryEntry(

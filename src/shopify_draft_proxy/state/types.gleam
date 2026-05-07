@@ -151,6 +151,17 @@ pub type OnlineStoreIntegrationRecord {
   )
 }
 
+pub type UrlRedirectRecord {
+  UrlRedirectRecord(
+    id: String,
+    path: String,
+    target: String,
+    cursor: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
 // Discounts domain
 // ---------------------------------------------------------------------------
 
@@ -1352,6 +1363,7 @@ pub type MetaobjectDefinitionRecord {
     name: Option(String),
     description: Option(String),
     display_name_key: Option(String),
+    online_store_url_handle: Option(String),
     access: Dict(String, Option(String)),
     capabilities: MetaobjectDefinitionCapabilitiesRecord,
     field_definitions: List(MetaobjectFieldDefinitionRecord),

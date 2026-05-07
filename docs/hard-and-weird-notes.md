@@ -1461,6 +1461,7 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - `metaobjectCreate` with a duplicate requested handle succeeds by auto-suffixing the handle, while `metaobjectUpdate` to another row's handle returns `TAKEN`.
 - `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
+- `metaobjectUpdate` handle redirects use `redirectNewHandle` inside `MetaobjectUpdateInput`; Admin GraphQL 2026-04 rejects a top-level `redirectNewHandle` argument. Redirect creation requires an online-store-renderable definition and row-level `onlineStore` capability. Definition `onlineStore.data.urlHandle` is globally unique and becomes the `/pages/<urlHandle>/<handle>` path segment. `UrlRedirect` reads expose `id`, `path`, and `target`; captured 2026-04 schema rejected `createdAt` / `updatedAt` on `UrlRedirect`.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
 
 HAR-675 live parity work replaces the old local definition-delete associated-entry guardrail:

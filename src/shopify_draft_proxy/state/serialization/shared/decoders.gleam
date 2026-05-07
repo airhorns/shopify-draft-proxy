@@ -1320,6 +1320,7 @@ pub fn metaobject_definition_decoder() -> Decoder(
   use name <- optional_string_field("name")
   use description <- optional_string_field("description")
   use display_name_key <- optional_string_field("displayNameKey")
+  use online_store_url_handle <- optional_string_field("onlineStoreUrlHandle")
   use access <- optional_field(
     "access",
     dict.new(),
@@ -1378,6 +1379,7 @@ pub fn metaobject_definition_decoder() -> Decoder(
     name: name,
     description: description,
     display_name_key: display_name_key,
+    online_store_url_handle: online_store_url_handle,
     access: access,
     capabilities: capabilities,
     field_definitions: field_definitions,
@@ -1664,6 +1666,24 @@ pub fn metaobject_online_store_decoder() -> Decoder(
   use template_suffix <- optional_string_field("templateSuffix")
   decode.success(types.MetaobjectOnlineStoreCapabilityRecord(
     template_suffix: template_suffix,
+  ))
+}
+
+@internal
+pub fn url_redirect_decoder() -> Decoder(types.UrlRedirectRecord) {
+  use id <- decode.field("id", decode.string)
+  use path <- decode.field("path", decode.string)
+  use target <- decode.field("target", decode.string)
+  use cursor <- optional_string_field("cursor")
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  decode.success(types.UrlRedirectRecord(
+    id: id,
+    path: path,
+    target: target,
+    cursor: cursor,
+    created_at: created_at,
+    updated_at: updated_at,
   ))
 }
 

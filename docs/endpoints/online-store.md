@@ -11,6 +11,10 @@ Content roots from HAR-303:
 - Reads: `article`, `articleAuthors`, `articles`, `articleTags`, `blog`, `blogs`, `blogsCount`, `page`, `pages`, `pagesCount`, `comment`, `comments`
 - Mutations: `articleCreate`, `articleUpdate`, `articleDelete`, `blogCreate`, `blogUpdate`, `blogDelete`, `pageCreate`, `pageUpdate`, `pageDelete`, `commentApprove`, `commentSpam`, `commentNotSpam`, `commentDelete`
 
+URL redirect read roots from the metaobject redirect-new-handle slice:
+
+- Reads: `urlRedirect`, `urlRedirects`
+
 Presentation and integration roots from HAR-372:
 
 - Reads: `theme`, `themes`, `scriptTag`, `scriptTags`, `webPixel`, `serverPixel`, `mobilePlatformApplication`, `mobilePlatformApplications`
@@ -19,6 +23,8 @@ Presentation and integration roots from HAR-372:
 The content model is normalized in memory as generic online-store content records for articles, blogs, pages, and comments. Snapshot mode serves these roots without upstream access. Live-hybrid mode forwards cold catalog/search reads upstream when no local content state exists, then serves the local graph when staged content exists. `blogsCount` and `pagesCount` use a narrow upstream baseline count during staged lifecycle reads because the full downstream read document contains local synthetic IDs and cannot be forwarded verbatim.
 
 Supported lifecycle mutations are staged locally and logged with the original raw GraphQL request for commit replay. They must not write to Shopify at normal runtime.
+
+URL redirect reads are local overlays for redirect rows staged by supported domain behavior, currently `metaobjectUpdate(..., metaobject: { handle, redirectNewHandle: true })` on online-store-renderable metaobjects. Snapshot mode returns local state only. Live-hybrid mode forwards cold `urlRedirect`/`urlRedirects` reads upstream when no local redirect state or requested local ID is present; once local redirect state exists, `urlRedirects` filters with the shared Admin search-query parser and supports `id:`, `path:`, `target:`, and default text terms. URL redirect create/update/delete/import/bulk-delete mutations remain unsupported and must not be treated as locally modeled lifecycle roots.
 
 ### Content read behavior
 

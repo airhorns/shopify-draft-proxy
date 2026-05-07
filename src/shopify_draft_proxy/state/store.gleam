@@ -608,6 +608,14 @@ pub const get_effective_online_store_integration_by_id = content.get_effective_o
 
 pub const list_effective_online_store_integrations = content.list_effective_online_store_integrations
 
+pub const upsert_base_url_redirects = content.upsert_base_url_redirects
+
+pub const upsert_staged_url_redirect = content.upsert_staged_url_redirect
+
+pub const get_effective_url_redirect_by_id = content.get_effective_url_redirect_by_id
+
+pub const list_effective_url_redirects = content.list_effective_url_redirects
+
 pub const upsert_base_app = apps.upsert_base_app
 
 pub const stage_app = apps.stage_app

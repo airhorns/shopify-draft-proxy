@@ -43,10 +43,9 @@ HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin
 
 ### URL redirect blockers
 
-URL redirect roots are intentionally registered as unimplemented coverage, not supported local behavior.
+URL redirect mutation/import roots are intentionally registered as unimplemented coverage, not supported local behavior. The read roots `urlRedirect` and `urlRedirects` have a narrow local overlay for redirect rows staged by metaobject handle updates, documented in `docs/endpoints/online-store.md`; that does not imply support for URL redirect mutation lifecycle roots.
 
-- `urlRedirectSavedSearches` and `urlRedirectsCount` returned access denied requiring `read_online_store_navigation`.
-- `urlRedirects` returned access denied under the current credential.
+- `urlRedirectSavedSearches` and `urlRedirectsCount` returned access denied requiring `read_online_store_navigation` in the saved-search blocker capture.
 - `urlRedirectCreate` and `urlRedirectImportCreate` returned access denied requiring `write_online_store_navigation`.
 - `urlRedirectImportCreate` / `urlRedirectImportSubmit` also need CSV preview and async job evidence before local support can be claimed.
 
