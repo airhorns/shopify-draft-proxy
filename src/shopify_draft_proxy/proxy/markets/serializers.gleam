@@ -210,11 +210,7 @@ pub fn market_data(
       "currencySettings",
       market_currency_settings_data(input, region_inputs, existing_value),
     ),
-    #(
-      "priceInclusions",
-      captured_field(existing_value, "priceInclusions")
-        |> option.unwrap(default_market_price_inclusions()),
-    ),
+    #("priceInclusions", market_price_inclusions_data(input, existing_value)),
     #(
       "catalogs",
       captured_field(existing_value, "catalogs")
@@ -613,6 +609,47 @@ pub fn default_market_price_inclusions() -> CapturedJsonValue {
       CapturedString("INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY"),
     ),
   ])
+}
+
+fn market_price_inclusions_data(
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let fallback =
+    captured_field(existing_value, "priceInclusions")
+    |> option.unwrap(default_market_price_inclusions())
+
+  case graphql_helpers.read_arg_object(input, "priceInclusions") {
+    Some(price_inclusions) ->
+      CapturedObject([
+        #(
+          "inclusiveDutiesPricingStrategy",
+          graphql_helpers.read_arg_string_nonempty(
+            price_inclusions,
+            "dutiesPricingStrategy",
+          )
+            |> option.map(CapturedString)
+            |> option.or(captured_field(
+              fallback,
+              "inclusiveDutiesPricingStrategy",
+            ))
+            |> option.unwrap(CapturedString("ADD_DUTIES_AT_CHECKOUT")),
+        ),
+        #(
+          "inclusiveTaxPricingStrategy",
+          graphql_helpers.read_arg_string_nonempty(
+            price_inclusions,
+            "taxPricingStrategy",
+          )
+            |> option.map(CapturedString)
+            |> option.or(captured_field(fallback, "inclusiveTaxPricingStrategy"))
+            |> option.unwrap(CapturedString(
+              "INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY",
+            )),
+        ),
+      ])
+    None -> fallback
+  }
 }
 
 @internal

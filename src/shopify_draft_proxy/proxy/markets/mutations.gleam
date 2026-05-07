@@ -541,6 +541,7 @@ fn market_create_input_errors(
     market_create_plan_limit_errors(store, input),
     market_create_currency_errors(store, input),
     market_create_region_errors(store, input),
+    market_create_price_inclusions_errors(input),
   ])
 }
 
@@ -785,6 +786,75 @@ fn market_base_currency_supported(store: Store, currency: String) -> Bool {
 
 fn default_supported_market_base_currencies() -> List(String) {
   ["CAD", "DKK", "MXN", "USD"]
+}
+
+fn market_create_price_inclusions_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case
+    explicit_inclusive_price_inclusions(input),
+    non_region_conditions(input)
+  {
+    True, True -> [
+      user_error(
+        ["input", "priceInclusions"],
+        "Inclusive pricing cannot be added to a market with the specified condition types.",
+        "INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn explicit_inclusive_price_inclusions(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case graphql_helpers.read_arg_object(input, "priceInclusions") {
+    Some(price_inclusions) ->
+      inclusive_tax_pricing_strategy(price_inclusions)
+      || inclusive_duties_pricing_strategy(price_inclusions)
+    None -> False
+  }
+}
+
+fn inclusive_tax_pricing_strategy(
+  price_inclusions: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case
+    graphql_helpers.read_arg_string_nonempty(
+      price_inclusions,
+      "taxPricingStrategy",
+    )
+  {
+    Some("INCLUDES_TAXES_IN_PRICE")
+    | Some("INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY") -> True
+    _ -> False
+  }
+}
+
+fn inclusive_duties_pricing_strategy(
+  price_inclusions: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case
+    graphql_helpers.read_arg_string_nonempty(
+      price_inclusions,
+      "dutiesPricingStrategy",
+    )
+  {
+    Some("INCLUDE_DUTIES_IN_PRICE") -> True
+    _ -> False
+  }
+}
+
+fn non_region_conditions(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case graphql_helpers.read_arg_object(input, "conditions") {
+    Some(conditions) ->
+      dict.has_key(conditions, "locationsCondition")
+      || dict.has_key(conditions, "companyLocationsCondition")
+    None -> False
+  }
 }
 
 fn market_create_region_errors(

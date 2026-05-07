@@ -1,0 +1,173 @@
+{
+  "capturedAt": "2026-05-07T16:50:04.156Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "marketCreate priceInclusions and inclusive-pricing validation",
+  "selectedLocationId": "gid://shopify/Location/112829759794",
+  "cases": [
+    {
+      "name": "marketCreate accepts nested priceInclusions on a region market",
+      "query": "#graphql\nmutation MarketCreatePriceInclusions($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      type\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Pricing 20260507165003",
+          "conditions": {
+            "regionsCondition": {
+              "regions": [
+                {
+                  "countryCode": "CA"
+                }
+              ]
+            }
+          },
+          "priceInclusions": {
+            "taxPricingStrategy": "ADD_TAXES_AT_CHECKOUT",
+            "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/97998045490",
+                "name": "Draft Proxy Pricing 20260507165003",
+                "handle": "draft-proxy-pricing-20260507165003",
+                "status": "DRAFT",
+                "type": "REGION",
+                "priceInclusions": {
+                  "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
+                  "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "market read-after-create returns requested priceInclusions",
+      "query": "#graphql\nquery MarketPriceInclusionsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    handle\n    status\n    type\n    priceInclusions {\n      inclusiveDutiesPricingStrategy\n      inclusiveTaxPricingStrategy\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/97998045490"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/97998045490",
+              "name": "Draft Proxy Pricing 20260507165003",
+              "handle": "draft-proxy-pricing-20260507165003",
+              "status": "DRAFT",
+              "type": "REGION",
+              "priceInclusions": {
+                "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
+                "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreate rejects inclusive priceInclusions on locationsCondition",
+      "query": "#graphql\nmutation MarketCreatePriceInclusions($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      type\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Location Pricing 20260507165003",
+          "conditions": {
+            "locationsCondition": {
+              "locationIds": ["gid://shopify/Location/112829759794"]
+            }
+          },
+          "priceInclusions": {
+            "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+            "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": ["input", "priceInclusions"],
+                  "message": "Inclusive pricing cannot be added to a market with the specified condition types.",
+                  "code": "INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "id": "gid://shopify/Market/97998045490",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/97998045490",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

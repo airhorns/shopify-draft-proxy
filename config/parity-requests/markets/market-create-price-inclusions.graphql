@@ -1,0 +1,21 @@
+#graphql
+mutation MarketCreatePriceInclusions($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+      type
+      priceInclusions {
+        inclusiveDutiesPricingStrategy
+        inclusiveTaxPricingStrategy
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
