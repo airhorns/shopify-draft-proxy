@@ -88,7 +88,9 @@ Local staged mutations:
   return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
   refund-transfer, exchange, notification, or inventory movement fidelity.
 - `return-request-decline-local-staging` also covers invalid `returnDeclineRequest` decline reasons and invalid
-  `tmp_notify_customer.email_address` notification payloads against the local runtime staging fixture.
+  `tmp_notify_customer.email_address` notification payloads against the local runtime staging fixture. Public Admin
+  GraphQL evidence for the exposed `ReturnDeclineReason` enum and the current public-schema `tmp_notify_customer`
+  boundary is recorded separately in `return-decline-request-validation.json`.
 - HAR-589 adds executable local-runtime parity for return quantity validation:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` hydrates an order with an existing `OPEN` return consuming
   part of the fulfilled quantity and verifies over-cap `returnRequest` and `returnCreate` calls return a quantity userError
@@ -126,7 +128,8 @@ Local staged mutations:
   `config/parity-specs/orders/removeFromReturn-local-staging.json`
 - Return decline/request validation parity:
   `config/parity-specs/orders/return-request-decline-local-staging.json`, backed by
-  `fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json`.
+  `fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json` and public schema evidence in
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/return-decline-request-validation.json`.
 - HAR-589 quantity validation parity:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` and
   `config/parity-specs/orders/removeFromReturn-quantity-validation.json`

@@ -880,6 +880,7 @@ fn serialize_node_by_id(
       case store.get_effective_metaobject_definition_by_id(store, id) {
         Some(record) ->
           metaobject_serializers.serialize_definition_selection(
+            store,
             record,
             synthetic_node_field(
               "MetaobjectDefinition",

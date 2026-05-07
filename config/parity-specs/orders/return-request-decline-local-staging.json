@@ -5,6 +5,7 @@
   "assertionKinds": ["runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/return-decline-request-validation.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json"
   ],
   "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
