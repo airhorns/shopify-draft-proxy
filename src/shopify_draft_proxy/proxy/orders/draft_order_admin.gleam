@@ -27,12 +27,13 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/proxy/orders/common.{
   captured_json_source, captured_object_field, captured_string_field,
-  draft_order_gid_tail, field_arguments, inferred_nullable_user_error,
+  captured_tax_lines, draft_order_gid_tail, field_arguments,
+  first_money_set_presentment_currency, inferred_nullable_user_error,
   inferred_user_error, order_fulfillment_orders, order_fulfillments,
-  order_transactions, read_bool, read_object, read_string, read_string_arg,
-  read_string_list, replace_captured_object_fields, selection_children,
-  serialize_job, serialize_nullable_user_error, serialize_user_error, user_error,
-  user_error_source,
+  order_transactions, read_bool, read_object, read_object_list, read_string,
+  read_string_arg, read_string_list, replace_captured_object_fields,
+  selection_children, serialize_job, serialize_nullable_user_error,
+  serialize_user_error, user_error, user_error_source,
 }
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{
   build_draft_order_from_input,
@@ -1532,34 +1533,50 @@ pub fn handle_draft_order_update(
             maybe_hydrate_draft_order_by_id(store, id, upstream)
           case store.get_draft_order_by_id(hydrated_store, id) {
             Some(draft_order) -> {
-              let #(updated_draft_order, next_identity) =
-                build_updated_draft_order(
-                  hydrated_store,
-                  identity,
-                  draft_order,
-                  input,
-                )
-              let next_store =
-                store.stage_draft_order(hydrated_store, updated_draft_order)
-              let payload =
-                serialize_draft_order_mutation_payload(
-                  field,
-                  Some(updated_draft_order),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderUpdate",
-                  [id],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged draftOrderUpdate in shopify-draft-proxy.",
-                  ),
-                )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+              let business_errors =
+                validate_draft_order_update_business_rules(draft_order, input)
+              case business_errors {
+                [_, ..] -> {
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      None,
+                      business_errors,
+                      fragments,
+                    )
+                  #(key, payload, hydrated_store, identity, [], [], [])
+                }
+                [] -> {
+                  let #(updated_draft_order, next_identity) =
+                    build_updated_draft_order(
+                      hydrated_store,
+                      identity,
+                      draft_order,
+                      input,
+                    )
+                  let next_store =
+                    store.stage_draft_order(hydrated_store, updated_draft_order)
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      Some(updated_draft_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderUpdate",
+                      [id],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged draftOrderUpdate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
+              }
             }
             None ->
               unknown_draft_order_update_result(
@@ -1582,6 +1599,119 @@ pub fn handle_draft_order_update(
       }
     }
   }
+}
+
+fn validate_draft_order_update_business_rules(
+  draft_order: DraftOrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  list.flatten([
+    validate_draft_order_update_completed_status(draft_order),
+    validate_draft_order_update_presentment_currency(draft_order, input),
+    validate_draft_order_update_line_item_presence(input),
+  ])
+}
+
+fn validate_draft_order_update_completed_status(
+  draft_order: DraftOrderRecord,
+) -> List(#(List(String), String, Option(String))) {
+  case captured_string_field(draft_order.data, "status") {
+    Some("COMPLETED") -> [
+      user_error(
+        ["id"],
+        "draft_order_already_completed",
+        Some(user_error_codes.invalid),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_draft_order_update_presentment_currency(
+  draft_order: DraftOrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case read_string(input, "presentmentCurrencyCode") {
+    Some(next_currency) -> {
+      let current_currency = draft_order_presentment_currency_code(draft_order)
+      case
+        next_currency != current_currency
+        && draft_order_has_shipping_or_tax_context(draft_order)
+      {
+        True -> [
+          user_error(
+            ["input", "presentmentCurrencyCode"],
+            "presentment_currency_code_cannot_be_changed",
+            Some(user_error_codes.invalid),
+          ),
+        ]
+        False -> []
+      }
+    }
+    None -> []
+  }
+}
+
+fn validate_draft_order_update_line_item_presence(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, Option(String))) {
+  case
+    dict.has_key(input, "lineItems"),
+    read_object_list(input, "lineItems"),
+    draft_order_update_has_line_item_clear_context(input)
+  {
+    True, [], False -> [
+      user_error(
+        ["input", "lineItems"],
+        "line_items_must_not_be_empty",
+        Some(user_error_codes.invalid),
+      ),
+    ]
+    _, _, _ -> []
+  }
+}
+
+fn draft_order_presentment_currency_code(
+  draft_order: DraftOrderRecord,
+) -> String {
+  let currency_code = captured_order_currency(draft_order.data)
+  ["totalPriceSet", "subtotalPriceSet", "totalShippingPriceSet"]
+  |> list.filter_map(fn(name) {
+    case captured_object_field(draft_order.data, name) {
+      Some(value) -> Ok(value)
+      None -> Error(Nil)
+    }
+  })
+  |> first_money_set_presentment_currency(currency_code)
+}
+
+fn draft_order_has_shipping_or_tax_context(
+  draft_order: DraftOrderRecord,
+) -> Bool {
+  case captured_object_field(draft_order.data, "shippingLine") {
+    Some(CapturedObject(_)) -> True
+    _ -> draft_order_has_tax_lines(draft_order)
+  }
+}
+
+fn draft_order_has_tax_lines(draft_order: DraftOrderRecord) -> Bool {
+  case captured_tax_lines(draft_order.data) {
+    [_, ..] -> True
+    [] ->
+      draft_order_line_items(draft_order.data)
+      |> list.any(fn(line_item) {
+        case captured_tax_lines(line_item) {
+          [_, ..] -> True
+          [] -> False
+        }
+      })
+  }
+}
+
+fn draft_order_update_has_line_item_clear_context(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(input, "appliedDiscount") || dict.has_key(input, "shippingLine")
 }
 
 @internal
