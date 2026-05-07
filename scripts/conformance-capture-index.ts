@@ -6076,6 +6076,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-metafield-namespaces-resolution',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-metafield-namespaces-resolution.ts',
+    purpose:
+      'Webhook subscription metafieldNamespaces `$app:` resolution for create/update plus downstream detail/list reads.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-metafield-namespaces-resolution.json`,
+      'config/parity-specs/webhooks/webhook-subscription-metafield-namespaces-resolution.json',
+      'config/parity-requests/webhooks/webhook-subscription-metafield-namespaces-list.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one temporary PRODUCTS_UPDATE webhook subscription, updates it, captures downstream reads, and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-address-byte-size-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-address-byte-size-validation.ts',

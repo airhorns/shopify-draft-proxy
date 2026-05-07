@@ -1,0 +1,198 @@
+{
+  "scenarioId": "webhook-subscription-metafield-namespaces-resolution",
+  "operationNames": [
+    "webhookSubscriptionCreate",
+    "webhookSubscriptionUpdate",
+    "webhookSubscription",
+    "webhookSubscriptions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "read-after-write", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-metafield-namespaces-resolution.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "variablesCapturePath": "$.lifecycle.create.variables",
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhookSubscriptionCreate/update metafieldNamespaces app-namespace resolution. The scenario records real Shopify canonicalization for `$app:` inputs and replays create/update plus downstream detail and filtered list reads with the request api-client identity header.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-payload",
+        "capturePath": "$.lifecycle.create.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "detail-after-create",
+        "capturePath": "$.lifecycle.detailAfterCreate.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "list-after-create",
+        "capturePath": "$.lifecycle.listAfterCreate.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafield-namespaces-list.graphql",
+          "variablesCapturePath": "$.lifecycle.listAfterCreate.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy-created webhook subscription ID differs from Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "update-payload",
+        "capturePath": "$.lifecycle.update.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.lifecycle.update.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "detail-after-update",
+        "capturePath": "$.lifecycle.detailAfterUpdate.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read keeps the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "list-after-update",
+        "capturePath": "$.lifecycle.listAfterUpdate.response.payload.data.webhookSubscriptions",
+        "proxyPath": "$.data.webhookSubscriptions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafield-namespaces-list.graphql",
+          "variablesCapturePath": "$.lifecycle.listAfterUpdate.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy-created webhook subscription ID differs from Shopify's live ID."
+          }
+        ]
+      }
+    ]
+  }
+}

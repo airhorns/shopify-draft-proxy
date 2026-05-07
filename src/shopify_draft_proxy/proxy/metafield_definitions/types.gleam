@@ -10,6 +10,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   default_selected_field_options, get_selected_child_fields,
@@ -240,18 +241,7 @@ pub fn resolve_app_namespace(
   namespace: String,
   requesting_api_client_id: Option(String),
 ) -> String {
-  case string.starts_with(namespace, "$app:") {
-    True ->
-      case requesting_api_client_id {
-        Some(api_client_id) ->
-          "app--"
-          <> api_client_id
-          <> "--"
-          <> string.drop_start(namespace, string.length("$app:"))
-        None -> namespace
-      }
-    False -> namespace
-  }
+  app_identity.resolve_app_namespace(namespace, requesting_api_client_id)
 }
 
 @internal

@@ -1,0 +1,9 @@
+query WebhookSubscriptionMetafieldNamespacesList($first: Int!, $uri: String!) {
+  webhookSubscriptions(first: $first, uri: $uri, sortKey: ID) {
+    nodes {
+      id
+      uri
+      metafieldNamespaces
+    }
+  }
+}
