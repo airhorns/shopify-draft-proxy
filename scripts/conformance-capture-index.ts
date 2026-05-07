@@ -3753,6 +3753,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'orders',
+    captureId: 'order-edit-quantity-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-quantity-validation-conformance.ts',
+    purpose:
+      'orderEditSetQuantity negative quantity and orderEditAddVariant zero/negative quantity validation against a disposable order-edit session.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderEdit-quantity-validation.json`,
+      'config/parity-specs/orders/orderEdit-quantity-validation.json',
+      'config/parity-requests/orders/orderEdit-quantity-validation-addVariant.graphql',
+      'config/parity-requests/orders/orderEdit-quantity-validation-begin.graphql',
+      'config/parity-requests/orders/orderEdit-quantity-validation-setQuantity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable CAD test order, begins an order edit, records rejected quantity branches and a read-after-reject addVariant baseline, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-detail-events',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
