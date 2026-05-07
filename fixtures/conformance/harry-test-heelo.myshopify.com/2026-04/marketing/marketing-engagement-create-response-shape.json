@@ -8,10 +8,7 @@
       "handle": "hermes-conformance-products",
       "title": "hermes-conformance-products"
     },
-    "accessScopes": [
-      "read_marketing_events",
-      "write_marketing_events"
-    ]
+    "accessScopes": ["read_marketing_events", "write_marketing_events"]
   },
   "schema": {
     "marketingEngagementInput": {

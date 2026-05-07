@@ -158,7 +158,9 @@ function requireSuccessfulEngagement(capture: CapturedRequest, label: string): v
 
 function requireValidationEvidence(capture: CapturedRequest, label: string): void {
   if (capture.response.status < 200 || capture.response.status >= 300) {
-    throw new Error(`${label} failed with HTTP ${capture.response.status}: ${JSON.stringify(capture.response.payload)}`);
+    throw new Error(
+      `${label} failed with HTTP ${capture.response.status}: ${JSON.stringify(capture.response.payload)}`,
+    );
   }
   if (hasTopLevelErrors(capture.response.payload)) {
     return;
@@ -166,7 +168,9 @@ function requireValidationEvidence(capture: CapturedRequest, label: string): voi
   if (hasUserErrors(capture.response.payload, ['data', 'marketingEngagementCreate', 'userErrors'])) {
     return;
   }
-  throw new Error(`${label} did not produce top-level errors or mutation userErrors: ${JSON.stringify(capture.response.payload)}`);
+  throw new Error(
+    `${label} did not produce top-level errors or mutation userErrors: ${JSON.stringify(capture.response.payload)}`,
+  );
 }
 
 await mkdir(outputDir, { recursive: true });
@@ -270,7 +274,9 @@ console.log(
       storeDomain,
       activityId: createdActivityId,
       sparseHasTopLevelErrors: sparseInput ? hasTopLevelErrors(sparseInput.response.payload) : null,
-      missingOccurredOnHasTopLevelErrors: missingOccurredOn ? hasTopLevelErrors(missingOccurredOn.response.payload) : null,
+      missingOccurredOnHasTopLevelErrors: missingOccurredOn
+        ? hasTopLevelErrors(missingOccurredOn.response.payload)
+        : null,
     },
     null,
     2,
