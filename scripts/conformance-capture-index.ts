@@ -2497,6 +2497,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'localization',
+    captureId: 'localization-shop-locale-market-web-presence-filter',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-shop-locale-market-web-presence-filter-conformance.mts',
+    purpose: 'ShopLocale enable/update silently filter marketWebPresenceIds to WebPresences owned by the shop.',
+    requiredAuthScopes: ['read_markets', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-shop-locale-market-web-presence-filter.json`,
+      'config/parity-specs/localization/localization-shop-locale-market-web-presence-filter.json',
+      'config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-setup.graphql',
+      'config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-read.graphql',
+      'config/parity-requests/localization/localization-shop-locale-market-web-presence-filter-update.graphql',
+    ],
+    cleanupBehavior:
+      'Disables French before capture when already enabled, enables French with one valid and one fabricated MarketWebPresence ID, updates the same locale with the mixed ID set, then disables French.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'markets',
     captureId: 'markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
