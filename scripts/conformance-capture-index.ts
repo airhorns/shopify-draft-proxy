@@ -1714,7 +1714,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobjectDefinitionUpdate-field-operation-errors.json`,
       'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-field-operation-errors.json',
-      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-*.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-create.graphql',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-field-operation-errors-update.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable metaobject definition, captures validation-only field operation conflicts, then deletes the definition.',
