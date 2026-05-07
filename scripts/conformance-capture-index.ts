@@ -3814,6 +3814,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-line-items-max',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-line-items-max-conformance.ts',
+    purpose:
+      'DraftOrderInput.lineItems max-input-size top-level GraphQL errors for draftOrderCreate, draftOrderUpdate, and draftOrderCalculate.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draftOrder-line-items-max.json`,
+      'config/parity-specs/orders/draftOrder-line-items-max.json',
+      'config/parity-requests/orders/draftOrder-line-items-max.graphql',
+    ],
+    cleanupBehavior: 'Validation-only max-input probes do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-safety',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-safety-conformance.ts',
