@@ -1726,6 +1726,155 @@ pub fn b2b_location_assign_address_rejects_duplicate_address_types_test() {
   assert string.contains(assign_json, "\"code\":\"INVALID_INPUT\"")
 }
 
+pub fn b2b_location_assign_address_preserves_existing_side_ids_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"HQ\", billingAddress: { address1: \"Old Billing\" }, shippingAddress: { address1: \"Old Shipping\" } } }) { company { id locations(first: 1) { nodes { id billingAddress { id address1 } shippingAddress { id address1 } } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(
+    create_json,
+    "\"billingAddress\":{\"id\":\"gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic\",\"address1\":\"Old Billing\"}",
+  )
+  assert string.contains(
+    create_json,
+    "\"shippingAddress\":{\"id\":\"gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic\",\"address1\":\"Old Shipping\"}",
+  )
+
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignAddress(locationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", address: { address1: \"Updated\" }, addressTypes: [BILLING, SHIPPING]) { addresses { id address1 } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(
+    assign_json,
+    "{\"id\":\"gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic\",\"address1\":\"Updated\"}",
+  )
+  assert string.contains(
+    assign_json,
+    "{\"id\":\"gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic\",\"address1\":\"Updated\"}",
+  )
+  assert !string.contains(
+    assign_json,
+    "gid://shopify/CompanyAddress/8?shopify-draft-proxy=synthetic",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id billingAddress { id address1 } shippingAddress { id address1 } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"billingAddress\":{\"id\":\"gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic\",\"address1\":\"Updated\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"shippingAddress\":{\"id\":\"gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic\",\"address1\":\"Updated\"}",
+  )
+}
+
+pub fn b2b_location_assign_address_creates_new_ids_for_empty_sides_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignAddress(locationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", address: { address1: \"First Assign\" }, addressTypes: [BILLING, SHIPPING]) { addresses { id address1 } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(
+    assign_json,
+    "{\"id\":\"gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic\",\"address1\":\"First Assign\"}",
+  )
+  assert string.contains(
+    assign_json,
+    "{\"id\":\"gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic\",\"address1\":\"First Assign\"}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id billingAddress { id address1 } shippingAddress { id address1 } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"billingAddress\":{\"id\":\"gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic\",\"address1\":\"First Assign\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"shippingAddress\":{\"id\":\"gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic\",\"address1\":\"First Assign\"}",
+  )
+}
+
+pub fn b2b_location_assign_address_preserves_shared_anchor_id_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: location_status, body: location_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Shared\", billingSameAsShipping: true, shippingAddress: { address1: \"123 Main\" } }) { companyLocation { id billingSameAsShipping billingAddress { id address1 } shippingAddress { id address1 } } userErrors { field message code } } }",
+    )
+  assert location_status == 200
+  let location_json = json.to_string(location_body)
+  assert string.contains(location_json, "\"billingSameAsShipping\":true")
+  assert string.contains(
+    location_json,
+    "\"id\":\"gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic\"",
+  )
+
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignAddress(locationId: \"gid://shopify/CompanyLocation/6?shopify-draft-proxy=synthetic\", address: { address1: \"Updated Shared\" }, addressTypes: [BILLING, SHIPPING]) { addresses { id address1 } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(
+    assign_json,
+    "{\"id\":\"gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic\",\"address1\":\"Updated Shared\"}",
+  )
+  assert !string.contains(
+    assign_json,
+    "gid://shopify/CompanyAddress/8?shopify-draft-proxy=synthetic",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/6?shopify-draft-proxy=synthetic\") { id billingAddress { id address1 } shippingAddress { id address1 } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"billingAddress\":{\"id\":\"gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic\",\"address1\":\"Updated Shared\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"shippingAddress\":{\"id\":\"gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic\",\"address1\":\"Updated Shared\"}",
+  )
+}
+
 pub fn b2b_address_delete_clears_shared_billing_shipping_anchor_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(

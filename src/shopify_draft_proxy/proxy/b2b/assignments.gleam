@@ -76,23 +76,47 @@ pub fn handle_assign_address(
                     [],
                   )
                 [] -> {
-                  let #(address, identity) =
-                    address_from_input(identity, address_input, None)
-                  let #(data, addresses) =
-                    list.fold(address_types, #(location.data, []), fn(acc, typ) {
-                      let #(data, addresses) = acc
-                      case typ {
-                        "BILLING" -> #(
-                          put_source(data, "billingAddress", address),
-                          list.append(addresses, [address]),
-                        )
-                        "SHIPPING" -> #(
-                          put_source(data, "shippingAddress", address),
-                          list.append(addresses, [address]),
-                        )
-                        _ -> acc
-                      }
-                    })
+                  let #(data, addresses, identity) =
+                    list.fold(
+                      address_types,
+                      #(location.data, [], identity),
+                      fn(acc, typ) {
+                        let #(data, addresses, identity) = acc
+                        case typ {
+                          "BILLING" -> {
+                            let existing_id =
+                              address_id(data_get(data, "billingAddress"))
+                            let #(address, identity) =
+                              address_from_input(
+                                identity,
+                                address_input,
+                                existing_id,
+                              )
+                            #(
+                              put_source(data, "billingAddress", address),
+                              list.append(addresses, [address]),
+                              identity,
+                            )
+                          }
+                          "SHIPPING" -> {
+                            let existing_id =
+                              address_id(data_get(data, "shippingAddress"))
+                            let #(address, identity) =
+                              address_from_input(
+                                identity,
+                                address_input,
+                                existing_id,
+                              )
+                            #(
+                              put_source(data, "shippingAddress", address),
+                              list.append(addresses, [address]),
+                              identity,
+                            )
+                          }
+                          _ -> acc
+                        }
+                      },
+                    )
                   case addresses {
                     [] ->
                       b2b_types.RootResult(

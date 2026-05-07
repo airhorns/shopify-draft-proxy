@@ -1,0 +1,27 @@
+mutation B2BLocationAssignAddressPreservesIdCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      locations(first: 5) {
+        nodes {
+          id
+          name
+          billingAddress {
+            id
+            address1
+          }
+          shippingAddress {
+            id
+            address1
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

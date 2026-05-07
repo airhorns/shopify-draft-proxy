@@ -294,6 +294,17 @@ flag invariant can be tested directly; the parity spec documents the public
 readback difference for that single captured path while the focused runtime test
 covers the local shared-anchor cascade.
 
+`companyLocationAssignAddress` preserves the existing `CompanyAddress.id` when
+assigning a replacement address to a billing or shipping side that already has
+an address, matching Shopify's update-branch behavior. Empty sides still create
+a new address ID. The focused `location_assign_address_preserves_id` capture
+records first-assignment creation, subsequent billing update ID preservation,
+dual billing/shipping update ID preservation, and downstream `companyLocation`
+readback. The captured dual update also shows that the `addresses` payload
+contains both preserved IDs but should not be treated as the side-labeling
+source of truth; the follow-up `companyLocation.billingAddress` and
+`shippingAddress` read verifies each side's stable ID.
+
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
 unknown/unsupported escape hatch until a faithful no-send model exists.
