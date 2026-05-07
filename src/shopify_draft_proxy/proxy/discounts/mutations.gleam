@@ -1337,8 +1337,24 @@ pub fn bulk_job_payload(
             #("query", SrcNull),
           ]),
         )
-      let #(next_store, identity_after_effects) =
+      let #(next_store, identity_after_effects, matched_ids) =
         apply_bulk_effects(store, root, args, next_identity)
+      let #(_, next_store) =
+        store.stage_discount_bulk_operation(
+          next_store,
+          DiscountBulkOperationRecord(
+            id: job_id,
+            operation: root,
+            discount_id: "",
+            status: "COMPLETED",
+            payload: discount_types.source_to_captured(bulk_operation_payload(
+              root,
+              args,
+              job_id,
+              matched_ids,
+            )),
+          ),
+        )
       let payload =
         project_graphql_value(
           SrcObject(
@@ -1360,6 +1376,48 @@ pub fn bulk_job_payload(
       )
     }
   }
+}
+
+fn bulk_operation_payload(
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+  job_id: String,
+  matched_ids: List(String),
+) -> SourceValue {
+  SrcObject(
+    dict.from_list([
+      #("id", SrcString(job_id)),
+      #("operation", SrcString(root)),
+      #("status", SrcString("COMPLETED")),
+      #("selector", bulk_operation_selector_payload(args)),
+      #("matchedIds", SrcList(list.map(matched_ids, fn(id) { SrcString(id) }))),
+    ]),
+  )
+}
+
+fn bulk_operation_selector_payload(
+  args: Dict(String, root_field.ResolvedValue),
+) -> SourceValue {
+  let ids = discount_types.read_string_array(args, "ids", [])
+  let search = discount_types.read_string(args, "search")
+  let saved_search_id = apply_bulk_saved_search_id(args)
+  SrcObject(
+    dict.from_list([
+      #("ids", SrcList(list.map(ids, fn(id) { SrcString(id) }))),
+      #("search", search |> option.map(SrcString) |> option.unwrap(SrcNull)),
+      #(
+        "savedSearchId",
+        saved_search_id |> option.map(SrcString) |> option.unwrap(SrcNull),
+      ),
+    ]),
+  )
+}
+
+fn apply_bulk_saved_search_id(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  discount_types.read_string(args, "savedSearchId")
+  |> option.or(discount_types.read_string(args, "saved_search_id"))
 }
 
 @internal

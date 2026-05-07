@@ -1,0 +1,231 @@
+{
+  "scenarioId": "discount-bulk-search-effects",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountAutomaticBasicCreate",
+    "discountCodeBulkActivate",
+    "discountCodeBulkDeactivate",
+    "discountCodeBulkDelete",
+    "discountAutomaticBulkDelete",
+    "discountCodeDelete",
+    "codeDiscountNode",
+    "automaticDiscountNode",
+    "discountNodes"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-lifecycle", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-bulk-search-effects.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-setup.graphql",
+    "variablesCapturePath": "$.setup.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulk-search-effects-setup",
+        "capturePath": "$.setup.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.scheduledCode.codeDiscountNode.codeDiscount.__typename",
+          "$.scheduledCode.codeDiscountNode.codeDiscount.title",
+          "$.scheduledCode.codeDiscountNode.codeDiscount.status",
+          "$.scheduledCode.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.scheduledCode.userErrors"
+        ]
+      },
+      {
+        "name": "code-bulk-search-activate-job",
+        "capturePath": "$.codeActivate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBulkActivate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-code-activate.graphql",
+          "variablesCapturePath": "$.codeActivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-bulk-search-activate-read",
+        "capturePath": "$.readAfterCodeActivate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.activatedDiscountNodes.nodes[0].discount.__typename",
+          "$.activatedDiscountNodes.nodes[0].discount.title",
+          "$.activatedDiscountNodes.nodes[0].discount.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-activate-read.graphql",
+          "variablesCapturePath": "$.readAfterCodeActivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-bulk-search-activate-cleanup",
+        "capturePath": "$.cleanupAfterCodeActivate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-code-basic-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.scheduledCode.codeDiscountNode.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "deactivate-code-setup",
+        "capturePath": "$.deactivateSetup.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.code.codeDiscountNode.codeDiscount.__typename",
+          "$.code.codeDiscountNode.codeDiscount.title",
+          "$.code.codeDiscountNode.codeDiscount.status",
+          "$.code.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.code.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-create-code.graphql",
+          "variablesCapturePath": "$.deactivateSetup.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-bulk-search-deactivate-job",
+        "capturePath": "$.codeDeactivate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBulkDeactivate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-code-deactivate.graphql",
+          "variablesCapturePath": "$.codeDeactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-bulk-search-deactivate-read",
+        "capturePath": "$.readAfterCodeDeactivate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.code.codeDiscount.__typename", "$.code.codeDiscount.title", "$.code.codeDiscount.status"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-read-code.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "deactivate-code-setup",
+              "path": "$.data.code.codeDiscountNode.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-delete-setup",
+        "capturePath": "$.codeDeleteSetup.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.code.codeDiscountNode.codeDiscount.__typename",
+          "$.code.codeDiscountNode.codeDiscount.title",
+          "$.code.codeDiscountNode.codeDiscount.status",
+          "$.code.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.code.userErrors",
+          "$.automatic.automaticDiscountNode.automaticDiscount.__typename",
+          "$.automatic.automaticDiscountNode.automaticDiscount.title",
+          "$.automatic.automaticDiscountNode.automaticDiscount.status",
+          "$.automatic.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-create-code-and-automatic.graphql",
+          "variablesCapturePath": "$.codeDeleteSetup.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-bulk-search-delete-job",
+        "capturePath": "$.codeDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBulkDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-code-delete.graphql",
+          "variablesCapturePath": "$.codeDelete.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-bulk-search-delete-read",
+        "capturePath": "$.readAfterCodeDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.code",
+          "$.automatic.automaticDiscount.__typename",
+          "$.automatic.automaticDiscount.title",
+          "$.automatic.automaticDiscount.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-read-code-delete.graphql",
+          "variables": {
+            "codeId": {
+              "fromProxyResponse": "code-delete-setup",
+              "path": "$.data.code.codeDiscountNode.id"
+            },
+            "automaticId": {
+              "fromProxyResponse": "code-delete-setup",
+              "path": "$.data.automatic.automaticDiscountNode.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-delete-setup",
+        "capturePath": "$.automaticDeleteSetup.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.automatic.automaticDiscountNode.automaticDiscount.__typename",
+          "$.automatic.automaticDiscountNode.automaticDiscount.title",
+          "$.automatic.automaticDiscountNode.automaticDiscount.status",
+          "$.automatic.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-create-automatic.graphql",
+          "variablesCapturePath": "$.automaticDeleteSetup.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-bulk-search-delete-job",
+        "capturePath": "$.automaticDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountAutomaticBulkDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-automatic-delete.graphql",
+          "variablesCapturePath": "$.automaticDelete.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-bulk-search-delete-read",
+        "capturePath": "$.readAfterAutomaticDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.automatic"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-bulk-search-effects-read-automatic.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "automatic-delete-setup",
+              "path": "$.data.automatic.automaticDiscountNode.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence for broad discount bulk search effects. The capture script first verifies the disposable shop has no pre-existing scheduled/active code discounts or scheduled automatic discounts, then creates one scoped record per bulk status selector. Code activate uses `status:scheduled`, code deactivate and code delete use `status:active`, and automatic bulk delete uses `status:scheduled`. The code-delete phase also creates an active automatic discount and proves code bulk delete does not remove it."
+}
