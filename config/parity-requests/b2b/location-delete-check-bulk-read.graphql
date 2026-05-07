@@ -1,0 +1,10 @@
+query B2BLocationDeleteCheckBulkRead($blockedCompanyLocationId: ID!, $deletedCompanyLocationId: ID!) {
+  blocked: companyLocation(id: $blockedCompanyLocationId) {
+    id
+    name
+  }
+  deleted: companyLocation(id: $deletedCompanyLocationId) {
+    id
+    name
+  }
+}
