@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.validations.nodesInsteadOfEdges.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-728 captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery AdminQuery validator branches that reject nodes-style connection selection, top-level node, connection nesting depth above two, more than five connections, and nested connections whose parent node omits a non-aliased id. These validation-only branches do not require proxy upstream reads, so the cassette is intentionally empty.",
+  "notes": "HAR-728 captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery AdminQuery validator branches that reject nodes-style connection selection, top-level node, connection nesting depth above two, more than five connections, and nested connections whose parent node omits a non-aliased id. The shared fixture also includes operation-type and connection-within-list branches covered by the focused companion spec. These validation-only branches do not require proxy upstream reads, so the cassette is intentionally empty.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
