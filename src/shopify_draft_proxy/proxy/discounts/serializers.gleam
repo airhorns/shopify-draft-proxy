@@ -1913,19 +1913,31 @@ pub fn maybe_hydrate_discount(
       ... on DiscountCodeBasic {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
         codes(first: 250) { nodes { id code } }
       }
       ... on DiscountCodeApp {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountCodeBxgy {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountCodeFreeShipping {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
     }
   }
@@ -1936,18 +1948,30 @@ pub fn maybe_hydrate_discount(
       ... on DiscountAutomaticBasic {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountAutomaticApp {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountAutomaticBxgy {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
       ... on DiscountAutomaticFreeShipping {
         title
         status
+        startsAt
+        endsAt
+        updatedAt
       }
     }
   }
@@ -2039,6 +2063,7 @@ pub fn code_record_from_hydrate_node(
     discount
     |> option.then(fn(d) { json_get_string(d, "status") })
     |> option.unwrap("ACTIVE")
+  let temporal_fields = discount_temporal_fields(discount)
   let codes = case discount {
     Some(d) ->
       case json_get(d, "codes") {
@@ -2064,49 +2089,55 @@ pub fn code_record_from_hydrate_node(
           #(
             "codeDiscount",
             SrcObject(
-              dict.from_list([
-                #("__typename", SrcString(typename)),
-                #(
-                  "title",
-                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
-                ),
-                #("status", SrcString(status)),
-                #(
-                  "codes",
-                  SrcObject(
-                    dict.from_list([
-                      #(
-                        "nodes",
-                        SrcList(
-                          list.map(codes, fn(pair) {
-                            let #(code_id, code) = pair
-                            SrcObject(
-                              dict.from_list([
-                                #("id", SrcString(code_id)),
-                                #("code", SrcString(code)),
-                                #("asyncUsageCount", SrcInt(0)),
-                              ]),
-                            )
-                          }),
-                        ),
-                      ),
-                      #("edges", SrcList([])),
-                      #(
-                        "pageInfo",
-                        SrcObject(
-                          dict.from_list([
-                            #("hasNextPage", SrcBool(False)),
-                            #("hasPreviousPage", SrcBool(False)),
-                            #("startCursor", SrcNull),
-                            #("endCursor", SrcNull),
-                          ]),
-                        ),
-                      ),
-                    ]),
+              dict.from_list(list.append(
+                [
+                  #("__typename", SrcString(typename)),
+                  #(
+                    "title",
+                    title |> option.map(SrcString) |> option.unwrap(SrcNull),
                   ),
-                ),
-                #("codesCount", discount_types.count_source(list.length(codes))),
-              ]),
+                  #("status", SrcString(status)),
+                  #(
+                    "codes",
+                    SrcObject(
+                      dict.from_list([
+                        #(
+                          "nodes",
+                          SrcList(
+                            list.map(codes, fn(pair) {
+                              let #(code_id, code) = pair
+                              SrcObject(
+                                dict.from_list([
+                                  #("id", SrcString(code_id)),
+                                  #("code", SrcString(code)),
+                                  #("asyncUsageCount", SrcInt(0)),
+                                ]),
+                              )
+                            }),
+                          ),
+                        ),
+                        #("edges", SrcList([])),
+                        #(
+                          "pageInfo",
+                          SrcObject(
+                            dict.from_list([
+                              #("hasNextPage", SrcBool(False)),
+                              #("hasPreviousPage", SrcBool(False)),
+                              #("startCursor", SrcNull),
+                              #("endCursor", SrcNull),
+                            ]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  #(
+                    "codesCount",
+                    discount_types.count_source(list.length(codes)),
+                  ),
+                ],
+                temporal_fields,
+              )),
             ),
           ),
         ]),
@@ -2139,6 +2170,7 @@ pub fn automatic_record_from_hydrate_node(
     discount
     |> option.then(fn(d) { json_get_string(d, "status") })
     |> option.unwrap("ACTIVE")
+  let temporal_fields = discount_temporal_fields(discount)
   let payload =
     discount_types.source_to_captured(
       SrcObject(
@@ -2147,14 +2179,17 @@ pub fn automatic_record_from_hydrate_node(
           #(
             "automaticDiscount",
             SrcObject(
-              dict.from_list([
-                #("__typename", SrcString(typename)),
-                #(
-                  "title",
-                  title |> option.map(SrcString) |> option.unwrap(SrcNull),
-                ),
-                #("status", SrcString(status)),
-              ]),
+              dict.from_list(list.append(
+                [
+                  #("__typename", SrcString(typename)),
+                  #(
+                    "title",
+                    title |> option.map(SrcString) |> option.unwrap(SrcNull),
+                  ),
+                  #("status", SrcString(status)),
+                ],
+                temporal_fields,
+              )),
             ),
           ),
         ]),
@@ -2170,6 +2205,33 @@ pub fn automatic_record_from_hydrate_node(
     payload: payload,
     cursor: None,
   )
+}
+
+fn discount_temporal_fields(
+  discount: Option(commit.JsonValue),
+) -> List(#(String, SourceValue)) {
+  case discount {
+    None -> []
+    Some(discount) ->
+      list.append(
+        optional_source_field(discount, "startsAt"),
+        list.append(
+          optional_source_field(discount, "endsAt"),
+          optional_source_field(discount, "updatedAt"),
+        ),
+      )
+  }
+}
+
+fn optional_source_field(
+  object: commit.JsonValue,
+  key: String,
+) -> List(#(String, SourceValue)) {
+  case json_get(object, key) {
+    Some(commit.JsonString(value)) -> [#(key, SrcString(value))]
+    Some(commit.JsonNull) -> [#(key, SrcNull)]
+    _ -> []
+  }
 }
 
 @internal

@@ -1,0 +1,22 @@
+mutation DiscountAutomaticDeactivateNoopIdempotence($id: ID!) {
+  discountAutomaticDeactivate(id: $id) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          startsAt
+          endsAt
+          status
+          updatedAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
