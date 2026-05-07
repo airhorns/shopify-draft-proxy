@@ -6,6 +6,8 @@
   "notes": [
     "Executable local-runtime evidence for HAR-643 appSubscriptionLineItemUpdate validation branches.",
     "Live billing mutation capture against harry-test-heelo.myshopify.com on 2026-05-05 returned userErrors [{ field: null, message: \"Custom apps cannot use the Billing API\" }] from appSubscriptionCreate, so the required usage+recurring subscription setup cannot currently be captured against Shopify with this conformance app.",
+    "Admin GraphQL 2026-04 public schema introspection on 2026-05-07 exposes appSubscriptionLineItemUpdate id and cappedAmount args only; the internal requireApproval arg is covered by focused Gleam runtime tests instead of a fabricated live parity spec.",
+    "The default approval-required branch returns a synthetic confirmation URL and keeps the active cappedAmount unchanged until approval/commit.",
     "Runtime behavior is also covered by test/shopify_draft_proxy/proxy/apps_mutation_test.gleam."
   ],
   "operationNames": ["appSubscriptionCreate", "appSubscriptionLineItemUpdate"],
@@ -96,7 +98,7 @@
                       "pricingDetails": {
                         "__typename": "AppUsagePricing",
                         "cappedAmount": {
-                          "amount": "10",
+                          "amount": "5",
                           "currencyCode": "USD"
                         }
                       }

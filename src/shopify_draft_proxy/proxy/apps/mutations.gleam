@@ -1790,7 +1790,10 @@ fn handle_valid_line_item_update(
           balance_used: balance,
           interval: interval,
           terms: terms,
-        ) ->
+        ) -> {
+          let require_approval =
+            graphql_helpers.read_arg_bool(args, "requireApproval")
+            |> option.unwrap(True)
           case capped.currency_code != current_capped.currency_code {
             True ->
               line_item_update_failed(
@@ -1826,58 +1829,89 @@ fn handle_valid_line_item_update(
                       code: None,
                     ),
                   )
-                True -> {
-                  let updated_pricing =
-                    AppUsagePricing(
-                      capped_amount: capped,
-                      balance_used: balance,
-                      interval: interval,
-                      terms: terms,
-                    )
-                  let updated_line_item =
-                    AppSubscriptionLineItemRecord(
-                      ..li,
-                      plan: AppSubscriptionLineItemPlan(
-                        pricing_details: updated_pricing,
-                      ),
-                    )
-                  let #(_, store_after_li) =
-                    store.stage_app_subscription_line_item(
-                      draft_store,
-                      updated_line_item,
-                    )
-                  let payload =
-                    serializers.project_subscription_payload(
-                      store_after_li,
-                      Some(sub),
-                      Some(confirmation_url(
-                        origin,
-                        "RecurringApplicationCharge",
-                        sub.id,
-                      )),
-                      [],
-                      field,
-                      fragments,
-                    )
-                  let draft =
-                    make_log_draft(
-                      "appSubscriptionLineItemUpdate",
-                      [updated_line_item.id],
-                      store_types.Staged,
-                    )
-                  #(
-                    MutationFieldResult(
-                      key: key,
-                      payload: payload,
-                      staged_resource_ids: [updated_line_item.id],
-                      log_drafts: [draft],
-                    ),
-                    store_after_li,
-                    identity,
-                  )
-                }
+                True ->
+                  case require_approval {
+                    True -> {
+                      let payload =
+                        serializers.project_subscription_payload(
+                          draft_store,
+                          Some(sub),
+                          Some(confirmation_url(
+                            origin,
+                            "RecurringApplicationCharge",
+                            sub.id,
+                          )),
+                          [],
+                          field,
+                          fragments,
+                        )
+                      let draft =
+                        make_log_draft(
+                          "appSubscriptionLineItemUpdate",
+                          [li.id],
+                          store_types.Staged,
+                        )
+                      #(
+                        MutationFieldResult(
+                          key: key,
+                          payload: payload,
+                          staged_resource_ids: [li.id],
+                          log_drafts: [draft],
+                        ),
+                        draft_store,
+                        identity,
+                      )
+                    }
+                    False -> {
+                      let updated_pricing =
+                        AppUsagePricing(
+                          capped_amount: capped,
+                          balance_used: balance,
+                          interval: interval,
+                          terms: terms,
+                        )
+                      let updated_line_item =
+                        AppSubscriptionLineItemRecord(
+                          ..li,
+                          plan: AppSubscriptionLineItemPlan(
+                            pricing_details: updated_pricing,
+                          ),
+                        )
+                      let #(_, store_after_li) =
+                        store.stage_app_subscription_line_item(
+                          draft_store,
+                          updated_line_item,
+                        )
+                      let payload =
+                        serializers.project_subscription_payload(
+                          store_after_li,
+                          Some(sub),
+                          None,
+                          [],
+                          field,
+                          fragments,
+                        )
+                      let draft =
+                        make_log_draft(
+                          "appSubscriptionLineItemUpdate",
+                          [updated_line_item.id],
+                          store_types.Staged,
+                        )
+                      #(
+                        MutationFieldResult(
+                          key: key,
+                          payload: payload,
+                          staged_resource_ids: [updated_line_item.id],
+                          log_drafts: [draft],
+                        ),
+                        store_after_li,
+                        identity,
+                      )
+                    }
+                  }
               }
           }
+        }
       }
     }
     _, _ ->
