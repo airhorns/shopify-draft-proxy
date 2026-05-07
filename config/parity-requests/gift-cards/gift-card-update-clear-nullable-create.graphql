@@ -1,0 +1,15 @@
+mutation GiftCardUpdateClearNullableCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      note
+      expiresOn
+      templateSuffix
+    }
+    giftCardCode
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "scenarioId": "metafield-definition-validation-job",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldsSet", "metafieldDefinitionUpdate", "job"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-backfill-job", "async-job-readback", "null-noop-job"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-validation-job.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definitions/validation-job-create.graphql",
+    "variablesCapturePath": "$.create.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for metafieldDefinitionUpdate validation backfill jobs. The live schema exposes validationJob on MetafieldDefinitionUpdatePayload, not on MetafieldDefinitionCreatePayload or MetafieldDefinition; a validation change over an existing matching metafield returns a pending payload Job, job(id:) readback returns the same pending shape in this capture, and a subsequent non-validation update returns validationJob null.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldDefinitionCreate.createdDefinition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "Shopify and the local parity harness allocate definition identifiers independently."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[0].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify and the local parity harness allocate metafield identifiers independently."
+      },
+      {
+        "path": "$.metafieldDefinitionUpdate.updatedDefinition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "The proxy updates its staged synthetic definition while Shopify returned the live-store definition ID."
+      },
+      {
+        "path": "$.metafieldDefinitionUpdate.validationJob.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Shopify and the local parity harness allocate async job identifiers independently."
+      },
+      {
+        "path": "$.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "The job readback targets the job ID allocated by the current proxy run."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-definition",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "stage-existing-metafield",
+        "capturePath": "$.metafieldsSet.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-job-metafields-set.graphql",
+          "variablesCapturePath": "$.metafieldsSet.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "validation-update-job",
+        "capturePath": "$.validationUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-job-update.graphql",
+          "variablesCapturePath": "$.validationUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "job-readback",
+        "capturePath": "$.jobRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-job-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "validation-update-job",
+              "path": "$.data.metafieldDefinitionUpdate.validationJob.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "rename-no-validation-change",
+        "capturePath": "$.rename.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-job-rename.graphql",
+          "variablesCapturePath": "$.rename.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

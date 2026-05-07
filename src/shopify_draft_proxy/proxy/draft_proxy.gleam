@@ -34,6 +34,7 @@ import shopify_draft_proxy/graphql/parse_operation.{
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/admin_platform
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/bulk_operations
@@ -753,7 +754,7 @@ fn route_mutation(
         variables,
       )
     _ ->
-      case schema_validation_errors(parsed, query, variables) {
+      case schema_validation_errors(parsed, query, variables, request_headers) {
         [] ->
           route_mutation_to_domain(
             proxy,
@@ -777,6 +778,7 @@ fn schema_validation_errors(
   parsed: ParsedOperation,
   query: String,
   variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
 ) -> List(Json) {
   case root_field.get_root_fields(query) {
     Error(_) -> []
@@ -803,6 +805,12 @@ fn schema_validation_errors(
             |> list.append(metaobject_upsert_payload_one_of_errors(
               field,
               variables,
+              operation_path,
+              query,
+            ))
+            |> list.append(metaobject_argument_visibility_errors(
+              field,
+              request_headers,
               operation_path,
               query,
             ))
@@ -916,6 +924,52 @@ fn server_pixel_endpoint_argument_errors(
   }
 }
 
+fn metaobject_argument_visibility_errors(
+  field: Selection,
+  request_headers: Dict(String, String),
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, arguments: arguments, loc: field_loc, ..) ->
+      case name.value {
+        "metaobjectDefinitionUpdate" ->
+          case argument_location(arguments, "resetFieldOrder") {
+            Some(argument_loc) -> [
+              build_top_level_argument_not_accepted_error(
+                name.value,
+                "resetFieldOrder",
+                operation_path,
+                field_loc,
+                Some(argument_loc),
+                source_body,
+              ),
+            ]
+            None -> []
+          }
+        "standardMetaobjectDefinitionEnable" ->
+          case
+            argument_location(arguments, "enabledByShopify"),
+            app_identity.has_internal_visibility(request_headers)
+          {
+            Some(argument_loc), False -> [
+              build_top_level_argument_not_accepted_error(
+                name.value,
+                "enabledByShopify",
+                operation_path,
+                field_loc,
+                Some(argument_loc),
+                source_body,
+              ),
+            ]
+            _, _ -> []
+          }
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
 fn argument_location(
   arguments: List(Argument),
   argument_name: String,
@@ -927,6 +981,52 @@ fn argument_location(
     }
     None -> None
   }
+}
+
+fn build_top_level_argument_not_accepted_error(
+  field_name: String,
+  argument_name: String,
+  operation_path: String,
+  _field_loc: Option(Location),
+  argument_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '"
+        <> field_name
+        <> "' doesn't accept argument '"
+        <> argument_name
+        <> "'",
+      ),
+    ),
+  ]
+  let with_locations = case location_object(argument_loc, source_body) {
+    Some(location) ->
+      list.append(base, [
+        #("locations", json.preprocessed_array([location])),
+      ])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array([operation_path, field_name, argument_name], json.string),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentNotAccepted")),
+          #("name", json.string(field_name)),
+          #("typeName", json.string("Field")),
+          #("argumentName", json.string(argument_name)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn build_eventbridge_server_pixel_arn_error(

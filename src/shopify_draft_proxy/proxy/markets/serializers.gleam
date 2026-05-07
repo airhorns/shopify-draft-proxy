@@ -36,6 +36,13 @@ import shopify_draft_proxy/state/types.{
   CapturedObject, CapturedString, PriceListRecord,
 }
 
+pub type PriceListCatalogInput {
+  PriceListCatalogAbsent
+  PriceListCatalogNull
+  PriceListCatalogEmpty
+  PriceListCatalogId(String)
+}
+
 @internal
 pub fn serialize_root_fields(
   store: Store,
@@ -1496,14 +1503,29 @@ pub fn effective_price_list_catalog_id(
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
 ) -> Option(String) {
-  graphql_helpers.read_arg_string_nonempty(input, "catalogId")
-  |> option.or(option.then(existing, price_list_catalog_id))
+  case read_price_list_catalog_input(input) {
+    PriceListCatalogId(id) -> Some(id)
+    PriceListCatalogAbsent -> option.then(existing, price_list_catalog_id)
+    PriceListCatalogNull | PriceListCatalogEmpty -> None
+  }
 }
 
 @internal
 pub fn price_list_catalog_id(value: CapturedJsonValue) -> Option(String) {
   captured_field(value, "catalog")
   |> option.then(captured_string_field(_, "id"))
+}
+
+@internal
+pub fn read_price_list_catalog_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> PriceListCatalogInput {
+  case dict.get(input, "catalogId") {
+    Ok(root_field.NullVal) -> PriceListCatalogNull
+    Ok(root_field.StringVal("")) -> PriceListCatalogEmpty
+    Ok(root_field.StringVal(id)) -> PriceListCatalogId(id)
+    _ -> PriceListCatalogAbsent
+  }
 }
 
 @internal
@@ -1601,8 +1623,8 @@ pub fn price_list_catalog_data(
   input: Dict(String, root_field.ResolvedValue),
   existing_value: CapturedJsonValue,
 ) -> CapturedJsonValue {
-  case graphql_helpers.read_arg_string_nonempty(input, "catalogId") {
-    Some(id) ->
+  case read_price_list_catalog_input(input) {
+    PriceListCatalogId(id) ->
       case store.get_effective_catalog_by_id(store, id) {
         Some(record) -> record.data
         None ->
@@ -1611,7 +1633,8 @@ pub fn price_list_catalog_data(
             #("id", CapturedString(id)),
           ])
       }
-    None ->
+    PriceListCatalogNull | PriceListCatalogEmpty -> CapturedNull
+    PriceListCatalogAbsent ->
       captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull)
   }
 }

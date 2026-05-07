@@ -1,0 +1,16 @@
+query InventoryReasonValidationDownstream($inventoryItemId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    id
+    inventoryLevels(first: 1) {
+      nodes {
+        location {
+          id
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+    }
+  }
+}

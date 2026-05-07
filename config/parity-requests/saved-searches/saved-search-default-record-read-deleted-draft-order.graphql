@@ -1,0 +1,16 @@
+query SavedSearchDefaultRecordReadDeletedDraftOrder {
+  draftOrderSavedSearches(first: 10) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+  }
+}

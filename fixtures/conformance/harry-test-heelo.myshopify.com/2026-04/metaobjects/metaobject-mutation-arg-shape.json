@@ -1,0 +1,83 @@
+{
+  "scenarioId": "metaobject-mutation-arg-shape",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-07T11:54:34.150Z",
+  "captures": {
+    "topLevelReset": {
+      "documentPath": "config/parity-requests/metaobjects/metaobject-mutation-arg-shape-reset.graphql",
+      "operationName": "MetaobjectMutationArgShapeTopLevelReset",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/0"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'metaobjectDefinitionUpdate' doesn't accept argument 'resetFieldOrder'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 39
+                }
+              ],
+              "path": [
+                "mutation MetaobjectMutationArgShapeTopLevelReset",
+                "metaobjectDefinitionUpdate",
+                "resetFieldOrder"
+              ],
+              "extensions": {
+                "code": "argumentNotAccepted",
+                "name": "metaobjectDefinitionUpdate",
+                "typeName": "Field",
+                "argumentName": "resetFieldOrder"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "publicEnabledByShopify": {
+      "documentPath": "config/parity-requests/metaobjects/metaobject-mutation-arg-shape-public-enable.graphql",
+      "operationName": "MetaobjectMutationArgShapePublicEnable",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'standardMetaobjectDefinitionEnable' doesn't accept argument 'enabledByShopify'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 70
+                }
+              ],
+              "path": [
+                "mutation MetaobjectMutationArgShapePublicEnable",
+                "standardMetaobjectDefinitionEnable",
+                "enabledByShopify"
+              ],
+              "extensions": {
+                "code": "argumentNotAccepted",
+                "name": "standardMetaobjectDefinitionEnable",
+                "typeName": "Field",
+                "argumentName": "enabledByShopify"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "live-shopify",
+    "notes": [
+      "Captured against harry-test-heelo.myshopify.com using Admin GraphQL 2026-04.",
+      "Both probes fail during GraphQL schema validation before resolver execution, so no Shopify records are created or mutated.",
+      "The configured public conformance credential cannot reach Shopify internal Admin visibility for enabledByShopify success evidence."
+    ]
+  },
+  "upstreamCalls": []
+}

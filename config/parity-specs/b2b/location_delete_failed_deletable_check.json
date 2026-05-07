@@ -1,0 +1,391 @@
+{
+  "scenarioId": "location_delete_failed_deletable_check",
+  "operationNames": [
+    "companyCreate",
+    "companyLocationCreate",
+    "companyLocationDelete",
+    "draftOrderCreate",
+    "storeCreditAccountCredit",
+    "company",
+    "companyLocation"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "business-rule-precondition", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/location-delete-failed-deletable-check.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/location-delete-check-company-create.graphql",
+    "variablesCapturePath": "$.onlyLocationCompanyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Live Shopify 2026-04 evidence for companyLocationDelete failed_deletable_check branches. The replay creates disposable companies, earns draft-order and store-credit state through prior proxy requests, then verifies FAILED_TO_DELETE payloads and downstream reads that retain the blocked locations.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "only-location-company-create",
+        "capturePath": "$.onlyLocationCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "only-location-delete-rejected",
+        "capturePath": "$.onlyLocationDelete.response.data.companyLocationDelete",
+        "proxyPath": "$.data.companyLocationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-delete.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-only-location-delete",
+        "capturePath": "$.readAfterOnlyLocationDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The read targets the locally staged company ID."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked location remains visible with the local synthetic ID."
+          },
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked location remains visible with the local synthetic ID."
+          }
+        ]
+      },
+      {
+        "name": "draft-order-company-create",
+        "capturePath": "$.draftOrderCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-company-create.graphql",
+          "variablesCapturePath": "$.draftOrderCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "draft-order-extra-location-create",
+        "capturePath": "$.draftOrderExtraLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "draft-order-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.draftOrderExtraLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location belongs to the locally staged company."
+          }
+        ]
+      },
+      {
+        "name": "draft-order-create",
+        "capturePath": "$.draftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-draft-order-create.graphql",
+          "variables": {
+            "input": {
+              "purchasingEntity": {
+                "purchasingCompany": {
+                  "companyId": {
+                    "fromProxyResponse": "draft-order-company-create",
+                    "path": "$.data.companyCreate.company.id"
+                  },
+                  "companyContactId": {
+                    "fromProxyResponse": "draft-order-company-create",
+                    "path": "$.data.companyCreate.company.mainContact.id"
+                  },
+                  "companyLocationId": {
+                    "fromProxyResponse": "draft-order-company-create",
+                    "path": "$.data.companyCreate.company.locations.nodes[0].id"
+                  }
+                }
+              },
+              "email": {
+                "fromCapturePath": "$.draftOrderCreate.request.variables.input.email"
+              },
+              "note": {
+                "fromCapturePath": "$.draftOrderCreate.request.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.draftOrderCreate.request.variables.input.tags"
+              },
+              "visibleToCustomer": {
+                "fromCapturePath": "$.draftOrderCreate.request.variables.input.visibleToCustomer"
+              },
+              "lineItems": {
+                "fromCapturePath": "$.draftOrderCreate.request.variables.input.lineItems"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          }
+        ]
+      },
+      {
+        "name": "draft-order-location-delete-rejected",
+        "capturePath": "$.draftOrderLocationDelete.response.data.companyLocationDelete",
+        "proxyPath": "$.data.companyLocationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-delete.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "draft-order-company-create",
+              "path": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-draft-order-location-delete",
+        "capturePath": "$.readAfterDraftOrderLocationDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "draft-order-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "companyLocationId": {
+              "fromProxyResponse": "draft-order-company-create",
+              "path": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The read targets the locally staged company ID."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked company locations remain visible with local synthetic IDs."
+          },
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked location remains visible with the local synthetic ID."
+          }
+        ]
+      },
+      {
+        "name": "store-credit-company-create",
+        "capturePath": "$.storeCreditCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-company-create.graphql",
+          "variablesCapturePath": "$.storeCreditCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "store-credit-extra-location-create",
+        "capturePath": "$.storeCreditExtraLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "store-credit-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.storeCreditExtraLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location belongs to the locally staged company."
+          }
+        ]
+      },
+      {
+        "name": "store-credit-location-credit",
+        "capturePath": "$.storeCreditAccountCredit.response.data.storeCreditAccountCredit",
+        "proxyPath": "$.data.storeCreditAccountCredit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-store-credit-credit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "store-credit-company-create",
+              "path": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.storeCreditAccountCredit.request.variables.creditInput"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "Live Shopify and local staging allocate different store credit account IDs."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The account owner references the proxy-created synthetic CompanyLocation GID."
+          }
+        ]
+      },
+      {
+        "name": "store-credit-location-delete-rejected",
+        "capturePath": "$.storeCreditLocationDelete.response.data.companyLocationDelete",
+        "proxyPath": "$.data.companyLocationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-location-delete.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "store-credit-company-create",
+              "path": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-store-credit-location-delete",
+        "capturePath": "$.readAfterStoreCreditLocationDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/location-delete-check-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "store-credit-company-create",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "companyLocationId": {
+              "fromProxyResponse": "store-credit-company-create",
+              "path": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The read targets the locally staged company ID."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked company locations remain visible with local synthetic IDs."
+          },
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The blocked location remains visible with the local synthetic ID."
+          }
+        ]
+      }
+    ]
+  }
+}

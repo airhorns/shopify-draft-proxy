@@ -52,23 +52,7 @@
               }
             },
             "input": {
-              "email": "hermes-customerset-create-1777169079011@example.com",
-              "firstName": "Hermes",
-              "lastName": "SetUpdated",
-              "note": "customerSet update parity probe",
-              "phone": "+17169079012",
-              "tags": ["set", "updated"],
-              "taxExempt": false,
-              "taxExemptions": [],
-              "addresses": [
-                {
-                  "address1": "10 Set St",
-                  "city": "Ottawa",
-                  "countryCode": "CA",
-                  "provinceCode": "ON",
-                  "zip": "K1A 0B1"
-                }
-              ]
+              "fromCapturePath": "$.update.variables.input"
             }
           }
         },
@@ -104,23 +88,7 @@
               }
             },
             "input": {
-              "email": "hermes-customerset-create-1777169079011@example.com",
-              "addresses": [
-                {
-                  "address1": "20 Set St",
-                  "city": "Ottawa",
-                  "countryCode": "CA",
-                  "provinceCode": "ON",
-                  "zip": "K1A 0B2"
-                },
-                {
-                  "address1": "21 Set St",
-                  "city": "Toronto",
-                  "countryCode": "CA",
-                  "provinceCode": "ON",
-                  "zip": "M5H 2N3"
-                }
-              ]
+              "fromCapturePath": "$.multiAddressReplacement.variables.input"
             }
           }
         },
@@ -156,8 +124,7 @@
               }
             },
             "input": {
-              "email": "hermes-customerset-create-1777169079011@example.com",
-              "addresses": null
+              "fromCapturePath": "$.validation.nullAddressList.variables.input"
             }
           }
         },

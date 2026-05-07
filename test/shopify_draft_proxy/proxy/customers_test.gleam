@@ -1453,6 +1453,68 @@ pub fn customer_set_email_and_phone_identifiers_create_without_id_test() {
   assert string.contains(phone_json, "\"userErrors\":[]")
 }
 
+pub fn customer_set_rejects_input_id_with_identifier_without_staging_test() {
+  assert_customer_set_input_id_rejected(
+    "{ id: \"gid://shopify/Customer/999999999\" }",
+    "input-id-by-id@example.com",
+    "email:input-id-by-id@example.com",
+  )
+  assert_customer_set_input_id_rejected(
+    "{ email: \"input-id-by-email@example.com\" }",
+    "input-id-by-email@example.com",
+    "email:input-id-by-email@example.com",
+  )
+  assert_customer_set_input_id_rejected(
+    "{ phone: \"+14155550124\" }",
+    "input-id-by-phone@example.com",
+    "phone:+14155550124",
+  )
+  assert_customer_set_input_id_rejected(
+    "{ customId: { namespace: \"custom\", key: \"external_id\", value: \"input-id\" } }",
+    "input-id-by-custom-id@example.com",
+    "email:input-id-by-custom-id@example.com",
+  )
+}
+
+fn assert_customer_set_input_id_rejected(
+  identifier: String,
+  email: String,
+  search_query: String,
+) {
+  let proxy = draft_proxy.new()
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: "
+        <> identifier
+        <> ", input: { id: \"gid://shopify/Customer/9\", email: \""
+        <> email
+        <> "\", firstName: \"Rejected\" }) { customer { id email firstName } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"customerSet\":{\"customer\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"The id field is not allowed if identifier is provided.\",\"code\":\"ID_NOT_ALLOWED\"}]}}}"
+
+  let #(Response(status: by_id_status, body: by_id_body, ..), proxy) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/9\") { id email firstName } }",
+    )
+  assert by_id_status == 200
+  assert json.to_string(by_id_body) == "{\"data\":{\"customer\":null}}"
+
+  let #(Response(status: search_status, body: search_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customers(first: 5, query: \""
+        <> search_query
+        <> "\") { nodes { id email firstName } } }",
+    )
+  assert search_status == 200
+  assert string.contains(json.to_string(search_body), "\"nodes\":[]")
+  assert_log_omits_root(proxy, "customerSet")
+}
+
 pub fn customer_create_rejects_nested_client_supplied_ids_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, body: create_body, ..), proxy) =

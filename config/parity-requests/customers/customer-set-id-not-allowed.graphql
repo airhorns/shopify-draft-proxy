@@ -1,0 +1,12 @@
+mutation CustomerSetIdNotAllowed($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

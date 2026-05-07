@@ -10,7 +10,6 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/order
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 
@@ -37,10 +36,16 @@ import shopify_draft_proxy/proxy/orders/common.{
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{
   build_draft_order_from_input,
 }
+import shopify_draft_proxy/proxy/orders/draft_order_tags.{
+  append_too_many_draft_order_tags_error, draft_order_bulk_tag_input,
+  draft_order_tag_count_exceeds_limit, draft_order_tags, update_draft_order_tags,
+}
 import shopify_draft_proxy/proxy/orders/draft_orders.{
   build_updated_draft_order, captured_order_currency, complete_draft_order,
   draft_order_line_items, duplicate_draft_order,
   serialize_draft_order_mutation_payload, validate_draft_order_calculate_input,
+  validate_draft_order_input_max_input_size_errors,
+  validate_draft_order_input_tags,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_draft_order_by_id, maybe_hydrate_draft_order_customer_from_input,
@@ -60,12 +65,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type DraftOrderRecord, type OrderRecord, CapturedArray,
-  CapturedString, CustomerOrderSummaryRecord, DraftOrderRecord, OrderRecord,
+  CapturedString, CustomerOrderSummaryRecord, OrderRecord,
 }
-
-const draft_order_tag_limit = 250
-
-const draft_order_tag_character_limit = 255
 
 @internal
 pub fn handle_draft_order_complete(
@@ -858,61 +859,80 @@ pub fn handle_draft_order_calculate(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          let hydrated_store =
-            maybe_hydrate_draft_order_variant_catalog_from_input(
-              store,
+          let max_input_errors =
+            validate_draft_order_input_max_input_size_errors(
+              "draftOrderCalculate",
+              document,
+              field,
               input,
-              upstream,
             )
-            |> maybe_hydrate_draft_order_customer_from_input(input, upstream)
-          let user_errors =
-            validate_draft_order_calculate_input(hydrated_store, input)
-          case user_errors {
+          case max_input_errors {
+            [_, ..] -> #(key, json.null(), max_input_errors, [])
             [] -> {
-              let #(draft_order, _) =
-                build_draft_order_from_input(hydrated_store, identity, input)
-              let calculated =
-                build_calculated_draft_order_from_draft(draft_order)
-              let payload =
-                serialize_draft_order_calculate_payload(
-                  field,
-                  Some(calculated),
-                  [],
-                  fragments,
+              let hydrated_store =
+                maybe_hydrate_draft_order_variant_catalog_from_input(
+                  store,
+                  input,
+                  upstream,
                 )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderCalculate",
-                  [],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
-                  ),
+                |> maybe_hydrate_draft_order_customer_from_input(
+                  input,
+                  upstream,
                 )
-              #(key, payload, [], [draft])
-            }
-            _ -> {
-              let payload =
-                serialize_draft_order_calculate_payload(
-                  field,
-                  None,
-                  user_errors,
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderCalculate",
-                  [],
-                  store_types.Failed,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally rejected draftOrderCalculate validation branch.",
-                  ),
-                )
-              #(key, payload, [], [draft])
+              let user_errors =
+                validate_draft_order_calculate_input(hydrated_store, input)
+              case user_errors {
+                [] -> {
+                  let #(draft_order, _) =
+                    build_draft_order_from_input(
+                      hydrated_store,
+                      identity,
+                      input,
+                    )
+                  let calculated =
+                    build_calculated_draft_order_from_draft(draft_order)
+                  let payload =
+                    serialize_draft_order_calculate_payload(
+                      field,
+                      Some(calculated),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCalculate",
+                      [],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, [], [draft])
+                }
+                _ -> {
+                  let payload =
+                    serialize_draft_order_calculate_payload(
+                      field,
+                      None,
+                      user_errors,
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCalculate",
+                      [],
+                      store_types.Failed,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally rejected draftOrderCalculate validation branch.",
+                      ),
+                    )
+                  #(key, payload, [], [draft])
+                }
+              }
             }
           }
         }
@@ -1139,7 +1159,7 @@ pub fn apply_draft_order_bulk_helper(
       "draftOrderBulkAddTags" -> {
         let updated = update_draft_order_tags(draft_order, tags, "add")
         case
-          list.length(draft_order_tags(updated.data)) > draft_order_tag_limit
+          draft_order_tag_count_exceeds_limit(draft_order_tags(updated.data))
         {
           True -> #(
             current_store,
@@ -1240,212 +1260,6 @@ pub fn draft_order_matches_bulk_search(
 }
 
 @internal
-pub fn update_draft_order_tags(
-  draft_order: DraftOrderRecord,
-  tags: List(String),
-  mode: String,
-) -> DraftOrderRecord {
-  let existing = draft_order_tags(draft_order.data)
-  let next_tags = case mode {
-    "add" -> normalize_draft_order_tags(list.append(existing, tags))
-    "remove" -> remove_draft_order_tags_by_identity(existing, tags)
-    _ -> existing
-  }
-  DraftOrderRecord(
-    ..draft_order,
-    data: replace_captured_object_fields(draft_order.data, [
-      #("tags", CapturedArray(list.map(next_tags, CapturedString))),
-    ]),
-  )
-}
-
-@internal
-pub fn draft_order_bulk_tag_input(
-  root_name: String,
-  tags: List(String),
-) -> #(List(String), List(#(List(String), String, Option(String))), Bool) {
-  case root_name == "draftOrderBulkDelete" {
-    True -> #([], [], False)
-    False -> {
-      let non_empty_tags = non_empty_draft_order_tag_values(tags)
-      let normalized_tags = valid_draft_order_tag_values(tags)
-      let long_tag_errors = draft_order_long_tag_errors(tags)
-      let too_many_tags =
-        list.length(non_empty_tags) > draft_order_tag_limit
-        || list.length(normalized_tags) > draft_order_tag_limit
-      let blank_errors = case list.is_empty(non_empty_tags) {
-        True -> [inferred_user_error(["tags"], "Tags can't be blank")]
-        False -> []
-      }
-      let tag_count_errors = case too_many_tags {
-        True -> [draft_order_too_many_tags_error()]
-        False -> []
-      }
-      let user_errors =
-        list.append(
-          blank_errors,
-          list.append(tag_count_errors, long_tag_errors),
-        )
-      let request_blocked =
-        !list.is_empty(blank_errors) || !list.is_empty(tag_count_errors)
-      #(normalized_tags, user_errors, request_blocked)
-    }
-  }
-}
-
-@internal
-pub fn draft_order_long_tag_errors(
-  tags: List(String),
-) -> List(#(List(String), String, Option(String))) {
-  tags
-  |> list.fold(#([], 0), fn(acc, tag) {
-    let #(user_errors, index) = acc
-    case trimmed_non_empty_draft_order_tag(tag) {
-      Ok(trimmed) ->
-        case string.length(trimmed) > draft_order_tag_character_limit {
-          True -> #(
-            [
-              user_error(
-                ["input", "tags", int.to_string(index)],
-                "tag_too_long",
-                Some(user_error_codes.invalid),
-              ),
-              ..user_errors
-            ],
-            index + 1,
-          )
-          False -> #(user_errors, index + 1)
-        }
-      _ -> #(user_errors, index + 1)
-    }
-  })
-  |> fn(result) {
-    let #(user_errors, _) = result
-    list.reverse(user_errors)
-  }
-}
-
-@internal
-pub fn valid_draft_order_tag_values(tags: List(String)) -> List(String) {
-  tags
-  |> list.filter_map(fn(tag) {
-    case trimmed_non_empty_draft_order_tag(tag) {
-      Ok(trimmed) ->
-        case string.length(trimmed) <= draft_order_tag_character_limit {
-          True -> Ok(trimmed)
-          False -> Error(Nil)
-        }
-      _ -> Error(Nil)
-    }
-  })
-  |> normalize_draft_order_tags
-}
-
-@internal
-pub fn non_empty_draft_order_tag_values(tags: List(String)) -> List(String) {
-  tags
-  |> list.filter_map(trimmed_non_empty_draft_order_tag)
-}
-
-@internal
-pub fn normalize_draft_order_tags(tags: List(String)) -> List(String) {
-  let #(reversed, _) =
-    tags
-    |> list.filter_map(trimmed_non_empty_draft_order_tag)
-    |> list.fold(#([], dict.new()), fn(acc, tag) {
-      let #(items, seen) = acc
-      let key = draft_order_tag_identity_key(tag)
-      case dict.has_key(seen, key) {
-        True -> #(items, seen)
-        False -> #([tag, ..items], dict.insert(seen, key, True))
-      }
-    })
-
-  reversed
-  |> list.reverse
-  |> list.sort(compare_draft_order_tags)
-}
-
-@internal
-pub fn remove_draft_order_tags_by_identity(
-  current_tags: List(String),
-  tags_to_remove: List(String),
-) -> List(String) {
-  let removal_keys = list.map(tags_to_remove, draft_order_tag_identity_key)
-  current_tags
-  |> normalize_draft_order_tags
-  |> list.filter(fn(tag) {
-    !list.contains(removal_keys, draft_order_tag_identity_key(tag))
-  })
-  |> list.sort(compare_draft_order_tags)
-}
-
-@internal
-pub fn trimmed_non_empty_draft_order_tag(value: String) -> Result(String, Nil) {
-  let trimmed = string.trim(value)
-  case string.length(trimmed) > 0 {
-    True -> Ok(trimmed)
-    False -> Error(Nil)
-  }
-}
-
-@internal
-pub fn draft_order_tag_identity_key(tag: String) -> String {
-  tag
-  |> string.trim
-  |> string.lowercase
-}
-
-@internal
-pub fn compare_draft_order_tags(a: String, b: String) -> order.Order {
-  let a_key = draft_order_tag_identity_key(a)
-  let b_key = draft_order_tag_identity_key(b)
-  case string.compare(a_key, b_key) {
-    order.Eq -> string.compare(a, b)
-    other -> other
-  }
-}
-
-@internal
-pub fn draft_order_too_many_tags_error() -> #(
-  List(String),
-  String,
-  Option(String),
-) {
-  user_error(["input", "tags"], "too_many_tags", Some(user_error_codes.invalid))
-}
-
-@internal
-pub fn append_too_many_draft_order_tags_error(
-  user_errors: List(#(List(String), String, Option(String))),
-) -> List(#(List(String), String, Option(String))) {
-  case
-    list.any(user_errors, fn(user_error) {
-      let #(_, message, _) = user_error
-      message == "too_many_tags"
-    })
-  {
-    True -> user_errors
-    False -> [draft_order_too_many_tags_error(), ..user_errors]
-  }
-}
-
-@internal
-pub fn draft_order_tags(data: CapturedJsonValue) -> List(String) {
-  case captured_object_field(data, "tags") {
-    Some(CapturedArray(items)) ->
-      items
-      |> list.filter_map(fn(item) {
-        case item {
-          CapturedString(value) -> Ok(value)
-          _ -> Error(Nil)
-        }
-      })
-    _ -> []
-  }
-}
-
-@internal
 pub fn unique_strings(values: List(String)) -> List(String) {
   values
   |> list.fold([], fn(acc, value) {
@@ -1526,49 +1340,101 @@ pub fn handle_draft_order_update(
       let input = read_object(args, "input")
       case id, input {
         Some(id), Some(input) -> {
-          // Pattern 2: updates merge user input into Shopify's existing draft
-          // order payload before staging the changed draft locally.
-          let hydrated_store =
-            maybe_hydrate_draft_order_by_id(store, id, upstream)
-          case store.get_draft_order_by_id(hydrated_store, id) {
-            Some(draft_order) -> {
-              let #(updated_draft_order, next_identity) =
-                build_updated_draft_order(
-                  hydrated_store,
-                  identity,
-                  draft_order,
-                  input,
-                )
-              let next_store =
-                store.stage_draft_order(hydrated_store, updated_draft_order)
-              let payload =
-                serialize_draft_order_mutation_payload(
-                  field,
-                  Some(updated_draft_order),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderUpdate",
-                  [id],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged draftOrderUpdate in shopify-draft-proxy.",
-                  ),
-                )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+          let max_input_errors =
+            validate_draft_order_input_max_input_size_errors(
+              "draftOrderUpdate",
+              document,
+              field,
+              input,
+            )
+          case max_input_errors {
+            [_, ..] -> #(
+              key,
+              json.null(),
+              store,
+              identity,
+              [],
+              max_input_errors,
+              [],
+            )
+            [] -> {
+              // Pattern 2: updates merge user input into Shopify's existing draft
+              // order payload before staging the changed draft locally.
+              let hydrated_store =
+                maybe_hydrate_draft_order_by_id(store, id, upstream)
+              case store.get_draft_order_by_id(hydrated_store, id) {
+                Some(draft_order) -> {
+                  let user_errors =
+                    validate_draft_order_input_tags(input, "draftOrderUpdate")
+                  case user_errors {
+                    [] -> {
+                      let #(updated_draft_order, next_identity) =
+                        build_updated_draft_order(
+                          hydrated_store,
+                          identity,
+                          draft_order,
+                          input,
+                        )
+                      let next_store =
+                        store.stage_draft_order(
+                          hydrated_store,
+                          updated_draft_order,
+                        )
+                      let payload =
+                        serialize_draft_order_mutation_payload(
+                          field,
+                          Some(updated_draft_order),
+                          [],
+                          fragments,
+                        )
+                      let draft =
+                        single_root_log_draft(
+                          "draftOrderUpdate",
+                          [id],
+                          store_types.Staged,
+                          "orders",
+                          "stage-locally",
+                          Some(
+                            "Locally staged draftOrderUpdate in shopify-draft-proxy.",
+                          ),
+                        )
+                      #(key, payload, next_store, next_identity, [id], [], [
+                        draft,
+                      ])
+                    }
+                    _ -> {
+                      let payload =
+                        serialize_draft_order_nullable_update_payload(
+                          field,
+                          None,
+                          user_errors,
+                          fragments,
+                        )
+                      let draft =
+                        single_root_log_draft(
+                          "draftOrderUpdate",
+                          [],
+                          store_types.Failed,
+                          "orders",
+                          "stage-locally",
+                          Some(
+                            "Locally rejected draftOrderUpdate validation branch.",
+                          ),
+                        )
+                      #(key, payload, hydrated_store, identity, [], [], [draft])
+                    }
+                  }
+                }
+                None ->
+                  unknown_draft_order_update_result(
+                    key,
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                  )
+              }
             }
-            None ->
-              unknown_draft_order_update_result(
-                key,
-                store,
-                identity,
-                field,
-                fragments,
-              )
           }
         }
         _, _ ->
@@ -1582,6 +1448,38 @@ pub fn handle_draft_order_update(
       }
     }
   }
+}
+
+@internal
+pub fn serialize_draft_order_nullable_update_payload(
+  field: Selection,
+  draft_order: Option(DraftOrderRecord),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
+  fragments: FragmentMap,
+) -> Json {
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "draftOrder" -> #(key, case draft_order {
+              Some(record) ->
+                serialize_draft_order_node(None, child, record, fragments)
+              None -> json.null()
+            })
+            "userErrors" -> #(
+              key,
+              json.array(user_errors, fn(error) {
+                serialize_nullable_user_error(child, error)
+              }),
+            )
+            _ -> #(key, json.null())
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 @internal

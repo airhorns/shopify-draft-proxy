@@ -1,0 +1,124 @@
+mutation DiscountBulkSearchFieldValidation(
+  $codeFieldSearch: String!
+  $codeStatusSearch: String!
+  $codeClassSearch: String!
+  $codeTimesUsedSearch: String!
+  $codeTypeSearch: String!
+  $unknownFieldSearch: String!
+  $automaticStatusSearch: String!
+  $automaticClassSearch: String!
+  $automaticCodeSearch: String!
+) {
+  codeActivateKnownCode: discountCodeBulkActivate(search: $codeFieldSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeActivateUnknown: discountCodeBulkActivate(search: $unknownFieldSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateKnownStatus: discountCodeBulkDeactivate(search: $codeStatusSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateUnknown: discountCodeBulkDeactivate(search: $unknownFieldSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteKnownStatus: discountCodeBulkDelete(search: $codeStatusSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteKnownTimesUsed: discountCodeBulkDelete(search: $codeTimesUsedSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteKnownDiscountType: discountCodeBulkDelete(search: $codeTypeSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteCodeField: discountCodeBulkDelete(search: $codeFieldSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteClassField: discountCodeBulkDelete(search: $codeClassSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeleteUnknown: discountCodeBulkDelete(search: $unknownFieldSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteKnownStatus: discountAutomaticBulkDelete(search: $automaticStatusSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteKnownClass: discountAutomaticBulkDelete(search: $automaticClassSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteCodeField: discountAutomaticBulkDelete(search: $automaticCodeSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteUnknown: discountAutomaticBulkDelete(search: $unknownFieldSearch) {
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

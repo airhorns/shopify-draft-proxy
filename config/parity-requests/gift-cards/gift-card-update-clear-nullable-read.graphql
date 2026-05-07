@@ -1,0 +1,9 @@
+query GiftCardUpdateClearNullableRead($id: ID!) {
+  giftCard(id: $id) {
+    id
+    note
+    expiresOn
+    templateSuffix
+    updatedAt
+  }
+}

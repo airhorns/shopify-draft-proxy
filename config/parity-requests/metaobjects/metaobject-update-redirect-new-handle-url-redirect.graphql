@@ -1,0 +1,7 @@
+query MetaobjectUpdateRedirectNewHandleUrlRedirect($id: ID!) {
+  urlRedirect(id: $id) {
+    id
+    path
+    target
+  }
+}

@@ -1996,7 +1996,7 @@ pub fn orders_order_edit_quantity_validation_rejects_without_mutation_test() {
       empty_upstream_context(),
     )
   assert json.to_string(add_valid_after_rejections.data)
-    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":{\"lineItems\":{\"nodes\":[{\"title\":\"Existing widget\",\"quantity\":3},{\"title\":\"Quantity validation product\",\"quantity\":2}]},\"addedLineItems\":{\"nodes\":[{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}}]}},\"calculatedLineItem\":{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":{\"lineItems\":{\"nodes\":[{\"title\":\"Existing widget\",\"quantity\":3}]},\"addedLineItems\":{\"nodes\":[{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}}]}},\"calculatedLineItem\":{\"title\":\"Quantity validation product\",\"quantity\":2,\"variant\":{\"id\":\"gid://shopify/ProductVariant/quantity-validation\"}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
 }
 
 pub fn orders_order_edit_commit_updates_history_fulfillment_orders_and_totals_test() {
@@ -2561,6 +2561,109 @@ pub fn orders_draft_order_create_user_error_code_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"draftOrderCreate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn orders_draft_order_line_items_max_top_level_errors_test() {
+  let oversized_input = draft_order_input_with_line_item_count(500)
+
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderCreateLineItemsMax($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder { id totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([#("input", oversized_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(create_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 500 is greater than the maximum allowed of 499.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"draftOrderCreate\",\"input\",\"lineItems\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert store.list_effective_draft_orders(create_outcome.store) == []
+  assert create_outcome.log_drafts == []
+
+  let calculate_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderCalculateLineItemsMax($input: DraftOrderInput!) {
+      draftOrderCalculate(input: $input) {
+        calculatedDraftOrder { totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([#("input", oversized_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(calculate_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 500 is greater than the maximum allowed of 499.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"draftOrderCalculate\",\"input\",\"lineItems\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert calculate_outcome.log_drafts == []
+
+  let setup_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderLineItemsMaxSetup($input: DraftOrderInput!) {
+      draftOrderCreate(input: $input) {
+        draftOrder { id totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([
+        #("input", draft_order_input_with_line_item_count(1)),
+      ]),
+      empty_upstream_context(),
+    )
+
+  let update_outcome =
+    orders.process_mutation(
+      setup_outcome.store,
+      setup_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "
+    mutation DraftOrderUpdateLineItemsMax($id: ID!, $input: DraftOrderInput!) {
+      draftOrderUpdate(id: $id, input: $input) {
+        draftOrder { id totalQuantityOfLineItems }
+        userErrors { field message }
+      }
+    }
+  ",
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #("input", oversized_input),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(update_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 500 is greater than the maximum allowed of 499.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"draftOrderUpdate\",\"input\",\"lineItems\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}]}"
+  assert update_outcome.log_drafts == []
+
+  let assert Ok(after_update_read) =
+    orders.process(
+      update_outcome.store,
+      "
+      query {
+        draftOrder(id: \"gid://shopify/DraftOrder/1\") {
+          id
+          totalQuantityOfLineItems
+        }
+      }
+    ",
+      dict.new(),
+    )
+  assert json.to_string(after_update_read)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"totalQuantityOfLineItems\":1}}}"
 }
 
 pub fn orders_draft_order_complete_validation_guardrails_test() {
@@ -12014,11 +12117,232 @@ pub fn orders_draft_order_bulk_remove_tags_normalizes_identity_test() {
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/normalization\",\"tags\":[\"vip\"]}}}"
 }
 
+pub fn orders_draft_order_create_validates_input_tags_test() {
+  let long_tag = string.repeat("x", times: 41)
+  let normalized_ok_tags =
+    list.append(numbered_draft_order_tags(248), [" tag-248 ", "TAG-249"])
+  let too_many_tags = list.append(numbered_draft_order_tags(250), ["TAG-251"])
+  let mutation =
+    "
+    mutation DraftOrderCreateTagValidation(
+      $normalizedOk: DraftOrderInput!
+      $longTag: DraftOrderInput!
+      $tooMany: DraftOrderInput!
+    ) {
+      normalizedOk: draftOrderCreate(input: $normalizedOk) {
+        draftOrder { id }
+        userErrors { field message code }
+      }
+      longTag: draftOrderCreate(input: $longTag) {
+        draftOrder { id }
+        userErrors { field message code }
+      }
+      tooMany: draftOrderCreate(input: $tooMany) {
+        draftOrder { id }
+        userErrors { field message code }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #("normalizedOk", draft_order_input_with_tags(normalized_ok_tags)),
+        #("longTag", draft_order_input_with_tags([long_tag])),
+        #("tooMany", draft_order_input_with_tags(too_many_tags)),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\",\"path\":[\"draftOrderCreate\",\"input\",\"tags\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}],\"data\":{\"normalizedOk\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\"},\"userErrors\":[]},\"longTag\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"tags\",\"0\"],\"message\":\"Title Tag exceeds the maximum length of 40 characters\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
+
+  let assert Ok(read_result) =
+    orders.process(
+      outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/2\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(read_result) == "{\"data\":{\"draftOrder\":null}}"
+}
+
+pub fn orders_draft_order_update_validates_input_tags_test() {
+  let create_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        draftOrderCreate(input: {
+          email: \"update-tags@example.test\"
+          tags: [\"initial\"]
+          lineItems: [{ title: \"Update tags item\", quantity: 1, originalUnitPrice: \"2.00\" }]
+        }) {
+          draftOrder { id tags }
+          userErrors { field message code }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+  let long_tag = string.repeat("x", times: 41)
+  let too_many_tags = list.append(numbered_draft_order_tags(250), ["TAG-251"])
+  let update_mutation =
+    "
+    mutation DraftOrderUpdateTagValidation(
+      $id: ID!
+      $longTag: DraftOrderInput!
+      $tooMany: DraftOrderInput!
+    ) {
+      longTag: draftOrderUpdate(id: $id, input: $longTag) {
+        draftOrder { id tags }
+        userErrors { field message code }
+      }
+      tooMany: draftOrderUpdate(id: $id, input: $tooMany) {
+        draftOrder { id tags }
+        userErrors { field message code }
+      }
+    }
+  "
+  let update_outcome =
+    orders.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      update_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
+        #("longTag", draft_order_tags_input([long_tag])),
+        #("tooMany", draft_order_tags_input(too_many_tags)),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(update_outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\",\"path\":[\"draftOrderUpdate\",\"input\",\"tags\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}],\"data\":{\"longTag\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"input\",\"tags\",\"1\"],\"message\":\"Title Tag exceeds the maximum length of 40 characters\",\"code\":\"INVALID\"}]}}}"
+  assert update_outcome.staged_resource_ids == []
+
+  let assert Ok(read_result) =
+    orders.process(
+      update_outcome.store,
+      "query { draftOrder(id: \"gid://shopify/DraftOrder/1\") { id tags } }",
+      dict.new(),
+    )
+  assert json.to_string(read_result)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"tags\":[\"initial\"]}}}"
+}
+
+pub fn orders_draft_order_calculate_validates_input_tags_test() {
+  let long_tag = string.repeat("x", times: 41)
+  let too_many_tags = list.append(numbered_draft_order_tags(250), ["TAG-251"])
+  let mutation =
+    "
+    mutation DraftOrderCalculateTagValidation(
+      $longTag: DraftOrderInput!
+      $tooMany: DraftOrderInput!
+    ) {
+      longTag: draftOrderCalculate(input: $longTag) {
+        calculatedDraftOrder { currencyCode }
+        userErrors { field message code }
+      }
+      tooMany: draftOrderCalculate(input: $tooMany) {
+        calculatedDraftOrder { currencyCode }
+        userErrors { field message code }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      dict.from_list([
+        #("longTag", draft_order_input_with_tags([long_tag])),
+        #("tooMany", draft_order_input_with_tags(too_many_tags)),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\",\"path\":[\"draftOrderCalculate\",\"input\",\"tags\"],\"extensions\":{\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"}}],\"data\":{\"longTag\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":[\"tags\",\"0\"],\"message\":\"Title Tag exceeds the maximum length of 40 characters\",\"code\":\"INVALID\"}]}}}"
+}
+
 fn numbered_draft_order_tags(count: Int) -> List(String) {
   int.range(from: 1, to: count + 1, with: [], run: fn(acc, index) {
     ["tag-" <> int.to_string(index), ..acc]
   })
   |> list.reverse
+}
+
+fn draft_order_input_with_tags(tags: List(String)) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("tags", draft_order_string_list_value(tags)),
+      #(
+        "lineItems",
+        root_field.ListVal([
+          root_field.ObjectVal(
+            dict.from_list([
+              #("title", root_field.StringVal("Validation item")),
+              #("quantity", root_field.IntVal(1)),
+              #("originalUnitPrice", root_field.StringVal("1.00")),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn draft_order_tags_input(tags: List(String)) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("tags", draft_order_string_list_value(tags)),
+    ]),
+  )
+}
+
+fn draft_order_string_list_value(
+  values: List(String),
+) -> root_field.ResolvedValue {
+  values
+  |> list.map(root_field.StringVal)
+  |> root_field.ListVal
+}
+
+fn draft_order_input_with_line_item_count(
+  count: Int,
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #(
+        "lineItems",
+        root_field.ListVal(
+          int.range(from: 1, to: count + 1, with: [], run: fn(acc, index) {
+            [draft_order_custom_line_item_value(index), ..acc]
+          })
+          |> list.reverse,
+        ),
+      ),
+    ]),
+  )
+}
+
+fn draft_order_custom_line_item_value(index: Int) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("title", root_field.StringVal("Max probe " <> int.to_string(index))),
+      #("quantity", root_field.IntVal(1)),
+      #("originalUnitPrice", root_field.StringVal("1.00")),
+    ]),
+  )
 }
 
 pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {

@@ -1,0 +1,91 @@
+mutation ValidationMetafieldsInvalidCreate(
+  $mixedMissingKey: ValidationCreateInput!
+  $missingType: ValidationCreateInput!
+  $blankType: ValidationCreateInput!
+  $missingValue: ValidationCreateInput!
+  $blankValue: ValidationCreateInput!
+  $invalidType: ValidationCreateInput!
+  $reservedShopify: ValidationCreateInput!
+  $invalidValue: ValidationCreateInput!
+) {
+  mixedMissingKey: validationCreate(validation: $mixedMissingKey) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingType: validationCreate(validation: $missingType) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  blankType: validationCreate(validation: $blankType) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingValue: validationCreate(validation: $missingValue) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  blankValue: validationCreate(validation: $blankValue) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  invalidType: validationCreate(validation: $invalidType) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  reservedShopify: validationCreate(validation: $reservedShopify) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  invalidValue: validationCreate(validation: $invalidValue) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

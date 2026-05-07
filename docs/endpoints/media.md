@@ -42,6 +42,23 @@ Local staged mutations:
   `x-goog-date`, `x-goog-credential`, `x-goog-algorithm`, `x-goog-signature`,
   and `policy`. VIDEO and MODEL_3D use the captured signed upload field names:
   `GoogleAccessId`, `key`, `policy`, and `signature`.
+- Live 2026-04 capture for additional staged upload resources shows
+  `BULK_MUTATION_VARIABLES`, `URL_REDIRECT_IMPORT`, `RETURN_LABEL`, and
+  `DISPUTE_FILE_UPLOAD` use the same Google form field names for `POST`.
+  `COLLECTION_IMAGE` and deprecated `PRODUCT_IMAGE` also use that IMAGE-family
+  form shape. Captured `PUT` targets for those Google form resources use only
+  `content_type` and `acl`. The proxy matches those captured parameter names
+  and order while keeping values and URLs inert.
+- `SHOP_IMAGE` is exposed by the 2026-04 resource enum, but the current
+  conformance app receives top-level `ACCESS_DENIED` for that resource. The
+  local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
+  not emit proxy-specific parameter names; a scoped live target capture remains
+  blocked until the conformance credential can access that resource.
+- `CUSTOMER_IMPORT`, `INVENTORY_IMPORT`, `ARTICLE_IMAGE`, `THEME_ARCHIVE`, and
+  `TRANSLATIONS_IMPORT` are not public 2026-04 enum values on the captured
+  conformance store. Variable requests for those resources are rejected by
+  Shopify as `INVALID_VARIABLE`, and the proxy keeps them out of its accepted
+  resource enum rather than guessing target shapes.
 - The staged upload fields that intentionally remain placeholders are `url`,
   `resourceUrl`, resource path keys, storage account/signature fields, and
   policy values. Static non-secret form values match the capture where Shopify
@@ -74,7 +91,7 @@ Local staged mutations:
   immediately; the proxy does not suppress the image payload solely because the
   staged file is still `UPLOADED`. The proxy does not apply the older fabricated
   512-character `alt` ceiling on `fileCreate`.
-- `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, source plus `revertToVersionId` conflict, missing `revertToVersionId` media versions, and typed-GID mismatches before updating staged records. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
+- `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, source plus `revertToVersionId` conflict, missing `revertToVersionId` media versions, and typed-GID mismatches before updating staged records. Captured public Admin GraphQL 2026-04 behavior keeps the 512-character `alt` ceiling, reports non-URL source values as `INVALID_IMAGE_SOURCE_URL` on `previewImageSource`, rejects over-length `originalSource` as a top-level `INVALID_FIELD_ARGUMENTS` error, and accepts over-length `previewImageSource`. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
 - Files API validation userErrors follow captured aggregate behavior. `fileDelete`
   missing IDs aggregate into one `FILE_DOES_NOT_EXIST` entry on `["fileIds"]`
   with comma-joined GIDs. `fileUpdate` missing IDs also aggregate into one

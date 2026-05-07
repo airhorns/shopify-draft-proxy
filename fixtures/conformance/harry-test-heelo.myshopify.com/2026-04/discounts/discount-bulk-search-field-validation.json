@@ -1,0 +1,203 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "validation": {
+    "bulkSearchField": {
+      "query": "mutation DiscountBulkSearchFieldValidation(\n  $codeFieldSearch: String!\n  $codeStatusSearch: String!\n  $codeClassSearch: String!\n  $codeTimesUsedSearch: String!\n  $codeTypeSearch: String!\n  $unknownFieldSearch: String!\n  $automaticStatusSearch: String!\n  $automaticClassSearch: String!\n  $automaticCodeSearch: String!\n) {\n  codeActivateKnownCode: discountCodeBulkActivate(search: $codeFieldSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeActivateUnknown: discountCodeBulkActivate(search: $unknownFieldSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeactivateKnownStatus: discountCodeBulkDeactivate(search: $codeStatusSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeactivateUnknown: discountCodeBulkDeactivate(search: $unknownFieldSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeleteKnownStatus: discountCodeBulkDelete(search: $codeStatusSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeleteKnownTimesUsed: discountCodeBulkDelete(search: $codeTimesUsedSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeleteKnownDiscountType: discountCodeBulkDelete(search: $codeTypeSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeleteCodeField: discountCodeBulkDelete(search: $codeFieldSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeleteClassField: discountCodeBulkDelete(search: $codeClassSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDeleteUnknown: discountCodeBulkDelete(search: $unknownFieldSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDeleteKnownStatus: discountAutomaticBulkDelete(search: $automaticStatusSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDeleteKnownClass: discountAutomaticBulkDelete(search: $automaticClassSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDeleteCodeField: discountAutomaticBulkDelete(search: $automaticCodeSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDeleteUnknown: discountAutomaticBulkDelete(search: $unknownFieldSearch) {\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "codeFieldSearch": "code:DRAFT_PROXY_NO_MATCH",
+        "codeStatusSearch": "status:DRAFT_PROXY_NO_MATCH",
+        "codeClassSearch": "discount_class:DRAFT_PROXY_NO_MATCH",
+        "codeTimesUsedSearch": "times_used:>9999999",
+        "codeTypeSearch": "discount_type:DRAFT_PROXY_NO_MATCH",
+        "unknownFieldSearch": "frobnicate:DRAFT_PROXY_NO_MATCH",
+        "automaticStatusSearch": "status:DRAFT_PROXY_NO_MATCH",
+        "automaticClassSearch": "discount_class:DRAFT_PROXY_NO_MATCH",
+        "automaticCodeSearch": "code:DRAFT_PROXY_NO_MATCH"
+      },
+      "response": {
+        "data": {
+          "codeActivateKnownCode": {
+            "userErrors": []
+          },
+          "codeActivateUnknown": {
+            "userErrors": []
+          },
+          "codeDeactivateKnownStatus": {
+            "userErrors": []
+          },
+          "codeDeactivateUnknown": {
+            "userErrors": []
+          },
+          "codeDeleteKnownStatus": {
+            "userErrors": []
+          },
+          "codeDeleteKnownTimesUsed": {
+            "userErrors": []
+          },
+          "codeDeleteKnownDiscountType": {
+            "userErrors": []
+          },
+          "codeDeleteCodeField": {
+            "userErrors": [
+              {
+                "field": ["search"],
+                "message": "Invalid search field(s): code. Check the query syntax.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          },
+          "codeDeleteClassField": {
+            "userErrors": [
+              {
+                "field": ["search"],
+                "message": "Invalid search field(s): discount_class. Check the query syntax.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          },
+          "codeDeleteUnknown": {
+            "userErrors": [
+              {
+                "field": ["search"],
+                "message": "Invalid search field(s): frobnicate. Check the query syntax.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          },
+          "automaticDeleteKnownStatus": {
+            "userErrors": []
+          },
+          "automaticDeleteKnownClass": {
+            "userErrors": []
+          },
+          "automaticDeleteCodeField": {
+            "userErrors": []
+          },
+          "automaticDeleteUnknown": {
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 140,
+            "actualQueryCost": 140,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1860,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": null,
+  "upstreamCalls": []
+}

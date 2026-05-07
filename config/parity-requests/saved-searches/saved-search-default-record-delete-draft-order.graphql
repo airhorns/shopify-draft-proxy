@@ -1,0 +1,9 @@
+mutation SavedSearchDefaultRecordDeleteDraftOrder($input: SavedSearchDeleteInput!) {
+  savedSearchDelete(input: $input) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+}

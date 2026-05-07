@@ -2595,15 +2595,33 @@ pub fn default_registry() -> List(RegistryEntry) {
       ),
     ),
     RegistryEntry(
+      name: "urlRedirect",
+      type_: Query,
+      domain: OnlineStore,
+      execution: OverlayRead,
+      implemented: True,
+      match_names: ["urlRedirect", "UrlRedirect"],
+      runtime_tests: [
+        "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "test/parity_test.gleam",
+      ],
+      support_notes: Some(
+        "Resolves URL redirects produced by renderable metaobject handle renames; general URL redirect mutation lifecycle remains outside this entry.",
+      ),
+    ),
+    RegistryEntry(
       name: "urlRedirects",
       type_: Query,
       domain: OnlineStore,
       execution: OverlayRead,
-      implemented: False,
+      implemented: True,
       match_names: ["urlRedirects", "UrlRedirects"],
-      runtime_tests: [],
+      runtime_tests: [
+        "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam",
+        "test/parity_test.gleam",
+      ],
       support_notes: Some(
-        "HAR-312 blocker: current live conformance credential returns ACCESS_DENIED for urlRedirects; local catalog/search/pageInfo support needs `read_online_store_navigation` capture.",
+        "Stages and reads URL redirects produced by renderable metaobject handle renames; general URL redirect mutation lifecycle remains outside this entry.",
       ),
     ),
     RegistryEntry(
@@ -3828,7 +3846,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages local inventory adjustments. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route while preserving 2025-01 fixture behavior.",
+        "Stages local inventory adjustments. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route while preserving 2025-01 fixture behavior. Unknown public adjustment reasons are rejected before staging.",
       ),
     ),
     RegistryEntry(
@@ -3840,7 +3858,22 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["inventorySetQuantities", "InventorySetQuantities"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities uses compareQuantity/ignoreCompareQuantity, mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route.",
+        "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities uses compareQuantity/ignoreCompareQuantity, mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route. Unknown public adjustment reasons are rejected before staging.",
+      ),
+    ),
+    RegistryEntry(
+      name: "inventorySetOnHandQuantities",
+      type_: Mutation,
+      domain: Products,
+      execution: StageLocally,
+      implemented: True,
+      match_names: [
+        "inventorySetOnHandQuantities",
+        "InventorySetOnHandQuantities",
+      ],
+      runtime_tests: ["test/parity_test.gleam"],
+      support_notes: Some(
+        "Deprecated Shopify inventory set-on-hand mutation modeled as an on_hand inventory quantity set over product-backed inventory levels. Unknown adjustment reasons are rejected locally before staging.",
       ),
     ),
     RegistryEntry(
@@ -3852,7 +3885,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["inventoryMoveQuantities", "InventoryMoveQuantities"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag.",
+        "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag. Unknown public adjustment reasons are rejected before staging.",
       ),
     ),
     RegistryEntry(
@@ -4429,7 +4462,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, name/type/description validation guardrails, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model.",
+        "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, name/type/description validation guardrails, and resetFieldOrder-driven read ordering when resetFieldOrder is provided inside the definition input. Top-level resetFieldOrder is rejected before staging. Entry migration/validation side effects remain outside the current local entry model.",
       ),
     ),
     RegistryEntry(
@@ -4456,7 +4489,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages standard metaobject definition enablement from the checked-in 2026-04 template catalog and returns RECORD_NOT_FOUND for unknown template types without runtime Shopify writes.",
+        "Locally stages standard metaobject definition enablement from the checked-in 2026-04 template catalog, returns RECORD_NOT_FOUND for unknown template types, rejects public enabledByShopify argument use, and records enabled-by-Shopify provenance for internal-visibility requests without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(

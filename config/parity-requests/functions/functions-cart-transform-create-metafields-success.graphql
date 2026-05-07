@@ -1,0 +1,38 @@
+mutation CartTransformCreateMetafields($functionId: String!, $blockOnFailure: Boolean, $metafields: [MetafieldInput!]) {
+  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {
+    cartTransform {
+      id
+      functionId
+      blockOnFailure
+      metafield(namespace: "bundles", key: "config") {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+        createdAt
+        updatedAt
+      }
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
