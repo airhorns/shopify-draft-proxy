@@ -74,17 +74,13 @@
       "query": "#graphql\n  mutation RefundAttributionValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        displayFulfillmentStatus\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalReceivedSet { shopMoney { amount currencyCode } }\n        totalRefundedSet { shopMoney { amount currencyCode } }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            quantity\n            currentQuantity\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n          }\n        }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        refunds {\n          id\n          note\n          totalRefundedSet { shopMoney { amount currencyCode } }\n        }\n        returns(first: 5) {\n          nodes { id status }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
         "order": {
-          "email": "hermes-refund-attribution-1778124832014@example.com",
+          "email": "hermes-refund-attribution-1778152329422@example.com",
           "note": "refundCreate attribution validation parity seed order",
-          "tags": [
-            "parity-probe",
-            "refund-create",
-            "attribution-validation"
-          ],
+          "tags": ["parity-probe", "refund-create", "attribution-validation"],
           "test": true,
           "lineItems": [
             {
-              "title": "Hermes refundable attribution validation item 1778124832014",
+              "title": "Hermes refundable attribution validation item 1778152329422",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -94,7 +90,7 @@
               },
               "requiresShipping": true,
               "taxable": false,
-              "sku": "hermes-refund-attribution-1778124832014"
+              "sku": "hermes-refund-attribution-1778152329422"
             }
           ],
           "transactions": [
@@ -118,8 +114,8 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8733530685746",
-              "name": "#1332",
+              "id": "gid://shopify/Order/8734031216946",
+              "name": "#1333",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "totalPriceSet": {
@@ -143,8 +139,8 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19309069566258",
-                    "title": "Hermes refundable attribution validation item 1778124832014",
+                    "id": "gid://shopify/LineItem/19309947289906",
+                    "title": "Hermes refundable attribution validation item 1778152329422",
                     "quantity": 1,
                     "currentQuantity": 1,
                     "originalUnitPriceSet": {
@@ -158,7 +154,7 @@
               },
               "transactions": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10421765177650",
+                  "id": "gid://shopify/OrderTransaction/10422549250354",
                   "kind": "SALE",
                   "status": "SUCCESS",
                   "gateway": "manual",
@@ -190,7 +186,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1974,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -199,10 +195,10 @@
     }
   },
   "invalidVariable": {
-    "query": "#graphql\n  mutation RefundCreateAttributionValidation($input: RefundInput!) {\n    refundCreate(input: $input) {\n      refund {\n        id\n      }\n      order {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "query": "#graphql\nmutation RefundCreateAttributionValidation($input: RefundInput!) {\n  refundCreate(input: $input) {\n    refund {\n      id\n    }\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
     "variables": {
       "input": {
-        "orderId": "gid://shopify/Order/8733530685746",
+        "orderId": "gid://shopify/Order/8734031216946",
         "pointOfSaleDeviceId": "9999999",
         "locationId": "gid://shopify/Location/0",
         "userId": 0,
@@ -216,13 +212,13 @@
           "locations": [
             {
               "line": 2,
-              "column": 46
+              "column": 44
             }
           ],
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "orderId": "gid://shopify/Order/8733530685746",
+              "orderId": "gid://shopify/Order/8734031216946",
               "pointOfSaleDeviceId": "9999999",
               "locationId": "gid://shopify/Location/0",
               "userId": 0,
@@ -230,27 +226,19 @@
             },
             "problems": [
               {
-                "path": [
-                  "pointOfSaleDeviceId"
-                ],
+                "path": ["pointOfSaleDeviceId"],
                 "explanation": "Field is not defined on RefundInput"
               },
               {
-                "path": [
-                  "locationId"
-                ],
+                "path": ["locationId"],
                 "explanation": "Field is not defined on RefundInput"
               },
               {
-                "path": [
-                  "userId"
-                ],
+                "path": ["userId"],
                 "explanation": "Field is not defined on RefundInput"
               },
               {
-                "path": [
-                  "transactionGroupId"
-                ],
+                "path": ["transactionGroupId"],
                 "explanation": "Field is not defined on RefundInput"
               }
             ]
@@ -260,7 +248,7 @@
     }
   },
   "invalidInline": {
-    "document": "mutation RefundCreateAttributionInlineProbe {\n  refundCreate(input: {\n    orderId: \"gid://shopify/Order/8733530685746\"\n    pointOfSaleDeviceId: \"9999999\"\n    locationId: \"gid://shopify/Location/0\"\n    userId: 0\n    transactionGroupId: \"0\"\n  }) {\n    refund {\n      id\n    }\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "document": "mutation RefundCreateAttributionInlineProbe {\n  refundCreate(input: {\n    orderId: \"gid://shopify/Order/8734031216946\"\n    pointOfSaleDeviceId: \"9999999\"\n    locationId: \"gid://shopify/Location/0\"\n    userId: 0\n    transactionGroupId: \"0\"\n  }) {\n    refund {\n      id\n    }\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {},
     "response": {
       "errors": [
@@ -272,12 +260,7 @@
               "column": 5
             }
           ],
-          "path": [
-            "mutation RefundCreateAttributionInlineProbe",
-            "refundCreate",
-            "input",
-            "pointOfSaleDeviceId"
-          ],
+          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "pointOfSaleDeviceId"],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -293,12 +276,7 @@
               "column": 5
             }
           ],
-          "path": [
-            "mutation RefundCreateAttributionInlineProbe",
-            "refundCreate",
-            "input",
-            "locationId"
-          ],
+          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "locationId"],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -314,12 +292,7 @@
               "column": 5
             }
           ],
-          "path": [
-            "mutation RefundCreateAttributionInlineProbe",
-            "refundCreate",
-            "input",
-            "userId"
-          ],
+          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "userId"],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -335,12 +308,7 @@
               "column": 5
             }
           ],
-          "path": [
-            "mutation RefundCreateAttributionInlineProbe",
-            "refundCreate",
-            "input",
-            "transactionGroupId"
-          ],
+          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "transactionGroupId"],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -354,13 +322,13 @@
   "downstreamRead": {
     "query": "#graphql\n  query OrderRefundReadParity($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFinancialStatus\n      displayFulfillmentStatus\n      refunds {\n        id\n        note\n        totalRefundedSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      returns(first: 5) {\n        nodes {\n          id\n          status\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/Order/8733530685746"
+      "id": "gid://shopify/Order/8734031216946"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8733530685746",
-          "name": "#1332",
+          "id": "gid://shopify/Order/8734031216946",
+          "name": "#1333",
           "displayFinancialStatus": "PAID",
           "displayFulfillmentStatus": "UNFULFILLED",
           "refunds": [],
@@ -375,7 +343,7 @@
           },
           "transactions": [
             {
-              "id": "gid://shopify/OrderTransaction/10421765177650",
+              "id": "gid://shopify/OrderTransaction/10422549250354",
               "kind": "SALE",
               "status": "SUCCESS",
               "gateway": "manual",
@@ -415,7 +383,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/133c41b1-4df4-4d8e-a3d6-21e2a7ff8edc",
+              "id": "gid://shopify/Job/202962cd-6f06-4efa-9465-9377ba133b1f",
               "done": false
             },
             "orderCancelUserErrors": [],
@@ -440,7 +408,7 @@
     {
       "operationName": "OrderRefundReadParity",
       "variables": {
-        "id": "gid://shopify/Order/8733530685746"
+        "id": "gid://shopify/Order/8734031216946"
       },
       "query": "captured downstream order read after refundCreate attribution validation rejection",
       "response": {
@@ -448,8 +416,8 @@
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8733530685746",
-              "name": "#1332",
+              "id": "gid://shopify/Order/8734031216946",
+              "name": "#1333",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "refunds": [],
@@ -464,7 +432,7 @@
               },
               "transactions": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10421765177650",
+                  "id": "gid://shopify/OrderTransaction/10422549250354",
                   "kind": "SALE",
                   "status": "SUCCESS",
                   "gateway": "manual",

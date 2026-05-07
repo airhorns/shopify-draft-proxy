@@ -86,20 +86,20 @@ const orderCreateMutation = `#graphql
 `;
 
 const refundCreateAttributionValidationMutation = `#graphql
-  mutation RefundCreateAttributionValidation($input: RefundInput!) {
-    refundCreate(input: $input) {
-      refund {
-        id
-      }
-      order {
-        id
-      }
-      userErrors {
-        field
-        message
-      }
+mutation RefundCreateAttributionValidation($input: RefundInput!) {
+  refundCreate(input: $input) {
+    refund {
+      id
+    }
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
     }
   }
+}
 `;
 
 const orderReadAfterRefundAttributionRejection = `#graphql
