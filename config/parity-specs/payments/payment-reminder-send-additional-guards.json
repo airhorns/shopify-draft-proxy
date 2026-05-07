@@ -1,0 +1,48 @@
+{
+  "scenarioId": "payment-reminder-send-additional-guards",
+  "operationNames": ["paymentReminderSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases.missingEmail.request.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-contact-email",
+        "capturePath": "$.cases.missingEmail.response.data.paymentReminderSend",
+        "proxyPath": "$.data.paymentReminderSend"
+      },
+      {
+        "name": "rate-limit-first-send",
+        "capturePath": "$.cases.rateFirst.response.data.paymentReminderSend",
+        "proxyPath": "$.data.paymentReminderSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.rateFirst.request.variables"
+        }
+      },
+      {
+        "name": "rate-limit-second-send",
+        "capturePath": "$.cases.rateSecond.response.data.paymentReminderSend",
+        "proxyPath": "$.data.paymentReminderSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.rateSecond.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Executable live parity for the public Admin-reproducible paymentReminderSend guard branches added after the baseline eligibility scenario: blank order email and one reminder per order per 24 hours. Selling-plan, capture-at-fulfillment, and unsent PaymentCollection guards depend on internal order/payment state not currently constructible through the public conformance harness; local runtime tests cover those branches with explicit order-side state hints while preserving local-only reminder staging."
+}

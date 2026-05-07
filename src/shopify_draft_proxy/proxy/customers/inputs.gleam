@@ -1538,6 +1538,7 @@ pub fn record_mutation_log(
   identity: SyntheticIdentityRegistry,
   request_path: String,
   document: String,
+  variables: Dict(String, root_field.ResolvedValue),
   staged_ids: List(String),
   roots: List(String),
 ) -> #(Store, SyntheticIdentityRegistry) {
@@ -1553,7 +1554,7 @@ pub fn record_mutation_log(
       operation_name: None,
       path: request_path,
       query: document,
-      variables: dict.new(),
+      variables: variables,
       staged_resource_ids: staged_ids,
       status: store_types.Staged,
       interpreted: store_types.InterpretedMetadata(

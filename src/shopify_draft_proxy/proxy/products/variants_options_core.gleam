@@ -59,6 +59,13 @@ import shopify_draft_proxy/state/types.{
 
 // ===== from variants_l01 =====
 @internal
+pub type ReorderReference {
+  ReorderById
+  ReorderByName
+  ReorderMissing
+}
+
+@internal
 pub fn product_searchable_variants(
   store: Store,
   product_id: String,
@@ -777,10 +784,17 @@ pub fn unknown_option_errors(
 pub fn take_matching_option(
   options: List(ProductOptionRecord),
   input: Dict(String, ResolvedValue),
-) -> #(Option(ProductOptionRecord), List(ProductOptionRecord)) {
+) -> #(Option(ProductOptionRecord), List(ProductOptionRecord), ReorderReference) {
   let option_id = read_string_field(input, "id")
   let option_name = read_string_field(input, "name")
-  take_matching_option_loop(options, option_id, option_name, [])
+  let reference = case option_id, option_name {
+    Some(_), _ -> ReorderById
+    None, Some(_) -> ReorderByName
+    None, None -> ReorderMissing
+  }
+  let #(matched, remaining) =
+    take_matching_option_loop(options, option_id, option_name, [])
+  #(matched, remaining, reference)
 }
 
 @internal

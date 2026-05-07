@@ -120,6 +120,7 @@ fn make_shop(primary_host: String, myshopify_domain: String) -> ShopRecord {
       live_view: False,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: False,
+      b2b_deposits_enabled: True,
       discounts_by_market_enabled: False,
       markets_granted: 50,
       sells_subscriptions: False,

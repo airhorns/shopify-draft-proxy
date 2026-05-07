@@ -1,6 +1,6 @@
 {
   "scenarioId": "bulk-operation-run-query-validators",
-  "capturedAt": "2026-05-05T05:06:13.676Z",
+  "capturedAt": "2026-05-07T14:23:56.108Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "validations": {
@@ -68,7 +68,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1980,
+              "currentlyAvailable": 1973,
               "restoreRate": 100
             }
           }
@@ -101,7 +101,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1971,
+              "currentlyAvailable": 1982,
               "restoreRate": 100
             }
           }
@@ -134,7 +134,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1954,
+              "currentlyAvailable": 1963,
               "restoreRate": 100
             }
           }
@@ -167,7 +167,73 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1963,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidOperationType": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\nmutation {\n  productCreate(input: { title: \"Bulk validator invalid operation type\" }) {\n    product {\n      id\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Invalid operation type. Only `query` operations are supported.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1946,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "connectionWithinList": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  orders {\n    edges {\n      node {\n        id\n        fulfillments {\n          events {\n            edges {\n              node {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Queries that contain a connection field within a list field are not currently supported.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1940,
               "restoreRate": 100
             }
           }
