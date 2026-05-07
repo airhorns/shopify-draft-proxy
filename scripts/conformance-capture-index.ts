@@ -3003,6 +3003,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-article-page-blog-length-validations',
+    scriptPath: 'scripts/capture-online-store-length-validations-conformance.ts',
+    purpose:
+      'Online store article, blog, and page title/handle/body length validation branches plus public schema evidence for unsupported feedburner input fields.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}article-page-blog-length-validations.json`,
+      'config/parity-specs/online-store/article-page-blog-length-validations.json',
+      'config/parity-requests/online-store/article-page-blog-length-validations-article-create.graphql',
+      'config/parity-requests/online-store/article-page-blog-length-validations-article-update.graphql',
+      'config/parity-requests/online-store/article-page-blog-length-validations-blog-create.graphql',
+      'config/parity-requests/online-store/article-page-blog-length-validations-blog-update.graphql',
+      'config/parity-requests/online-store/article-page-blog-length-validations-page-create.graphql',
+      'config/parity-requests/online-store/article-page-blog-length-validations-page-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog, page, and article for update validation; invalid length attempts do not create records, and cleanup deletes the setup article, page, and blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin API 2025-01 rejects feedburner on BlogCreateInput and BlogUpdateInput before resolver execution; executable parity covers currently exposed title, handle, and body branches.',
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-invalid-publish-date',
     scriptPath: 'scripts/capture-online-store-invalid-publish-date-conformance.ts',
     purpose:

@@ -140,6 +140,10 @@ fn meta_log_request() -> Request {
   Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
 }
 
+fn repeated(value: String, count: Int) -> String {
+  string.repeat(value, count)
+}
+
 fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
   let #(Response(status: status, body: body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(query))
@@ -262,6 +266,297 @@ pub fn content_update_rejects_publishing_with_future_publish_date_test() {
   assert article_create_log.status == store_types.Staged
   assert article_update_log.status == store_types.Failed
   assert article_update_log.staged_resource_ids == []
+}
+
+pub fn content_create_rejects_length_and_byte_size_before_staging_test() {
+  let long_256 = repeated("x", 256)
+  let long_266 = repeated("x", 266)
+  let long_267 = repeated("x", 267)
+  let article_body = repeated("a", 1_048_577)
+  let page_body = repeated("a", 524_288)
+
+  let #(Response(status: blog_status, body: blog_body, ..), blog_proxy) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { blogCreate(blog: { title: \""
+        <> long_256
+        <> "\" }) { blog { id } userErrors { field message code } } }",
+      ),
+    )
+  assert blog_status == 200
+  assert json.to_string(blog_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert store.list_effective_online_store_content(blog_proxy.store, "blog")
+    |> list.length
+    == 0
+  let assert [blog_log] = store.get_log(blog_proxy.store)
+  assert blog_log.status == store_types.Failed
+  assert blog_log.staged_resource_ids == []
+
+  let #(
+    Response(status: blog_feedburner_status, body: blog_feedburner_body, ..),
+    blog_proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { blogCreate(blog: { title: \"Blog\", feedburner: \""
+        <> long_256
+        <> "\" }) { blog { id } userErrors { field message code } } }",
+      ),
+    )
+  assert blog_feedburner_status == 200
+  assert json.to_string(blog_feedburner_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"feedburner\"],\"message\":\"Feedburner is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert store.list_effective_online_store_content(blog_proxy.store, "blog")
+    |> list.length
+    == 0
+
+  let #(Response(status: page_status, body: page_body_json, ..), page_proxy) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { pageCreate(page: { title: \"Page\", handle: \""
+        <> long_256
+        <> "\" }) { page { id } userErrors { field message code } } }",
+      ),
+    )
+  assert page_status == 200
+  assert json.to_string(page_body_json)
+    == "{\"data\":{\"pageCreate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\",\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert store.list_effective_online_store_content(page_proxy.store, "page")
+    |> list.length
+    == 0
+
+  let #(
+    Response(status: page_body_status, body: page_too_big_body, ..),
+    page_proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { pageCreate(page: { title: \"Page\", body: \""
+        <> page_body
+        <> "\" }) { page { id } userErrors { field message code } } }",
+      ),
+    )
+  assert page_body_status == 200
+  assert json.to_string(page_too_big_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\",\"body\"],\"message\":\"Content is too big (maximum is 512 KB)\",\"code\":\"TOO_BIG\"}]}}}"
+  assert store.list_effective_online_store_content(page_proxy.store, "page")
+    |> list.length
+    == 0
+
+  let #(Response(status: setup_blog_status, body: setup_blog_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy(),
+      graphql_request(
+        "mutation { blogCreate(blog: { title: \"Length Blog\" }) { blog { id } userErrors { field message code } } }",
+      ),
+    )
+  assert setup_blog_status == 200
+  assert json.to_string(setup_blog_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+  let #(
+    Response(status: article_handle_status, body: article_handle_body, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { articleCreate(article: { title: \"Article\", handle: \""
+        <> long_266
+        <> "\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Author\" } }) { article { id } userErrors { field message code } } }",
+      ),
+    )
+  assert article_handle_status == 200
+  assert json.to_string(article_handle_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"handle\"],\"message\":\"Handle is too long (maximum is 265 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+  let assert [_setup_blog_log, article_handle_log] = store.get_log(proxy.store)
+  assert article_handle_log.status == store_types.Failed
+  assert article_handle_log.staged_resource_ids == []
+
+  let #(
+    Response(status: article_title_status, body: article_title_json, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { articleCreate(article: { title: \""
+        <> long_267
+        <> "\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Author\" } }) { article { id } userErrors { field message code } } }",
+      ),
+    )
+  assert article_title_status == 200
+  assert json.to_string(article_title_json)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+
+  let #(
+    Response(status: article_body_status, body: article_body_json, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { articleCreate(article: { title: \"Article\", body: \""
+        <> article_body
+        <> "\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Author\" } }) { article { id } userErrors { field message code } } }",
+      ),
+    )
+  assert article_body_status == 200
+  assert json.to_string(article_body_json)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"body\"],\"message\":\"Content is too big (maximum is 1 MB)\",\"code\":null}]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+}
+
+pub fn content_update_rejects_length_and_byte_size_without_mutating_state_test() {
+  let long_256 = repeated("x", 256)
+  let long_266 = repeated("x", 266)
+  let article_body = repeated("a", 1_048_577)
+  let page_body = repeated("a", 524_288)
+
+  let #(page_create_body, page_proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { pageCreate(page: { title: \"Original Page\" }) { page { id title } userErrors { field message code } } }",
+    )
+  assert page_create_body
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"Original Page\"},\"userErrors\":[]}}}"
+
+  let #(page_update_body, page_proxy) =
+    run_graphql(
+      page_proxy,
+      "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { body: \""
+        <> page_body
+        <> "\" }) { page { id body } userErrors { field message code } } }",
+    )
+  assert page_update_body
+    == "{\"data\":{\"pageUpdate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\",\"body\"],\"message\":\"Content is too big (maximum is 512 KB)\",\"code\":\"TOO_BIG\"}]}}}"
+
+  let #(page_title_update_body, page_proxy) =
+    run_graphql(
+      page_proxy,
+      "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { title: \""
+        <> long_256
+        <> "\" }) { page { id title } userErrors { field message code } } }",
+    )
+  assert page_title_update_body
+    == "{\"data\":{\"pageUpdate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+
+  let #(page_handle_update_body, page_proxy) =
+    run_graphql(
+      page_proxy,
+      "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { handle: \""
+        <> long_256
+        <> "\" }) { page { id handle } userErrors { field message code } } }",
+    )
+  assert page_handle_update_body
+    == "{\"data\":{\"pageUpdate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\",\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+
+  let assert [page_record] =
+    store.list_effective_online_store_content(page_proxy.store, "page")
+  assert page_record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
+  let assert [page_create_log, page_body_log, page_title_log, page_handle_log] =
+    store.get_log(page_proxy.store)
+  assert page_create_log.status == store_types.Staged
+  assert page_body_log.status == store_types.Failed
+  assert page_body_log.staged_resource_ids == []
+  assert page_title_log.status == store_types.Failed
+  assert page_title_log.staged_resource_ids == []
+  assert page_handle_log.status == store_types.Failed
+  assert page_handle_log.staged_resource_ids == []
+
+  let #(blog_create_body, blog_proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { blogCreate(blog: { title: \"Original Blog\" }) { blog { id title } userErrors { field message code } } }",
+    )
+  assert blog_create_body
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Original Blog\"},\"userErrors\":[]}}}"
+
+  let #(blog_title_update_body, blog_proxy) =
+    run_graphql(
+      blog_proxy,
+      "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { title: \""
+        <> long_256
+        <> "\" }) { blog { id title } userErrors { field message code } } }",
+    )
+  assert blog_title_update_body
+    == "{\"data\":{\"blogUpdate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+
+  let #(blog_update_body, blog_proxy) =
+    run_graphql(
+      blog_proxy,
+      "mutation { blogUpdate(id: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { handle: \""
+        <> long_256
+        <> "\" }) { blog { id handle } userErrors { field message code } } }",
+    )
+  assert blog_update_body
+    == "{\"data\":{\"blogUpdate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  let assert [blog_record] =
+    store.list_effective_online_store_content(blog_proxy.store, "blog")
+  assert blog_record.id == "gid://shopify/Blog/1?shopify-draft-proxy=synthetic"
+  let assert [blog_create_log, blog_title_log, blog_update_log] =
+    store.get_log(blog_proxy.store)
+  assert blog_create_log.status == store_types.Staged
+  assert blog_title_log.status == store_types.Failed
+  assert blog_title_log.staged_resource_ids == []
+  assert blog_update_log.status == store_types.Failed
+  assert blog_update_log.staged_resource_ids == []
+
+  let proxy = proxy_with_basic_article()
+  let #(article_title_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { title: \""
+        <> long_256
+        <> "\" }) { article { id title } userErrors { field message code } } }",
+    )
+  assert article_title_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+
+  let #(article_handle_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { handle: \""
+        <> long_266
+        <> "\" }) { article { id handle } userErrors { field message code } } }",
+    )
+  assert article_handle_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"handle\"],\"message\":\"Handle is too long (maximum is 265 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+
+  let #(article_body_update_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { body: \""
+        <> article_body
+        <> "\" }) { article { id body } userErrors { field message code } } }",
+    )
+  assert article_body_update_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"body\"],\"message\":\"Content is too big (maximum is 1 MB)\",\"code\":null}]}}}"
+  let assert [article_record] =
+    store.list_effective_online_store_content(proxy.store, "article")
+  assert article_record.id
+    == "gid://shopify/Article/3?shopify-draft-proxy=synthetic"
+  let assert [_blog_log, article_create_log, title_log, handle_log, body_log] =
+    store.get_log(proxy.store)
+  assert article_create_log.status == store_types.Staged
+  assert title_log.status == store_types.Failed
+  assert title_log.staged_resource_ids == []
+  assert handle_log.status == store_types.Failed
+  assert handle_log.staged_resource_ids == []
+  assert body_log.status == store_types.Failed
+  assert body_log.staged_resource_ids == []
 }
 
 pub fn comment_moderation_uses_core_status_enum_values_test() {
