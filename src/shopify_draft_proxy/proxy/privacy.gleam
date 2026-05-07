@@ -431,18 +431,28 @@ fn is_valid_data_sale_email(email: String) -> Bool {
 
 fn sanitize_data_sale_email(email: String) -> String {
   email
-  |> string.to_graphemes
-  |> list.filter(fn(grapheme) {
-    !is_data_sale_email_removed_whitespace(grapheme)
+  |> string.to_utf_codepoints
+  |> list.filter(fn(codepoint) {
+    !is_data_sale_email_removed_whitespace_codepoint(
+      string.utf_codepoint_to_int(codepoint),
+    )
   })
-  |> string.concat
+  |> string.from_utf_codepoints
 }
 
-fn is_data_sale_email_removed_whitespace(grapheme: String) -> Bool {
-  // Live Admin 2025-01 captures show spaces and newlines are stripped before
-  // validation, while tabs still produce Shopify's FAILED userError. Keep this
-  // intentionally narrower than generic `string.trim`.
-  grapheme == " " || grapheme == "\n" || grapheme == "\r"
+fn is_data_sale_email_removed_whitespace_codepoint(codepoint: Int) -> Bool {
+  // Mirrors Shopify Core
+  // `components/customers/app/models/customers/helpers/sanitization_helper.rb`
+  // `remove_whitespace_characters` for customer email normalization, narrowed
+  // to public Admin API capture: U+FFFD and tab both return FAILED userErrors.
+  list.contains(
+    [
+      0, 10, 11, 13, 32, 160, 6158, 8192, 8193, 8194, 8195, 8196, 8197, 8198,
+      8199, 8200, 8201, 8202, 8203, 8204, 8205, 8239, 8287, 8288, 9248, 9250,
+      9251, 10_240, 12_644, 12_288, 65_279,
+    ],
+    codepoint,
+  )
 }
 
 fn local_matches_data_sale_email_pattern(local: String) -> Bool {

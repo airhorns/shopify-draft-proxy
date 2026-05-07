@@ -2268,6 +2268,7 @@ HAR-255 capture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 sett
 - repeating the same opt-out is idempotent and returns the same `customerId` with no `userErrors`
 - invalid email strings such as `not-an-email` and `""` return payload `customerId: null` plus `userErrors[{ field: null, message: "Data sale opt out failed.", code: "FAILED" }]`
 - a valid email with no existing customer creates a customer and returns its `customerId`; the created customer reads back with the requested email and `dataSaleOptOut: true`
+- Shopify strips a wider customer email whitespace set before `dataSaleOptOut` validation than the original 2025-01 space/LF/CR capture covered. The live Unicode-whitespace capture confirms NBSP, zero-width joiner classes, IDEOGRAPHIC SPACE, BOM, NUL, VT, and the other public Admin API-accepted Core `remove_whitespace_characters` codepoints are stripped before validation; tab and U+FFFD replacement characters remain rejected with the captured `FAILED` shape.
 - the immediate `customers(query: "email:<address>", sortKey: UPDATED_AT, reverse: true)` slice returned an empty connection for opted-out disposable customers, so do not infer general customer-search visibility from this privacy mutation without broader evidence
 
 Practical rule for the proxy:
