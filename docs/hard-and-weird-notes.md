@@ -3378,3 +3378,28 @@ Practical rule:
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
+
+## 81. validationCreate title fallback can use the raw Function extension name
+
+A live capture against `harry-test-heelo.myshopify.com` on Admin GraphQL
+2026-04 created validations through the released `conformance-validation`
+Function with omitted, explicit `null`, and explicit empty-string `title`
+inputs.
+
+Observed behavior:
+
+- omitted `title` persisted as `t:name`
+- explicit `title: null` also persisted as `t:name`
+- explicit `title: ""` persisted as the empty string
+- `validation(id:)` and `validations(first:)` returned the same persisted
+  titles after create
+- the same shop's `shopifyFunctions` Admin read returned
+  `title: "conformance-validation"` for the Function, while the checked-in
+  extension TOML uses `name = "t:name"` and a locale value of
+  `conformance-validation`
+
+Practical rule:
+
+- when local Function metadata carries the resolver title, omitted and `null`
+  validationCreate title input should fall back to that value; do not treat
+  empty string as missing input
