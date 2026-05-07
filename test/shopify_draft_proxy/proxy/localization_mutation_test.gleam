@@ -18,7 +18,7 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   CapturedObject, CapturedString, MarketRecord, ShopLocaleRecord,
-  TranslationRecord,
+  TranslationRecord, WebPresenceRecord,
 }
 
 fn run_outcome(
@@ -92,6 +92,20 @@ fn seed_market(store_in: store.Store, id: String, name: String) -> store.Store {
         #("__typename", CapturedString("Market")),
         #("id", CapturedString(id)),
         #("name", CapturedString(name)),
+      ]),
+    ),
+  ])
+}
+
+fn seed_web_presence(store_in: store.Store, id: String) -> store.Store {
+  store.upsert_base_web_presences(store_in, [
+    WebPresenceRecord(
+      id: id,
+      cursor: Some(id),
+      data: CapturedObject([
+        #("__typename", CapturedString("MarketWebPresence")),
+        #("id", CapturedString(id)),
+        #("defaultLocale", CapturedObject([#("locale", CapturedString("en"))])),
       ]),
     ),
   ])
@@ -181,7 +195,7 @@ pub fn shop_locale_enable_projects_market_web_presences_test() {
   let market_web_presence_id = "gid://shopify/MarketWebPresence/1"
   let outcome =
     run_outcome(
-      store.new(),
+      store.new() |> seed_web_presence(market_web_presence_id),
       "mutation { shopLocaleEnable(locale: \"fr\", marketWebPresenceIds: [\""
         <> market_web_presence_id
         <> "\"]) { shopLocale { locale published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field } } }",
@@ -198,6 +212,35 @@ pub fn shop_locale_enable_projects_market_web_presences_test() {
     )
   assert json.to_string(read_data)
     == "{\"shopLocales\":[{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]}]}"
+}
+
+pub fn shop_locale_enable_filters_unknown_market_web_presence_ids_test() {
+  let known_id = "gid://shopify/MarketWebPresence/known"
+  let unknown_id = "gid://shopify/MarketWebPresence/9999999999"
+  let outcome =
+    run_outcome(
+      store.new() |> seed_web_presence(known_id),
+      "mutation { shopLocaleEnable(locale: \"fr\", marketWebPresenceIds: [\""
+        <> known_id
+        <> "\", \""
+        <> unknown_id
+        <> "\"]) { shopLocale { locale marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/known\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]},\"userErrors\":[]}}}"
+
+  let assert Some(record) = store.get_effective_shop_locale(outcome.store, "fr")
+  assert record.market_web_presence_ids == [known_id]
+
+  let assert Ok(read_data) =
+    localization.handle_localization_query(
+      outcome.store,
+      "{ shopLocales { locale marketWebPresences { id __typename defaultLocale { locale } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"shopLocales\":[{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/known\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]}]}"
 }
 
 pub fn shop_locale_enable_duplicate_locale_returns_taken_test() {
@@ -217,7 +260,9 @@ pub fn shop_locale_enable_duplicate_locale_returns_taken_test() {
 pub fn shop_locale_query_projects_staged_market_web_presences_test() {
   let market_web_presence_id = "gid://shopify/MarketWebPresence/1"
   let s =
-    seed_shop_locale_with_market_web_presences(store.new(), "fr", False, True, [
+    store.new()
+    |> seed_web_presence(market_web_presence_id)
+    |> seed_shop_locale_with_market_web_presences("fr", False, True, [
       market_web_presence_id,
     ])
 
@@ -297,7 +342,7 @@ pub fn shop_locale_update_market_web_presence_only_allows_missing_locale_test() 
   let market_web_presence_id = "gid://shopify/MarketWebPresence/1"
   let outcome =
     run_outcome(
-      store.new(),
+      store.new() |> seed_web_presence(market_web_presence_id),
       "mutation { shopLocaleUpdate(locale: \"tr\", shopLocale: { marketWebPresenceIds: [\""
         <> market_web_presence_id
         <> "\"] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } } }",
@@ -307,6 +352,40 @@ pub fn shop_locale_update_market_web_presence_only_allows_missing_locale_test() 
   assert outcome.staged_resource_ids == ["ShopLocale/tr"]
   let assert Some(record) = store.get_effective_shop_locale(outcome.store, "tr")
   assert record.market_web_presence_ids == [market_web_presence_id]
+}
+
+pub fn shop_locale_update_filters_unknown_market_web_presence_ids_test() {
+  let known_id = "gid://shopify/MarketWebPresence/known"
+  let unknown_id = "gid://shopify/MarketWebPresence/9999999999"
+  let s =
+    store.new()
+    |> seed_web_presence(known_id)
+    |> seed_shop_locale("fr", False, True)
+
+  let outcome =
+    run_outcome(
+      s,
+      "mutation { shopLocaleUpdate(locale: \"fr\", shopLocale: { marketWebPresenceIds: [\""
+        <> known_id
+        <> "\", \""
+        <> unknown_id
+        <> "\"] }) { shopLocale { locale marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/known\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]},\"userErrors\":[]}}}"
+
+  let assert Some(record) = store.get_effective_shop_locale(outcome.store, "fr")
+  assert record.market_web_presence_ids == [known_id]
+
+  let assert Ok(read_data) =
+    localization.handle_localization_query(
+      outcome.store,
+      "{ shopLocales { locale marketWebPresences { id __typename defaultLocale { locale } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"shopLocales\":[{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/known\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]}]}"
 }
 
 pub fn shop_locale_update_primary_unpublish_returns_user_error_test() {

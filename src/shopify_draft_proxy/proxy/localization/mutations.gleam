@@ -242,7 +242,7 @@ fn handle_shop_locale_enable(
       let market_web_presence_ids = case
         read_optional_string_array(args, "marketWebPresenceIds")
       {
-        Some(ids) -> ids
+        Some(ids) -> known_market_web_presence_ids(store_in, ids)
         None -> []
       }
       let existing = serializers.get_shop_locale(store_in, locale)
@@ -356,7 +356,7 @@ fn handle_shop_locale_update(
       let market_web_presence_ids = case
         read_optional_string_array(input, "marketWebPresenceIds")
       {
-        Some(ids) -> ids
+        Some(ids) -> known_market_web_presence_ids(store_in, ids)
         None -> current.market_web_presence_ids
       }
       let published = case published_input {
@@ -446,7 +446,7 @@ fn handle_shop_locale_update(
           let market_web_presence_ids = case
             read_optional_string_array(input, "marketWebPresenceIds")
           {
-            Some(ids) -> ids
+            Some(ids) -> known_market_web_presence_ids(store_in, ids)
             None -> []
           }
           let name =
@@ -484,6 +484,18 @@ fn handle_shop_locale_update(
       }
     }
   }
+}
+
+fn known_market_web_presence_ids(
+  store_in: Store,
+  ids: List(String),
+) -> List(String) {
+  list.filter(ids, fn(id) {
+    case store.get_effective_web_presence_by_id(store_in, id) {
+      Some(_) -> True
+      None -> False
+    }
+  })
 }
 
 // shopLocaleDisable

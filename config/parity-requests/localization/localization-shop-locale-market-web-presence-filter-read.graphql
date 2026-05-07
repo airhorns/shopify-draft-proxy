@@ -1,0 +1,12 @@
+query LocalizationShopLocaleMarketWebPresenceFilterRead {
+  shopLocales {
+    locale
+    marketWebPresences {
+      id
+      __typename
+      defaultLocale {
+        locale
+      }
+    }
+  }
+}

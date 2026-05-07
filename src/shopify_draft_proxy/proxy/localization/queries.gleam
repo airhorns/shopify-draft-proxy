@@ -17,8 +17,10 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{
-  type LocaleRecord, type ShopLocaleRecord, LocaleRecord, ShopLocaleRecord,
-  TranslationRecord,
+  type CapturedJsonValue, type LocaleRecord, type ShopLocaleRecord,
+  type WebPresenceRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, LocaleRecord,
+  ShopLocaleRecord, TranslationRecord, WebPresenceRecord,
 }
 
 @internal
@@ -235,6 +237,7 @@ fn hydrate_from_upstream_response(
     Some(data) ->
       store_in
       |> hydrate_available_locales(data)
+      |> hydrate_shop_locale_web_presences(data)
       |> hydrate_shop_locales(data)
       |> hydrate_translatable_resources(data)
     None -> store_in
@@ -260,6 +263,21 @@ fn hydrate_shop_locales(store_in: Store, data: commit.JsonValue) -> Store {
   case locales {
     [] -> store_in
     _ -> store.upsert_base_shop_locales(store_in, locales)
+  }
+}
+
+fn hydrate_shop_locale_web_presences(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let records =
+    list.append(
+      web_presence_records_from_shop_locale_field(data, "allShopLocales"),
+      web_presence_records_from_shop_locale_field(data, "shopLocales"),
+    )
+  case records {
+    [] -> store_in
+    _ -> store.upsert_base_web_presences(store_in, records)
   }
 }
 
@@ -391,6 +409,100 @@ fn market_web_presence_ids_from_json(value: commit.JsonValue) -> List(String) {
   }
 }
 
+fn web_presence_records_from_shop_locale_field(
+  data: commit.JsonValue,
+  key: String,
+) -> List(WebPresenceRecord) {
+  case json_get(data, key) {
+    Some(commit.JsonArray(locales)) -> {
+      let default_locale = primary_locale_from_shop_locale_items(locales)
+      list.flat_map(locales, fn(locale) {
+        web_presence_records_from_shop_locale(locale, default_locale)
+      })
+    }
+    _ -> []
+  }
+}
+
+fn web_presence_records_from_shop_locale(
+  value: commit.JsonValue,
+  default_locale: String,
+) -> List(WebPresenceRecord) {
+  case json_get(value, "marketWebPresences") {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        web_presence_record_from_json(item, default_locale)
+      })
+    _ -> []
+  }
+}
+
+fn web_presence_record_from_json(
+  value: commit.JsonValue,
+  default_locale: String,
+) -> Result(WebPresenceRecord, Nil) {
+  case json_get_string(value, "id") {
+    Some(id) ->
+      Ok(WebPresenceRecord(
+        id: id,
+        cursor: None,
+        data: captured_from_json_value(web_presence_json_with_defaults(
+          value,
+          default_locale,
+        )),
+      ))
+    None -> Error(Nil)
+  }
+}
+
+fn primary_locale_from_shop_locale_items(
+  locales: List(commit.JsonValue),
+) -> String {
+  case
+    list.find(locales, fn(value) {
+      option.unwrap(json_get_bool(value, "primary"), False)
+    })
+  {
+    Ok(value) -> json_get_string(value, "locale") |> option.unwrap("en")
+    Error(_) -> "en"
+  }
+}
+
+fn web_presence_json_with_defaults(
+  value: commit.JsonValue,
+  default_locale: String,
+) -> commit.JsonValue {
+  case value {
+    commit.JsonObject(fields) -> {
+      let fields =
+        ensure_json_object_field(
+          fields,
+          "__typename",
+          commit.JsonString("MarketWebPresence"),
+        )
+      let fields =
+        ensure_json_object_field(
+          fields,
+          "defaultLocale",
+          commit.JsonObject([#("locale", commit.JsonString(default_locale))]),
+        )
+      commit.JsonObject(fields)
+    }
+    _ -> value
+  }
+}
+
+fn ensure_json_object_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+  value: commit.JsonValue,
+) -> List(#(String, commit.JsonValue)) {
+  case list.any(fields, fn(field) { field.0 == key }) {
+    True -> fields
+    False -> list.append(fields, [#(key, value)])
+  }
+}
+
 fn non_null_json_values(
   values: List(commit.JsonValue),
 ) -> List(commit.JsonValue) {
@@ -400,6 +512,24 @@ fn non_null_json_values(
       _ -> True
     }
   })
+}
+
+fn captured_from_json_value(value: commit.JsonValue) -> CapturedJsonValue {
+  case value {
+    commit.JsonNull -> CapturedNull
+    commit.JsonBool(value) -> CapturedBool(value)
+    commit.JsonInt(value) -> CapturedInt(value)
+    commit.JsonFloat(value) -> CapturedFloat(value)
+    commit.JsonString(value) -> CapturedString(value)
+    commit.JsonArray(items) ->
+      CapturedArray(list.map(items, captured_from_json_value))
+    commit.JsonObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, captured_from_json_value(pair.1))
+        }),
+      )
+  }
 }
 
 fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
