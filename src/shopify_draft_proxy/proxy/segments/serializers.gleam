@@ -137,7 +137,8 @@ fn serialize_segment_by_id(
   }
 }
 
-fn project_segment(
+@internal
+pub fn project_segment(
   record: SegmentRecord,
   field: Selection,
   fragments: FragmentMap,

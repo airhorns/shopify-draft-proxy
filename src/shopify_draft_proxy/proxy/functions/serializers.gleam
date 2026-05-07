@@ -236,7 +236,8 @@ fn serialize_record_connection(
 // Source projections
 // ---------------------------------------------------------------------------
 
-fn project_validation(
+@internal
+pub fn project_validation(
   store: Store,
   record: ValidationRecord,
   field: Selection,
