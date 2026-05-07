@@ -74,6 +74,9 @@ fn ready_image() -> FileRecord {
     image_url: Some("https://cdn.example.com/seed.jpg"),
     image_width: None,
     image_height: None,
+    preview_image_url: Some("https://cdn.example.com/seed.jpg"),
+    preview_image_width: None,
+    preview_image_height: None,
     update_failure_acknowledged_at: None,
   )
 }
@@ -90,6 +93,9 @@ fn ready_video() -> FileRecord {
     image_url: None,
     image_width: None,
     image_height: None,
+    preview_image_url: None,
+    preview_image_width: None,
+    preview_image_height: None,
     update_failure_acknowledged_at: None,
   )
 }
@@ -699,6 +705,65 @@ pub fn file_update_preserves_ready_status_after_success_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Updated alt\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
+}
+
+pub fn file_update_rejects_long_alt_test() {
+  let long_alt = string.repeat("a", 513)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", alt: \""
+        <> long_alt
+        <> "\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"alt\"],\"message\":\"The alt value exceeds the maximum limit of 512 characters.\",\"code\":\"ALT_VALUE_LIMIT_EXCEEDED\"}]}}}"
+}
+
+pub fn file_update_rejects_non_url_sources_with_captured_error_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"not-a-url\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"previewImageSource\"],\"message\":\"Invalid image source url value provided\",\"code\":\"INVALID_IMAGE_SOURCE_URL\"}]}}}"
+}
+
+pub fn file_update_rejects_over_length_original_source_with_top_level_error_test() {
+  let long_url =
+    "https://cdn.example.com/" <> string.repeat("a", 3000) <> ".jpg"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \""
+        <> long_url
+        <> "\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"originalSource is too long (maximum is 2048)\",\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"},\"path\":[\"fileUpdate\"]}],\"data\":{\"fileUpdate\":null}}"
+}
+
+pub fn file_update_does_not_length_check_preview_image_source_test() {
+  let long_url =
+    "https://cdn.example.com/" <> string.repeat("a", 3000) <> ".jpg"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", previewImageSource: \""
+        <> long_url
+        <> "\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Seed\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
 }
 
 pub fn staged_uploads_create_requires_video_file_size_test() {
