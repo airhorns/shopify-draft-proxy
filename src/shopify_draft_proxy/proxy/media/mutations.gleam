@@ -400,6 +400,10 @@ fn handle_file_update(
       inputs,
       version_hydration,
     ))
+    |> list.append(validate_file_update_revert_modeled(
+      inputs,
+      version_hydration,
+    ))
     |> list.append(validate_file_update_reference_targets(store, inputs))
   case errors {
     [] -> {
@@ -984,6 +988,46 @@ fn validate_file_update_revert_versions(
   }
 }
 
+fn validate_file_update_revert_modeled(
+  inputs: List(Dict(String, ResolvedValue)),
+  hydration: FileVersionHydration,
+) -> List(media_types.FilesUserError) {
+  inputs
+  |> enumerate_objects
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    case
+      read_string_field(input, "id"),
+      has_source_update(input),
+      read_string_field(input, "revertToVersionId")
+    {
+      Some(file_id), False, Some(version_id)
+        if file_id != "" && version_id != ""
+      -> {
+        let version_known = case hydration.validation_enabled {
+          False -> True
+          True ->
+            file_version_evidence_matches(
+              hydration.evidence,
+              version_id,
+              file_id,
+            )
+        }
+        case version_known {
+          True ->
+            Ok(media_types.FilesUserError(
+              ["files", int.to_string(index), "revertToVersionId"],
+              "revertToVersionId is not modeled by the draft proxy yet.",
+              "UNSUPPORTED",
+            ))
+          False -> Error(Nil)
+        }
+      }
+      _, _, _ -> Error(Nil)
+    }
+  })
+}
+
 fn file_version_evidence_matches(
   evidence: List(FileVersionEvidence),
   version_id: String,
@@ -1425,14 +1469,25 @@ fn update_file_record(
 ) -> FileRecord {
   let original_source = read_string_field(input, "originalSource")
   let preview_source = read_string_field(input, "previewImageSource")
-  let image_url =
-    option.then(original_source, non_empty_string)
-    |> option.or(file.image_url)
-  let #(next_image_url, next_image_width, next_image_height) = case
+  let source_as_preview = case file.content_type {
+    Some("IMAGE") -> option.then(original_source, non_empty_string)
+    _ -> None
+  }
+  let explicit_preview =
     option.then(preview_source, non_empty_string)
+    |> option.or(source_as_preview)
+  let #(next_image_url, next_image_width, next_image_height) = case
+    explicit_preview
   {
     Some(_) -> #(None, None, None)
-    None -> #(image_url, file.image_width, file.image_height)
+    None -> #(file.image_url, file.image_width, file.image_height)
+  }
+  let next_original_source = case file.content_type {
+    Some("FILE") ->
+      original_source
+      |> option.or(Some(file.original_source))
+      |> option.unwrap("")
+    _ -> file.original_source
   }
   FileRecord(
     ..file,
@@ -1440,9 +1495,10 @@ fn update_file_record(
     image_url: next_image_url,
     image_width: next_image_width,
     image_height: next_image_height,
-    original_source: original_source
-      |> option.or(Some(file.original_source))
-      |> option.unwrap(""),
+    preview_image_url: explicit_preview |> option.or(file.preview_image_url),
+    preview_image_width: file.preview_image_width,
+    preview_image_height: file.preview_image_height,
+    original_source: next_original_source,
     filename: read_string_field(input, "filename") |> option.or(file.filename),
   )
 }
@@ -1464,7 +1520,7 @@ fn make_staged_target(
     read_string_field(input, "mimeType")
     |> option.unwrap("application/octet-stream")
   let resource = read_string_field(input, "resource") |> option.unwrap("FILE")
-  let method = read_string_field(input, "httpMethod") |> option.unwrap("POST")
+  let method = read_string_field(input, "httpMethod") |> option.unwrap("PUT")
   let key = "shopify-draft-proxy/" <> id <> "/" <> filename
   let parameters = case resource {
     "IMAGE"

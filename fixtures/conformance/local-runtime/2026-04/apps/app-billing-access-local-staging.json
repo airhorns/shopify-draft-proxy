@@ -6,6 +6,7 @@
   "notes": [
     "Runtime fixture enforced by tests/integration/app-billing-access-flow.test.ts.",
     "The app-billing delegateAccessTokenCreate parity replay preserves the recorded local-runtime accessScopes input shape; the current Admin GraphQL delegateAccessScope list input is covered by tests/integration/app-billing-access-flow.test.ts, config/parity-specs/apps/delegate-access-token-current-input-local-staging.json, and config/parity-specs/apps/delegate-access-token-create-validation.json.",
+    "appSubscriptionLineItemUpdate without public requireApproval input follows the default approval-required branch: it returns a synthetic confirmation URL and leaves the active cappedAmount unchanged until approval/commit.",
     "Billing confirmation URLs and delegated access tokens are synthetic local values. Raw delegated token values are intentionally absent from meta-visible state.",
     "Live success-path captures for billing approval, app uninstall, access-scope revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects."
   ],
@@ -90,7 +91,7 @@
                       "pricingDetails": {
                         "__typename": "AppUsagePricing",
                         "cappedAmount": {
-                          "amount": "150",
+                          "amount": "100",
                           "currencyCode": "USD"
                         },
                         "balanceUsed": {
@@ -308,7 +309,7 @@
       "mutationPayloads": [
         "appSubscriptionCreate returns an ACTIVE staged test subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
         "appPurchaseOneTimeCreate returns an ACTIVE staged test one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
-        "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
+        "appSubscriptionLineItemUpdate returns the staged subscription, a synthetic confirmationUrl, and the pre-approval cappedAmount.",
         "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
         "appSubscriptionTrialExtend rejects the expired active staged subscription with TRIAL_NOT_ACTIVE semantics.",
         "appSubscriptionCancel returns the staged subscription with status CANCELLED.",

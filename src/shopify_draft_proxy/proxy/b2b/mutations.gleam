@@ -35,14 +35,16 @@ import shopify_draft_proxy/proxy/b2b/serializers.{
   optional_src_string, put_source, read_object, read_object_sources, read_string,
   read_string_list, remove_string, resource_not_found,
   serialize_mutation_payload, source_id, source_string, source_to_value,
-  timestamp, user_error, validate_company_input, validate_contact_input,
+  timestamp, user_error, validate_buyer_experience_configuration_input,
+  validate_company_input, validate_contact_input, validate_location_create_input,
   validate_location_input,
 }
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type SourceValue, SrcBool, SrcInt, SrcList, SrcObject, SrcString,
-  get_document_fragments, get_field_response_key, src_object,
+  get_document_fragments, get_field_response_key, resolved_value_to_source,
+  src_object,
 }
 
 import shopify_draft_proxy/proxy/mutation_helpers.{
@@ -62,7 +64,8 @@ import shopify_draft_proxy/state/types.{
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
   type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord, B2BCompanyRecord, CapturedObject, CapturedString,
-  StorePropertyInt, StorePropertyList, StorePropertyObject, StorePropertyString,
+  StorePropertyInt, StorePropertyList, StorePropertyNull, StorePropertyObject,
+  StorePropertyString,
 }
 
 @internal
@@ -300,6 +303,24 @@ pub fn contact_data_from_input(
   |> dict.insert("updatedAt", StorePropertyString(now))
 }
 
+fn contact_customer_data_from_input(
+  contact_data: Dict(String, StorePropertyValue),
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, StorePropertyValue) {
+  case dict.get(contact_data, "customer") {
+    Ok(StorePropertyObject(customer)) -> {
+      let customer =
+        list.fold(
+          ["firstName", "lastName", "email", "phone"],
+          customer,
+          fn(acc, key) { maybe_put_string(acc, input, key) },
+        )
+      dict.insert(contact_data, "customer", StorePropertyObject(customer))
+    }
+    _ -> contact_data
+  }
+}
+
 @internal
 pub fn prepare_contact_create_input(
   store: Store,
@@ -405,6 +426,14 @@ pub fn ensure_contact_locale(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
+  ensure_locale(store, input)
+}
+
+@internal
+pub fn ensure_locale(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
   case dict.has_key(input, "locale") {
     True -> input
     False ->
@@ -435,6 +464,15 @@ pub fn normalize_contact_phone_input(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  normalize_phone_input(store, input, ["input"])
+}
+
+@internal
+pub fn normalize_phone_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   case dict.get(input, "phone") {
     Ok(root_field.StringVal(value)) ->
       case normalize_phone(store, value) {
@@ -444,7 +482,7 @@ pub fn normalize_contact_phone_input(
         )
         Error(_) -> #(input, [
           user_error(
-            Some(["input", "phone"]),
+            Some(field_path(prefix, "phone")),
             "Phone is invalid",
             user_error_code.invalid,
           ),
@@ -458,13 +496,21 @@ pub fn normalize_contact_phone_input(
 pub fn validate_contact_locale_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(b2b_types.UserError) {
+  validate_locale_input(input, ["input"])
+}
+
+@internal
+pub fn validate_locale_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(b2b_types.UserError) {
   case dict.get(input, "locale") {
     Ok(root_field.StringVal(value)) ->
       case valid_locale_format(value) {
         True -> []
         False -> [
           detailed_user_error(
-            Some(["input", "locale"]),
+            Some(field_path(prefix, "locale")),
             "Invalid locale format.",
             user_error_code.invalid,
             b2b_types.invalid_locale_format_detail,
@@ -473,6 +519,21 @@ pub fn validate_contact_locale_input(
       }
     _ -> []
   }
+}
+
+@internal
+pub fn prepare_location_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  default_locale: Bool,
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  let input = case default_locale {
+    True -> ensure_locale(store, input)
+    False -> input
+  }
+  let #(input, phone_errors) = normalize_phone_input(store, input, prefix)
+  #(input, phone_errors)
 }
 
 @internal
@@ -785,6 +846,20 @@ pub fn location_data_from_input(
       )
     _ -> data
   }
+  let data = case dict.get(input, "buyerExperienceConfiguration") {
+    Ok(root_field.ObjectVal(configuration)) ->
+      dict.insert(
+        data,
+        "buyerExperienceConfiguration",
+        buyer_experience_configuration_from_input(
+          configuration,
+          data_get(data, "buyerExperienceConfiguration"),
+        ),
+      )
+    Ok(root_field.NullVal) ->
+      dict.insert(data, "buyerExperienceConfiguration", StorePropertyNull)
+    _ -> data
+  }
   let #(data, identity) = case dict.get(input, "billingAddress") {
     Ok(root_field.ObjectVal(address_input)) -> {
       let existing_id = address_id(data_get(data, "billingAddress"))
@@ -812,6 +887,70 @@ pub fn location_data_from_input(
     _, _ -> data
   }
   #(data, identity)
+}
+
+fn buyer_experience_configuration_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: SourceValue,
+) -> StorePropertyValue {
+  let existing_data = case existing {
+    SrcObject(fields) ->
+      dict.map_values(fields, fn(_key, value) { source_to_value(value) })
+    _ -> dict.new()
+  }
+  let data =
+    list.fold(
+      ["checkoutToDraft", "editableShippingAddress"],
+      existing_data,
+      fn(acc, key) { maybe_put_bool(acc, input, key) },
+    )
+    |> maybe_put_string(input, "paymentTermsTemplateId")
+  let data = case read_string(input, "paymentTermsTemplateId") {
+    Some(id) ->
+      dict.insert(
+        data,
+        "paymentTermsTemplate",
+        source_to_value(
+          src_object([
+            #("__typename", SrcString("PaymentTermsTemplate")),
+            #("id", SrcString(id)),
+          ]),
+        ),
+      )
+    None ->
+      case dict.get(input, "paymentTermsTemplateId") {
+        Ok(root_field.NullVal) ->
+          dict.insert(data, "paymentTermsTemplate", StorePropertyNull)
+        _ -> data
+      }
+  }
+  let data = case dict.get(input, "deposit") {
+    Ok(root_field.ObjectVal(deposit)) ->
+      dict.insert(
+        data,
+        "deposit",
+        source_to_value(
+          add_deposit_typename(
+            resolved_value_to_source(root_field.ObjectVal(deposit)),
+          ),
+        ),
+      )
+    Ok(root_field.NullVal) -> dict.insert(data, "deposit", StorePropertyNull)
+    _ -> data
+  }
+  StorePropertyObject(data)
+}
+
+fn add_deposit_typename(value: SourceValue) -> SourceValue {
+  case value {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(
+        fields,
+        "__typename",
+        SrcString("DepositPercentage"),
+      ))
+    _ -> value
+  }
 }
 
 @internal
@@ -1004,11 +1143,25 @@ pub fn handle_company_create(
   let input = read_object(args, "input")
   let #(company_input, company_errors) =
     validate_company_input(read_object(input, "company"), ["input", "company"])
-  let #(location_input, location_errors) =
-    validate_location_input(read_object(input, "companyLocation"), [
+  let raw_location_input = read_object(input, "companyLocation")
+  let #(location_input, location_prepare_errors) =
+    prepare_location_input(store, raw_location_input, True, [
       "input",
       "companyLocation",
     ])
+  let #(location_input, location_errors) =
+    validate_location_create_input(location_input, ["input", "companyLocation"])
+  let location_errors =
+    location_prepare_errors
+    |> list.append(location_errors)
+  let location_errors =
+    location_errors
+    |> list.append(validate_buyer_experience_configuration_input(
+      store,
+      location_input,
+      ["input", "companyLocation"],
+      False,
+    ))
   let company_errors =
     company_errors
     |> list.append(
@@ -1123,7 +1276,12 @@ pub fn handle_company_create(
         _, _ -> #(store, identity, [])
       }
       let payload =
-        b2b_types.Payload(..empty_payload([]), company: Some(company))
+        b2b_types.Payload(
+          ..empty_payload([]),
+          company: Some(company),
+          company_contact: contact,
+          company_location: Some(location),
+        )
       b2b_types.RootResult(
         payload,
         store,
@@ -1616,11 +1774,10 @@ pub fn handle_contact_update(
                   )
                 [] -> {
                   let #(now, identity) = timestamp(identity)
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..contact,
-                      data: contact_data_from_input(input, now, contact.data),
-                    )
+                  let data =
+                    contact_data_from_input(input, now, contact.data)
+                    |> contact_customer_data_from_input(input)
+                  let updated = B2BCompanyContactRecord(..contact, data: data)
                   let #(updated, store) =
                     store.upsert_staged_b2b_company_contact(store, updated)
                   b2b_types.RootResult(
@@ -2252,10 +2409,21 @@ pub fn handle_location_create(
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
           let raw_input = read_object(args, "input")
+          let #(input, prepare_errors) =
+            prepare_location_input(store, raw_input, True, ["input"])
           let #(input, validation_errors) =
-            validate_location_input(raw_input, ["input"])
+            validate_location_create_input(input, ["input"])
+          let validation_errors =
+            prepare_errors
+            |> list.append(validation_errors)
           let validation_errors =
             validation_errors
+            |> list.append(validate_buyer_experience_configuration_input(
+              store,
+              input,
+              ["input"],
+              False,
+            ))
             |> list.append(
               validate_duplicate_location_external_id(store, input, None, [
                 "input",
@@ -2330,10 +2498,21 @@ pub fn handle_location_update(
                 [],
               )
             _, True -> {
+              let #(input, prepare_errors) =
+                prepare_location_input(store, raw_input, False, ["input"])
               let #(input, validation_errors) =
-                validate_location_input(raw_input, ["input"])
+                validate_location_input(input, ["input"])
+              let validation_errors =
+                prepare_errors
+                |> list.append(validation_errors)
               let validation_errors =
                 validation_errors
+                |> list.append(validate_buyer_experience_configuration_input(
+                  store,
+                  input,
+                  ["input"],
+                  True,
+                ))
                 |> list.append(
                   validate_duplicate_location_external_id(
                     store,

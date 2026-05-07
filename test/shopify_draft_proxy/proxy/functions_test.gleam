@@ -256,10 +256,10 @@ pub fn cart_transforms_connection_returns_seeded_test() {
   let result =
     run(
       s,
-      "{ cartTransforms(first: 5) { nodes { __typename id title functionHandle } } }",
+      "{ cartTransforms(first: 5) { nodes { __typename id functionId blockOnFailure } } }",
     )
   assert result
-    == "{\"cartTransforms\":{\"nodes\":[{\"__typename\":\"CartTransform\",\"id\":\"gid://shopify/CartTransform/20\",\"title\":\"Cart transformer\",\"functionHandle\":\"cart-transformer\"}]}}"
+    == "{\"cartTransforms\":{\"nodes\":[{\"__typename\":\"CartTransform\",\"id\":\"gid://shopify/CartTransform/20\",\"functionId\":\"gid://shopify/ShopifyFunction/cart-transformer\",\"blockOnFailure\":false}]}}"
 }
 
 // ----------- shopifyFunction(id:) -----------

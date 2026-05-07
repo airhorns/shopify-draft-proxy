@@ -36,7 +36,7 @@ import shopify_draft_proxy/state/types.{
 pub const discount_function_app_id: String = "347082227713"
 
 import shopify_draft_proxy/proxy/discounts/queries.{
-  child_fields, discount_record_timestamp,
+  child_fields, discount_matches_positive_search_term, discount_record_timestamp,
 }
 
 import shopify_draft_proxy/proxy/discounts/types as discount_types
@@ -3660,27 +3660,124 @@ pub fn apply_bulk_effects(
   root: String,
   args: Dict(String, root_field.ResolvedValue),
   identity: SyntheticIdentityRegistry,
-) -> #(Store, SyntheticIdentityRegistry) {
-  let ids = discount_types.read_string_array(args, "ids", [])
-  list.fold(ids, #(store, identity), fn(acc, id) {
-    let #(current, current_identity) = acc
-    case root {
-      "discountCodeBulkDelete" | "discountAutomaticBulkDelete" ->
-        case store.get_effective_discount_by_id(current, id) {
-          Some(_) -> {
-            let #(_, next_identity) =
-              synthetic_identity.make_synthetic_timestamp(current_identity)
-            #(store.delete_staged_discount(current, id), next_identity)
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let ids = bulk_target_ids(store, root, args)
+  let #(next_store, next_identity, applied_ids) =
+    list.fold(ids, #(store, identity, []), fn(acc, id) {
+      let #(current, current_identity, applied) = acc
+      case store.get_effective_discount_by_id(current, id) {
+        Some(record) ->
+          case bulk_root_allows_record(root, record) {
+            True ->
+              case root {
+                "discountCodeBulkDelete" | "discountAutomaticBulkDelete" -> {
+                  let #(_, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(
+                      current_identity,
+                    )
+                  #(store.delete_staged_discount(current, id), next_identity, [
+                    id,
+                    ..applied
+                  ])
+                }
+                "discountCodeBulkActivate" -> {
+                  let #(next_store, next_identity) =
+                    set_record_status(current, current_identity, id, "ACTIVE")
+                  #(next_store, next_identity, [id, ..applied])
+                }
+                "discountCodeBulkDeactivate" -> {
+                  let #(next_store, next_identity) =
+                    set_record_status(current, current_identity, id, "EXPIRED")
+                  #(next_store, next_identity, [id, ..applied])
+                }
+                _ -> #(current, current_identity, applied)
+              }
+            False -> #(current, current_identity, applied)
           }
-          None -> #(store.delete_staged_discount(current, id), current_identity)
-        }
-      "discountCodeBulkActivate" ->
-        set_record_status(current, current_identity, id, "ACTIVE")
-      "discountCodeBulkDeactivate" ->
-        set_record_status(current, current_identity, id, "EXPIRED")
-      _ -> #(current, current_identity)
+        None ->
+          case root {
+            "discountCodeBulkDelete" | "discountAutomaticBulkDelete" -> #(
+              store.delete_staged_discount(current, id),
+              current_identity,
+              applied,
+            )
+            _ -> #(current, current_identity, applied)
+          }
+      }
+    })
+  #(next_store, next_identity, list.reverse(applied_ids))
+}
+
+@internal
+pub fn bulk_target_ids(
+  store: Store,
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case dict.has_key(args, "ids") {
+    True -> discount_types.read_string_array(args, "ids", [])
+    False ->
+      case bulk_selector_query(store, root, args) {
+        Some(query) ->
+          store.list_effective_discounts(store)
+          |> list.filter(fn(record) { bulk_root_allows_record(root, record) })
+          |> search_query_parser.apply_search_query(
+            Some(query),
+            search_query_parser.default_parse_options(),
+            discount_matches_positive_search_term,
+          )
+          |> list.map(fn(record) { record.id })
+        None -> []
+      }
+  }
+}
+
+@internal
+pub fn bulk_selector_query(
+  store: Store,
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  let query = case discount_types.read_string(args, "search") {
+    Some(search) -> Some(search)
+    None ->
+      read_bulk_saved_search_id(args)
+      |> option.then(fn(id) {
+        store.get_effective_saved_search_by_id(store, id)
+        |> option.map(fn(record) { record.query })
+      })
+  }
+  query
+  |> option.map(fn(query) {
+    case root {
+      "discountCodeBulkDelete" -> append_method_code_filter(query)
+      _ -> query
     }
   })
+  |> option.then(fn(query) {
+    case string.trim(query) {
+      "" -> None
+      _ -> Some(query)
+    }
+  })
+}
+
+fn append_method_code_filter(query: String) -> String {
+  case string.trim(query) {
+    "" -> "method:code"
+    trimmed -> trimmed <> " method:code"
+  }
+}
+
+@internal
+pub fn bulk_root_allows_record(root: String, record: DiscountRecord) -> Bool {
+  case root {
+    "discountAutomaticBulkDelete" -> record.owner_kind == "automatic"
+    "discountCodeBulkActivate"
+    | "discountCodeBulkDeactivate"
+    | "discountCodeBulkDelete" -> record.owner_kind == "code"
+    _ -> True
+  }
 }
 
 @internal

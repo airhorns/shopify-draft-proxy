@@ -1,0 +1,143 @@
+{
+  "scenarioId": "location-address-code-derivation",
+  "operationNames": ["locationAdd", "locationEdit", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-address-code-derivation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-add.graphql",
+    "variablesCapturePath": "$.cases.gbAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Admin GraphQL 2026-04 country/province name derivation for locationAdd with GB countryCode only, locationAdd with AU countryCode plus provinceCode NSW, and locationEdit with only provinceCode ON against a disposable CA location. Each mutation is immediately read back through location(id:) before cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "gb-add-payload",
+        "capturePath": "$.cases.gbAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "gb-read-after-add",
+        "capturePath": "$.cases.gbRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.address"]
+      },
+      {
+        "name": "au-add-payload",
+        "capturePath": "$.cases.auAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-add.graphql",
+          "variablesCapturePath": "$.cases.auAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "au-read-after-add",
+        "capturePath": "$.cases.auRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "au-add-payload",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.address"]
+      },
+      {
+        "name": "ca-setup-add-payload",
+        "capturePath": "$.cases.caSetupAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-add.graphql",
+          "variablesCapturePath": "$.cases.caSetupAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "ca-province-only-edit-payload",
+        "capturePath": "$.cases.caProvinceOnlyEdit.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-edit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "ca-setup-add-payload",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "input": {
+              "address": {
+                "provinceCode": "ON"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "ca-read-after-province-only-edit",
+        "capturePath": "$.cases.caProvinceOnlyRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-address-code-derivation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "ca-setup-add-payload",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.address"]
+      }
+    ]
+  }
+}

@@ -20,7 +20,7 @@ type RecordedOperation = {
 
 const scenarioId = 'b2b-billing-same-as-shipping-validation';
 const timestamp = Date.now();
-const companyName = `HAR-612 B2B billing ${timestamp}`;
+const companyName = `B2B billing same-as-shipping ${timestamp}`;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -163,6 +163,29 @@ try {
   });
   rememberCreatedCompany(companyCreateBillingSameAsShippingWithExplicitBilling);
 
+  const companyCreateBillingSameAsShippingMissingShipping = await runOperation(companyCreateDocument, {
+    input: {
+      company: { name: `${companyName} company create missing shipping` },
+      companyLocation: {
+        name: `${companyName} missing shipping HQ`,
+        billingSameAsShipping: true,
+      },
+    },
+  });
+  rememberCreatedCompany(companyCreateBillingSameAsShippingMissingShipping);
+
+  const companyCreateBillingSameAsShippingNullShipping = await runOperation(companyCreateDocument, {
+    input: {
+      company: { name: `${companyName} company create null shipping` },
+      companyLocation: {
+        name: `${companyName} null shipping HQ`,
+        billingSameAsShipping: true,
+        shippingAddress: null,
+      },
+    },
+  });
+  rememberCreatedCompany(companyCreateBillingSameAsShippingNullShipping);
+
   const companyCreateBillingSameAsShippingFalseNoBilling = await runOperation(companyCreateDocument, {
     input: {
       company: { name: `${companyName} company create missing billing` },
@@ -214,6 +237,23 @@ try {
       billingSameAsShipping: true,
       shippingAddress: { address1: 'Ship St' },
       billingAddress: { address1: 'Bill St' },
+    },
+  });
+
+  const locationCreateBillingSameAsShippingMissingShipping = await runOperation(locationCreateDocument, {
+    companyId: setupCompanyId,
+    input: {
+      name: `${companyName} create missing shipping`,
+      billingSameAsShipping: true,
+    },
+  });
+
+  const locationCreateBillingSameAsShippingNullShipping = await runOperation(locationCreateDocument, {
+    companyId: setupCompanyId,
+    input: {
+      name: `${companyName} create null shipping`,
+      billingSameAsShipping: true,
+      shippingAddress: null,
     },
   });
 
@@ -269,14 +309,17 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      ticket: 'HAR-612',
-      plan: 'Record B2B billingSameAsShipping/billingAddress mutual-exclusion validation and taxExempt null validation for companyCreate, companyLocationCreate, and companyLocationUpdate.',
+      plan: 'Record B2B billingSameAsShipping/billingAddress/shippingAddress mutual-exclusion validation and taxExempt null validation for companyCreate, companyLocationCreate, and companyLocationUpdate.',
     },
     companyCreateBillingSameAsShippingWithExplicitBilling,
+    companyCreateBillingSameAsShippingMissingShipping,
+    companyCreateBillingSameAsShippingNullShipping,
     companyCreateBillingSameAsShippingFalseNoBilling,
     companyCreateTaxExemptNull,
     setupCompany,
     locationCreateBillingSameAsShippingWithExplicitBilling,
+    locationCreateBillingSameAsShippingMissingShipping,
+    locationCreateBillingSameAsShippingNullShipping,
     locationCreateBillingSameAsShippingFalseNoBilling,
     locationCreateTaxExemptNull,
     locationUpdateBillingSameAsShippingWithExplicitBilling,

@@ -228,6 +228,13 @@ pub fn shop_discounts_by_market_enabled(store: Store) -> Bool {
   }
 }
 
+pub fn shop_b2b_deposits_enabled(store: Store) -> Bool {
+  case get_effective_shop(store) {
+    Some(shop) -> shop.features.b2b_deposits_enabled
+    None -> True
+  }
+}
+
 pub fn shop_markets_home_enabled(store: Store) -> Bool {
   case get_effective_shop(store) {
     Some(shop) -> shop.features.unified_markets
@@ -339,6 +346,31 @@ pub fn set_shop_discounts_by_market_enabled(
   }
 }
 
+pub fn set_shop_b2b_deposits_enabled(
+  store: Store,
+  b2b_deposits_enabled: Bool,
+) -> Store {
+  case store.staged_state.shop {
+    Some(shop) -> {
+      let shop = shop_with_b2b_deposits_enabled(shop, b2b_deposits_enabled)
+      Store(
+        ..store,
+        staged_state: StagedState(..store.staged_state, shop: Some(shop)),
+      )
+    }
+    None -> {
+      let shop =
+        store.base_state.shop
+        |> option.unwrap(default_synthetic_shop())
+        |> shop_with_b2b_deposits_enabled(b2b_deposits_enabled)
+      Store(
+        ..store,
+        base_state: BaseState(..store.base_state, shop: Some(shop)),
+      )
+    }
+  }
+}
+
 fn shop_with_sells_subscriptions(
   shop: ShopRecord,
   sells_subscriptions: Bool,
@@ -363,6 +395,20 @@ fn shop_with_discounts_by_market_enabled(
     features: types_mod.ShopFeaturesRecord(
       ..features,
       discounts_by_market_enabled: discounts_by_market_enabled,
+    ),
+  )
+}
+
+fn shop_with_b2b_deposits_enabled(
+  shop: ShopRecord,
+  b2b_deposits_enabled: Bool,
+) -> ShopRecord {
+  let features = shop.features
+  types_mod.ShopRecord(
+    ..shop,
+    features: types_mod.ShopFeaturesRecord(
+      ..features,
+      b2b_deposits_enabled: b2b_deposits_enabled,
     ),
   )
 }
@@ -469,6 +515,7 @@ fn default_shop_features() -> types_mod.ShopFeaturesRecord {
     live_view: False,
     paypal_express_subscription_gateway_status: "DISABLED",
     reports: False,
+    b2b_deposits_enabled: True,
     discounts_by_market_enabled: False,
     markets_granted: default_market_plan_limit(),
     sells_subscriptions: False,

@@ -4,8 +4,9 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/search_query_parser.{
-  parse_search_query_term, search_query_term_value,
-  strip_search_query_value_quotes,
+  type SearchQueryComparator, type SearchQueryTerm, Equal, GreaterThan,
+  GreaterThanOrEqual, LessThan, LessThanOrEqual, parse_search_query_term,
+  search_query_term_value, strip_search_query_value_quotes,
 }
 import shopify_draft_proxy/state/types.{
   type SavedSearchFilter, SavedSearchFilter,
@@ -36,34 +37,36 @@ pub fn parse_saved_search_query(raw_query: String) -> ParsedSavedSearchQuery {
     list.any(tokens, fn(t) { is_boolean_token(t) || is_grouped_token(t) })
   let #(filters_rev, search_terms_rev) =
     list.fold(tokens, #([], []), fn(acc, token) {
-      let #(filters, terms) = acc
+      let #(projected_filters, terms) = acc
       let term = parse_search_query_term(token)
-      let take_as_filter = case term.field, term.value {
-        Some(_), v if v != "" ->
-          is_filter_candidate(token)
-          && { term.negated || !has_boolean_expression }
-        _, _ -> False
-      }
-      case take_as_filter, term.field {
-        True, Some(field) -> {
-          let key = case term.negated {
-            True -> field <> "_not"
-            False -> field
-          }
-          let value = filter_value_for_term(token)
-          #([SavedSearchFilter(key: key, value: value), ..filters], terms)
+      let filter_parts = case
+        is_filter_candidate(token)
+        && case term.negated {
+          True -> True
+          False -> !has_boolean_expression
         }
-        _, _ -> #(filters, [token, ..terms])
+      {
+        True -> projected_filters_for_term(term)
+        False -> []
+      }
+      case filter_parts {
+        [] -> #(projected_filters, [token, ..terms])
+        _ -> #(
+          list.fold(filter_parts, projected_filters, upsert_projected_filter),
+          terms,
+        )
       }
     })
-  let filters = list.reverse(filters_rev)
+  let projected_filters = list.reverse(filters_rev)
+  let filters = list.map(projected_filters, fn(projected) { projected.filter })
   let search_terms_tokens = list.reverse(search_terms_rev)
   let search_terms_text = string.join(search_terms_tokens, " ")
   let stored_search_terms_text =
     search_terms_tokens
     |> list.map(normalize_saved_search_term)
     |> string.join(" ")
-  let rendered_filters = list.map(filters, render_saved_search_filter)
+  let rendered_filters =
+    list.map(projected_filters, fn(projected) { projected.canonical_token })
   let query_parts = case stored_search_terms_text {
     "" -> rendered_filters
     s -> [s, ..rendered_filters]
@@ -177,26 +180,218 @@ fn is_filter_candidate(token: String) -> Bool {
   !is_boolean_token(token) && !is_grouped_token(token)
 }
 
-fn filter_value_for_term(token: String) -> String {
-  let term = parse_search_query_term(token)
-  strip_search_query_value_quotes(search_query_term_value(term))
+type ProjectedSavedSearchFilter {
+  ProjectedSavedSearchFilter(filter: SavedSearchFilter, canonical_token: String)
 }
 
-fn render_saved_search_filter(filter: SavedSearchFilter) -> String {
-  let negated = string.ends_with(filter.key, "_not")
-  let key = case negated {
-    True -> string.drop_end(filter.key, 4)
-    False -> filter.key
+fn upsert_projected_filter(
+  projected_filters: List(ProjectedSavedSearchFilter),
+  projected_filter: ProjectedSavedSearchFilter,
+) -> List(ProjectedSavedSearchFilter) {
+  let #(replaced, filters) =
+    replace_projected_filter(projected_filters, projected_filter)
+  case replaced {
+    True -> filters
+    False -> [projected_filter, ..projected_filters]
   }
-  let value = case contains_whitespace(filter.value) {
-    True -> "\"" <> filter.value <> "\""
-    False -> filter.value
+}
+
+fn replace_projected_filter(
+  projected_filters: List(ProjectedSavedSearchFilter),
+  projected_filter: ProjectedSavedSearchFilter,
+) -> #(Bool, List(ProjectedSavedSearchFilter)) {
+  case projected_filters {
+    [] -> #(False, [])
+    [existing, ..rest] -> {
+      case existing.filter.key == projected_filter.filter.key {
+        True -> #(True, [projected_filter, ..rest])
+        False -> {
+          let #(replaced, rest) =
+            replace_projected_filter(rest, projected_filter)
+          #(replaced, [existing, ..rest])
+        }
+      }
+    }
   }
+}
+
+fn projected_filters_for_term(
+  term: SearchQueryTerm,
+) -> List(ProjectedSavedSearchFilter) {
+  case term.field, term.value {
+    Some(field), "*" -> [
+      ProjectedSavedSearchFilter(
+        filter: SavedSearchFilter(
+          key: maybe_negated_filter_key(field, term.negated),
+          value: "true",
+        ),
+        canonical_token: canonical_field_token(field, "*", term.negated),
+      ),
+    ]
+    Some(field), v if v != "" ->
+      case term.comparator {
+        Some(comparator) ->
+          projected_range_filters_for_term(
+            field,
+            comparator,
+            term.value,
+            term.negated,
+          )
+        None -> [
+          ProjectedSavedSearchFilter(
+            filter: SavedSearchFilter(
+              key: maybe_negated_filter_key(field, term.negated),
+              value: strip_search_query_value_quotes(search_query_term_value(
+                term,
+              )),
+            ),
+            canonical_token: canonical_field_token(
+              field,
+              strip_search_query_value_quotes(search_query_term_value(term)),
+              term.negated,
+            ),
+          ),
+        ]
+      }
+    _, _ -> []
+  }
+}
+
+fn projected_range_filters_for_term(
+  field: String,
+  comparator: SearchQueryComparator,
+  value: String,
+  negated: Bool,
+) -> List(ProjectedSavedSearchFilter) {
+  let clean_value = strip_search_query_value_quotes(value)
+  case comparator {
+    GreaterThan | GreaterThanOrEqual ->
+      case negated {
+        True -> [
+          projected_range_filter(
+            field <> "_max",
+            clean_value,
+            canonical_field_token(
+              field,
+              negated_upper_comparator(comparator) <> clean_value,
+              False,
+            ),
+          ),
+        ]
+        False -> [
+          projected_range_filter(
+            field <> "_min",
+            clean_value,
+            canonical_field_token(
+              field,
+              comparator_to_string(comparator) <> clean_value,
+              False,
+            ),
+          ),
+        ]
+      }
+    LessThan | LessThanOrEqual ->
+      case negated {
+        True -> [
+          projected_range_filter(
+            field <> "_min",
+            clean_value,
+            canonical_field_token(
+              field,
+              negated_lower_comparator(comparator) <> clean_value,
+              False,
+            ),
+          ),
+        ]
+        False -> [
+          projected_range_filter(
+            field <> "_max",
+            clean_value,
+            canonical_field_token(
+              field,
+              comparator_to_string(comparator) <> clean_value,
+              False,
+            ),
+          ),
+        ]
+      }
+    Equal -> [
+      ProjectedSavedSearchFilter(
+        filter: SavedSearchFilter(
+          key: maybe_negated_filter_key(field, negated),
+          value: strip_search_query_value_quotes("=" <> clean_value),
+        ),
+        canonical_token: canonical_field_token(
+          field,
+          "=" <> clean_value,
+          negated,
+        ),
+      ),
+    ]
+  }
+}
+
+fn projected_range_filter(
+  key: String,
+  value: String,
+  canonical_token: String,
+) -> ProjectedSavedSearchFilter {
+  ProjectedSavedSearchFilter(
+    filter: SavedSearchFilter(key: key, value: value),
+    canonical_token: canonical_token,
+  )
+}
+
+fn maybe_negated_filter_key(key: String, negated: Bool) -> String {
+  case negated {
+    True -> key <> "_not"
+    False -> key
+  }
+}
+
+fn canonical_field_token(
+  field: String,
+  raw_value: String,
+  negated: Bool,
+) -> String {
   let prefix = case negated {
     True -> "-"
     False -> ""
   }
-  prefix <> key <> ":" <> value
+  prefix <> field <> ":" <> quote_filter_value(raw_value)
+}
+
+fn quote_filter_value(value: String) -> String {
+  case contains_whitespace(value) {
+    True -> "\"" <> value <> "\""
+    False -> value
+  }
+}
+
+fn comparator_to_string(comparator: SearchQueryComparator) -> String {
+  case comparator {
+    LessThan -> "<"
+    LessThanOrEqual -> "<="
+    GreaterThan -> ">"
+    GreaterThanOrEqual -> ">="
+    Equal -> "="
+  }
+}
+
+fn negated_lower_comparator(comparator: SearchQueryComparator) -> String {
+  case comparator {
+    LessThan -> ">="
+    LessThanOrEqual -> ">"
+    _ -> comparator_to_string(comparator)
+  }
+}
+
+fn negated_upper_comparator(comparator: SearchQueryComparator) -> String {
+  case comparator {
+    GreaterThan -> "<="
+    GreaterThanOrEqual -> "<"
+    _ -> comparator_to_string(comparator)
+  }
 }
 
 fn contains_whitespace(s: String) -> Bool {

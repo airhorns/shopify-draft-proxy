@@ -536,13 +536,55 @@ pub fn discount_matches_positive_search_term(
 ) -> Bool {
   let value = search_query_parser.normalize_search_query_value(term.value)
   case term.field {
-    Some("code") -> False
+    Some("code") ->
+      search_query_parser.matches_search_query_string(
+        record.code,
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
     Some("status") -> string.lowercase(record.status) == value
+    Some("method") -> record.owner_kind == value
+    Some("title") ->
+      search_query_parser.matches_search_query_text(record.title, term)
+    Some("id") ->
+      search_query_parser.matches_search_query_string(
+        Some(record.id),
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    Some("times_used") ->
+      search_query_parser.matches_search_query_number(Some(0.0), term)
     Some("type") | Some("discount_type") ->
       discount_matches_type_filter(record, value)
     Some("discount_class") | Some("discountClass") ->
       string.lowercase(discount_types.discount_class_for_record(record))
       == value
+    Some("starts_at") ->
+      search_query_parser.matches_search_query_date(
+        discount_record_timestamp(record, "startsAt"),
+        term,
+        0,
+      )
+    Some("ends_at") ->
+      search_query_parser.matches_search_query_date(
+        discount_record_timestamp(record, "endsAt"),
+        term,
+        0,
+      )
+    Some("created_at") ->
+      search_query_parser.matches_search_query_date(
+        discount_record_timestamp(record, "createdAt"),
+        term,
+        0,
+      )
+    Some("updated_at") ->
+      search_query_parser.matches_search_query_date(
+        discount_record_timestamp(record, "updatedAt"),
+        term,
+        0,
+      )
     _ -> True
   }
 }

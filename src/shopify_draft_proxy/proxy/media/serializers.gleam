@@ -162,7 +162,7 @@ pub fn file_typename(file: FileRecord) -> String {
 
 @internal
 pub fn file_source(file: FileRecord) -> SourceValue {
-  src_object([
+  let fields = [
     #("__typename", SrcString(file_typename(file))),
     #("id", SrcString(file.id)),
     #("alt", graphql_helpers.option_string_source(file.alt)),
@@ -170,11 +170,24 @@ pub fn file_source(file: FileRecord) -> SourceValue {
     #("createdAt", SrcString(file.created_at)),
     #("fileStatus", SrcString(file.file_status)),
     #("filename", graphql_helpers.option_string_source(file.filename)),
-    #("image", file_image_source(file)),
-    #("preview", file_preview_source(file)),
-    #("mediaErrors", SrcList([])),
-    #("mediaWarnings", SrcList([])),
-  ])
+  ]
+  let fields = list.append(fields, generic_file_url_fields(file))
+  let fields =
+    list.append(fields, [
+      #("image", file_image_source(file)),
+      #("preview", file_preview_source(file)),
+      #("mediaErrors", SrcList([])),
+      #("mediaWarnings", SrcList([])),
+    ])
+  src_object(fields)
+}
+
+fn generic_file_url_fields(file: FileRecord) -> List(#(String, SourceValue)) {
+  case file.content_type, file.original_source {
+    Some("FILE"), "" -> [#("url", SrcNull)]
+    Some("FILE"), url -> [#("url", SrcString(url))]
+    _, _ -> []
+  }
 }
 
 fn file_image_source(file: FileRecord) -> SourceValue {
