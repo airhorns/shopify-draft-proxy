@@ -49,6 +49,10 @@ Local staged mutations:
   form shape. Captured `PUT` targets for those Google form resources use only
   `content_type` and `acl`. The proxy matches those captured parameter names
   and order while keeping values and URLs inert.
+- Shopify defaults an omitted `StagedUploadInput.httpMethod` to `PUT`.
+  Captured 2026-04 IMAGE and FILE targets with no `httpMethod` therefore use
+  the two-field `content_type`, `acl` parameter shape, and the proxy applies
+  that default instead of assuming POST.
 - `SHOP_IMAGE` is exposed by the 2026-04 resource enum, but the current
   conformance app receives top-level `ACCESS_DENIED` for that resource. The
   local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
