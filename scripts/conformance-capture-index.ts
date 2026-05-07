@@ -453,6 +453,37 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-location-delete-deletable-check',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-location-delete-deletable-check-conformance.mts',
+    purpose:
+      'B2B companyLocationDelete and companyLocationsDelete failed-deletable checks for only-location, draft-order, store-credit, and bulk partial-success branches.',
+    requiredAuthScopes: [
+      'read_companies',
+      'write_companies',
+      'write_draft_orders',
+      'read_store_credit_accounts',
+      'write_store_credit_account_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-delete-failed-deletable-check.json`,
+      'config/parity-specs/b2b/location_delete_failed_deletable_check.json',
+      'config/parity-specs/b2b/locations_delete_failed_deletable_check.json',
+      'config/parity-requests/b2b/location-delete-check-bulk-read.graphql',
+      'config/parity-requests/b2b/location-delete-check-company-create.graphql',
+      'config/parity-requests/b2b/location-delete-check-draft-order-create.graphql',
+      'config/parity-requests/b2b/location-delete-check-location-create.graphql',
+      'config/parity-requests/b2b/location-delete-check-location-delete.graphql',
+      'config/parity-requests/b2b/location-delete-check-locations-delete.graphql',
+      'config/parity-requests/b2b/location-delete-check-read.graphql',
+      'config/parity-requests/b2b/location-delete-check-store-credit-credit.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable B2B companies and locations, creates an open B2B draft order, creates and debits a company-location store credit account, records rejected delete branches and a bulk partial-success branch, then deletes the draft order and companies during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-no-input-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-no-input-validation-conformance.mts',
