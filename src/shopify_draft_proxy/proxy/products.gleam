@@ -14,12 +14,19 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/products/collections_core as collections
 import shopify_draft_proxy/proxy/products/hydration
+import shopify_draft_proxy/proxy/products/inventory_handlers
+import shopify_draft_proxy/proxy/products/inventory_shipments_handlers
+import shopify_draft_proxy/proxy/products/inventory_transfers
+import shopify_draft_proxy/proxy/products/media_core
 import shopify_draft_proxy/proxy/products/mutations
 import shopify_draft_proxy/proxy/products/product_types
 import shopify_draft_proxy/proxy/products/products_handlers as product_serializers
 import shopify_draft_proxy/proxy/products/products_records as product_sources
+import shopify_draft_proxy/proxy/products/publications_core
+import shopify_draft_proxy/proxy/products/publications_publishable
 import shopify_draft_proxy/proxy/products/queries
 import shopify_draft_proxy/proxy/products/selling_plans_core as selling_plans
+import shopify_draft_proxy/proxy/products/selling_plans_handlers
 import shopify_draft_proxy/proxy/products/variants_options as options
 import shopify_draft_proxy/proxy/products/variants_options_core as option_values
 import shopify_draft_proxy/proxy/products/variants_sources as variants
@@ -32,7 +39,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductRecord, type ProductVariantRecord,
+  type ChannelRecord, type InventoryLevelRecord, type InventoryShipmentRecord,
+  type InventoryTransferRecord, type ProductFeedRecord, type ProductMediaRecord,
+  type ProductRecord, type ProductVariantRecord, type PublicationRecord,
+  type SellingPlanGroupRecord,
 }
 
 pub type ProductsError =
@@ -182,6 +192,70 @@ pub fn serialize_selling_plan_node_by_id(
     store,
     id,
     selection,
+    fragments,
+  )
+}
+
+pub fn inventory_item_source(
+  store: Store,
+  variant: ProductVariantRecord,
+) -> SourceValue {
+  inventory_handlers.inventory_item_source(store, variant)
+}
+
+pub fn inventory_level_source_with_item(
+  store: Store,
+  variant: ProductVariantRecord,
+  level: InventoryLevelRecord,
+) -> SourceValue {
+  inventory_handlers.inventory_level_source_with_item(store, variant, level)
+}
+
+pub fn inventory_transfer_source(
+  store: Store,
+  transfer: InventoryTransferRecord,
+) -> SourceValue {
+  inventory_transfers.inventory_transfer_source(store, transfer)
+}
+
+pub fn inventory_shipment_source(
+  store: Store,
+  shipment: InventoryShipmentRecord,
+) -> SourceValue {
+  inventory_shipments_handlers.inventory_shipment_source(store, shipment)
+}
+
+pub fn product_feed_source(feed: ProductFeedRecord) -> SourceValue {
+  publications_core.product_feed_source(feed)
+}
+
+pub fn publication_source(
+  store: Store,
+  publication: PublicationRecord,
+) -> SourceValue {
+  publications_publishable.publication_source(store, publication)
+}
+
+pub fn channel_source(store: Store, channel: ChannelRecord) -> SourceValue {
+  publications_core.channel_source(store, channel)
+}
+
+pub fn product_media_source(media: ProductMediaRecord) -> SourceValue {
+  media_core.product_media_source(media)
+}
+
+pub fn serialize_selling_plan_group_node(
+  store: Store,
+  group: SellingPlanGroupRecord,
+  selection: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  selling_plans_handlers.serialize_selling_plan_group_object(
+    store,
+    group,
+    selection,
+    variables,
     fragments,
   )
 }
