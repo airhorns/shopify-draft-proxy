@@ -12,7 +12,7 @@
             "id": "gid://shopify/Validation/2",
             "enable": false,
             "blockOnFailure": false,
-            "title": null
+            "title": "Validation Alpha"
           },
           "userErrors": []
         },
@@ -255,7 +255,10 @@
           "validation": null,
           "userErrors": [
             {
-              "field": ["validation", "functionId"],
+              "field": [
+                "validation",
+                "functionId"
+              ],
               "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
               "code": "FUNCTION_DOES_NOT_IMPLEMENT"
             }

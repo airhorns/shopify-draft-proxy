@@ -4092,6 +4092,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'functions',
+    captureId: 'functions-validation-create-title-fallback',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-create-title-fallback-conformance.ts',
+    purpose:
+      'validationCreate omitted/null title fallback to the resolved ShopifyFunction title plus explicit empty-string preservation and downstream title reads.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for disposable validationCreate/delete lifecycle capture',
+      'released conformance-validation Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}validation-create-title-fallback-parity.json`,
+      'config/parity-specs/functions/validation-create-title-fallback-parity.json',
+      'config/parity-requests/functions/validation-create-title-fallback-stage.graphql',
+      'config/parity-requests/functions/validation-create-title-fallback-validation-read.graphql',
+      'config/parity-requests/functions/validation-create-title-fallback-validations-read.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes disposable validations before capture, creates three validationCreate title cases through conformance-validation, verifies validation(id:) and validations(first: 3) title readback, then deletes the created validations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'payments',
     captureId: 'transaction-void-codes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
