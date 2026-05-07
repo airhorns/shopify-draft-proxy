@@ -517,7 +517,7 @@ try {
       ],
     },
     notes:
-      'Live 2026-04 public Admin API capture for orderCapture validation against a disposable multi-currency authorization order. Public orderCapture.userErrors exposes field/message and this manual gateway returns public messages/field paths that differ from the internal OrderCaptureUserError code contract; focused runtime tests cover the internal code projection. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available.',
+      'Live 2026-04 public Admin API capture for orderCapture validation against a disposable multi-currency authorization order. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares only public selectable shape and transaction effects. Focused runtime tests cover the draft proxy local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available.',
   });
 
   console.log(
