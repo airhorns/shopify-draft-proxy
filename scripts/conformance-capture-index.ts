@@ -614,6 +614,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-create-no-key-on-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-create-no-key-on-create-conformance.ts',
+    purpose:
+      'productCreate legacy ProductInput key-on-create guardrails for input.id precedence and ProductInput variants rejection.',
+    requiredAuthScopes: ['write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-no-key-on-create.json`,
+      'config/parity-specs/products/product-create-no-key-on-create.json',
+      'config/parity-requests/products/product-create-no-key-on-create.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; input.id and input.variants branches must not create Shopify products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin 2026-04 returns a productCreate.userErrors payload for legacy input.id and rejects input.variants during input coercion because ProductInput does not define variants.',
+  },
+  {
+    domain: 'products',
     captureId: 'combined-listing-update-validation',
     scriptPath: 'scripts/capture-combined-listing-update-validation-conformance.ts',
     purpose:
