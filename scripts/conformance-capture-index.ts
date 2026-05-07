@@ -2408,6 +2408,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'markets',
+    captureId: 'markets-delete-cascades',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-delete-cascades-conformance.mts',
+    purpose:
+      'marketDelete, catalogDelete, and priceListDelete downstream cascade behavior for web presences, catalog contexts, catalog/price-list detachment, and fixed price cleanup.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delete-cascades-parity.json`,
+      'config/parity-specs/markets/market-delete-cascades-web-presence.json',
+      'config/parity-specs/markets/catalog-delete-detaches-price-list.json',
+      'config/parity-specs/markets/price-list-delete-clears-fixed-prices.json',
+      'config/parity-requests/markets/market-delete-cascade-delete.graphql',
+      'config/parity-requests/markets/market-delete-cascade-read.graphql',
+      'config/parity-requests/markets/market-delete-cascade-setup-read.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-delete.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-read.graphql',
+      'config/parity-requests/markets/catalog-delete-detaches-price-list-setup-read.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-delete.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-read.graphql',
+      'config/parity-requests/markets/price-list-delete-clears-fixed-prices-setup-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable web presence, markets, catalogs, price lists, and one fixed variant price; the live delete scenarios remove the targeted records, and cleanup deletes any surviving setup records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'marketing',
     captureId: 'marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',
@@ -3149,8 +3176,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}shop-policy-update-subscription-blank-body.json`,
       'config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json',
-      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
       'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql',
+      'config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql',
     ],
     cleanupBehavior:
       'Validation-only capture. Rejected subscription-policy writes must not mutate policy content or create a blank downstream policy.',

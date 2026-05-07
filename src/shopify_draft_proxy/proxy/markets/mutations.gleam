@@ -1446,11 +1446,12 @@ fn handle_price_list_delete(
     Some(id) ->
       case store.get_effective_price_list_by_id(store, id) {
         Some(existing) -> {
+          let deleted_price_list = store.clear_price_list_fixed_prices(existing)
           let next_store = store.delete_staged_price_list(store, id)
           let payload =
             CapturedObject([
               #("deletedId", CapturedString(id)),
-              #("priceList", existing.data),
+              #("priceList", deleted_price_list.data),
               #("userErrors", CapturedArray([])),
             ])
           MutationFieldResult(
