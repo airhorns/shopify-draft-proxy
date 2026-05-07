@@ -36,7 +36,8 @@ import shopify_draft_proxy/proxy/b2b/serializers.{
   read_string_list, remove_string, resource_not_found,
   serialize_mutation_payload, source_id, source_string, source_to_value,
   timestamp, user_error, validate_buyer_experience_configuration_input,
-  validate_company_input, validate_contact_input, validate_location_input,
+  validate_company_input, validate_contact_input, validate_location_create_input,
+  validate_location_input,
 }
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
@@ -1103,7 +1104,7 @@ pub fn handle_company_create(
   let #(company_input, company_errors) =
     validate_company_input(read_object(input, "company"), ["input", "company"])
   let #(location_input, location_errors) =
-    validate_location_input(read_object(input, "companyLocation"), [
+    validate_location_create_input(read_object(input, "companyLocation"), [
       "input",
       "companyLocation",
     ])
@@ -2358,7 +2359,7 @@ pub fn handle_location_create(
         Some(company) -> {
           let raw_input = read_object(args, "input")
           let #(input, validation_errors) =
-            validate_location_input(raw_input, ["input"])
+            validate_location_create_input(raw_input, ["input"])
           let validation_errors =
             validation_errors
             |> list.append(validate_buyer_experience_configuration_input(
