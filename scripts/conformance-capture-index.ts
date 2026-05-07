@@ -1678,6 +1678,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-app-namespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-app-namespace-conformance.ts',
+    purpose:
+      'SavedSearch create/update query-input $app metafield namespace resolution before staging, payload serialization, and downstream saved-search reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-app-namespace.json`,
+      'config/parity-specs/saved-searches/saved-search-app-namespace.json',
+      'config/parity-requests/saved-searches/saved-search-app-namespace-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-app-namespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product saved search with a $app metafield query, reads it, updates it with a second $app metafield query, reads it again, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-query-grammar-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-query-grammar-validation-conformance.ts',
