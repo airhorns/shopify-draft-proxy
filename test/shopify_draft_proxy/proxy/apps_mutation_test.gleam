@@ -711,6 +711,64 @@ pub fn delegate_token_create_rejects_non_positive_expires_in_test() {
   assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
 }
 
+pub fn delegate_token_create_rejects_expiry_after_expiring_parent_test() {
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 7200 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "x-shopify-draft-proxy-access-token-expires-at",
+          "2024-01-01T01:00:00.000Z",
+        ),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The delegate token can't expire after the parent token.\",\"code\":\"EXPIRES_AFTER_PARENT\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_create_allows_expiry_equal_to_expiring_parent_test() {
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "x-shopify-draft-proxy-access-token-expires-at",
+          "2024-01-01T01:00:00.000Z",
+        ),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"expiresIn\":3600},\"userErrors\":[]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 1
+}
+
+pub fn delegate_token_create_skips_parent_expiry_check_without_expires_in_test() {
+  let outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"] }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "x-shopify-draft-proxy-access-token-expires-at",
+          "2024-01-01T00:00:01.000Z",
+        ),
+      ]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"expiresIn\":null},\"userErrors\":[]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 1
+}
+
 pub fn delegate_token_create_rejects_unknown_scope_handles_test() {
   let outcome =
     run_mutation_outcome(

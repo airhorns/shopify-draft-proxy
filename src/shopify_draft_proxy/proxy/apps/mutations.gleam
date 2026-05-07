@@ -919,6 +919,7 @@ fn handle_delegate_create(
   case
     delegate_create_user_errors(
       store,
+      identity,
       request_headers,
       access_scopes,
       expires_in,
@@ -962,6 +963,7 @@ fn read_delegate_access_scopes(
 
 fn delegate_create_user_errors(
   store: Store,
+  identity: SyntheticIdentityRegistry,
   request_headers: Dict(String, String),
   access_scopes: List(String),
   expires_in: Option(Int),
@@ -994,11 +996,62 @@ fn delegate_create_user_errors(
                     code: Some("NEGATIVE_EXPIRES_IN"),
                   ),
                 ]
-                False -> delegate_unknown_scope_errors(access_scopes)
+                False ->
+                  case
+                    delegate_expires_after_parent_error(
+                      identity,
+                      request_headers,
+                      n,
+                    )
+                  {
+                    Some(error) -> [error]
+                    None -> delegate_unknown_scope_errors(access_scopes)
+                  }
               }
             None -> delegate_unknown_scope_errors(access_scopes)
           }
       }
+  }
+}
+
+fn delegate_expires_after_parent_error(
+  identity: SyntheticIdentityRegistry,
+  request_headers: Dict(String, String),
+  expires_in: Int,
+) -> Option(app_types.DelegateAccessTokenUserError) {
+  case delegate_tokens.active_access_token_expires_at(request_headers) {
+    None -> None
+    Some(parent_expires_at) ->
+      case
+        parent_expires_at_is_before_delegate_expiry(
+          identity,
+          parent_expires_at,
+          expires_in,
+        )
+      {
+        True ->
+          Some(app_types.DelegateAccessTokenUserError(
+            field: None,
+            message: "The delegate token can't expire after the parent token.",
+            code: Some("EXPIRES_AFTER_PARENT"),
+          ))
+        False -> None
+      }
+  }
+}
+
+fn parent_expires_at_is_before_delegate_expiry(
+  identity: SyntheticIdentityRegistry,
+  parent_expires_at: String,
+  expires_in: Int,
+) -> Bool {
+  let #(now, _) = synthetic_identity.make_synthetic_timestamp(identity)
+  case
+    iso_timestamp.parse_iso(now),
+    iso_timestamp.parse_iso(parent_expires_at)
+  {
+    Ok(now_ms), Ok(parent_ms) -> now_ms + expires_in * 1000 > parent_ms
+    _, _ -> False
   }
 }
 

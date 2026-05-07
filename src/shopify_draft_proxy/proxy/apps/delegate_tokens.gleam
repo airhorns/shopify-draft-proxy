@@ -10,6 +10,9 @@ import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{type DelegatedAccessTokenRecord}
 
 @internal
+pub const access_token_expires_at_header: String = "x-shopify-draft-proxy-access-token-expires-at"
+
+@internal
 pub fn active_parent_is_delegate(
   store: Store,
   request_headers: Dict(String, String),
@@ -52,6 +55,27 @@ fn bearer_token(
   case string.starts_with(string.lowercase(trimmed), "bearer ") {
     True -> Some(string.trim(string.drop_start(trimmed, 7)))
     False -> active_access_token_from_pairs(rest)
+  }
+}
+
+@internal
+pub fn active_access_token_expires_at(
+  headers: Dict(String, String),
+) -> Option(String) {
+  active_access_token_expires_at_from_pairs(dict.to_list(headers))
+}
+
+fn active_access_token_expires_at_from_pairs(
+  headers: List(#(String, String)),
+) -> Option(String) {
+  case headers {
+    [] -> None
+    [#(key, value), ..rest] -> {
+      case string.lowercase(key) == access_token_expires_at_header {
+        True -> Some(string.trim(value))
+        False -> active_access_token_expires_at_from_pairs(rest)
+      }
+    }
   }
 }
 
