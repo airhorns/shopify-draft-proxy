@@ -2899,6 +2899,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'segments',
+    captureId: 'customer-segment-members-query-create-segment-id-paths',
+    scriptPath: 'scripts/capture-customer-segment-members-query-create-segment-id-paths-conformance.ts',
+    purpose:
+      'customerSegmentMembersQueryCreate segmentId branches for stored broad segment query grammar and unknown valid Segment GID CDP error shape.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-segment-members-query-create-segment-id-paths.json`,
+      'config/parity-specs/segments/customer-segment-members-query-create-segment-id-paths.json',
+      'config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql',
+      'config/parity-requests/segments/segment-create-for-member-query-segment-id-paths.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable segments for segmentId-backed branches and deletes them during cleanup; member-query jobs are async Shopify state without a cleanup mutation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'online-store',
     captureId: 'online-store-content-lifecycle',
     scriptPath: 'scripts/capture-online-store-content-lifecycle-conformance.ts',
