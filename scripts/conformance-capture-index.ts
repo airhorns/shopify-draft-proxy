@@ -1026,6 +1026,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-interface-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-interface-fields-conformance.mts',
+    purpose:
+      'Files API File interface non-null fields and type-specific MediaImage/GenericFile field projection for fileCreate plus files read-after-write.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-interface-fields.json`,
+      'config/parity-specs/media/media-file-interface-fields.json',
+      'config/parity-requests/media/media-file-interface-fields-create.graphql',
+      'config/parity-requests/media/media-file-interface-fields-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable image file and one disposable generic file, then deletes both.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
@@ -1784,6 +1801,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
     ],
     cleanupBehavior: 'Creates one disposable product saved search and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
+    captureId: 'saved-search-app-namespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-app-namespace-conformance.ts',
+    purpose:
+      'SavedSearch create/update query-input $app metafield namespace resolution before staging, payload serialization, and downstream saved-search reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-app-namespace.json`,
+      'config/parity-specs/saved-searches/saved-search-app-namespace.json',
+      'config/parity-requests/saved-searches/saved-search-app-namespace-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-app-namespace-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product saved search with a $app metafield query, reads it, updates it with a second $app metafield query, reads it again, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

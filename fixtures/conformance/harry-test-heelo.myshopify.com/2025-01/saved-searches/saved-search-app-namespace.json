@@ -1,0 +1,197 @@
+{
+  "capturedAt": "2026-05-07T15:59:27.933Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "APPNS-movo8za0",
+  "requestingApiClientId": "347082227713",
+  "notes": [
+    "Live Shopify evidence for SavedSearch $app metafield namespace resolution in query input.",
+    "savedSearchCreate resolved metafields.$app.tier before constructing and parsing the SavedSearch record.",
+    "savedSearchUpdate resolved metafields.$app.vip on an existing record before returning the mutation payload.",
+    "Downstream productSavedSearches exposed the resolved namespace in query, searchTerms, and filters.",
+    "The fixture includes cleanup delete evidence for the created saved search."
+  ],
+  "savedSearchCreateAppNamespace": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "App namespace APPNS-movo8za0",
+        "query": "metafields.$app.tier:gold"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009092153650",
+            "legacyResourceId": "4009092153650",
+            "name": "App namespace APPNS-movo8za0",
+            "query": "metafields.app--347082227713.tier:gold",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "metafields.app--347082227713.tier",
+                "value": "gold"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-app-namespace-read.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4009092153650",
+              "name": "App namespace APPNS-movo8za0",
+              "query": "metafields.app\\-\\-347082227713.tier:gold",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "metafields.app--347082227713.tier",
+                  "value": "gold"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateAppNamespace": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-app-namespace-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4009092153650",
+        "query": "metafields.$app.vip:true"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009092153650",
+            "legacyResourceId": "4009092153650",
+            "name": "App namespace APPNS-movo8za0",
+            "query": "metafields.app--347082227713.vip:true",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "metafields.app--347082227713.vip",
+                "value": "true"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-app-namespace-read.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4009092153650",
+              "name": "App namespace APPNS-movo8za0",
+              "query": "metafields.app\\-\\-347082227713.vip:true",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "metafields.app--347082227713.vip",
+                  "value": "true"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4009092153650"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009092153650",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

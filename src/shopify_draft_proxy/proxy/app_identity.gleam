@@ -7,6 +7,8 @@ pub const api_client_id_header: String = "x-shopify-draft-proxy-api-client-id"
 
 pub const internal_visibility_header: String = "x-shopify-draft-proxy-internal-visibility"
 
+pub const fallback_api_client_id: String = "shopify-draft-proxy-local-app"
+
 pub fn read_requesting_api_client_id(
   request_headers: Dict(String, String),
 ) -> Option(String) {
@@ -40,6 +42,32 @@ pub fn resolve_app_namespace(
         None -> namespace
       }
     False -> namespace
+  }
+}
+
+pub fn resolve_metafield_app_namespace(
+  namespace: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  let api_client_id = case requesting_api_client_id {
+    Some(id) -> id
+    None -> fallback_api_client_id
+  }
+
+  case namespace {
+    "$app" -> "app--" <> api_client_id
+    _ ->
+      case string.starts_with(namespace, "$app:") {
+        True -> resolve_app_namespace(namespace, Some(api_client_id))
+        False ->
+          case string.starts_with(namespace, "$app") {
+            True -> {
+              let suffix = string.drop_start(namespace, string.length("$app"))
+              "app--" <> api_client_id <> "--" <> suffix
+            }
+            False -> namespace
+          }
+      }
   }
 }
 
