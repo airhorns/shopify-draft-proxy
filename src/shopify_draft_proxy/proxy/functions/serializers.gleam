@@ -338,6 +338,30 @@ fn project_cart_transform_selections(
   json.object(entries)
 }
 
+fn project_cart_transform_metafield(
+  record: CartTransformRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let args = field_args(field, dict.new())
+  case
+    read_literal_string_arg(field, args, "namespace"),
+    read_literal_string_arg(field, args, "key")
+  {
+    Some(namespace), Some(key) ->
+      case find_cart_transform_metafield(record.metafields, namespace, key) {
+        Some(row) ->
+          project_payload(
+            cart_transform_metafield_to_source(row),
+            field,
+            fragments,
+          )
+        None -> json.null()
+      }
+    _, _ -> json.null()
+  }
+}
+
 fn project_function_object_entries(
   source: SourceValue,
   selections: List(Selection),
@@ -403,30 +427,6 @@ fn source_type_condition_applies(
     SrcObject(fields) ->
       graphql_helpers.default_type_condition_applies(fields, type_condition)
     _ -> True
-  }
-}
-
-fn project_cart_transform_metafield(
-  record: CartTransformRecord,
-  field: Selection,
-  fragments: FragmentMap,
-) -> Json {
-  let args = field_args(field, dict.new())
-  case
-    read_literal_string_arg(field, args, "namespace"),
-    read_literal_string_arg(field, args, "key")
-  {
-    Some(namespace), Some(key) ->
-      case find_cart_transform_metafield(record.metafields, namespace, key) {
-        Some(row) ->
-          project_payload(
-            cart_transform_metafield_to_source(row),
-            field,
-            fragments,
-          )
-        None -> json.null()
-      }
-    _, _ -> json.null()
   }
 }
 
@@ -578,26 +578,14 @@ fn cart_transform_to_source(record: CartTransformRecord) -> SourceValue {
         None -> SrcNull
       }
   }
-  let metafield_source = case record.metafields {
-    [] -> SrcNull
-    [first, ..] -> cart_transform_metafield_to_source(first)
-  }
   src_object([
     #("__typename", SrcString("CartTransform")),
     #("id", SrcString(record.id)),
-    #("title", graphql_helpers.option_string_source(record.title)),
     #(
       "blockOnFailure",
       graphql_helpers.option_bool_source(record.block_on_failure),
     ),
     #("functionId", function_id_source),
-    #(
-      "functionHandle",
-      graphql_helpers.option_string_source(record.function_handle),
-    ),
-    #("createdAt", graphql_helpers.option_string_source(record.created_at)),
-    #("updatedAt", graphql_helpers.option_string_source(record.updated_at)),
-    #("metafield", metafield_source),
     #(
       "metafields",
       cart_transform_metafields_connection_source(record.metafields),

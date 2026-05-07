@@ -500,6 +500,57 @@ pub fn graphql_validation_update_rejects_unknown_function_handle_input_test() {
     == "{\"errors\":[{\"message\":\"Field 'functionHandle' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionHandle\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionHandle\"}}]}"
 }
 
+pub fn graphql_cart_transform_rejects_removed_read_fields_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"query { cartTransforms(first: 10) { nodes { id title functionHandle createdAt updatedAt } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'title' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'functionHandle' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'createdAt' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'updatedAt' doesn't exist on type 'CartTransform'\"",
+  )
+  assert string.contains(serialized, "\"code\":\"undefinedField\"")
+}
+
+pub fn graphql_cart_transform_create_rejects_wrapper_and_title_args_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { cartTransformCreate(cartTransform: { functionHandle: \\\"cart-transformer\\\", title: \\\"x\\\" }, title: \\\"x\\\") { cartTransform { id functionId blockOnFailure } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'cartTransformCreate' doesn't accept argument 'cartTransform'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"Field 'cartTransformCreate' doesn't accept argument 'title'\"",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert dict.size(next_proxy.store.staged_state.cart_transforms) == 0
+}
+
 pub fn graphql_refund_create_variable_rejects_public_schema_attribution_fields_test() {
   let proxy = draft_proxy.new()
   let request =

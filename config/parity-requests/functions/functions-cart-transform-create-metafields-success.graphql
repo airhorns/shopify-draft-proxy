@@ -4,17 +4,6 @@ mutation CartTransformCreateMetafields($functionId: String!, $blockOnFailure: Bo
       id
       functionId
       blockOnFailure
-      metafield(namespace: "bundles", key: "config") {
-        id
-        namespace
-        key
-        type
-        value
-        compareDigest
-        ownerType
-        createdAt
-        updatedAt
-      }
       metafields(first: 5) {
         nodes {
           id

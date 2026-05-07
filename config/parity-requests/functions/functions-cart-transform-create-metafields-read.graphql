@@ -4,17 +4,6 @@ query CartTransformsMetafields($first: Int!) {
       id
       functionId
       blockOnFailure
-      metafield(namespace: "bundles", key: "mode") {
-        id
-        namespace
-        key
-        type
-        value
-        compareDigest
-        ownerType
-        createdAt
-        updatedAt
-      }
       metafields(first: 5) {
         nodes {
           id
