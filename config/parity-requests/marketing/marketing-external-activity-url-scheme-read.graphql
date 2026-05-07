@@ -1,0 +1,13 @@
+query MarketingExternalActivityUrlSchemeRead($remoteIds: [String!]) {
+  marketingActivities(first: 10, remoteIds: $remoteIds) {
+    nodes {
+      id
+      title
+      marketingEvent {
+        remoteId
+        manageUrl
+        previewUrl
+      }
+    }
+  }
+}

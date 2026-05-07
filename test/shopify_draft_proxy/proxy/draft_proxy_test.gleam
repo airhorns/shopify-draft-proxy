@@ -1448,6 +1448,25 @@ pub fn graphql_carrier_service_create_unparseable_callback_url_invalid_variable_
   )
 }
 
+pub fn graphql_url_variable_hostless_scheme_reports_missing_host_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation CreateCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }\",\"variables\":{\"input\":{\"name\":\"Hermes Javascript Callback\",\"callbackUrl\":\"javascript:alert(1)\",\"supportsServiceDiscovery\":false,\"active\":false}}}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  let response_json = json.to_string(response_body)
+  assert string.contains(
+    response_json,
+    "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for callbackUrl (Invalid url 'javascript:alert(1)', missing host)",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    response_json,
+    "\"problems\":[{\"path\":[\"callbackUrl\"],\"explanation\":\"Invalid url 'javascript:alert(1)', missing host\",\"message\":\"Invalid url 'javascript:alert(1)', missing host\"}]",
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Standalone DraftProxy methods
 // ---------------------------------------------------------------------------

@@ -538,6 +538,106 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     == "{\"marketingActivity\":null,\"marketingEvent\":null}"
 }
 
+pub fn external_activity_url_scheme_validation_rejects_non_http_schemes_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let seed =
+    marketing.process_mutation(
+      registered_email_store(),
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-url-scheme-seed\", remoteUrl: \"https://example.com/seed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-seed\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title marketingEvent { remoteId manageUrl previewUrl } } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(json.to_string(seed.data), "\"userErrors\":[]")
+
+  let invalid_create =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Bad FTP\", remoteId: \"remote-url-scheme-ftp\", remoteUrl: \"ftp://example.com/bad\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-ftp\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_create.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_create.data),
+    "marketingActivityCreateExternal",
+  )
+  let read_after_invalid_create =
+    run(
+      invalid_create.store,
+      "{ marketingActivities(first: 5, remoteIds: [\"remote-url-scheme-ftp\"]) { nodes { id } } }",
+    )
+  assert read_after_invalid_create == "{\"marketingActivities\":{\"nodes\":[]}}"
+
+  let invalid_create_preview =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityCreateExternal(input: { title: \"Bad preview\", remoteId: \"remote-url-scheme-file\", remoteUrl: \"https://example.com/ok\", remotePreviewImageUrl: \"file://example.com/preview.png\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-file\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_create_preview.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_create_preview.data),
+    "marketingActivityCreateExternal",
+  )
+
+  let invalid_update =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-url-scheme-seed\", input: { title: \"Bad update\", remoteUrl: \"mailto:marketing@example.com\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_update.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_update.data),
+    "marketingActivityUpdateExternal",
+  )
+  let read_after_invalid_update =
+    run(
+      invalid_update.store,
+      "{ marketingActivities(first: 5, remoteIds: [\"remote-url-scheme-seed\"]) { nodes { title marketingEvent { manageUrl previewUrl } } } }",
+    )
+  assert string.contains(
+    read_after_invalid_update,
+    "\"manageUrl\":\"https://example.com/seed\"",
+  )
+  assert string.contains(read_after_invalid_update, "\"previewUrl\":null")
+
+  let invalid_upsert =
+    marketing.process_mutation(
+      seed.store,
+      seed.identity,
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { title: \"Bad upsert\", remoteId: \"remote-url-scheme-upsert\", remoteUrl: \"file://example.com/upsert\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"url-scheme-upsert\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert invalid_upsert.staged_resource_ids == []
+  assert_url_scheme_error(
+    json.to_string(invalid_upsert.data),
+    "marketingActivityUpsertExternal",
+  )
+}
+
+fn assert_url_scheme_error(response_json: String, root: String) {
+  assert string.contains(
+    response_json,
+    "\"message\":\"The URL scheme must be one of the following: https,http\"",
+  )
+  assert string.contains(response_json, "\"code\":\"INVALID_FIELD_ARGUMENTS\"")
+  assert string.contains(response_json, "\"path\":[\"" <> root <> "\"]")
+  assert string.contains(response_json, "\"data\":{\"" <> root <> "\":null}")
+}
+
 pub fn external_activity_remote_id_uniqueness_is_app_scoped_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let app_a_create =
