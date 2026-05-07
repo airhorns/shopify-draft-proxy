@@ -1,0 +1,130 @@
+{
+  "scenarioId": "fulfillment-service-callback-url-validation",
+  "operationNames": ["fulfillmentServiceCreate", "fulfillmentServiceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-callback-url-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation.graphql",
+    "variablesCapturePath": "$.primary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 current app-scoped FulfillmentService callback URL validation. The current conformance app accepts valid http:// and https:// callback URLs in the mock.shop host family and the configured shop origin host. ftp://mock.shop returns a protocol-specific payload userError, while https://example.com and https://shopify.com return the generic not-allowed callbackUrl userError. The successful creates exist to target update validation and are deleted by capture cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "valid-https-create-payload",
+        "capturePath": "$.primary.response.payload.data.validHttpsCreate",
+        "proxyPath": "$.data.validHttpsCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "valid-http-create-payload",
+        "capturePath": "$.primary.response.payload.data.validHttpCreate",
+        "proxyPath": "$.data.validHttpCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "origin-create-payload",
+        "capturePath": "$.primary.response.payload.data.originCreate",
+        "proxyPath": "$.data.originCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "ftp-create-user-errors",
+        "capturePath": "$.primary.response.payload.data.ftpCreate",
+        "proxyPath": "$.data.ftpCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "example-create-user-errors",
+        "capturePath": "$.primary.response.payload.data.exampleCreate",
+        "proxyPath": "$.data.exampleCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "shopify-create-user-errors",
+        "capturePath": "$.primary.response.payload.data.shopifyCreate",
+        "proxyPath": "$.data.shopifyCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "allowed-update-payload",
+        "capturePath": "$.updateAllowed.response.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-allowed.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validHttpsCreate.fulfillmentService.id"
+            },
+            "callbackUrl": "http://mock.shop/fulfillment-service-callback-updated"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The update runs against the proxy-created synthetic fulfillment-service ID."
+          }
+        ]
+      },
+      {
+        "name": "disallowed-update-user-errors",
+        "capturePath": "$.updateDisallowed.response.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-disallowed.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validHttpCreate.fulfillmentService.id"
+            },
+            "callbackUrl": "https://example.com/fulfillment-service-callback-updated"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -4584,6 +4584,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-callback-url-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath:
+      'scripts/capture-fulfillment-service-callback-url-validation-conformance.ts',
+    purpose:
+      'Current app-scoped FulfillmentService callbackUrl allow/deny behavior for create and update.',
+    requiredAuthScopes: ['read_assigned_fulfillment_orders', 'write_assigned_fulfillment_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-callback-url-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-callback-url-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-allowed.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-disallowed.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable fulfillment services with allowed callback URLs, records invalid create/update attempts, then deletes the created fulfillment services in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profiles',
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',

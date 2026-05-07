@@ -1,0 +1,15 @@
+mutation FulfillmentServiceCallbackUrlValidationUpdateDisallowed(
+  $id: ID!
+  $callbackUrl: URL!
+) {
+  fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) {
+    fulfillmentService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

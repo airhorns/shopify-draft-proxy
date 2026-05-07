@@ -779,7 +779,7 @@ HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 
 - the top-level current-schema roots are `fulfillmentService`, `fulfillmentServiceCreate`, `fulfillmentServiceUpdate`, and `fulfillmentServiceDelete`; the catalog/list surface is nested at `shop.fulfillmentServices`, not a top-level query root
 - `fulfillmentService(id:)` returns `null` for an unknown ID
-- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential; omitting `callbackUrl` succeeded
+- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential. A later current-app capture showed the app-scoped callback URL family accepts valid `http://` and `https://` URLs under `mock.shop*` plus the configured shop origin host, rejects disallowed HTTP(S) hosts with `Callback url is not allowed`, and rejects `ftp://mock.shop/...` with `Callback url protocol ftp:// is not supported`.
 - a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
 - creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
 - `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
