@@ -12,13 +12,15 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/localization
+import shopify_draft_proxy/proxy/markets
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  CapturedObject, CapturedString, CollectionRecord, MarketRecord,
-  ProductSeoRecord, ShopLocaleRecord, TranslationRecord, WebPresenceRecord,
+  CapturedArray, CapturedBool, CapturedNull, CapturedObject, CapturedString,
+  CollectionRecord, MarketRecord, ProductSeoRecord, ShopLocaleRecord,
+  TranslationRecord, WebPresenceRecord,
 }
 
 fn run_outcome(
@@ -98,6 +100,15 @@ fn seed_market(store_in: store.Store, id: String, name: String) -> store.Store {
 }
 
 fn seed_web_presence(store_in: store.Store, id: String) -> store.Store {
+  seed_web_presence_with_alternate_locales(store_in, id, [])
+}
+
+fn seed_web_presence_with_alternate_locales(
+  store_in: store.Store,
+  id: String,
+  alternate_locales: List(String),
+) -> store.Store {
+  let locales = ["en", ..alternate_locales]
   store.upsert_base_web_presences(store_in, [
     WebPresenceRecord(
       id: id,
@@ -105,10 +116,51 @@ fn seed_web_presence(store_in: store.Store, id: String) -> store.Store {
       data: CapturedObject([
         #("__typename", CapturedString("MarketWebPresence")),
         #("id", CapturedString(id)),
+        #("subfolderSuffix", CapturedNull),
+        #(
+          "domain",
+          CapturedObject([
+            #("__typename", CapturedString("Domain")),
+            #("id", CapturedString("gid://shopify/Domain/1")),
+            #("host", CapturedString("example.myshopify.com")),
+            #("url", CapturedString("https://example.myshopify.com")),
+            #("sslEnabled", CapturedBool(True)),
+          ]),
+        ),
+        #(
+          "rootUrls",
+          CapturedArray(
+            list.map(locales, fn(locale) {
+              CapturedObject([
+                #("locale", CapturedString(locale)),
+                #("url", CapturedString(root_url_for_locale(locale))),
+              ])
+            }),
+          ),
+        ),
         #("defaultLocale", CapturedObject([#("locale", CapturedString("en"))])),
+        #(
+          "alternateLocales",
+          CapturedArray(
+            list.map(alternate_locales, fn(locale) {
+              CapturedObject([
+                #("locale", CapturedString(locale)),
+                #("primary", CapturedBool(False)),
+                #("published", CapturedBool(False)),
+              ])
+            }),
+          ),
+        ),
       ]),
     ),
   ])
+}
+
+fn root_url_for_locale(locale: String) -> String {
+  case locale {
+    "en" -> "https://example.myshopify.com/"
+    other -> "https://example.myshopify.com/" <> other <> "/"
+  }
 }
 
 fn seed_source_content_marker(
@@ -242,6 +294,26 @@ pub fn shop_locale_enable_projects_market_web_presences_test() {
     )
   assert json.to_string(read_data)
     == "{\"shopLocales\":[{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]}]}"
+}
+
+pub fn shop_locale_enable_updates_web_presence_alternate_locales_test() {
+  let market_web_presence_id = "gid://shopify/MarketWebPresence/1"
+  let outcome =
+    run_outcome(
+      store.new() |> seed_web_presence(market_web_presence_id),
+      "mutation { shopLocaleEnable(locale: \"fr\", marketWebPresenceIds: [\""
+        <> market_web_presence_id
+        <> "\"]) { shopLocale { locale } userErrors { field } } }",
+    )
+
+  let assert Ok(read_data) =
+    markets.handle_markets_query(
+      outcome.store,
+      "{ webPresences(first: 10) { nodes { id alternateLocales { locale primary published } rootUrls { locale url } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"webPresences\":{\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"alternateLocales\":[{\"locale\":\"fr\",\"primary\":false,\"published\":false}],\"rootUrls\":[{\"locale\":\"en\",\"url\":\"https://example.myshopify.com/\"},{\"locale\":\"fr\",\"url\":\"https://example.myshopify.com/fr/\"}]}]}}"
 }
 
 pub fn shop_locale_enable_filters_unknown_market_web_presence_ids_test() {
@@ -416,6 +488,35 @@ pub fn shop_locale_update_filters_unknown_market_web_presence_ids_test() {
     )
   assert json.to_string(read_data)
     == "{\"shopLocales\":[{\"locale\":\"fr\",\"marketWebPresences\":[{\"id\":\"gid://shopify/MarketWebPresence/known\",\"__typename\":\"MarketWebPresence\",\"defaultLocale\":{\"locale\":\"en\"}}]}]}"
+}
+
+pub fn shop_locale_update_swaps_web_presence_alternate_locales_test() {
+  let source_id = "gid://shopify/MarketWebPresence/source"
+  let target_id = "gid://shopify/MarketWebPresence/target"
+  let s =
+    store.new()
+    |> seed_web_presence_with_alternate_locales(source_id, ["fr"])
+    |> seed_web_presence(target_id)
+    |> seed_shop_locale_with_market_web_presences("fr", False, True, [
+      source_id,
+    ])
+
+  let outcome =
+    run_outcome(
+      s,
+      "mutation { shopLocaleUpdate(locale: \"fr\", shopLocale: { marketWebPresenceIds: [\""
+        <> target_id
+        <> "\"] }) { shopLocale { locale marketWebPresences { id } } userErrors { field message code } } }",
+    )
+
+  let assert Ok(read_data) =
+    markets.handle_markets_query(
+      outcome.store,
+      "{ webPresences(first: 10) { nodes { id alternateLocales { locale primary published } rootUrls { locale url } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"webPresences\":{\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/source\",\"alternateLocales\":[],\"rootUrls\":[{\"locale\":\"en\",\"url\":\"https://example.myshopify.com/\"}]},{\"id\":\"gid://shopify/MarketWebPresence/target\",\"alternateLocales\":[{\"locale\":\"fr\",\"primary\":false,\"published\":true}],\"rootUrls\":[{\"locale\":\"en\",\"url\":\"https://example.myshopify.com/\"},{\"locale\":\"fr\",\"url\":\"https://example.myshopify.com/fr/\"}]}]}}"
 }
 
 pub fn shop_locale_update_primary_unpublish_returns_user_error_test() {

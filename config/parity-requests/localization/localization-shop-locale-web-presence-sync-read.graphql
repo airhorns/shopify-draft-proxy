@@ -1,0 +1,34 @@
+fragment LocalizationShopLocaleWebPresenceSyncFields on MarketWebPresence {
+  id
+  subfolderSuffix
+  domain {
+    id
+    host
+    url
+    sslEnabled
+  }
+  defaultLocale {
+    locale
+    name
+    primary
+    published
+  }
+  alternateLocales {
+    locale
+    name
+    primary
+    published
+  }
+  rootUrls {
+    locale
+    url
+  }
+}
+
+query LocalizationShopLocaleWebPresenceSyncRead($first: Int!) {
+  webPresences(first: $first) {
+    nodes {
+      ...LocalizationShopLocaleWebPresenceSyncFields
+    }
+  }
+}

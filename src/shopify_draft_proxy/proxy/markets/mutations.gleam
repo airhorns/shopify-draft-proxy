@@ -3185,6 +3185,202 @@ fn handle_web_presence_delete(
   }
 }
 
+@internal
+pub fn web_presence_ids_for_alternate_locale(
+  store: Store,
+  locale: String,
+) -> List(String) {
+  store.list_effective_web_presences(store)
+  |> list.filter(fn(record) {
+    list.contains(existing_web_presence_alternate_locales(record), locale)
+  })
+  |> list.map(fn(record) { record.id })
+}
+
+@internal
+pub fn add_web_presence_alternate_locale(
+  store: Store,
+  id: String,
+  locale: String,
+  published: Bool,
+) -> Store {
+  case store.get_effective_web_presence_by_id(store, id) {
+    Some(record) -> {
+      let alternate_locales =
+        append_unique_strings(existing_web_presence_alternate_locales(record), [
+          locale,
+        ])
+      upsert_web_presence_alternate_locales(
+        store,
+        record,
+        alternate_locales,
+        published,
+      )
+    }
+    None -> store
+  }
+}
+
+@internal
+pub fn remove_web_presence_alternate_locale(
+  store: Store,
+  id: String,
+  locale: String,
+) -> Store {
+  case store.get_effective_web_presence_by_id(store, id) {
+    Some(record) -> {
+      let alternate_locales =
+        existing_web_presence_alternate_locales(record)
+        |> list.filter(fn(existing) { existing != locale })
+      upsert_web_presence_alternate_locales(
+        store,
+        record,
+        alternate_locales,
+        False,
+      )
+    }
+    None -> store
+  }
+}
+
+fn upsert_web_presence_alternate_locales(
+  store: Store,
+  record: WebPresenceRecord,
+  alternate_locales: List(String),
+  default_published: Bool,
+) -> Store {
+  let default_locale = existing_web_presence_default_locale(record)
+  let suffix = existing_web_presence_subfolder_suffix(record)
+  let domain = existing_web_presence_domain(record)
+  let locales = [default_locale, ..alternate_locales]
+  let data =
+    captured_object_upsert(record.data, [
+      #(
+        "rootUrls",
+        CapturedArray(
+          list.map(locales, fn(locale) {
+            CapturedObject([
+              #("locale", CapturedString(locale)),
+              #(
+                "url",
+                CapturedString(synced_web_presence_root_url(
+                  store,
+                  record,
+                  locale,
+                  default_locale,
+                  suffix,
+                  domain,
+                )),
+              ),
+            ])
+          }),
+        ),
+      ),
+      #(
+        "alternateLocales",
+        CapturedArray(
+          list.map(alternate_locales, fn(locale) {
+            synced_alternate_locale_payload(record, locale, default_published)
+          }),
+        ),
+      ),
+    ])
+  let #(_, next_store) =
+    store.upsert_staged_web_presence(
+      store,
+      WebPresenceRecord(record.id, record.cursor, data),
+    )
+  next_store
+}
+
+fn synced_web_presence_root_url(
+  store: Store,
+  record: WebPresenceRecord,
+  locale: String,
+  default_locale: String,
+  suffix: Option(String),
+  domain: Option(ShopDomainRecord),
+) -> String {
+  case existing_web_presence_root_url(record, locale) {
+    Some(url) -> url
+    None ->
+      case captured_subfolder_root_url_base(record, default_locale) {
+        Some(base) -> legacy_captured_subfolder_root_url(base, locale, suffix)
+        None ->
+          web_presence_root_url(
+            store,
+            locale,
+            default_locale,
+            suffix,
+            domain,
+            True,
+          )
+      }
+  }
+}
+
+fn existing_web_presence_root_url(
+  record: WebPresenceRecord,
+  locale: String,
+) -> Option(String) {
+  case captured_field(record.data, "rootUrls") {
+    Some(CapturedArray(root_urls)) ->
+      root_urls
+      |> list.find_map(fn(root_url) {
+        case captured_string_field(root_url, "locale") == Some(locale) {
+          True -> captured_string_field(root_url, "url") |> option_to_result
+          False -> Error(Nil)
+        }
+      })
+      |> result_to_option
+    _ -> None
+  }
+}
+
+fn captured_subfolder_root_url_base(
+  record: WebPresenceRecord,
+  default_locale: String,
+) -> Option(String) {
+  use url <- option.then(existing_web_presence_root_url(record, default_locale))
+  let prefix = "/" <> default_locale <> "-"
+  case string.split(url, on: prefix) {
+    [base, _] -> Some(base)
+    _ -> None
+  }
+}
+
+fn synced_alternate_locale_payload(
+  record: WebPresenceRecord,
+  locale: String,
+  default_published: Bool,
+) -> CapturedJsonValue {
+  case existing_web_presence_locale_payload(record, locale) {
+    Some(payload) -> payload
+    None ->
+      captured_object_upsert(locale_payload(locale, False), [
+        #("published", CapturedBool(default_published)),
+      ])
+  }
+}
+
+fn existing_web_presence_locale_payload(
+  record: WebPresenceRecord,
+  locale: String,
+) -> Option(CapturedJsonValue) {
+  case captured_field(record.data, "alternateLocales") {
+    Some(CapturedArray(locales)) ->
+      locales
+      |> list.find_map(fn(payload) {
+        case captured_string_field(payload, "locale") == Some(locale) {
+          True -> Ok(payload)
+          False -> Error(Nil)
+        }
+      })
+      |> result_to_option
+    _ -> None
+  }
+}
+
 fn mutation_result(
   key: String,
   field: Selection,

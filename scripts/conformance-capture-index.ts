@@ -2854,6 +2854,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'localization',
+    captureId: 'localization-shop-locale-web-presence-sync',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-shop-locale-web-presence-sync-conformance.mts',
+    purpose:
+      'ShopLocale enable/update marketWebPresenceIds synchronously add and remove WebPresence alternateLocales and derived rootUrls.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-shop-locale-enable-web-presence-sync.json`,
+      `${CAPTURE_ROOT}localization-shop-locale-update-web-presence-sync.json`,
+      'config/parity-specs/localization/localization-shop-locale-enable-web-presence-sync.json',
+      'config/parity-specs/localization/localization-shop-locale-update-web-presence-sync.json',
+      'config/parity-requests/localization/localization-shop-locale-web-presence-sync-enable.graphql',
+      'config/parity-requests/localization/localization-shop-locale-web-presence-sync-read.graphql',
+      'config/parity-requests/localization/localization-shop-locale-web-presence-sync-update.graphql',
+    ],
+    cleanupBehavior:
+      'Disables French before each scenario, creates disposable WebPresences, records enable and update read-after-write behavior, disables French, deletes the disposable WebPresences, then restores the pre-capture French locale if it existed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'markets',
     captureId: 'markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
