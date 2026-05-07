@@ -1,0 +1,22 @@
+query B2BBuyerExperienceCompanyRead($companyId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    locations(first: 5) {
+      nodes {
+        id
+        name
+        buyerExperienceConfiguration {
+          editableShippingAddress
+          checkoutToDraft
+          paymentTermsTemplate {
+            id
+          }
+          deposit {
+            __typename
+          }
+        }
+      }
+    }
+  }
+}

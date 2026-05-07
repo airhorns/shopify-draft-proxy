@@ -278,6 +278,21 @@ create branch, and does not expose these location fields on
 `CompanyLocationUpdateInput`; those ticket-required guardrails are therefore
 runtime-test-backed instead of parity-compared.
 
+`companyCreate(input.companyLocation)`, `companyLocationCreate`, and
+`companyLocationUpdate` now preserve
+`buyerExperienceConfiguration` on the normalized company-location record.
+Downstream `CompanyLocation.buyerExperienceConfiguration` reads project
+`editableShippingAddress`, `checkoutToDraft`, `paymentTermsTemplate { id }`,
+and `deposit { __typename }` from staged state, with Shopify-like default false
+booleans and null template/deposit values when the location has no explicit BEC
+input. The 2026-04 `b2b-buyer-experience-configuration` capture records real
+Shopify behavior for nested company create, location create, location update,
+read-after-write, empty BEC validation, and deposit-without-payment-terms
+validation. The same capture records that the current conformance shop accepts
+deposit when a valid `paymentTermsTemplateId` is present; the local
+`deposit_not_enabled` guard is runtime-test-backed through the synthetic shop
+capability helper because it depends on merchant feature posture.
+
 HAR-623 tightens B2B location/address lifecycle behavior. `companyLocationCreate`
 now derives an omitted or blank location name from
 `input.shippingAddress.address1` before falling back to the company name.

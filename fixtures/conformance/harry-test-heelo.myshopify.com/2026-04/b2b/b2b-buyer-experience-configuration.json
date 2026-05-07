@@ -1,0 +1,536 @@
+{
+  "scenarioId": "b2b-buyer-experience-configuration",
+  "capturedAt": "2026-05-07T13:44:33.738Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "plan": "Create disposable B2B company locations with buyerExperienceConfiguration, record empty/deposit validation branches, update a location with deposit and payment terms, read back staged values, and clean up the company.",
+    "deposits": "The conformance shop accepted deposit with paymentTermsTemplateId; disabled-shop deposit validation remains covered by local runtime tests."
+  },
+  "schemaProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BBuyerExperienceSchema {\n    location: __type(name: \"CompanyLocation\") {\n      fields { name }\n    }\n    buyerExperienceConfiguration: __type(name: \"BuyerExperienceConfiguration\") {\n      fields { name }\n    }\n    buyerExperienceConfigurationInput: __type(name: \"BuyerExperienceConfigurationInput\") {\n      inputFields { name }\n    }\n    depositInput: __type(name: \"DepositInput\") {\n      inputFields { name }\n    }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "location": {
+          "fields": [
+            {
+              "name": "billingAddress"
+            },
+            {
+              "name": "buyerExperienceConfiguration"
+            },
+            {
+              "name": "catalogs"
+            },
+            {
+              "name": "catalogsCount"
+            },
+            {
+              "name": "company"
+            },
+            {
+              "name": "createdAt"
+            },
+            {
+              "name": "currency"
+            },
+            {
+              "name": "defaultCursor"
+            },
+            {
+              "name": "draftOrders"
+            },
+            {
+              "name": "events"
+            },
+            {
+              "name": "externalId"
+            },
+            {
+              "name": "hasTimelineComment"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "inCatalog"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "metafield"
+            },
+            {
+              "name": "metafields"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "orders"
+            },
+            {
+              "name": "ordersCount"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "roleAssignments"
+            },
+            {
+              "name": "shippingAddress"
+            },
+            {
+              "name": "staffMemberAssignments"
+            },
+            {
+              "name": "storeCreditAccounts"
+            },
+            {
+              "name": "taxSettings"
+            },
+            {
+              "name": "totalSpent"
+            },
+            {
+              "name": "updatedAt"
+            }
+          ]
+        },
+        "buyerExperienceConfiguration": {
+          "fields": [
+            {
+              "name": "checkoutToDraft"
+            },
+            {
+              "name": "deposit"
+            },
+            {
+              "name": "editableShippingAddress"
+            },
+            {
+              "name": "paymentTermsTemplate"
+            }
+          ]
+        },
+        "buyerExperienceConfigurationInput": {
+          "inputFields": [
+            {
+              "name": "checkoutToDraft"
+            },
+            {
+              "name": "paymentTermsTemplateId"
+            },
+            {
+              "name": "editableShippingAddress"
+            },
+            {
+              "name": "deposit"
+            }
+          ]
+        },
+        "depositInput": {
+          "inputFields": [
+            {
+              "name": "percentage"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBuyerExperienceCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n          }\n        }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B buyer experience 1778161472084"
+          },
+          "companyLocation": {
+            "name": "B2B buyer experience 1778161472084 HQ",
+            "buyerExperienceConfiguration": {
+              "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+              "checkoutToDraft": true,
+              "editableShippingAddress": true
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5447713074",
+            "name": "B2B buyer experience 1778161472084",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8275362098",
+                  "name": "B2B buyer experience 1778161472084 HQ",
+                  "buyerExperienceConfiguration": {
+                    "editableShippingAddress": true,
+                    "checkoutToDraft": true,
+                    "paymentTermsTemplate": {
+                      "id": "gid://shopify/PaymentTermsTemplate/4"
+                    },
+                    "deposit": null
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBuyerExperienceLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447713074",
+        "input": {
+          "name": "B2B buyer experience 1778161472084 Branch",
+          "buyerExperienceConfiguration": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "checkoutToDraft": false,
+            "editableShippingAddress": true
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275394866",
+            "name": "B2B buyer experience 1778161472084 Branch",
+            "buyerExperienceConfiguration": {
+              "editableShippingAddress": true,
+              "checkoutToDraft": false,
+              "paymentTermsTemplate": {
+                "id": "gid://shopify/PaymentTermsTemplate/4"
+              },
+              "deposit": null
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validationLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBuyerExperienceLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447713074",
+        "input": {
+          "name": "B2B buyer experience 1778161472084 Validation"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275427634",
+            "name": "B2B buyer experience 1778161472084 Validation",
+            "buyerExperienceConfiguration": {
+              "editableShippingAddress": false,
+              "checkoutToDraft": false,
+              "paymentTermsTemplate": null,
+              "deposit": null
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "emptyBuyerExperienceUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBuyerExperienceLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8275362098",
+        "input": {
+          "buyerExperienceConfiguration": {}
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "buyerExperienceConfiguration"],
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "depositWithoutTermsUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBuyerExperienceLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8275427634",
+        "input": {
+          "buyerExperienceConfiguration": {
+            "deposit": {
+              "percentage": 50
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "buyerExperienceConfiguration", "deposit"],
+              "message": "Deposit requires a payment terms template.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "depositWithTermsUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BBuyerExperienceLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8275362098",
+        "input": {
+          "buyerExperienceConfiguration": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "checkoutToDraft": true,
+            "editableShippingAddress": true,
+            "deposit": {
+              "percentage": 50
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8275362098",
+            "name": "B2B buyer experience 1778161472084 HQ",
+            "buyerExperienceConfiguration": {
+              "editableShippingAddress": true,
+              "checkoutToDraft": true,
+              "paymentTermsTemplate": {
+                "id": "gid://shopify/PaymentTermsTemplate/4"
+              },
+              "deposit": {
+                "__typename": "DepositPercentage"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterBuyerExperience": {
+    "request": {
+      "query": "#graphql\n  query B2BBuyerExperienceCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          #graphql\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate {\n      id\n    }\n    deposit {\n      __typename\n    }\n  }\n\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5447713074"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5447713074",
+          "name": "B2B buyer experience 1778161472084",
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8275362098",
+                "name": "B2B buyer experience 1778161472084 HQ",
+                "buyerExperienceConfiguration": {
+                  "editableShippingAddress": true,
+                  "checkoutToDraft": true,
+                  "paymentTermsTemplate": {
+                    "id": "gid://shopify/PaymentTermsTemplate/4"
+                  },
+                  "deposit": {
+                    "__typename": "DepositPercentage"
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyLocation/8275394866",
+                "name": "B2B buyer experience 1778161472084 Branch",
+                "buyerExperienceConfiguration": {
+                  "editableShippingAddress": true,
+                  "checkoutToDraft": false,
+                  "paymentTermsTemplate": {
+                    "id": "gid://shopify/PaymentTermsTemplate/4"
+                  },
+                  "deposit": null
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyLocation/8275427634",
+                "name": "B2B buyer experience 1778161472084 Validation",
+                "buyerExperienceConfiguration": {
+                  "editableShippingAddress": false,
+                  "checkoutToDraft": false,
+                  "paymentTermsTemplate": null,
+                  "deposit": null
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation B2BBuyerExperienceCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5447713074"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5447713074",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

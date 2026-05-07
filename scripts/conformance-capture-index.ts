@@ -182,6 +182,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-buyer-experience-configuration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-buyer-experience-configuration-conformance.mts',
+    purpose:
+      'B2B CompanyLocation buyerExperienceConfiguration create/update storage, downstream reads, empty BEC validation, and deposit/payment-terms preconditions.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-buyer-experience-configuration.json`,
+      'config/parity-specs/b2b/b2b-buyer-experience-configuration.json',
+      'config/parity-requests/b2b/b2b-buyer-experience-company-create.graphql',
+      'config/parity-requests/b2b/b2b-buyer-experience-location-create.graphql',
+      'config/parity-requests/b2b/b2b-buyer-experience-location-update.graphql',
+      'config/parity-requests/b2b/b2b-buyer-experience-company-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with two locations, records validation and successful BEC branches, reads back the locations, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current conformance shop accepts deposit with paymentTermsTemplateId; the disabled-shop deposit_not_enabled guard remains runtime-test-backed.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-staff-assignment-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-staff-assignment-validation-conformance.ts',
