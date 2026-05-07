@@ -43,17 +43,11 @@
           "savedSearch": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name has already been taken"
             },
             {
-              "field": [
-                "input",
-                "query"
-              ],
+              "field": ["input", "query"],
               "message": "Query is invalid, 'made_up_filter' is not a valid filter"
             }
           ]
@@ -62,17 +56,11 @@
           "savedSearch": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name is too long (maximum is 40 characters)"
             },
             {
-              "field": [
-                "input",
-                "query"
-              ],
+              "field": ["input", "query"],
               "message": "Query has incompatible filters: collection_id, tag"
             }
           ]
@@ -81,17 +69,11 @@
           "savedSearch": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "query"
-              ],
+              "field": ["input", "query"],
               "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
             },
             {
-              "field": [
-                "input",
-                "query"
-              ],
+              "field": ["input", "query"],
               "message": "Query is invalid, 'made_up_filter' is not a valid filter"
             }
           ]
@@ -148,24 +130,15 @@
           },
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name has already been taken"
             },
             {
-              "field": [
-                "input",
-                "query"
-              ],
+              "field": ["input", "query"],
               "message": "Query is invalid, 'made_up_filter' is not a valid filter"
             },
             {
-              "field": [
-                "input",
-                "query"
-              ],
+              "field": ["input", "query"],
               "message": "Query has incompatible filters: collection_id, tag"
             }
           ]
