@@ -981,6 +981,41 @@ pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
   )
 }
 
+pub fn web_presence_create_rejects_taken_subfolder_suffix_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"fr\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"FR\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ webPresences(first: 10) { nodes { id subfolderSuffix } } }",
+    )
+  let second_json = json.to_string(second_body)
+  let read_json = json.to_string(read_body)
+
+  assert first_status == 200
+  assert second_status == 200
+  assert read_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+  assert string.contains(second_json, "\"webPresence\":null")
+  assert string.contains(
+    second_json,
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix has already been taken\",\"code\":\"TAKEN\"",
+  )
+  assert string.contains(
+    read_json,
+    "\"nodes\":[{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"fr\"}]",
+  )
+  assert !string.contains(read_json, "gid://shopify/MarketWebPresence/3")
+}
+
 pub fn web_presence_create_reports_unknown_domain_only_when_not_stored_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql_with_proxy(
@@ -1216,6 +1251,48 @@ pub fn web_presence_update_domain_id_is_not_validated_as_user_error_test() {
   )
   assert string.contains(serialized, "\"userErrors\":[]")
   assert !string.contains(serialized, "DOMAIN_NOT_FOUND")
+}
+
+pub fn web_presence_update_rejects_taken_subfolder_suffix_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"fr\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"de\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"DE\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let #(Response(status: noop_status, body: noop_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { webPresenceUpdate(id: \"gid://shopify/MarketWebPresence/1\", input: { subfolderSuffix: \"FR\" }) { webPresence { id subfolderSuffix } userErrors { field message code } } }",
+    )
+  let update_json = json.to_string(update_body)
+  let noop_json = json.to_string(noop_body)
+
+  assert first_status == 200
+  assert second_status == 200
+  assert update_status == 200
+  assert noop_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+  assert string.contains(update_json, "\"webPresence\":null")
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\",\"subfolderSuffix\"],\"message\":\"Subfolder suffix has already been taken\",\"code\":\"TAKEN\"",
+  )
+  assert string.contains(noop_json, "\"userErrors\":[]")
+  assert string.contains(
+    noop_json,
+    "\"webPresence\":{\"id\":\"gid://shopify/MarketWebPresence/1\",\"subfolderSuffix\":\"FR\"}",
+  )
 }
 
 pub fn web_presence_update_subfolder_domain_mutex_uses_existing_domain_test() {

@@ -3114,13 +3114,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
     purpose:
-      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, multi-locale rootUrls, and primary-domain delete guard.',
+      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, multi-locale rootUrls, duplicate subfolder-suffix validation, and primary-domain delete guard.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
       'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
       'config/parity-specs/markets/web-presence-partial-update-alternate-locales.json',
+      'config/parity-specs/markets/web-presence-subfolder-suffix-taken.json',
+      'config/parity-requests/markets/web-presence-suffix-market-create.graphql',
+      'config/parity-requests/markets/web-presence-suffix-market-update.graphql',
       'config/parity-specs/markets/web-presence-delete-primary-blocked.json',
     ],
     cleanupBehavior:
