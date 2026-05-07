@@ -538,7 +538,8 @@ fn url_redirect_matches_query_term(
   }
 }
 
-fn project_url_redirect_record(
+@internal
+pub fn project_url_redirect_record(
   record: UrlRedirectRecord,
   field: Selection,
   fragments: FragmentMap,
