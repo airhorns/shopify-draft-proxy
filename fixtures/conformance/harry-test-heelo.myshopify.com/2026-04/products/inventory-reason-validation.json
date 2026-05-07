@@ -1,0 +1,1021 @@
+{
+  "capturedAt": "2026-05-07T03:26:30.557Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "candidateReasons": [
+    "correction",
+    "cycle_count_available",
+    "damaged",
+    "movement_canceled",
+    "movement_created",
+    "movement_received",
+    "movement_updated",
+    "other",
+    "promotion",
+    "quality_control",
+    "received",
+    "reservation_created",
+    "reservation_deleted",
+    "reservation_updated",
+    "restock",
+    "safety_stock",
+    "shrinkage"
+  ],
+  "setup": {
+    "productId": "gid://shopify/Product/10179287580978",
+    "variantId": "gid://shopify/ProductVariant/51134426022194",
+    "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+    "locationId": "gid://shopify/Location/112829759794",
+    "available": 1,
+    "onHand": 1,
+    "setup": {
+      "data": {
+        "productSet": {
+          "product": {
+            "id": "gid://shopify/Product/10179287580978",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51134426022194",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53237600747826",
+                    "inventoryLevels": {
+                      "nodes": [
+                        {
+                          "location": {
+                            "id": "gid://shopify/Location/112829759794",
+                            "name": "HAR-571 transfer destination 20260505000619"
+                          },
+                          "quantities": [
+                            {
+                              "name": "available",
+                              "quantity": 1
+                            },
+                            {
+                              "name": "on_hand",
+                              "quantity": 1
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "acceptedReasonCases": {
+    "correction": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-correction/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-correction-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cycle_count_available": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "cycle_count_available",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-cycle_count_available/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-cycle_count_available-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "damaged": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "damaged",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-damaged/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-damaged-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "movement_canceled": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "movement_canceled",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_canceled/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-movement_canceled-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "movement_created": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "movement_created",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_created/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-movement_created-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "movement_received": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "movement_received",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_received/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-movement_received-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "movement_updated": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "movement_updated",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-movement_updated/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-movement_updated-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "other": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "other",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-other/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-other-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "promotion": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "promotion",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-promotion/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-promotion-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "quality_control": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "quality_control",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-quality_control/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-quality_control-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "received": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "received",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-received/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-received-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "reservation_created": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "reservation_created",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-reservation_created/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-reservation_created-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "reservation_deleted": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "reservation_deleted",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-reservation_deleted/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-reservation_deleted-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "reservation_updated": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "reservation_updated",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-reservation_updated/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-reservation_updated-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "restock": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "restock",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-restock/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-restock-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "safety_stock": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "safety_stock",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-safety_stock/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-safety_stock-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "shrinkage": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "shrinkage",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/accepted-shrinkage/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-accepted-shrinkage-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidReasonCases": {
+    "unknownReasonSet": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "completely_made_up",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-set/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-unknown-set-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "reason"],
+                "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
+                "code": "INVALID_REASON"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "emptyReasonSet": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/empty-set/1778124386677",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-empty-set-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "reason"],
+                "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
+                "code": "INVALID_REASON"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownReasonAdjust": {
+      "query": "#graphql\n  mutation InventoryReasonValidationAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {\n    inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "completely_made_up",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-adjust/1778124386677",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "delta": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-unknown-adjust-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "reason"],
+                "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
+                "code": "INVALID_REASON"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownReasonMove": {
+      "query": "#graphql\n  mutation InventoryReasonValidationMove($input: InventoryMoveQuantitiesInput!, $idempotencyKey: String!) {\n    inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "reason": "completely_made_up",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-move/1778124386677",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "quantity": 1,
+              "from": {
+                "locationId": "gid://shopify/Location/112829759794",
+                "name": "available",
+                "changeFromQuantity": 1
+              },
+              "to": {
+                "locationId": "gid://shopify/Location/112829759794",
+                "name": "damaged",
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "logistics://inventory-reason-validation/unknown-move/1778124386677"
+              }
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-unknown-move-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventoryMoveQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "reason"],
+                "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
+                "code": "INVALID_REASON"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownReasonSetOnHand": {
+      "query": "#graphql\n  mutation InventoryReasonValidationSetOnHand($input: InventorySetOnHandQuantitiesInput!, $idempotencyKey: String!) {\n    inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "reason": "completely_made_up",
+          "referenceDocumentUri": "logistics://inventory-reason-validation/unknown-set-on-hand/1778124386677",
+          "setQuantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237600747826",
+              "locationId": "gid://shopify/Location/112829759794",
+              "quantity": 1,
+              "changeFromQuantity": 1
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-reason-validation-unknown-set-on-hand-1778124386677"
+      },
+      "response": {
+        "data": {
+          "inventorySetOnHandQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "reason"],
+                "message": "The specified reason is invalid. Valid values are: correction, cycle_count_available, damaged, movement_canceled, movement_created, movement_received, movement_updated, other, promotion, quality_control, received, reservation_created, reservation_deleted, reservation_updated, restock, safety_stock, shrinkage.",
+                "code": "INVALID_REASON"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamAfterRejected": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53237600747826",
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "location": {
+                "id": "gid://shopify/Location/112829759794"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 1
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 1
+                },
+                {
+                  "name": "damaged",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 6,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "data": {
+      "productDelete": {
+        "deletedProductId": "gid://shopify/Product/10179287580978",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1990,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
