@@ -1350,6 +1350,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-validation-job',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-validation-job-conformance.mts',
+    purpose:
+      'metafieldDefinitionUpdate validation backfill Job payload, job(id:) readback, and null validationJob for a subsequent non-validation update.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validation-job.json`,
+      'config/parity-specs/metafield-definitions/validation-job.json',
+      'config/parity-requests/metafield-definitions/validation-job-create.graphql',
+      'config/parity-requests/metafield-definitions/validation-job-metafields-set.graphql',
+      'config/parity-requests/metafield-definitions/validation-job-update.graphql',
+      'config/parity-requests/metafield-definitions/validation-job-read.graphql',
+      'config/parity-requests/metafield-definitions/validation-job-rename.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and product-owned metafield definition, stages a matching metafield, captures validation update/readback/rename behavior, then deletes the definition and product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-pinning',
     scriptPath: 'scripts/capture-metafield-definition-pinning-conformance.mts',
     purpose: 'metafieldDefinitionPin/metafieldDefinitionUnpin behavior.',
