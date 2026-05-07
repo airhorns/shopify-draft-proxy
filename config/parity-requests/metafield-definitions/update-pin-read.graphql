@@ -1,0 +1,32 @@
+query MetafieldDefinitionUpdatePinRead($namespace: String!) {
+  pinnedDefinition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_true" }) {
+    key
+    pinnedPosition
+  }
+  unpinnedDefinition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_false" }) {
+    key
+    pinnedPosition
+  }
+  constrainedDefinition: metafieldDefinition(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }
+  ) {
+    key
+    pinnedPosition
+  }
+  overCapDefinition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "over_cap" }) {
+    key
+    pinnedPosition
+  }
+  pinned: metafieldDefinitions(
+    ownerType: PRODUCT
+    first: 25
+    namespace: $namespace
+    pinnedStatus: PINNED
+    sortKey: PINNED_POSITION
+  ) {
+    nodes {
+      key
+      pinnedPosition
+    }
+  }
+}

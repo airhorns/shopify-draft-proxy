@@ -27,6 +27,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, src_object,
 }
+import shopify_draft_proxy/proxy/metafield_definitions/serializers as metafield_definition_serializers
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products
@@ -66,6 +67,7 @@ pub fn list_supported_admin_platform_node_types() -> List(String) {
     "MarketRegionCountry",
     "MarketWebPresence",
     "Metafield",
+    "MetafieldDefinition",
     "Product",
     "ProductOption",
     "ProductOptionValue",
@@ -717,6 +719,7 @@ fn serialize_node(
         id,
         selection_children(field),
         fragments,
+        variables,
       )
     _ -> json.null()
   }
@@ -747,6 +750,7 @@ fn serialize_nodes(
       id,
       selection_children(field),
       fragments,
+      variables,
     )
   })
 }
@@ -757,6 +761,7 @@ fn serialize_node_by_id(
   id: String,
   selections: List(Selection),
   fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   case gid_resource_type(id) {
     "Product" ->
@@ -912,6 +917,14 @@ fn serialize_node_by_id(
       )
     "Metafield" ->
       serialize_metafield_node_by_id(store, id, selections, fragments)
+    "MetafieldDefinition" ->
+      serialize_metafield_definition_node_by_id(
+        store,
+        id,
+        selections,
+        fragments,
+        variables,
+      )
     "SellingPlan" ->
       products.serialize_selling_plan_node_by_id(
         store,
@@ -999,6 +1012,25 @@ fn serialize_metafield_node_by_id(
         admin_node_selected_fields(selections, "Metafield", fragments),
       )
     Error(_) -> json.null()
+  }
+}
+
+fn serialize_metafield_definition_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  case store.get_effective_metafield_definition_by_id(store, id) {
+    Some(record) ->
+      metafield_definition_serializers.serialize_definition_selection_set(
+        store,
+        record,
+        admin_node_selected_fields(selections, "MetafieldDefinition", fragments),
+        variables,
+      )
+    None -> json.null()
   }
 }
 

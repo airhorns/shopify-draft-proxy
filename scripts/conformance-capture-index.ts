@@ -448,6 +448,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'location-assign-address-preserves-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-location-assign-address-preserves-id-conformance.mts',
+    purpose: 'B2B companyLocationAssignAddress first-assign creation and update-branch CompanyAddress ID preservation.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location_assign_address_preserves_id.json`,
+      'config/parity-specs/b2b/location_assign_address_preserves_id.json',
+      'config/parity-requests/b2b/location-assign-address-preserves-id-assign.graphql',
+      'config/parity-requests/b2b/location-assign-address-preserves-id-company-create.graphql',
+      'config/parity-requests/b2b/location-assign-address-preserves-id-location-create.graphql',
+      'config/parity-requests/b2b/location-assign-address-preserves-id-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with one empty-address location and one dual-address location; deletes the company during scenario cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-business-rule-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-business-rule-preconditions-conformance.mts',
@@ -1453,6 +1472,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product-owned definition, updates its constraints, then deletes any remaining definitions in the temporary namespace.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-update-pin',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-update-pin.mts',
+    purpose:
+      'metafieldDefinitionUpdate pin/unpin handling, constrained-definition pin guard, and product-owner pin limit validation.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-pin.json`,
+      'config/parity-specs/metafield-definitions/update-pin.json',
+      'config/parity-requests/metafield-definitions/update-pin.graphql',
+      'config/parity-requests/metafield-definitions/update-pin-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
