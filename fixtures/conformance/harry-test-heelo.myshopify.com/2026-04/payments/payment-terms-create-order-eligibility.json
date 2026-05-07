@@ -11,11 +11,7 @@
             "order": {
               "email": "payment-terms-order-eligibility-paid-1778112806944@example.com",
               "note": "payment terms order eligibility paid capture",
-              "tags": [
-                "shopify-draft-proxy",
-                "payment-terms-order-eligibility",
-                "paid"
-              ],
+              "tags": ["shopify-draft-proxy", "payment-terms-order-eligibility", "paid"],
               "test": true,
               "currency": "USD",
               "presentmentCurrency": "USD",
@@ -285,11 +281,7 @@
             "order": {
               "email": "payment-terms-order-eligibility-closed-1778112806944@example.com",
               "note": "payment terms order eligibility closed capture",
-              "tags": [
-                "shopify-draft-proxy",
-                "payment-terms-order-eligibility",
-                "closed"
-              ],
+              "tags": ["shopify-draft-proxy", "payment-terms-order-eligibility", "closed"],
               "test": true,
               "currency": "USD",
               "presentmentCurrency": "USD",
@@ -597,11 +589,7 @@
             "order": {
               "email": "payment-terms-order-eligibility-cancelled-1778112806944@example.com",
               "note": "payment terms order eligibility cancelled capture",
-              "tags": [
-                "shopify-draft-proxy",
-                "payment-terms-order-eligibility",
-                "cancelled"
-              ],
+              "tags": ["shopify-draft-proxy", "payment-terms-order-eligibility", "cancelled"],
               "test": true,
               "currency": "USD",
               "presentmentCurrency": "USD",
