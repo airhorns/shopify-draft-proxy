@@ -41,6 +41,7 @@ import shopify_draft_proxy/proxy/orders/draft_orders.{
   build_updated_draft_order, captured_order_currency, complete_draft_order,
   draft_order_line_items, duplicate_draft_order,
   serialize_draft_order_mutation_payload, validate_draft_order_calculate_input,
+  validate_draft_order_line_items_max_input_size,
 }
 import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_draft_order_by_id, maybe_hydrate_draft_order_customer_from_input,
@@ -858,61 +859,80 @@ pub fn handle_draft_order_calculate(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          let hydrated_store =
-            maybe_hydrate_draft_order_variant_catalog_from_input(
-              store,
+          let max_input_errors =
+            validate_draft_order_line_items_max_input_size(
+              "draftOrderCalculate",
+              document,
+              field,
               input,
-              upstream,
             )
-            |> maybe_hydrate_draft_order_customer_from_input(input, upstream)
-          let user_errors =
-            validate_draft_order_calculate_input(hydrated_store, input)
-          case user_errors {
+          case max_input_errors {
+            [_, ..] -> #(key, json.null(), max_input_errors, [])
             [] -> {
-              let #(draft_order, _) =
-                build_draft_order_from_input(hydrated_store, identity, input)
-              let calculated =
-                build_calculated_draft_order_from_draft(draft_order)
-              let payload =
-                serialize_draft_order_calculate_payload(
-                  field,
-                  Some(calculated),
-                  [],
-                  fragments,
+              let hydrated_store =
+                maybe_hydrate_draft_order_variant_catalog_from_input(
+                  store,
+                  input,
+                  upstream,
                 )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderCalculate",
-                  [],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
-                  ),
+                |> maybe_hydrate_draft_order_customer_from_input(
+                  input,
+                  upstream,
                 )
-              #(key, payload, [], [draft])
-            }
-            _ -> {
-              let payload =
-                serialize_draft_order_calculate_payload(
-                  field,
-                  None,
-                  user_errors,
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderCalculate",
-                  [],
-                  store_types.Failed,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally rejected draftOrderCalculate validation branch.",
-                  ),
-                )
-              #(key, payload, [], [draft])
+              let user_errors =
+                validate_draft_order_calculate_input(hydrated_store, input)
+              case user_errors {
+                [] -> {
+                  let #(draft_order, _) =
+                    build_draft_order_from_input(
+                      hydrated_store,
+                      identity,
+                      input,
+                    )
+                  let calculated =
+                    build_calculated_draft_order_from_draft(draft_order)
+                  let payload =
+                    serialize_draft_order_calculate_payload(
+                      field,
+                      Some(calculated),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCalculate",
+                      [],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, [], [draft])
+                }
+                _ -> {
+                  let payload =
+                    serialize_draft_order_calculate_payload(
+                      field,
+                      None,
+                      user_errors,
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderCalculate",
+                      [],
+                      store_types.Failed,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally rejected draftOrderCalculate validation branch.",
+                      ),
+                    )
+                  #(key, payload, [], [draft])
+                }
+              }
             }
           }
         }
@@ -1526,49 +1546,69 @@ pub fn handle_draft_order_update(
       let input = read_object(args, "input")
       case id, input {
         Some(id), Some(input) -> {
-          // Pattern 2: updates merge user input into Shopify's existing draft
-          // order payload before staging the changed draft locally.
-          let hydrated_store =
-            maybe_hydrate_draft_order_by_id(store, id, upstream)
-          case store.get_draft_order_by_id(hydrated_store, id) {
-            Some(draft_order) -> {
-              let #(updated_draft_order, next_identity) =
-                build_updated_draft_order(
-                  hydrated_store,
-                  identity,
-                  draft_order,
-                  input,
-                )
-              let next_store =
-                store.stage_draft_order(hydrated_store, updated_draft_order)
-              let payload =
-                serialize_draft_order_mutation_payload(
-                  field,
-                  Some(updated_draft_order),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "draftOrderUpdate",
-                  [id],
-                  store_types.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged draftOrderUpdate in shopify-draft-proxy.",
-                  ),
-                )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+          let max_input_errors =
+            validate_draft_order_line_items_max_input_size(
+              "draftOrderUpdate",
+              document,
+              field,
+              input,
+            )
+          case max_input_errors {
+            [_, ..] -> #(
+              key,
+              json.null(),
+              store,
+              identity,
+              [],
+              max_input_errors,
+              [],
+            )
+            [] -> {
+              // Pattern 2: updates merge user input into Shopify's existing draft
+              // order payload before staging the changed draft locally.
+              let hydrated_store =
+                maybe_hydrate_draft_order_by_id(store, id, upstream)
+              case store.get_draft_order_by_id(hydrated_store, id) {
+                Some(draft_order) -> {
+                  let #(updated_draft_order, next_identity) =
+                    build_updated_draft_order(
+                      hydrated_store,
+                      identity,
+                      draft_order,
+                      input,
+                    )
+                  let next_store =
+                    store.stage_draft_order(hydrated_store, updated_draft_order)
+                  let payload =
+                    serialize_draft_order_mutation_payload(
+                      field,
+                      Some(updated_draft_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "draftOrderUpdate",
+                      [id],
+                      store_types.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged draftOrderUpdate in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
+                None ->
+                  unknown_draft_order_update_result(
+                    key,
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                  )
+              }
             }
-            None ->
-              unknown_draft_order_update_result(
-                key,
-                store,
-                identity,
-                field,
-                fragments,
-              )
           }
         }
         _, _ ->
