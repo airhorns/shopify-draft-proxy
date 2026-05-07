@@ -406,6 +406,8 @@ pub const list_effective_price_lists = markets.list_effective_price_lists
 
 pub const upsert_staged_price_list = markets.upsert_staged_price_list
 
+pub const sync_price_list_catalogs = markets.sync_price_list_catalogs
+
 pub const delete_staged_price_list = markets.delete_staged_price_list
 
 pub const clear_price_list_fixed_prices = markets.clear_price_list_fixed_prices

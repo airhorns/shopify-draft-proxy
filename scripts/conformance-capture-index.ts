@@ -2414,6 +2414,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-update-detach-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-update-detach-catalog-conformance.ts',
+    purpose:
+      'priceListUpdate explicit null catalog detach behavior, empty catalogId invalid-variable validation, downstream catalog/price-list read coherence, and reattach claim behavior.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-update-detach-catalog.json`,
+      'config/parity-specs/markets/price-list-update-detach-catalog.json',
+      'config/parity-requests/markets/price-list-update-detach-catalog-read.graphql',
+      'config/parity-requests/markets/catalog-relation-markets-read.graphql',
+      'config/parity-requests/markets/catalog-create-relation-validation.graphql',
+      'config/parity-requests/markets/price-list-create-catalog-validation.graphql',
+      'config/parity-requests/markets/price-list-update-input-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable price list, attaches it to a disposable market catalog, captures empty and null catalogId update behavior, creates a replacement catalog that claims the detached price list, then deletes created catalogs and the disposable price list when still present.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin GraphQL 2026-04 returns top-level INVALID_VARIABLE for variable catalogId: "" rather than a PriceListUserError payload.',
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-relation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-relation-validation-conformance.mts',
