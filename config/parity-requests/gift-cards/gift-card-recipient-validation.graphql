@@ -1,0 +1,171 @@
+mutation GiftCardRecipientValidation(
+  $activeId: ID!
+  $recipientId: ID!
+  $tooLongPreferredName: String!
+  $tooLongMessage: String!
+  $htmlPreferredName: String!
+  $htmlMessage: String!
+  $futureSendAt: DateTime!
+  $pastSendAt: DateTime!
+) {
+  createLongPreferredName: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        preferredName
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  createLongMessage: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: $tooLongMessage } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        message
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  createHtmlPreferredName: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        preferredName
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  createHtmlMessage: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: $htmlMessage } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        message
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  createFutureSendAt: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, sendNotificationAt: $futureSendAt } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        sendNotificationAt
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateLongPreferredName: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        preferredName
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateLongMessage: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        message
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateHtmlPreferredName: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, preferredName: $htmlPreferredName } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        preferredName
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateHtmlMessage: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, message: $htmlMessage } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        message
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updatePastSendAt: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, sendNotificationAt: $pastSendAt } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        sendNotificationAt
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

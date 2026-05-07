@@ -814,88 +814,104 @@ fn handle_gift_card_create(
                         error,
                       )
                     None -> {
-                      let last_chars = last_characters_from_code(code)
-                      let masked = masked_code_string(last_chars)
-                      let #(now, identity_after_ts) =
-                        synthetic_identity.make_synthetic_timestamp(
-                          identity_after_id,
-                        )
-                      let recipient_attributes =
-                        read_recipient_attributes(
-                          dict_get(input, "recipientAttributes"),
-                          None,
-                        )
-                      let recipient_id = case
-                        graphql_helpers.read_arg_string_nonempty(
-                          input,
-                          "recipientId",
-                        )
-                      {
-                        Some(s) -> Some(s)
-                        None ->
-                          case recipient_attributes {
-                            Some(attrs) -> attrs.id
-                            None -> None
+                      let recipient_errors =
+                        gift_card_recipient_attribute_user_errors(input)
+                      case recipient_errors {
+                        [first, ..] ->
+                          gift_card_create_error_result(
+                            key,
+                            field,
+                            fragments,
+                            variables,
+                            store,
+                            identity_after_id,
+                            first,
+                          )
+                        [] -> {
+                          let last_chars = last_characters_from_code(code)
+                          let masked = masked_code_string(last_chars)
+                          let #(now, identity_after_ts) =
+                            synthetic_identity.make_synthetic_timestamp(
+                              identity_after_id,
+                            )
+                          let recipient_attributes =
+                            read_recipient_attributes(
+                              dict_get(input, "recipientAttributes"),
+                              None,
+                            )
+                          let recipient_id = case
+                            graphql_helpers.read_arg_string_nonempty(
+                              input,
+                              "recipientId",
+                            )
+                          {
+                            Some(s) -> Some(s)
+                            None ->
+                              case recipient_attributes {
+                                Some(attrs) -> attrs.id
+                                None -> None
+                              }
                           }
+                          let record =
+                            GiftCardRecord(
+                              id: gid,
+                              legacy_resource_id: gift_card_tail(gid),
+                              last_characters: last_chars,
+                              masked_code: masked,
+                              code: Some(code),
+                              enabled: True,
+                              notify: True,
+                              deactivated_at: None,
+                              expires_on: graphql_helpers.read_arg_string_nonempty(
+                                input,
+                                "expiresOn",
+                              ),
+                              note: graphql_helpers.read_arg_string_nonempty(
+                                input,
+                                "note",
+                              ),
+                              template_suffix: graphql_helpers.read_arg_string_nonempty(
+                                input,
+                                "templateSuffix",
+                              ),
+                              created_at: now,
+                              updated_at: now,
+                              initial_value: initial_value,
+                              balance: initial_value,
+                              customer_id: customer_id,
+                              recipient_id: recipient_id,
+                              source: Some("api_client"),
+                              recipient_attributes: recipient_attributes,
+                              transactions: [],
+                            )
+                          let #(_, store_after) =
+                            store.stage_create_gift_card(store, record)
+                          let payload =
+                            GiftCardPayload(
+                              gift_card: Some(record),
+                              gift_card_code: Some(code),
+                              gift_card_transaction: None,
+                              user_errors: [],
+                            )
+                          let json_payload =
+                            gift_card_payload_json(
+                              payload,
+                              "GiftCardCreatePayload",
+                              field,
+                              fragments,
+                              variables,
+                            )
+                          #(
+                            MutationFieldResult(
+                              key: key,
+                              payload: json_payload,
+                              staged_resource_ids: [record.id],
+                            ),
+                            store_after,
+                            identity_after_ts,
+                          )
+                        }
                       }
-                      let record =
-                        GiftCardRecord(
-                          id: gid,
-                          legacy_resource_id: gift_card_tail(gid),
-                          last_characters: last_chars,
-                          masked_code: masked,
-                          code: Some(code),
-                          enabled: True,
-                          notify: True,
-                          deactivated_at: None,
-                          expires_on: graphql_helpers.read_arg_string_nonempty(
-                            input,
-                            "expiresOn",
-                          ),
-                          note: graphql_helpers.read_arg_string_nonempty(
-                            input,
-                            "note",
-                          ),
-                          template_suffix: graphql_helpers.read_arg_string_nonempty(
-                            input,
-                            "templateSuffix",
-                          ),
-                          created_at: now,
-                          updated_at: now,
-                          initial_value: initial_value,
-                          balance: initial_value,
-                          customer_id: customer_id,
-                          recipient_id: recipient_id,
-                          source: Some("api_client"),
-                          recipient_attributes: recipient_attributes,
-                          transactions: [],
-                        )
-                      let #(_, store_after) =
-                        store.stage_create_gift_card(store, record)
-                      let payload =
-                        GiftCardPayload(
-                          gift_card: Some(record),
-                          gift_card_code: Some(code),
-                          gift_card_transaction: None,
-                          user_errors: [],
-                        )
-                      let json_payload =
-                        gift_card_payload_json(
-                          payload,
-                          "GiftCardCreatePayload",
-                          field,
-                          fragments,
-                          variables,
-                        )
-                      #(
-                        MutationFieldResult(
-                          key: key,
-                          payload: json_payload,
-                          staged_resource_ids: [record.id],
-                        ),
-                        store_after,
-                        identity_after_ts,
-                      )
                     }
                   }
                 }
@@ -1903,32 +1919,9 @@ fn gift_card_update_recipient_attribute_user_errors(
 ) -> List(gift_card_types.UserError) {
   case dict_get(input, "recipientAttributes") {
     Some(root_field.ObjectVal(attributes)) -> {
-      let length_errors =
-        [
-          #("preferredName", 255),
-          #("message", 200),
-        ]
-        |> list.filter_map(fn(pair) {
-          let #(field, max_length) = pair
-          case graphql_helpers.read_arg_string(attributes, field) {
-            Some(value) ->
-              case string.length(value) > max_length {
-                True ->
-                  Ok(gift_card_types.UserError(
-                    field: ["input", "recipientAttributes", field],
-                    code: Some("TOO_LONG"),
-                    message: field
-                      <> " is too long (maximum is "
-                      <> int.to_string(max_length)
-                      <> ")",
-                  ))
-                False -> Error(Nil)
-              }
-            _ -> Error(Nil)
-          }
-        })
-      case length_errors {
-        [_first, ..] -> length_errors
+      let validation_errors = gift_card_recipient_attribute_user_errors(input)
+      case validation_errors {
+        [_first, ..] -> validation_errors
         [] -> {
           let recipient_error =
             gift_card_update_recipient_customer_user_error(
@@ -1945,6 +1938,175 @@ fn gift_card_update_recipient_attribute_user_errors(
     }
     _ -> []
   }
+}
+
+fn gift_card_recipient_attribute_user_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(gift_card_types.UserError) {
+  case dict_get(input, "recipientAttributes") {
+    Some(root_field.ObjectVal(attributes)) ->
+      recipient_text_length_user_errors(attributes)
+      |> list.append(recipient_text_html_user_errors(attributes))
+      |> list.append(recipient_send_at_user_errors(attributes))
+    _ -> []
+  }
+}
+
+fn recipient_text_length_user_errors(
+  attributes: Dict(String, root_field.ResolvedValue),
+) -> List(gift_card_types.UserError) {
+  [
+    #("preferredName", 255),
+    #("message", 200),
+  ]
+  |> list.filter_map(fn(pair) {
+    let #(field, max_length) = pair
+    case graphql_helpers.read_arg_string(attributes, field) {
+      Some(value) ->
+        case string.length(value) > max_length {
+          True ->
+            Ok(gift_card_types.UserError(
+              field: ["input", "recipientAttributes", field],
+              code: Some("TOO_LONG"),
+              message: field
+                <> " is too long (maximum is "
+                <> int.to_string(max_length)
+                <> ")",
+            ))
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn recipient_text_html_user_errors(
+  attributes: Dict(String, root_field.ResolvedValue),
+) -> List(gift_card_types.UserError) {
+  [
+    #("preferredName", "Preferred name cannot contain HTML tags"),
+    #("message", "Message cannot contain HTML tags"),
+  ]
+  |> list.filter_map(fn(pair) {
+    let #(field, message) = pair
+    case graphql_helpers.read_arg_string(attributes, field) {
+      Some(value) ->
+        case contains_html_tag(value) {
+          True ->
+            Ok(invalid_user_error(
+              ["input", "recipientAttributes", field],
+              message,
+            ))
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn recipient_send_at_user_errors(
+  attributes: Dict(String, root_field.ResolvedValue),
+) -> List(gift_card_types.UserError) {
+  case graphql_helpers.read_arg_string(attributes, "sendNotificationAt") {
+    Some(value) ->
+      case send_notification_at_in_range(value) {
+        True -> []
+        False -> [
+          invalid_user_error(
+            ["input", "recipientAttributes", "sendNotificationAt"],
+            "Send notification at must be within 90 days from now",
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn send_notification_at_in_range(value: String) -> Bool {
+  let max_offset_ms = 90 * 24 * 60 * 60 * 1000
+  case
+    iso_timestamp.parse_iso(value),
+    iso_timestamp.parse_iso(iso_timestamp.now_iso())
+  {
+    Ok(send_at_ms), Ok(now_ms) ->
+      send_at_ms >= now_ms && send_at_ms <= now_ms + max_offset_ms
+    _, _ -> False
+  }
+}
+
+fn contains_html_tag(value: String) -> Bool {
+  contains_html_tag_in_graphemes(string.to_graphemes(value))
+}
+
+fn contains_html_tag_in_graphemes(chars: List(String)) -> Bool {
+  case chars {
+    [] -> False
+    ["<", ..rest] ->
+      case scan_html_tag(rest) {
+        True -> True
+        False -> contains_html_tag_in_graphemes(rest)
+      }
+    [_, ..rest] -> contains_html_tag_in_graphemes(rest)
+  }
+}
+
+fn scan_html_tag(chars: List(String)) -> Bool {
+  case chars {
+    [] -> False
+    [first, ..rest] ->
+      case first == "/" {
+        True ->
+          case rest {
+            [after_slash, ..tail] ->
+              ascii_letter(after_slash) && scan_until_tag_close(tail)
+            [] -> False
+          }
+        False -> ascii_letter(first) && scan_until_tag_close(rest)
+      }
+  }
+}
+
+fn scan_until_tag_close(chars: List(String)) -> Bool {
+  case chars {
+    [] -> False
+    [">", ..] -> True
+    [_, ..rest] -> scan_until_tag_close(rest)
+  }
+}
+
+fn ascii_letter(value: String) -> Bool {
+  let lower = string.lowercase(value)
+  list.contains(
+    [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f",
+      "g",
+      "h",
+      "i",
+      "j",
+      "k",
+      "l",
+      "m",
+      "n",
+      "o",
+      "p",
+      "q",
+      "r",
+      "s",
+      "t",
+      "u",
+      "v",
+      "w",
+      "x",
+      "y",
+      "z",
+    ],
+    lower,
+  )
 }
 
 fn gift_card_update_recipient_customer_user_error(

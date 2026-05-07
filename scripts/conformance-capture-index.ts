@@ -6221,6 +6221,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-recipient-validation',
+    scriptPath: 'scripts/capture-gift-card-recipient-validation-conformance.ts',
+    purpose:
+      'Gift-card create/update recipientAttributes validation for required recipient id, text length caps, HTML-tag rejection, and sendNotificationAt date range bounds.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-recipient-validation.json`,
+      'config/parity-specs/gift-cards/gift-card-recipient-validation.json',
+      'config/parity-requests/gift-cards/gift-card-recipient-validation.graphql',
+      'config/parity-requests/gift-cards/gift-card-recipient-validation-create-missing-id.graphql',
+      'config/parity-requests/gift-cards/gift-card-recipient-validation-update-missing-id.graphql',
+      'config/parity-requests/gift-cards/gift-card-recipient-validation-customer-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-recipient-validation-gift-card-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer plus one active gift card, records recipient validation branches, deactivates setup gift cards, and deletes setup customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public giftCardUpdate userErrors type in Admin API 2025-01 exposes field/message only, so replay expectations add the typed code contract used by the local model.',
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-update-deactivated-multi-field',
     scriptPath: 'scripts/capture-gift-card-update-deactivated-multi-field-conformance.ts',
     purpose:
