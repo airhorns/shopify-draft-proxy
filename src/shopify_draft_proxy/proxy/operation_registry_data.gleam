@@ -7942,7 +7942,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Removes staged market-specific product metafield values locally when marketLocalizableContent is explicitly seeded; default ad hoc metafields return Shopify-like null localization payloads without upstream writes.",
+        "Removes staged market-specific product metafield values locally when marketLocalizableContent is explicitly seeded; default ad hoc text metafields and unmatched remove filters return Shopify-like null localization payloads without upstream writes.",
       ),
     ),
     RegistryEntry(
