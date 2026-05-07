@@ -1,0 +1,1208 @@
+{
+  "capturedAt": "2026-05-07T03:32:27.333Z",
+  "scenarioId": "orderEdit-quantity-validation",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live order-edit quantity validation capture against one disposable order-edit session. Rejected quantity branches must not mutate the open calculated order; the final valid addVariant payload proves read-after-reject state.",
+  "setupReferences": {
+    "selectedLocationId": "gid://shopify/Location/112829759794",
+    "selectedVariant": {
+      "id": "gid://shopify/ProductVariant/49875425296690",
+      "title": "Default Title",
+      "sku": "sku-untracked-1",
+      "price": "949.95",
+      "product": {
+        "id": "gid://shopify/Product/9801098789170",
+        "title": "The Inventory Not Tracked Snowboard"
+      }
+    }
+  },
+  "setup": {
+    "seed": {
+      "query": "query OrderEditQuantityValidationSeed($first: Int!) {\n    locations(first: 10) {\n      nodes {\n        id\n        name\n        isActive\n      }\n    }\n    products(first: $first) {\n      nodes {\n        id\n        title\n        variants(first: 5) {\n          nodes {\n            id\n            title\n            sku\n            price\n            product {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "first": 20
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112833069362",
+                  "name": "HAR-654 Sub 20260505044352",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112831103282",
+                  "name": "HAR-658 lifecycle 20260505013332",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112864788786",
+                  "name": "Inventory transfer conformance destination 1778105212772",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112864919858",
+                  "name": "Inventory transfer conformance destination 1778105301908",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112864985394",
+                  "name": "Inventory transfer conformance destination 1778105349016",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112865149234",
+                  "name": "Inventory transfer conformance destination 1778105966307",
+                  "isActive": true
+                },
+                {
+                  "id": "gid://shopify/Location/112864756018",
+                  "name": "Inventory transfer conformance origin 1778105212772",
+                  "isActive": true
+                }
+              ]
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1",
+                        "price": "949.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098789170",
+                          "title": "The Inventory Not Tracked Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null,
+                        "price": "10.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null,
+                        "price": "25.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null,
+                        "price": "50.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null,
+                        "price": "100.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098821938",
+                          "title": "Gift Card"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "2629.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098854706",
+                          "title": "The Draft Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "885.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098887474",
+                          "title": "The Out of Stock Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "885.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098920242",
+                          "title": "The Minimal Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "629.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098953010",
+                          "title": "The Archived Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null,
+                        "price": "24.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098985778",
+                          "title": "Selling Plans Ski Wax"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null,
+                        "price": "49.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098985778",
+                          "title": "Selling Plans Ski Wax"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null,
+                        "price": "9.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098985778",
+                          "title": "Selling Plans Ski Wax"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "600.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099018546",
+                          "title": "The Collection Snowboard: Hydrogen"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "885.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099051314",
+                          "title": "The Videographer Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "749.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099084082",
+                          "title": "The Hidden Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099116850",
+                  "title": "The Complete Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425689906",
+                        "title": "Ice",
+                        "sku": null,
+                        "price": "699.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099116850",
+                          "title": "The Complete Snowboard"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425722674",
+                        "title": "Dawn",
+                        "sku": null,
+                        "price": "699.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099116850",
+                          "title": "The Complete Snowboard"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425755442",
+                        "title": "Powder",
+                        "sku": null,
+                        "price": "699.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099116850",
+                          "title": "The Complete Snowboard"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425820978",
+                        "title": "Electric",
+                        "sku": null,
+                        "price": "699.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099116850",
+                          "title": "The Complete Snowboard"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425853746",
+                        "title": "Sunset",
+                        "sku": null,
+                        "price": "699.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099116850",
+                          "title": "The Complete Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099149618",
+                  "title": "The Compare at Price Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425788210",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "785.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099149618",
+                          "title": "The Compare at Price Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099182386",
+                  "title": "The Collection Snowboard: Oxygen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875426017586",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "1025.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099182386",
+                          "title": "The Collection Snowboard: Oxygen"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099215154",
+                  "title": "The Multi-location Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425984818",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "729.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099215154",
+                          "title": "The Multi-location Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099247922",
+                  "title": "The 3p Fulfilled Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875426050354",
+                        "title": "Default Title",
+                        "sku": "sku-hosted-1",
+                        "price": "2629.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099247922",
+                          "title": "The 3p Fulfilled Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099280690",
+                  "title": "The Multi-managed Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875426083122",
+                        "title": "Default Title",
+                        "sku": "sku-managed-1",
+                        "price": "629.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099280690",
+                          "title": "The Multi-managed Snowboard"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099313458",
+                  "title": "The Collection Snowboard: Liquid30",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875426115890",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "749.95",
+                        "product": {
+                          "id": "gid://shopify/Product/9801099313458",
+                          "title": "The Collection Snowboard: Liquid30"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9885482844466",
+                  "title": "Ocean Blue Shirt",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/50124757631282",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "50.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9885482844466",
+                          "title": "Ocean Blue Shirt"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9885482877234",
+                  "title": "Classic Varsity Top",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/50124757664050",
+                        "title": "Small",
+                        "sku": null,
+                        "price": "60.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9885482877234",
+                          "title": "Classic Varsity Top"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/50124757696818",
+                        "title": "Medium",
+                        "sku": null,
+                        "price": "60.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9885482877234",
+                          "title": "Classic Varsity Top"
+                        }
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/50124757729586",
+                        "title": "Large",
+                        "sku": null,
+                        "price": "60.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9885482877234",
+                          "title": "Classic Varsity Top"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9885482910002",
+                  "title": "Yellow Wool Jumper",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/50124757762354",
+                        "title": "Default Title",
+                        "sku": null,
+                        "price": "80.00",
+                        "product": {
+                          "id": "gid://shopify/Product/9885482910002",
+                          "title": "Yellow Wool Jumper"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 38,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1962,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderCreate": {
+      "query": "#graphql\n  fragment OrderEditQuantityValidationOrderFields on Order {\n    id\n    name\n    email\n    note\n    tags\n    createdAt\n    updatedAt\n    cancelledAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    presentmentCurrencyCode\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n  }\n\n  mutation OrderEditQuantityValidationCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...OrderEditQuantityValidationOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-edit-quantity-validation-20260507033224@example.com",
+          "note": "orderEdit quantity validation capture 20260507033224",
+          "tags": [
+            "order-edit-quantity-validation",
+            "20260507033224"
+          ],
+          "test": true,
+          "currency": "CAD",
+          "shippingAddress": {
+            "firstName": "Conformance",
+            "lastName": "OrderEditQuantity",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "title": "Order edit quantity source item 20260507033224",
+              "quantity": 3,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true,
+              "sku": "order-edit-quantity-20260507033224"
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8733529342258",
+                "name": "#1331",
+                "email": "order-edit-quantity-validation-20260507033224@example.com",
+                "note": "orderEdit quantity validation capture 20260507033224",
+                "tags": [
+                  "20260507033224",
+                  "order-edit-quantity-validation"
+                ],
+                "createdAt": "2026-05-07T03:32:25Z",
+                "updatedAt": "2026-05-07T03:32:25Z",
+                "cancelledAt": null,
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "presentmentCurrencyCode": "CAD",
+                "currentSubtotalLineItemsQuantity": 3,
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "30.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "30.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "30.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "30.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19309064683826",
+                      "title": "Order edit quantity source item 20260507033224",
+                      "name": "Order edit quantity source item 20260507033224",
+                      "quantity": 3,
+                      "currentQuantity": 3,
+                      "sku": "order-edit-quantity-20260507033224",
+                      "variantTitle": null,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "variant": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadBeforeEdit": {
+      "query": "#graphql\n  fragment OrderEditQuantityValidationOrderFields on Order {\n    id\n    name\n    email\n    note\n    tags\n    createdAt\n    updatedAt\n    cancelledAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    presentmentCurrencyCode\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n  }\n\n  query OrderEditQuantityValidationHydrate($id: ID!) {\n    order(id: $id) {\n      ...OrderEditQuantityValidationOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8733529342258"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733529342258",
+              "name": "#1331",
+              "email": "order-edit-quantity-validation-20260507033224@example.com",
+              "note": "orderEdit quantity validation capture 20260507033224",
+              "tags": [
+                "20260507033224",
+                "order-edit-quantity-validation"
+              ],
+              "createdAt": "2026-05-07T03:32:25Z",
+              "updatedAt": "2026-05-07T03:32:25Z",
+              "cancelledAt": null,
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "currentSubtotalLineItemsQuantity": 3,
+              "currentSubtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19309064683826",
+                    "title": "Order edit quantity source item 20260507033224",
+                    "name": "Order edit quantity source item 20260507033224",
+                    "quantity": 3,
+                    "currentQuantity": 3,
+                    "sku": "order-edit-quantity-20260507033224",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "begin": {
+    "query": "mutation OrderEditQuantityValidationBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n        name\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      addedLineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/8733529342258"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderEditBegin": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/106767679794",
+              "originalOrder": {
+                "id": "gid://shopify/Order/8733529342258",
+                "name": "#1331"
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CalculatedLineItem/19309064683826",
+                    "title": "Order edit quantity source item 20260507033224",
+                    "quantity": 3,
+                    "sku": "order-edit-quantity-20260507033224",
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "addedLineItems": {
+                "nodes": []
+              }
+            },
+            "orderEditSession": {
+              "id": "gid://shopify/OrderEditSession/106767679794"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 31,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "setQuantityNegative": {
+      "query": "mutation OrderEditQuantityValidationSetQuantity(\n  $id: ID!\n  $lineItemId: ID!\n  $quantity: Int!\n  $restock: Boolean\n) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity, restock: $restock) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      addedLineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/106767679794",
+        "lineItemId": "gid://shopify/CalculatedLineItem/19309064683826",
+        "quantity": -1,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditSetQuantity": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "orderEditSession": null,
+              "userErrors": [
+                {
+                  "field": [
+                    "quantity"
+                  ],
+                  "message": "must be greater than or equal to 0"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addVariantZero": {
+      "query": "mutation OrderEditQuantityValidationAddVariant(\n  $id: ID!\n  $variantId: ID!\n  $quantity: Int!\n  $locationId: ID\n  $allowDuplicates: Boolean\n) {\n  orderEditAddVariant(\n    id: $id\n    variantId: $variantId\n    quantity: $quantity\n    locationId: $locationId\n    allowDuplicates: $allowDuplicates\n  ) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      addedLineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/106767679794",
+        "variantId": "gid://shopify/ProductVariant/49875425296690",
+        "quantity": 0,
+        "allowDuplicates": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddVariant": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "orderEditSession": null,
+              "userErrors": [
+                {
+                  "field": [
+                    "quantity"
+                  ],
+                  "message": "must be greater than 0"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addVariantNegative": {
+      "query": "mutation OrderEditQuantityValidationAddVariant(\n  $id: ID!\n  $variantId: ID!\n  $quantity: Int!\n  $locationId: ID\n  $allowDuplicates: Boolean\n) {\n  orderEditAddVariant(\n    id: $id\n    variantId: $variantId\n    quantity: $quantity\n    locationId: $locationId\n    allowDuplicates: $allowDuplicates\n  ) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      addedLineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/106767679794",
+        "variantId": "gid://shopify/ProductVariant/49875425296690",
+        "quantity": -3,
+        "allowDuplicates": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddVariant": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "orderEditSession": null,
+              "userErrors": [
+                {
+                  "field": [
+                    "quantity"
+                  ],
+                  "message": "must be greater than 0"
+                },
+                {
+                  "field": [
+                    "quantity"
+                  ],
+                  "message": "must be greater than or equal to 0"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addVariantHappyPath": {
+      "query": "mutation OrderEditQuantityValidationAddVariant(\n  $id: ID!\n  $variantId: ID!\n  $quantity: Int!\n  $locationId: ID\n  $allowDuplicates: Boolean\n) {\n  orderEditAddVariant(\n    id: $id\n    variantId: $variantId\n    quantity: $quantity\n    locationId: $locationId\n    allowDuplicates: $allowDuplicates\n  ) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      addedLineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/106767679794",
+        "variantId": "gid://shopify/ProductVariant/49875425296690",
+        "quantity": 2,
+        "allowDuplicates": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddVariant": {
+              "calculatedOrder": {
+                "id": "gid://shopify/CalculatedOrder/106767679794",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CalculatedLineItem/19309064683826",
+                      "title": "Order edit quantity source item 20260507033224",
+                      "quantity": 3,
+                      "sku": "order-edit-quantity-20260507033224",
+                      "variant": null,
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "addedLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CalculatedLineItem/55738da0-c3cd-43df-9e0d-af3540d48869",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "quantity": 2,
+                      "sku": "sku-untracked-1",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690"
+                      },
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "949.95",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "949.95",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "calculatedLineItem": {
+                "id": "gid://shopify/CalculatedLineItem/55738da0-c3cd-43df-9e0d-af3540d48869",
+                "title": "The Inventory Not Tracked Snowboard",
+                "quantity": 2,
+                "sku": "sku-untracked-1",
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/49875425296690"
+                },
+                "originalUnitPriceSet": {
+                  "shopMoney": {
+                    "amount": "949.95",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "949.95",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "orderEditSession": {
+                "id": "gid://shopify/OrderEditSession/106767679794"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation OrderEditQuantityValidationCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8733529342258",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/50f6c720-45b8-4a41-9401-99a45b27e56a"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8733529342258"
+      },
+      "query": "hand-synthesized from live setup order read for orderEdit quantity validation replay",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733529342258",
+              "name": "#1331",
+              "email": "order-edit-quantity-validation-20260507033224@example.com",
+              "note": "orderEdit quantity validation capture 20260507033224",
+              "tags": [
+                "20260507033224",
+                "order-edit-quantity-validation"
+              ],
+              "createdAt": "2026-05-07T03:32:25Z",
+              "updatedAt": "2026-05-07T03:32:25Z",
+              "cancelledAt": null,
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "presentmentCurrencyCode": "CAD",
+              "currentSubtotalLineItemsQuantity": 3,
+              "currentSubtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "30.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19309064683826",
+                    "title": "Order edit quantity source item 20260507033224",
+                    "name": "Order edit quantity source item 20260507033224",
+                    "quantity": 3,
+                    "currentQuantity": 3,
+                    "sku": "order-edit-quantity-20260507033224",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersProductVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/49875425296690"
+      },
+      "query": "hand-synthesized from live product variant seed for orderEditAddVariant quantity validation replay",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "price": "949.95",
+              "product": {
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
