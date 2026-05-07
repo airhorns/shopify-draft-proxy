@@ -126,6 +126,81 @@ pub fn price_list_create_matches_parent_adjustment_value_bounds_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
 }
 
+pub fn price_list_create_validates_name_length_and_uniqueness_test() {
+  let long_name = string.repeat("A", times: 256)
+  let #(Response(status: setup_status, body: setup_body, ..), proxy) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"Shared Name\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id name } userErrors { field message code } } }",
+    )
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListCreate(input: { name: \"Shared Name\", currency: CAD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id name } userErrors { field message code } } }",
+    )
+  let #(Response(status: case_status, body: case_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListCreate(input: { name: \"shared name\", currency: CAD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id name } userErrors { field message code } } }",
+    )
+  let #(Response(status: too_long_status, body: too_long_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListCreate(input: { name: \""
+        <> long_name
+        <> "\", currency: EUR, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id name } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ priceLists(first: 10) { nodes { id name currency } } }",
+    )
+
+  assert setup_status == 200
+  assert duplicate_status == 200
+  assert case_status == 200
+  assert too_long_status == 200
+  assert read_status == 200
+  assert json.to_string(setup_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\",\"name\":\"Shared Name\"},\"userErrors\":[]}}}"
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\",\"code\":\"TAKEN\"}]}}}"
+  assert json.to_string(case_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/4\",\"name\":\"shared name\"},\"userErrors\":[]}}}"
+  assert json.to_string(too_long_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"priceLists\":{\"nodes\":[{\"id\":\"gid://shopify/PriceList/1\",\"name\":\"Shared Name\",\"currency\":\"USD\"},{\"id\":\"gid://shopify/PriceList/4\",\"name\":\"shared name\",\"currency\":\"CAD\"}]}}}"
+}
+
+pub fn price_list_update_validates_name_uniqueness_and_preserves_existing_test() {
+  let proxy = duplicate_name_price_lists_proxy()
+  let #(Response(status: self_status, body: self_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/duplicate-a\", input: { name: \"Unique A\" }) { priceList { id name currency } userErrors { field message code } } }",
+    )
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/duplicate-a\", input: { name: \"Unique B\" }) { priceList { id name currency } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "{ priceList(id: \"gid://shopify/PriceList/duplicate-a\") { id name currency } }",
+    )
+
+  assert self_status == 200
+  assert duplicate_status == 200
+  assert read_status == 200
+  assert json.to_string(self_body)
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/duplicate-a\",\"name\":\"Unique A\",\"currency\":\"USD\"},\"userErrors\":[]}}}"
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\",\"code\":\"TAKEN\"}]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/duplicate-a\",\"name\":\"Unique A\",\"currency\":\"USD\"}}}"
+}
+
 pub fn price_list_create_and_update_allow_catalog_market_currency_mismatch_test() {
   let #(Response(status: valid_status, body: valid_body, ..), _) =
     graphql_with_proxy(
@@ -1661,6 +1736,58 @@ fn invalid_adjustment_price_list_proxy() -> DraftProxy {
     proxy.store
     |> store.upsert_base_price_lists([invalid_adjustment_price_list_record()])
   DraftProxy(..proxy, store: seeded_store)
+}
+
+fn duplicate_name_price_lists_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_price_lists([
+      named_price_list_record(
+        "gid://shopify/PriceList/duplicate-a",
+        "Unique A",
+        "USD",
+      ),
+      named_price_list_record(
+        "gid://shopify/PriceList/duplicate-b",
+        "Unique B",
+        "CAD",
+      ),
+    ])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn named_price_list_record(
+  id: String,
+  name: String,
+  currency: String,
+) -> PriceListRecord {
+  PriceListRecord(
+    id: id,
+    cursor: Some(id),
+    data: CapturedObject([
+      #("__typename", CapturedString("PriceList")),
+      #("id", CapturedString(id)),
+      #("name", CapturedString(name)),
+      #("currency", CapturedString(currency)),
+      #(
+        "parent",
+        CapturedObject([
+          #(
+            "adjustment",
+            CapturedObject([
+              #("type", CapturedString("PERCENTAGE_DECREASE")),
+              #("value", CapturedInt(10)),
+            ]),
+          ),
+        ]),
+      ),
+      #("catalog", CapturedNull),
+      #("fixedPricesCount", CapturedInt(0)),
+      #("prices", empty_price_connection()),
+      #("quantityRules", empty_connection()),
+    ]),
+  )
 }
 
 fn cad_market_record() -> MarketRecord {

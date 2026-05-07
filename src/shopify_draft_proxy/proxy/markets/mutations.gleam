@@ -1639,7 +1639,7 @@ fn handle_price_list_update(
                 fragments,
                 "priceListUpdate",
                 "priceList",
-                existing.data,
+                price_list_update_error_payload(existing.data, errors),
                 errors,
                 store,
                 identity,
@@ -1675,6 +1675,26 @@ fn handle_price_list_update(
         identity,
       )
   }
+}
+
+fn price_list_update_error_payload(
+  existing: CapturedJsonValue,
+  errors: List(CapturedJsonValue),
+) -> CapturedJsonValue {
+  case has_price_list_name_error(errors) {
+    True -> CapturedNull
+    False -> existing
+  }
+}
+
+fn has_price_list_name_error(errors: List(CapturedJsonValue)) -> Bool {
+  list.any(errors, fn(error) {
+    case captured_field(error, "field") {
+      Some(CapturedArray([CapturedString("input"), CapturedString("name")])) ->
+        True
+      _ -> False
+    }
+  })
 }
 
 fn handle_price_list_delete(

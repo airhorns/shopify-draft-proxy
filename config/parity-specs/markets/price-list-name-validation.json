@@ -1,0 +1,96 @@
+{
+  "scenarioId": "price-list-name-validation",
+  "operationNames": ["priceListCreate", "priceListUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-name-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-name-validation-create.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-create-invalid",
+        "capturePath": "$.cases[1].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-name-validation-create.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "too-long-create-invalid",
+        "capturePath": "$.cases[2].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-name-validation-create.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-subject-create",
+        "capturePath": "$.cases[3].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-name-validation-create.graphql",
+          "variablesCapturePath": "$.cases[3].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-update-invalid",
+        "capturePath": "$.cases[4].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-name-validation-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-subject-create",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[4].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-update-invalid",
+        "capturePath": "$.cases[5].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-name-validation-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "update-subject-create",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[5].variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for PriceList name validation. Duplicate names return TAKEN and 256-character names return TOO_LONG at input.name for both priceListCreate and priceListUpdate. The recorder creates disposable setup price lists and deletes them during cleanup; validation failures do not create or update price lists."
+}
