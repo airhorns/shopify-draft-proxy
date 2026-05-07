@@ -7387,6 +7387,82 @@ pub fn default_registry() -> List(RegistryEntry) {
       ),
     ),
     RegistryEntry(
+      name: "eventBridgeWebhookSubscriptionCreate",
+      type_: Mutation,
+      domain: Webhooks,
+      execution: StageLocally,
+      implemented: True,
+      match_names: [
+        "eventBridgeWebhookSubscriptionCreate",
+        "EventBridgeWebhookSubscriptionCreate",
+      ],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
+      ],
+      support_notes: Some(
+        "The Gleam runtime stages the deprecated dedicated EventBridge webhook subscription create root locally by normalizing EventBridgeWebhookSubscriptionInput.arn into the same stored address/endpoint model used by webhookSubscriptionCreate, preserving raw mutation-log replay and downstream read-after-write visibility without runtime Shopify writes.",
+      ),
+    ),
+    RegistryEntry(
+      name: "eventBridgeWebhookSubscriptionUpdate",
+      type_: Mutation,
+      domain: Webhooks,
+      execution: StageLocally,
+      implemented: True,
+      match_names: [
+        "eventBridgeWebhookSubscriptionUpdate",
+        "EventBridgeWebhookSubscriptionUpdate",
+      ],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
+      ],
+      support_notes: Some(
+        "The Gleam runtime stages the deprecated dedicated EventBridge webhook subscription update root locally by normalizing EventBridgeWebhookSubscriptionInput.arn into the same stored address/endpoint model used by webhookSubscriptionUpdate, preserving raw mutation-log replay and downstream read-after-write visibility without runtime Shopify writes.",
+      ),
+    ),
+    RegistryEntry(
+      name: "pubSubWebhookSubscriptionCreate",
+      type_: Mutation,
+      domain: Webhooks,
+      execution: StageLocally,
+      implemented: True,
+      match_names: [
+        "pubSubWebhookSubscriptionCreate",
+        "PubSubWebhookSubscriptionCreate",
+      ],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
+      ],
+      support_notes: Some(
+        "The Gleam runtime stages the deprecated dedicated Pub/Sub webhook subscription create root locally by normalizing PubSubWebhookSubscriptionInput.pubSubProject/pubSubTopic into the same stored address/endpoint model used by webhookSubscriptionCreate, preserving raw mutation-log replay and downstream read-after-write visibility without runtime Shopify writes.",
+      ),
+    ),
+    RegistryEntry(
+      name: "pubSubWebhookSubscriptionUpdate",
+      type_: Mutation,
+      domain: Webhooks,
+      execution: StageLocally,
+      implemented: True,
+      match_names: [
+        "pubSubWebhookSubscriptionUpdate",
+        "PubSubWebhookSubscriptionUpdate",
+      ],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/webhooks_test.gleam",
+        "test/shopify_draft_proxy/proxy/log_drafts_enforcement_test.gleam",
+      ],
+      support_notes: Some(
+        "The Gleam runtime stages the deprecated dedicated Pub/Sub webhook subscription update root locally by normalizing PubSubWebhookSubscriptionInput.pubSubProject/pubSubTopic into the same stored address/endpoint model used by webhookSubscriptionUpdate, preserving raw mutation-log replay and downstream read-after-write visibility without runtime Shopify writes.",
+      ),
+    ),
+    RegistryEntry(
       name: "webhookSubscriptionCreate",
       type_: Mutation,
       domain: Webhooks,

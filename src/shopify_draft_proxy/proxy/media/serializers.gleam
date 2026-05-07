@@ -3,24 +3,20 @@
 import gleam/dict.{type Dict}
 import gleam/json.{type Json}
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field.{type ResolvedValue}
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, type SourceValue, SelectedFieldOptions,
-  SerializeConnectionConfig, SrcList, SrcNull, SrcString,
-  default_connection_page_info_options, default_connection_window_options,
-  default_selected_field_options, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  src_object,
+  type FragmentMap, type SourceValue, SerializeConnectionConfig, SrcList,
+  SrcNull, SrcString, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  field_raw_selections, get_selected_child_fields, paginate_connection_items,
+  project_graphql_value, serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/media/types as media_types
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/types.{type FileRecord}
-
-const inline_selected_field_options = SelectedFieldOptions(
-  include_inline_fragments: True,
-)
 
 @internal
 pub fn serialize_files_connection(
@@ -29,7 +25,13 @@ pub fn serialize_files_connection(
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
 ) -> Json {
-  let files = store.list_effective_files(store)
+  let files = case
+    graphql_helpers.field_args(field, variables)
+    |> read_bool_arg("reverse")
+  {
+    Some(True) -> store.list_effective_files(store) |> list.reverse
+    _ -> store.list_effective_files(store)
+  }
   let window =
     paginate_connection_items(
       files,
@@ -48,7 +50,7 @@ pub fn serialize_files_connection(
       serialize_node: fn(file, selection, _index) {
         project_graphql_value(
           file_source(file),
-          get_selected_child_fields(selection, inline_selected_field_options),
+          field_raw_selections(selection),
           fragments,
         )
       },
@@ -56,6 +58,16 @@ pub fn serialize_files_connection(
       page_info_options: default_connection_page_info_options(),
     ),
   )
+}
+
+fn read_bool_arg(
+  args: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case dict.get(args, name) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 @internal
@@ -168,18 +180,143 @@ pub fn file_source(file: FileRecord) -> SourceValue {
     #("alt", graphql_helpers.option_string_source(file.alt)),
     #("contentType", graphql_helpers.option_string_source(file.content_type)),
     #("createdAt", SrcString(file.created_at)),
+    #("updatedAt", SrcString(file.updated_at)),
     #("fileStatus", SrcString(file.file_status)),
     #("filename", graphql_helpers.option_string_source(file.filename)),
+    #("displayName", SrcString(file_display_name(file))),
+    #("updateStatus", SrcString(file.file_status)),
+    #("fileErrors", SrcList([])),
+    #("fileWarnings", SrcList([])),
   ]
+  let fields = list.append(fields, file_mime_type_fields(file))
   let fields = list.append(fields, generic_file_url_fields(file))
   let fields =
     list.append(fields, [
       #("image", file_image_source(file)),
       #("preview", file_preview_source(file)),
+    ])
+  let fields = list.append(fields, media_error_fields(file))
+  src_object(fields)
+}
+
+fn file_display_name(file: FileRecord) -> String {
+  case non_empty_option(file.filename) {
+    Some(filename) -> filename
+    None ->
+      case derive_filename(file.original_source) {
+        Some(filename) -> filename
+        None ->
+          case non_empty_option(file.alt) {
+            Some(alt) -> alt
+            None -> shopify_gid_tail(file.id) |> option.unwrap(file.id)
+          }
+      }
+  }
+}
+
+fn file_mime_type_fields(file: FileRecord) -> List(#(String, SourceValue)) {
+  case file_typename(file) {
+    "MediaImage" | "Video" | "GenericFile" -> [
+      #("mimeType", SrcString(derive_mime_type(file))),
+    ]
+    _ -> []
+  }
+}
+
+fn media_error_fields(file: FileRecord) -> List(#(String, SourceValue)) {
+  case file_typename(file) {
+    "MediaImage" | "Video" | "ExternalVideo" | "Model3d" -> [
       #("mediaErrors", SrcList([])),
       #("mediaWarnings", SrcList([])),
-    ])
-  src_object(fields)
+    ]
+    _ -> []
+  }
+}
+
+fn derive_mime_type(file: FileRecord) -> String {
+  let source =
+    non_empty_option(file.filename)
+    |> option.or(derive_filename(file.original_source))
+    |> option.unwrap(file.original_source)
+  let extension = file_extension(source)
+  case extension {
+    "gif" -> "image/gif"
+    "heic" -> "image/heic"
+    "heif" -> "image/heif"
+    "jpg" | "jpeg" -> "image/jpeg"
+    "png" -> "image/png"
+    "webp" -> "image/webp"
+    "m4v" -> "video/x-m4v"
+    "mov" -> "video/quicktime"
+    "mp4" -> "video/mp4"
+    "webm" -> "video/webm"
+    "glb" -> "model/gltf-binary"
+    "gltf" -> "model/gltf+json"
+    "usdz" -> "model/vnd.usdz+zip"
+    "csv" -> "text/csv"
+    "json" -> "application/json"
+    "pdf" -> "application/pdf"
+    "txt" -> "text/plain"
+    "zip" -> "application/zip"
+    _ ->
+      case file.content_type {
+        Some("IMAGE") -> "image/jpeg"
+        Some("VIDEO") -> "video/mp4"
+        Some("MODEL_3D") -> "model/gltf-binary"
+        _ -> "application/octet-stream"
+      }
+  }
+}
+
+fn derive_filename(source: String) -> Option(String) {
+  let path =
+    source
+    |> before_delimiter("?")
+    |> before_delimiter("#")
+  let last_segment =
+    path
+    |> string.split("/")
+    |> reverse_items
+    |> list.find(fn(part) { part != "" })
+    |> option.from_result
+  non_empty_option(last_segment)
+}
+
+fn file_extension(source: String) -> String {
+  let filename = derive_filename(source) |> option.unwrap("")
+  case string.split(filename, ".") {
+    [_] -> ""
+    parts ->
+      case list.last(parts) {
+        Ok(extension) -> string.lowercase(extension)
+        Error(_) -> ""
+      }
+  }
+}
+
+fn before_delimiter(value: String, delimiter: String) -> String {
+  case string.split_once(value, on: delimiter) {
+    Ok(#(before, _)) -> before
+    Error(_) -> value
+  }
+}
+
+fn non_empty_option(value: Option(String)) -> Option(String) {
+  case value {
+    Some(value) if value != "" -> Some(value)
+    _ -> None
+  }
+}
+
+fn shopify_gid_tail(id: String) -> Option(String) {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) if tail != "" -> Some(tail)
+    _ -> None
+  }
+}
+
+fn reverse_items(items: List(a)) -> List(a) {
+  list.fold(items, [], fn(acc, item) { [item, ..acc] })
 }
 
 fn generic_file_url_fields(file: FileRecord) -> List(#(String, SourceValue)) {
