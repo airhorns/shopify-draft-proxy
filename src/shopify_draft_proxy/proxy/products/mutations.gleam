@@ -972,14 +972,16 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged inventoryAdjustQuantities locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -1131,14 +1133,16 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged inventorySetQuantities locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -1171,14 +1175,16 @@ pub fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) =
+                products_mutation_log_status(result, name.value)
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store_types.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Staged inventoryMoveQuantities locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),

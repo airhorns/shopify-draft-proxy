@@ -1,0 +1,645 @@
+{
+  "capturedAt": "2026-05-07T03:32:17.623Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "productId": "gid://shopify/Product/10179288039730",
+    "variantId": "gid://shopify/ProductVariant/51134428152114",
+    "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+    "locationId": "gid://shopify/Location/106318430514",
+    "available": 0,
+    "onHand": 0,
+    "committed": 0,
+    "create": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10179288039730",
+            "title": "Inventory name allowlist 2026-04 1778124735202",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51134428152114",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53237602877746",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "track": {
+      "data": {
+        "productVariantsBulkUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10179288039730",
+            "tracksInventory": true,
+            "totalInventory": 0
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51134428152114",
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53237602877746",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "baselineRead": {
+      "data": {
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53237602877746",
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53237602877746",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0,
+                    "updatedAt": "2026-05-07T03:32:15Z"
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "reserved",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "damaged",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "quality_control",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "safety_stock",
+                    "quantity": 0,
+                    "updatedAt": null
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "adjustOnHand": {
+      "query": "#graphql\n  mutation InventoryAdjustNameAllowlistAdjust(\n    $input: InventoryAdjustQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes {\n          name\n          delta\n          ledgerDocumentUri\n          item { id }\n          location { id name }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "on_hand",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/on-hand/1778124735202",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 1,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "ledger://inventory-name-allowlist/on-hand/1778124735202"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-name-allowlist-on-hand-1778124735202"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "adjustCommitted": {
+      "query": "#graphql\n  mutation InventoryAdjustNameAllowlistAdjust(\n    $input: InventoryAdjustQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes {\n          name\n          delta\n          ledgerDocumentUri\n          item { id }\n          location { id name }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "committed",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/committed/1778124735202",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 1,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "ledger://inventory-name-allowlist/committed/1778124735202"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-name-allowlist-committed-1778124735202"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moveOnHand": {
+      "query": "#graphql\n  mutation InventoryAdjustNameAllowlistMove(\n    $input: InventoryMoveQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes {\n          name\n          delta\n          ledgerDocumentUri\n          location { id name }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/move-on-hand/1778124735202",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+              "quantity": 1,
+              "from": {
+                "locationId": "gid://shopify/Location/106318430514",
+                "name": "on_hand",
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "ledger://inventory-name-allowlist/move-on-hand-from/1778124735202"
+              },
+              "to": {
+                "locationId": "gid://shopify/Location/106318430514",
+                "name": "damaged",
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "ledger://inventory-name-allowlist/move-damaged-to/1778124735202"
+              }
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-name-allowlist-move-on-hand-1778124735202"
+      },
+      "response": {
+        "data": {
+          "inventoryMoveQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "changes", "0", "from", "name"],
+                "message": "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "moveCommitted": {
+      "query": "#graphql\n  mutation InventoryAdjustNameAllowlistMove(\n    $input: InventoryMoveQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventoryMoveQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes {\n          name\n          delta\n          ledgerDocumentUri\n          location { id name }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/move-committed/1778124735202",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+              "quantity": 1,
+              "from": {
+                "locationId": "gid://shopify/Location/106318430514",
+                "name": "committed",
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "ledger://inventory-name-allowlist/move-committed-from/1778124735202"
+              },
+              "to": {
+                "locationId": "gid://shopify/Location/106318430514",
+                "name": "reserved",
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "ledger://inventory-name-allowlist/move-reserved-to/1778124735202"
+              }
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-name-allowlist-move-committed-1778124735202"
+      },
+      "response": {
+        "data": {
+          "inventoryMoveQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "changes", "0", "from", "name"],
+                "message": "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "setOnHand": {
+      "query": "#graphql\n  mutation InventorySetOnHandQuantitiesAllowlist(\n    $input: InventorySetOnHandQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes {\n          name\n          delta\n          ledgerDocumentUri\n          item { id }\n          location { id name }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/set-on-hand/1778124735202",
+          "setQuantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 3,
+              "changeFromQuantity": 0
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-name-allowlist-set-on-hand-1778124735202"
+      },
+      "response": {
+        "data": {
+          "inventorySetOnHandQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/set-on-hand/1778124735202",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 3,
+                  "ledgerDocumentUri": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53237602877746"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 3,
+                  "ledgerDocumentUri": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53237602877746"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "afterInvalidsRead": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53237602877746",
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53237602877746",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-05-07T03:32:15Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "committed",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "damaged",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "quality_control",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "safety_stock",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 12,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "afterSetOnHandRead": {
+    "data": {
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53237602877746",
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53237602877746",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 3,
+                  "updatedAt": "2026-05-07T03:32:16Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 3,
+                  "updatedAt": null
+                },
+                {
+                  "name": "committed",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "damaged",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "quality_control",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "safety_stock",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 12,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "data": {
+      "productDelete": {
+        "deletedProductId": "gid://shopify/Product/10179288039730",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1990,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "InventorySetOnHandQuantitiesAllowlist",
+      "variables": {
+        "input": {
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/set-on-hand/1778124735202",
+          "setQuantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53237602877746",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 3,
+              "changeFromQuantity": 0
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-name-allowlist-set-on-hand-1778124735202"
+      },
+      "query": "#graphql\n  mutation InventorySetOnHandQuantitiesAllowlist(\n    $input: InventorySetOnHandQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventorySetOnHandQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes {\n          name\n          delta\n          ledgerDocumentUri\n          item { id }\n          location { id name }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventorySetOnHandQuantities": {
+              "inventoryAdjustmentGroup": {
+                "reason": "correction",
+                "referenceDocumentUri": "logistics://inventory-name-allowlist/2026-04/set-on-hand/1778124735202",
+                "changes": [
+                  {
+                    "name": "available",
+                    "delta": 3,
+                    "ledgerDocumentUri": null,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53237602877746"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    }
+                  },
+                  {
+                    "name": "on_hand",
+                    "delta": 3,
+                    "ledgerDocumentUri": null,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53237602877746"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

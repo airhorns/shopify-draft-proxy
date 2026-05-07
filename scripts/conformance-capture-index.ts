@@ -2097,6 +2097,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'inventory',
+    captureId: 'inventory-adjust-name-allowlist',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-adjust-name-allowlist-conformance.ts',
+    purpose:
+      'inventoryAdjustQuantities and inventoryMoveQuantities public quantity-name allowlist validation plus deprecated set-on-hand acceptance evidence.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-adjust-name-allowlist.json`,
+      'config/parity-specs/products/inventory-adjust-name-allowlist.json',
+      'config/parity-requests/products/inventory-adjust-name-allowlist-adjust.graphql',
+      'config/parity-requests/products/inventory-adjust-name-allowlist-move.graphql',
+      'config/parity-requests/products/inventory-adjust-name-allowlist-set-on-hand.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable tracked product, records invalid adjust/move branches and a deprecated set-on-hand success branch, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'localization',
     captureId: 'localization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
