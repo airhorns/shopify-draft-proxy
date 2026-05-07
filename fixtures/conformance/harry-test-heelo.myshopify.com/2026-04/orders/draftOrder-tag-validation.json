@@ -517,9 +517,7 @@
     "variables": {
       "input": {
         "email": "draft-tags-setup-1778125322011@example.com",
-        "tags": [
-          "initial"
-        ],
+        "tags": ["initial"],
         "lineItems": [
           {
             "title": "Tag validation item",
@@ -534,9 +532,7 @@
         "draftOrderCreate": {
           "draftOrder": {
             "id": "gid://shopify/DraftOrder/1250931114290",
-            "tags": [
-              "initial"
-            ]
+            "tags": ["initial"]
           },
           "userErrors": []
         }
@@ -1096,9 +1092,7 @@
     "variables": {
       "input": {
         "email": "draft-tags-long-1778125322011@example.com",
-        "tags": [
-          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        ],
+        "tags": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],
         "lineItems": [
           {
             "title": "Tag validation item",
@@ -1114,10 +1108,7 @@
           "draftOrder": null,
           "userErrors": [
             {
-              "field": [
-                "tags",
-                "0"
-              ],
+              "field": ["tags", "0"],
               "message": "Title Tag exceeds the maximum length of 40 characters"
             }
           ]
@@ -1412,11 +1403,7 @@
               "column": 3
             }
           ],
-          "path": [
-            "draftOrderCreate",
-            "input",
-            "tags"
-          ],
+          "path": ["draftOrderCreate", "input", "tags"],
           "extensions": {
             "code": "MAX_INPUT_SIZE_EXCEEDED"
           }
@@ -1439,9 +1426,7 @@
     "variables": {
       "input": {
         "email": "draft-tags-calc-long-1778125322011@example.com",
-        "tags": [
-          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        ],
+        "tags": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],
         "lineItems": [
           {
             "title": "Tag validation item",
@@ -1457,10 +1442,7 @@
           "calculatedDraftOrder": null,
           "userErrors": [
             {
-              "field": [
-                "tags",
-                "0"
-              ],
+              "field": ["tags", "0"],
               "message": "Title Tag exceeds the maximum length of 40 characters"
             }
           ]
@@ -1755,11 +1737,7 @@
               "column": 3
             }
           ],
-          "path": [
-            "draftOrderCalculate",
-            "input",
-            "tags"
-          ],
+          "path": ["draftOrderCalculate", "input", "tags"],
           "extensions": {
             "code": "MAX_INPUT_SIZE_EXCEEDED"
           }
@@ -1782,9 +1760,7 @@
     "variables": {
       "id": "gid://shopify/DraftOrder/1250931114290",
       "input": {
-        "tags": [
-          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-        ]
+        "tags": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
       }
     },
     "response": {
@@ -1793,11 +1769,7 @@
           "draftOrder": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "tags",
-                "1"
-              ],
+              "field": ["input", "tags", "1"],
               "message": "Title Tag exceeds the maximum length of 40 characters"
             }
           ]
@@ -1824,9 +1796,7 @@
       "data": {
         "draftOrder": {
           "id": "gid://shopify/DraftOrder/1250931114290",
-          "tags": [
-            "initial"
-          ]
+          "tags": ["initial"]
         }
       },
       "extensions": {
@@ -2111,11 +2081,7 @@
               "column": 3
             }
           ],
-          "path": [
-            "draftOrderUpdate",
-            "input",
-            "tags"
-          ],
+          "path": ["draftOrderUpdate", "input", "tags"],
           "extensions": {
             "code": "MAX_INPUT_SIZE_EXCEEDED"
           }
@@ -2142,9 +2108,7 @@
       "data": {
         "draftOrder": {
           "id": "gid://shopify/DraftOrder/1250931114290",
-          "tags": [
-            "initial"
-          ]
+          "tags": ["initial"]
         }
       },
       "extensions": {

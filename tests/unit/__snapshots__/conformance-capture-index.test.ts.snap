@@ -1,3 +1,0 @@
-// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
-
-exports[`conformance capture index > profiles checked-in live Shopify fixtures without recorder-declared outputs 1`] = `[]`;

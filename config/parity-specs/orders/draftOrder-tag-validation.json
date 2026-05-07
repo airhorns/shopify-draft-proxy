@@ -2,12 +2,7 @@
   "scenarioId": "draftOrder-tag-validation",
   "operationNames": ["draftOrderCreate", "draftOrderUpdate", "draftOrderCalculate", "draftOrder"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "runtime-staging",
-    "user-errors-parity",
-    "downstream-read-parity",
-    "no-upstream-passthrough"
-  ],
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrder-tag-validation.json"
   ],

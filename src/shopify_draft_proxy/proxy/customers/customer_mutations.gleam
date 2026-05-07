@@ -17,14 +17,16 @@ import shopify_draft_proxy/proxy/customers/hydration.{connection_nodes}
 import shopify_draft_proxy/proxy/customers/inputs.{
   build_address, build_display_name, consent_collected_from_input,
   consent_level_from_input, consent_state_from_input,
-  consent_updated_at_from_input, dedupe_customer_addresses,
-  find_duplicate_customer_address, gid_tail, has_nested_object, json_get,
-  json_get_string, make_email_consent, make_sms_consent, merge_address,
-  normalize_tags, option_to_result, read_customer_metafields,
-  read_normalized_optional_string, read_normalized_string_with_blank,
-  read_obj_addresses, read_obj_array_strings, read_obj_bool,
-  read_obj_list_objects, read_obj_string, result_to_option, split_tags,
-  update_nullable_note, update_trimmed_nullable_string, validate_address_input,
+  consent_updated_at_from_input, customer_email_pattern_is_valid,
+  dedupe_customer_addresses, find_duplicate_customer_address, gid_tail,
+  has_nested_object, json_get, json_get_string, make_email_consent,
+  make_sms_consent, merge_address, normalize_customer_email_for_comparison,
+  normalize_tags, option_to_result, read_customer_email,
+  read_customer_metafields, read_normalized_optional_string,
+  read_normalized_string_with_blank, read_obj_addresses, read_obj_array_strings,
+  read_obj_bool, read_obj_list_objects, read_obj_string, result_to_option,
+  split_tags, update_nullable_customer_email, update_nullable_note,
+  update_trimmed_nullable_string, validate_address_input,
 }
 import shopify_draft_proxy/proxy/customers/serializers.{
   address_customer_missing_result, address_id_mismatch_result,
@@ -152,7 +154,7 @@ pub fn build_created_customer(
   List(CustomerAddressRecord),
   List(CustomerMetafieldRecord),
 ) {
-  let email = read_obj_string(input, "email")
+  let email = read_customer_email(input, "email")
   let phone = read_obj_string(input, "phone")
   let first_name = read_normalized_optional_string(input, "firstName")
   let last_name = read_normalized_optional_string(input, "lastName")
@@ -262,7 +264,7 @@ pub fn validate_customer_create(
   phone_errors: List(UserError),
   upstream: UpstreamContext,
 ) -> List(UserError) {
-  let email = read_obj_string(input, "email")
+  let email = read_customer_email(input, "email")
   let phone = read_obj_string(input, "phone")
   let id_errors = case dict.get(input, "id") {
     Ok(root_field.NullVal) | Error(_) -> []
@@ -388,17 +390,19 @@ pub fn validate_upstream_duplicate_customer(
     local_errors |> list.any(fn(error) { error.field == ["email"] })
   let has_phone_error =
     local_errors |> list.any(fn(error) { error.field == ["phone"] })
-  let email_error = case read_obj_string(input, "email"), has_email_error {
+  let email_error = case read_customer_email(input, "email"), has_email_error {
     Some(email), False ->
       case
-        string.contains(email, "@")
+        customer_email_is_usable_for_lookup(email)
         && upstream_customer_duplicate_exists(
           "email:" <> email,
           exclude_customer_id,
           upstream,
         )
       {
-        True -> [UserError(["email"], "Email has already been taken", None)]
+        True -> [
+          UserError(["email"], "Email has already been taken", Some("TAKEN")),
+        ]
         False -> []
       }
     _, _ -> []
@@ -471,9 +475,9 @@ pub fn validate_customer_input_fields(
   exclude_customer_id: Option(String),
   preflight_errors: List(UserError),
 ) -> List(UserError) {
+  let email_errors = validate_email(store, input, exclude_customer_id)
   let scalar_errors =
     [
-      validate_email(store, input, exclude_customer_id),
       case has_user_error_field(preflight_errors, ["phone"]) {
         True -> Error(Nil)
         False -> validate_phone(store, input, exclude_customer_id)
@@ -495,7 +499,7 @@ pub fn validate_customer_input_fields(
       validate_tag_lengths(input),
       validate_tag_count(input),
     ])
-  list.append(scalar_errors, length_errors)
+  list.flatten([email_errors, scalar_errors, length_errors])
 }
 
 @internal
@@ -527,16 +531,52 @@ pub fn validate_email(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
   exclude_customer_id: Option(String),
-) -> Result(UserError, Nil) {
-  use email <- result.try(read_obj_string(input, "email") |> option_to_result)
-  case string.contains(email, "@") {
-    False -> Ok(UserError(["email"], "Email is invalid", None))
-    True ->
-      case customer_email_exists(store, email, exclude_customer_id) {
-        True -> Ok(UserError(["email"], "Email has already been taken", None))
-        False -> Error(Nil)
+) -> List(UserError) {
+  case read_customer_email(input, "email") {
+    Some(email) -> {
+      let local_errors = customer_email_value_errors(email, ["email"])
+      case local_errors {
+        [] ->
+          case customer_email_exists(store, email, exclude_customer_id) {
+            True -> [
+              UserError(
+                ["email"],
+                "Email has already been taken",
+                Some("TAKEN"),
+              ),
+            ]
+            False -> []
+          }
+        _ -> local_errors
       }
+    }
+    None -> []
   }
+}
+
+fn customer_email_is_usable_for_lookup(email: String) -> Bool {
+  string.length(email) <= 255 && customer_email_pattern_is_valid(email)
+}
+
+fn customer_email_value_errors(
+  email: String,
+  field_path: List(String),
+) -> List(UserError) {
+  let length_errors = case string.length(email) > 255 {
+    True -> [
+      UserError(
+        field_path,
+        "Email is too long (maximum is 255 characters)",
+        Some("TOO_LONG"),
+      ),
+    ]
+    False -> []
+  }
+  let pattern_errors = case customer_email_pattern_is_valid(email) {
+    True -> []
+    False -> [UserError(field_path, "Email is invalid", Some("INVALID"))]
+  }
+  list.append(length_errors, pattern_errors)
 }
 
 @internal
@@ -728,11 +768,12 @@ pub fn customer_email_exists(
   email: String,
   exclude_customer_id: Option(String),
 ) -> Bool {
+  let normalized_email = normalize_customer_email_for_comparison(email)
   store.list_effective_customers(store)
   |> list.any(fn(customer) {
     customer.id != option.unwrap(exclude_customer_id, "")
-    && option.unwrap(customer.email, "") |> string.lowercase
-    == string.lowercase(email)
+    && normalize_customer_email_for_comparison(option.unwrap(customer.email, ""))
+    == normalized_email
   })
 }
 
@@ -1143,6 +1184,7 @@ pub fn customer_set_preflight_errors(
     customer_set_tag_note_validation_errors(input),
     customer_set_tax_exempt_null_errors(input),
     customer_set_identifier_alignment_errors(input, identifier),
+    customer_set_email_validation_errors(input),
     customer_set_create_identity_errors(input, existing),
     customer_set_duplicate_identity_errors(store, input, existing),
   ])
@@ -1209,15 +1251,47 @@ pub fn customer_set_identifier_value_errors(
             None,
           ),
         ]
-        Some(input_value) if input_value != identifier_value -> [
-          UserError(
-            ["input"],
-            "The identifier value does not match the value of the corresponding field in the input.",
-            None,
-          ),
-        ]
-        Some(_) -> []
+        Some(input_value) ->
+          case
+            customer_set_identifier_values_match(
+              key,
+              input_value,
+              identifier_value,
+            )
+          {
+            True -> []
+            False -> [
+              UserError(
+                ["input"],
+                "The identifier value does not match the value of the corresponding field in the input.",
+                None,
+              ),
+            ]
+          }
       }
+    None -> []
+  }
+}
+
+fn customer_set_identifier_values_match(
+  key: String,
+  input_value: String,
+  identifier_value: String,
+) -> Bool {
+  case key {
+    "email" ->
+      normalize_customer_email_for_comparison(input_value)
+      == normalize_customer_email_for_comparison(identifier_value)
+    _ -> input_value == identifier_value
+  }
+}
+
+@internal
+pub fn customer_set_email_validation_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_customer_email(input, "email") {
+    Some(email) -> customer_email_value_errors(email, ["input", "email"])
     None -> []
   }
 }
@@ -1249,7 +1323,7 @@ pub fn customer_set_input_has_identity(
 ) -> Bool {
   option_has_text(read_obj_string(input, "firstName"))
   || option_has_text(read_obj_string(input, "lastName"))
-  || option_has_text(read_obj_string(input, "email"))
+  || option_has_text(read_customer_email(input, "email"))
   || option_has_text(read_obj_string(input, "phone"))
 }
 
@@ -1274,12 +1348,20 @@ pub fn customer_set_duplicate_email_errors(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
-  case read_obj_string(input, "email") {
+  case read_customer_email(input, "email") {
     Some(email) ->
-      case customer_email_exists(store, email, None) {
-        True -> [
-          UserError(["input", "email"], "Email has already been taken", None),
-        ]
+      case customer_email_is_usable_for_lookup(email) {
+        True ->
+          case customer_email_exists(store, email, None) {
+            True -> [
+              UserError(
+                ["input", "email"],
+                "Email has already been taken",
+                Some("TAKEN"),
+              ),
+            ]
+            False -> []
+          }
         False -> []
       }
     None -> []
@@ -1308,7 +1390,7 @@ pub fn find_customer_by_customer_set_identifier(
   store: Store,
   identifier: Dict(String, root_field.ResolvedValue),
 ) -> Option(CustomerRecord) {
-  let email = read_obj_string(identifier, "email")
+  let email = read_customer_email(identifier, "email")
   let phone = read_obj_string(identifier, "phone")
   find_customer_by_email_or_phone(
     store.list_effective_customers(store),
@@ -1434,7 +1516,7 @@ pub fn update_customer_from_input(
     update_trimmed_nullable_string(existing.first_name, input, "firstName")
   let last_name =
     update_trimmed_nullable_string(existing.last_name, input, "lastName")
-  let email = update_trimmed_nullable_string(existing.email, input, "email")
+  let email = update_nullable_customer_email(existing.email, input, "email")
   let phone =
     update_trimmed_nullable_string(
       existing.default_phone_number |> option.then(fn(v) { v.phone_number }),

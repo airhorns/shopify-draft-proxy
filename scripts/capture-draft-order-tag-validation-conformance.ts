@@ -105,10 +105,7 @@ const tooManyTags = [...numberedTags(250), 'TAG-251'];
 const createdDraftOrderIds: string[] = [];
 
 const setupCreateVariables = inputWithTags(['initial'], `draft-tags-setup-${stamp}@example.com`);
-const createNormalizedOkVariables = inputWithTags(
-  normalizedOkTags,
-  `draft-tags-normalized-${stamp}@example.com`,
-);
+const createNormalizedOkVariables = inputWithTags(normalizedOkTags, `draft-tags-normalized-${stamp}@example.com`);
 const createLongTagVariables = inputWithTags([longTag], `draft-tags-long-${stamp}@example.com`);
 const createTooManyTagsVariables = inputWithTags(tooManyTags, `draft-tags-count-${stamp}@example.com`);
 const calculateLongTagVariables = inputWithTags([longTag], `draft-tags-calc-long-${stamp}@example.com`);
