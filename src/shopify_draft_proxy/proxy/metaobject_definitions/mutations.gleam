@@ -635,30 +635,48 @@ fn handle_definition_delete(
           identity,
         )
         Some(definition) -> {
-          let cascaded_metaobject_ids =
-            list_effective_metaobjects_by_type(store, definition.type_)
-            |> list.map(fn(metaobject) { metaobject.id })
-          let store_after_entries =
-            list.fold(cascaded_metaobject_ids, store, fn(acc, metaobject_id) {
-              delete_staged_metaobject(acc, metaobject_id)
-            })
-          let next_store =
-            delete_staged_metaobject_definition(
-              store_after_entries,
-              definition_id,
+          case
+            metaobject_definition_types.build_definition_delete_guard_user_errors(
+              definition,
             )
-          let staged_ids = list.append([definition_id], cascaded_metaobject_ids)
-          #(
-            definition_delete_result_with_staged_ids(
-              key,
-              field,
-              Some(definition_id),
-              [],
-              staged_ids,
-            ),
-            next_store,
-            identity,
-          )
+          {
+            [_, ..] as user_errors -> #(
+              definition_delete_result(key, field, None, user_errors),
+              store,
+              identity,
+            )
+            [] -> {
+              let cascaded_metaobject_ids =
+                list_effective_metaobjects_by_type(store, definition.type_)
+                |> list.map(fn(metaobject) { metaobject.id })
+              let store_after_entries =
+                list.fold(
+                  cascaded_metaobject_ids,
+                  store,
+                  fn(acc, metaobject_id) {
+                    delete_staged_metaobject(acc, metaobject_id)
+                  },
+                )
+              let next_store =
+                delete_staged_metaobject_definition(
+                  store_after_entries,
+                  definition_id,
+                )
+              let staged_ids =
+                list.append([definition_id], cascaded_metaobject_ids)
+              #(
+                definition_delete_result_with_staged_ids(
+                  key,
+                  field,
+                  Some(definition_id),
+                  [],
+                  staged_ids,
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
         }
       }
   }
@@ -1965,6 +1983,14 @@ fn definition_from_json(
       value,
       "standardTemplate",
     )),
+    standard_template_id: json_get_string(value, "standardTemplateId"),
+    standard_template_dependent_on_app: json_get_bool(
+      value,
+      "standardTemplateDependentOnApp",
+    )
+      |> option.unwrap(False),
+    app_config_managed: json_get_bool(value, "appConfigManaged")
+      |> option.unwrap(False),
     linked_metafields: [],
     created_at: json_get_string(value, "createdAt"),
     updated_at: json_get_string(value, "updatedAt"),

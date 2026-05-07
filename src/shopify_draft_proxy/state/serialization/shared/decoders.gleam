@@ -1349,6 +1349,17 @@ pub fn metaobject_definition_decoder() -> Decoder(
     None,
     decode.optional(metaobject_standard_template_decoder()),
   )
+  use standard_template_id <- optional_string_field("standardTemplateId")
+  use standard_template_dependent_on_app <- optional_field(
+    "standardTemplateDependentOnApp",
+    False,
+    decode.bool,
+  )
+  use app_config_managed <- optional_field(
+    "appConfigManaged",
+    False,
+    decode.bool,
+  )
   use linked_metafields <- optional_field(
     "linkedMetafields",
     [],
@@ -1369,6 +1380,9 @@ pub fn metaobject_definition_decoder() -> Decoder(
     has_thumbnail_field: has_thumbnail_field,
     metaobjects_count: metaobjects_count,
     standard_template: standard_template,
+    standard_template_id: standard_template_id,
+    standard_template_dependent_on_app: standard_template_dependent_on_app,
+    app_config_managed: app_config_managed,
     linked_metafields: linked_metafields,
     created_at: created_at,
     updated_at: updated_at,
@@ -1807,6 +1821,11 @@ pub fn cart_transform_decoder() -> Decoder(types.CartTransformRecord) {
   use function_id <- optional_string_field("functionId")
   use function_handle <- optional_string_field("functionHandle")
   use shopify_function_id <- optional_string_field("shopifyFunctionId")
+  use metafields <- optional_field(
+    "metafields",
+    [],
+    decode.list(of: cart_transform_metafield_decoder()),
+  )
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   decode.success(types.CartTransformRecord(
@@ -1816,8 +1835,37 @@ pub fn cart_transform_decoder() -> Decoder(types.CartTransformRecord) {
     function_id: function_id,
     function_handle: function_handle,
     shopify_function_id: shopify_function_id,
+    metafields: metafields,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+@internal
+pub fn cart_transform_metafield_decoder() -> Decoder(
+  types.CartTransformMetafieldRecord,
+) {
+  use id <- decode.field("id", decode.string)
+  use cart_transform_id <- decode.field("cartTransformId", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use type_ <- optional_string_field("type")
+  use value <- optional_string_field("value")
+  use compare_digest <- optional_string_field("compareDigest")
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  use owner_type <- optional_string_field("ownerType")
+  decode.success(types.CartTransformMetafieldRecord(
+    id: id,
+    cart_transform_id: cart_transform_id,
+    namespace: namespace,
+    key: key,
+    type_: type_,
+    value: value,
+    compare_digest: compare_digest,
+    created_at: created_at,
+    updated_at: updated_at,
+    owner_type: owner_type,
   ))
 }
 

@@ -1,0 +1,12 @@
+mutation B2BLocationDeleteCheckDraftOrderCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

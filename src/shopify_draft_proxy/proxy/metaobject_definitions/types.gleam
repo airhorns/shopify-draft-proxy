@@ -207,6 +207,8 @@ pub fn build_create_definition_validation_errors(
   let name = read_string(input, "name")
   let description = read_string(input, "description")
   let access = read_object(input, "access")
+  let normalized_type =
+    normalized_definition_type_from_input(input, requesting_api_client_id)
   []
   |> append_if(
     is_missing_definition_type(type_),
@@ -235,10 +237,51 @@ pub fn build_create_definition_validation_errors(
     ),
   )
   |> append_definition_type_validation_errors(type_, requesting_api_client_id)
+  |> append_create_reserved_type_user_errors(
+    normalized_type,
+    read_bool(input, "implementStandardTemplate") == Some(True),
+  )
   |> append_create_field_definition_input_errors(
     read_list(input, "fieldDefinitions"),
-    normalized_definition_type_from_input(input, requesting_api_client_id),
+    normalized_type,
     read_string(input, "displayNameKey"),
+  )
+}
+
+@internal
+pub fn append_create_reserved_type_user_errors(
+  errors: List(UserError),
+  normalized_type: Option(String),
+  implement_standard_template: Bool,
+) -> List(UserError) {
+  case normalized_type, implement_standard_template {
+    Some(type_), False ->
+      append_if(
+        errors,
+        is_standard_template_type(type_)
+          || is_shopify_reserved_definition_type(type_),
+        reserved_definition_type_user_error(),
+      )
+    _, _ -> errors
+  }
+}
+
+@internal
+pub fn is_standard_template_type(type_: String) -> Bool {
+  case standard_template(type_) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+@internal
+pub fn reserved_definition_type_user_error() -> UserError {
+  UserError(
+    Some(["definition"]),
+    "Not authorized. This type is reserved for use by another application.",
+    "NOT_AUTHORIZED",
+    None,
+    None,
   )
 }
 
@@ -859,6 +902,9 @@ pub fn build_definition_from_create_input(
       has_thumbnail_field: Some(False),
       metaobjects_count: Some(0),
       standard_template: None,
+      standard_template_id: None,
+      standard_template_dependent_on_app: False,
+      app_config_managed: False,
       linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
@@ -1285,6 +1331,45 @@ pub fn linked_product_options_display_name_immutable_user_error() -> UserError {
 }
 
 @internal
+pub fn build_definition_delete_guard_user_errors(
+  definition: MetaobjectDefinitionRecord,
+) -> List(UserError) {
+  case definition.app_config_managed {
+    True -> [app_config_managed_delete_user_error()]
+    False ->
+      case
+        definition.standard_template_id,
+        definition.standard_template_dependent_on_app
+      {
+        Some(_), True -> [standard_definition_dependent_on_app_user_error()]
+        _, _ -> []
+      }
+  }
+}
+
+@internal
+pub fn app_config_managed_delete_user_error() -> UserError {
+  UserError(
+    Some(["id"]),
+    "App-managed metaobject definitions cannot be deleted by other apps.",
+    "APP_CONFIG_MANAGED",
+    None,
+    None,
+  )
+}
+
+@internal
+pub fn standard_definition_dependent_on_app_user_error() -> UserError {
+  UserError(
+    Some(["id"]),
+    "Standard metaobject definition is in use by an installed app.",
+    "STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP",
+    None,
+    None,
+  )
+}
+
+@internal
 pub fn build_update_definition_type_user_errors(
   store: Store,
   existing_id: String,
@@ -1401,6 +1486,9 @@ pub fn build_standard_definition(
         Some(template.type_),
         Some(template.name),
       )),
+      standard_template_id: Some(template.type_),
+      standard_template_dependent_on_app: False,
+      app_config_managed: False,
       linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),

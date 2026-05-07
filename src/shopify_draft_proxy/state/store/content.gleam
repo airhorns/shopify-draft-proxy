@@ -97,6 +97,14 @@ pub fn delete_staged_saved_search(store: Store, id: String) -> Store {
   Store(..store, staged_state: new_staged)
 }
 
+/// Return whether a saved-search id has been deleted from either state
+/// layer. Static default saved searches use this to mirror persisted
+/// Shopify rows once a default has been deleted locally.
+pub fn saved_search_id_deleted(store: Store, id: String) -> Bool {
+  dict_has(store.base_state.deleted_saved_search_ids, id)
+  || dict_has(store.staged_state.deleted_saved_search_ids, id)
+}
+
 /// Look up the effective saved search for an id. Staged wins over base;
 /// any "deleted" marker on either side suppresses the record.
 /// Mirrors `getEffectiveSavedSearchById`.
@@ -104,10 +112,7 @@ pub fn get_effective_saved_search_by_id(
   store: Store,
   id: String,
 ) -> Option(SavedSearchRecord) {
-  let deleted =
-    dict_has(store.base_state.deleted_saved_search_ids, id)
-    || dict_has(store.staged_state.deleted_saved_search_ids, id)
-  case deleted {
+  case saved_search_id_deleted(store, id) {
     True -> None
     False ->
       case dict.get(store.staged_state.saved_searches, id) {

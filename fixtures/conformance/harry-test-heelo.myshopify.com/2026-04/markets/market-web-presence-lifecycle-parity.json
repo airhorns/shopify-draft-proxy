@@ -1,18 +1,26 @@
 {
-  "capturedAt": "2026-05-06T20:51:18.880Z",
+  "capturedAt": "2026-05-07T05:25:10.079Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "disposableSubfolderSuffixes": {
-    "created": "harxncnktdqli",
-    "updated": "harhpioeltswk",
+    "created": "harypyzwokmwt",
+    "updated": "harshrwywigho",
     "multiLocale": "intl",
     "frenchCanadian": "fr",
-    "partialUpdate": "harplykinkfin",
-    "regionalLocale": "harqzyxqmqipi",
-    "caseInsensitive": "harmwnvpshfpe"
+    "partialUpdate": "harwksfavwhql",
+    "regionalLocale": "harumnptqzxzv",
+    "caseInsensitive": "harhvluirkorr"
   },
-  "scope": "HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, and web-presence locale catalog/error-shape parity",
+  "scope": "HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, and primary-domain delete guard parity",
   "data": {
+    "shop": {
+      "id": "gid://shopify/Shop/92891250994",
+      "myshopifyDomain": "harry-test-heelo.myshopify.com",
+      "primaryDomain": {
+        "host": "harry-test-heelo.myshopify.com",
+        "url": "https://harry-test-heelo.myshopify.com"
+      }
+    },
     "webPresences": {
       "nodes": [
         {
@@ -49,7 +57,7 @@
       "data": {
         "webPresenceCreate": {
           "webPresence": {
-            "id": "gid://shopify/MarketWebPresence/69691703602",
+            "id": "gid://shopify/MarketWebPresence/69698355506",
             "subfolderSuffix": "intl",
             "domain": null,
             "rootUrls": [
@@ -103,7 +111,7 @@
         "input": {
           "defaultLocale": "en",
           "alternateLocales": [],
-          "subfolderSuffix": "harxncnktdqli"
+          "subfolderSuffix": "harypyzwokmwt"
         }
       },
       "response": {
@@ -112,13 +120,13 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691670834",
-                "subfolderSuffix": "harxncnktdqli",
+                "id": "gid://shopify/MarketWebPresence/69698322738",
+                "subfolderSuffix": "harypyzwokmwt",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "en",
-                    "url": "https://harry-test-heelo.myshopify.com/en-harxncnktdqli/"
+                    "url": "https://harry-test-heelo.myshopify.com/en-harypyzwokmwt/"
                   }
                 ],
                 "defaultLocale": {
@@ -153,11 +161,11 @@
       "name": "webPresenceUpdateSuccess",
       "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  mutation MarketWebPresenceLifecycleUpdate($id: ID!, $input: WebPresenceUpdateInput!) {\n    webPresenceUpdate(id: $id, input: $input) {\n      webPresence {\n        ...MarketWebPresenceLifecycleFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691670834",
+        "id": "gid://shopify/MarketWebPresence/69698322738",
         "input": {
           "defaultLocale": "en",
           "alternateLocales": [],
-          "subfolderSuffix": "harhpioeltswk"
+          "subfolderSuffix": "harshrwywigho"
         }
       },
       "response": {
@@ -166,13 +174,13 @@
           "data": {
             "webPresenceUpdate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691670834",
-                "subfolderSuffix": "harhpioeltswk",
+                "id": "gid://shopify/MarketWebPresence/69698322738",
+                "subfolderSuffix": "harshrwywigho",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "en",
-                    "url": "https://harry-test-heelo.myshopify.com/en-harhpioeltswk/"
+                    "url": "https://harry-test-heelo.myshopify.com/en-harshrwywigho/"
                   }
                 ],
                 "defaultLocale": {
@@ -195,7 +203,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1978,
                 "restoreRate": 100
               }
             }
@@ -242,13 +250,13 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/MarketWebPresence/69691670834",
-                  "subfolderSuffix": "harhpioeltswk",
+                  "id": "gid://shopify/MarketWebPresence/69698322738",
+                  "subfolderSuffix": "harshrwywigho",
                   "domain": null,
                   "rootUrls": [
                     {
                       "locale": "en",
-                      "url": "https://harry-test-heelo.myshopify.com/en-harhpioeltswk/"
+                      "url": "https://harry-test-heelo.myshopify.com/en-harshrwywigho/"
                     }
                   ],
                   "defaultLocale": {
@@ -283,14 +291,14 @@
       "name": "webPresenceDeleteSuccess",
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691670834"
+        "id": "gid://shopify/MarketWebPresence/69698322738"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691670834",
+              "deletedId": "gid://shopify/MarketWebPresence/69698322738",
               "userErrors": []
             }
           },
@@ -300,7 +308,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -379,7 +387,7 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691703602",
+                "id": "gid://shopify/MarketWebPresence/69698355506",
                 "subfolderSuffix": "intl",
                 "domain": null,
                 "rootUrls": [
@@ -453,7 +461,7 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691736370",
+                "id": "gid://shopify/MarketWebPresence/69698388274",
                 "subfolderSuffix": "fr",
                 "domain": null,
                 "rootUrls": [
@@ -497,7 +505,7 @@
         "input": {
           "defaultLocale": "en",
           "alternateLocales": ["pt-BR"],
-          "subfolderSuffix": "harqzyxqmqipi"
+          "subfolderSuffix": "harumnptqzxzv"
         }
       },
       "response": {
@@ -506,17 +514,17 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691769138",
-                "subfolderSuffix": "harqzyxqmqipi",
+                "id": "gid://shopify/MarketWebPresence/69698421042",
+                "subfolderSuffix": "harumnptqzxzv",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "en",
-                    "url": "https://harry-test-heelo.myshopify.com/en-harqzyxqmqipi/"
+                    "url": "https://harry-test-heelo.myshopify.com/en-harumnptqzxzv/"
                   },
                   {
                     "locale": "pt-BR",
-                    "url": "https://harry-test-heelo.myshopify.com/pt-harqzyxqmqipi/"
+                    "url": "https://harry-test-heelo.myshopify.com/pt-harumnptqzxzv/"
                   }
                 ],
                 "defaultLocale": {
@@ -561,7 +569,7 @@
         "input": {
           "defaultLocale": "en-us",
           "alternateLocales": [],
-          "subfolderSuffix": "harmwnvpshfpe"
+          "subfolderSuffix": "harhvluirkorr"
         }
       },
       "response": {
@@ -570,13 +578,13 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691801906",
-                "subfolderSuffix": "harmwnvpshfpe",
+                "id": "gid://shopify/MarketWebPresence/69698453810",
+                "subfolderSuffix": "harhvluirkorr",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "en-us",
-                    "url": "https://harry-test-heelo.myshopify.com/en-harmwnvpshfpe/"
+                    "url": "https://harry-test-heelo.myshopify.com/en-harhvluirkorr/"
                   }
                 ],
                 "defaultLocale": {
@@ -599,7 +607,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -614,7 +622,7 @@
         "input": {
           "defaultLocale": "en",
           "alternateLocales": ["zz", "yy"],
-          "subfolderSuffix": "haryeblinejqs"
+          "subfolderSuffix": "harrmqokmwzrk"
         }
       },
       "response": {
@@ -638,7 +646,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -653,7 +661,7 @@
         "input": {
           "defaultLocale": "fr",
           "alternateLocales": [],
-          "subfolderSuffix": "harplykinkfin"
+          "subfolderSuffix": "harwksfavwhql"
         }
       },
       "response": {
@@ -662,13 +670,13 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691834674",
-                "subfolderSuffix": "harplykinkfin",
+                "id": "gid://shopify/MarketWebPresence/69698486578",
+                "subfolderSuffix": "harwksfavwhql",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "fr",
-                    "url": "https://harry-test-heelo.myshopify.com/fr-harplykinkfin/"
+                    "url": "https://harry-test-heelo.myshopify.com/fr-harwksfavwhql/"
                   }
                 ],
                 "defaultLocale": {
@@ -691,7 +699,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1979,
                 "restoreRate": 100
               }
             }
@@ -703,7 +711,7 @@
       "name": "webPresencePartialUpdateAlternateLocalesOnly",
       "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  mutation MarketWebPresenceLifecycleUpdate($id: ID!, $input: WebPresenceUpdateInput!) {\n    webPresenceUpdate(id: $id, input: $input) {\n      webPresence {\n        ...MarketWebPresenceLifecycleFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691834674",
+        "id": "gid://shopify/MarketWebPresence/69698486578",
         "input": {
           "alternateLocales": ["de"]
         }
@@ -714,17 +722,17 @@
           "data": {
             "webPresenceUpdate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69691834674",
-                "subfolderSuffix": "harplykinkfin",
+                "id": "gid://shopify/MarketWebPresence/69698486578",
+                "subfolderSuffix": "harwksfavwhql",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "fr",
-                    "url": "https://harry-test-heelo.myshopify.com/fr-harplykinkfin/"
+                    "url": "https://harry-test-heelo.myshopify.com/fr-harwksfavwhql/"
                   },
                   {
                     "locale": "de",
-                    "url": "https://harry-test-heelo.myshopify.com/de-harplykinkfin/"
+                    "url": "https://harry-test-heelo.myshopify.com/de-harwksfavwhql/"
                   }
                 ],
                 "defaultLocale": {
@@ -754,7 +762,160 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "webPresenceDeletePrimarySetupRead",
+      "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  query WebPresenceDeletePrimarySetupRead($first: Int!) {\n    webPresences(first: $first) {\n      nodes {\n        ...MarketWebPresenceLifecycleFields\n      }\n    }\n    shop {\n      id\n      myshopifyDomain\n      primaryDomain {\n        host\n        url\n      }\n    }\n  }\n",
+      "variables": {
+        "first": 20
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "domain": {
+                    "id": "gid://shopify/Domain/157391388978",
+                    "host": "harry-test-heelo.myshopify.com",
+                    "url": "https://harry-test-heelo.myshopify.com",
+                    "sslEnabled": true
+                  },
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/"
+                    }
+                  ],
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ]
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "primaryDomain": {
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 54,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "webPresenceDeletePrimaryBlocked",
+      "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/MarketWebPresence/62842765618"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The shop must have a web presence that uses the primary domain.",
+                  "code": "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "webPresenceReadAfterPrimaryBlockedDelete",
+      "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  query MarketWebPresenceLifecycleRead($first: Int!) {\n    webPresences(first: $first) {\n      nodes {\n        ...MarketWebPresenceLifecycleFields\n      }\n    }\n  }\n",
+      "variables": {
+        "first": 20
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "domain": {
+                    "id": "gid://shopify/Domain/157391388978",
+                    "host": "harry-test-heelo.myshopify.com",
+                    "url": "https://harry-test-heelo.myshopify.com",
+                    "sslEnabled": true
+                  },
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/"
+                    }
+                  ],
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -767,14 +928,14 @@
     "webPresenceDelete": {
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691670834"
+        "id": "gid://shopify/MarketWebPresence/69698322738"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691670834",
+              "deletedId": "gid://shopify/MarketWebPresence/69698322738",
               "userErrors": []
             }
           },
@@ -784,7 +945,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -795,14 +956,14 @@
     "multiLocaleWebPresenceDelete": {
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691703602"
+        "id": "gid://shopify/MarketWebPresence/69698355506"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691703602",
+              "deletedId": "gid://shopify/MarketWebPresence/69698355506",
               "userErrors": []
             }
           },
@@ -812,7 +973,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
@@ -823,14 +984,14 @@
     "frenchCanadianWebPresenceDelete": {
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691736370"
+        "id": "gid://shopify/MarketWebPresence/69698388274"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691736370",
+              "deletedId": "gid://shopify/MarketWebPresence/69698388274",
               "userErrors": []
             }
           },
@@ -851,14 +1012,14 @@
     "partialUpdateWebPresenceDelete": {
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691834674"
+        "id": "gid://shopify/MarketWebPresence/69698486578"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691834674",
+              "deletedId": "gid://shopify/MarketWebPresence/69698486578",
               "userErrors": []
             }
           },
@@ -868,7 +1029,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -879,14 +1040,14 @@
     "regionalLocaleWebPresenceDelete": {
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691769138"
+        "id": "gid://shopify/MarketWebPresence/69698421042"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691769138",
+              "deletedId": "gid://shopify/MarketWebPresence/69698421042",
               "userErrors": []
             }
           },
@@ -896,7 +1057,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -907,14 +1068,14 @@
     "caseInsensitiveWebPresenceDelete": {
       "query": "#graphql\n  mutation MarketWebPresenceLifecycleDelete($id: ID!) {\n    webPresenceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69691801906"
+        "id": "gid://shopify/MarketWebPresence/69698453810"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69691801906",
+              "deletedId": "gid://shopify/MarketWebPresence/69698453810",
               "userErrors": []
             }
           },
@@ -924,7 +1085,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -994,12 +1155,75 @@
   },
   "upstreamCalls": [
     {
+      "operationName": "WebPresenceDeletePrimarySetupRead",
+      "variables": {
+        "first": 20
+      },
+      "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  query WebPresenceDeletePrimarySetupRead($first: Int!) {\n    webPresences(first: $first) {\n      nodes {\n        ...MarketWebPresenceLifecycleFields\n      }\n    }\n    shop {\n      id\n      myshopifyDomain\n      primaryDomain {\n        host\n        url\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "domain": {
+                    "id": "gid://shopify/Domain/157391388978",
+                    "host": "harry-test-heelo.myshopify.com",
+                    "url": "https://harry-test-heelo.myshopify.com",
+                    "sslEnabled": true
+                  },
+                  "rootUrls": [
+                    {
+                      "locale": "en",
+                      "url": "https://harry-test-heelo.myshopify.com/"
+                    }
+                  ],
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ]
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "primaryDomain": {
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 54,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
         "input": {
           "defaultLocale": "en",
           "alternateLocales": [],
-          "subfolderSuffix": "harxncnktdqli"
+          "subfolderSuffix": "harypyzwokmwt"
         }
       },
       "query": "hand-synthesized from checked-in capture",
@@ -1143,7 +1367,7 @@
         "input": {
           "defaultLocale": "fr",
           "alternateLocales": [],
-          "subfolderSuffix": "harplykinkfin"
+          "subfolderSuffix": "harwksfavwhql"
         }
       },
       "query": "hand-synthesized from checked-in capture",
@@ -1191,7 +1415,7 @@
         "input": {
           "defaultLocale": "en",
           "alternateLocales": ["pt-BR"],
-          "subfolderSuffix": "harqzyxqmqipi"
+          "subfolderSuffix": "harumnptqzxzv"
         }
       },
       "query": "hand-synthesized from checked-in capture",
@@ -1239,7 +1463,7 @@
         "input": {
           "defaultLocale": "en-us",
           "alternateLocales": [],
-          "subfolderSuffix": "harmwnvpshfpe"
+          "subfolderSuffix": "harhvluirkorr"
         }
       },
       "query": "hand-synthesized from checked-in capture",
@@ -1287,7 +1511,7 @@
         "input": {
           "defaultLocale": "en",
           "alternateLocales": ["zz", "yy"],
-          "subfolderSuffix": "haryeblinejqs"
+          "subfolderSuffix": "harrmqokmwzrk"
         }
       },
       "query": "hand-synthesized from checked-in capture",

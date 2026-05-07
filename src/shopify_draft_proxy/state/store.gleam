@@ -406,6 +406,8 @@ pub const list_effective_price_lists = markets.list_effective_price_lists
 
 pub const upsert_staged_price_list = markets.upsert_staged_price_list
 
+pub const sync_price_list_catalogs = markets.sync_price_list_catalogs
+
 pub const delete_staged_price_list = markets.delete_staged_price_list
 
 pub const clear_price_list_fixed_prices = markets.clear_price_list_fixed_prices
@@ -419,6 +421,8 @@ pub const list_effective_web_presences = markets.list_effective_web_presences
 pub const upsert_staged_web_presence = markets.upsert_staged_web_presence
 
 pub const delete_staged_web_presence = markets.delete_staged_web_presence
+
+pub const web_presence_matches_shop_primary_host = markets.web_presence_matches_shop_primary_host
 
 pub const upsert_base_markets_root_payload = markets.upsert_base_markets_root_payload
 
@@ -567,6 +571,8 @@ pub const upsert_base_saved_searches = content.upsert_base_saved_searches
 pub const upsert_staged_saved_search = content.upsert_staged_saved_search
 
 pub const delete_staged_saved_search = content.delete_staged_saved_search
+
+pub const saved_search_id_deleted = content.saved_search_id_deleted
 
 pub const get_effective_saved_search_by_id = content.get_effective_saved_search_by_id
 

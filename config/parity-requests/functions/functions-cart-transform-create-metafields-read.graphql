@@ -1,0 +1,33 @@
+query CartTransformsMetafields($first: Int!) {
+  cartTransforms(first: $first) {
+    nodes {
+      id
+      functionId
+      blockOnFailure
+      metafield(namespace: "bundles", key: "mode") {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+        createdAt
+        updatedAt
+      }
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  }
+}
