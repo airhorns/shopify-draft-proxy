@@ -1,0 +1,17 @@
+query OrderUpdateLocalizationAndStaffRead($id: ID!) {
+  order(id: $id) {
+    id
+    localizedFields(first: 5) {
+      nodes {
+        key
+        value
+      }
+    }
+    localizationExtensions(first: 5) {
+      nodes {
+        key
+        value
+      }
+    }
+  }
+}

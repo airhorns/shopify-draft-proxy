@@ -741,6 +741,10 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
   - live capture for this expanded slice was blocked during that increment by the saved conformance credential: `corepack pnpm conformance:probe` failed with `Stored Shopify conformance access token is invalid and refresh failed: This request requires an active refresh_token`
   - shared conformance auth repair is tracked in HAR-185 instead of a checked-in pending blocker doc
+- a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
+  - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
+  - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
+  - the public 2026-04 schema on the current conformance store rejects `OrderInput.staffMemberId` before the resolver branch described by internal code can run, and `Order.staffMember` remains access-gated for the current credential
 - adjacent live-hybrid rule: once the unknown-id `orderUpdate` branch is captured, do not keep proxying that obviously invalid supported edit upstream in `live-hybrid`; short-circuit the captured `order: null` + `userErrors[{ field: ['id'], message: 'Order does not exist' }]` response locally, and now also short-circuit the first synthetic/local happy-path edit slice locally while leaving broader non-local orderUpdate semantics in passthrough until live parity exists
 - superseded adjacent caution: the early `orderUpdate` slice did **not** prove
   the broader order-edit family by itself. Current calculated-order support has
