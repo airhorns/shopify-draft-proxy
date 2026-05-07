@@ -794,7 +794,7 @@ HAR-236 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 
 - the top-level current-schema roots are `fulfillmentService`, `fulfillmentServiceCreate`, `fulfillmentServiceUpdate`, and `fulfillmentServiceDelete`; the catalog/list surface is nested at `shop.fulfillmentServices`, not a top-level query root
 - `fulfillmentService(id:)` returns `null` for an unknown ID
-- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential; omitting `callbackUrl` succeeded
+- `fulfillmentServiceCreate` with `callbackUrl: "https://example.com/..."` returned `userErrors[{ field: ["callbackUrl"], message: "Callback url is not allowed" }]` under the current app credential. A later current-app capture showed the app-scoped callback URL family accepts valid `http://` and `https://` URLs under `mock.shop*` plus the configured shop origin host, rejects disallowed HTTP(S) hosts with `Callback url is not allowed`, and rejects `ftp://mock.shop/...` with `Callback url protocol ftp:// is not supported`.
 - a blank create name returned `userErrors[{ field: ["name"], message: "Name can't be blank" }]`
 - creation automatically created an associated `Location` with `isFulfillmentService: true`, `fulfillsOnlineOrders: true`, and `shipsInventory: false`
 - `fulfillmentServiceUpdate(name:)` changed `serviceName` and the associated location name, but kept the original handle stable
@@ -2861,6 +2861,7 @@ Capture prerequisites and safety constraints:
 - HAR-416 refreshed the repo-local conformance app release on 2026-04-28 (`HAR-416-rework-functions`) before live Function capture. `shopifyFunctions(first:)` then exposed raw Function string IDs for validation/cart-transform Functions, lowercase `apiType` values (`cart_checkout_validation`, `cart_transform`), and app ownership through `appKey` plus selected `app` fields. With the refreshed grant, validation/cart-transform mutations reached resolver userErrors for wrong Function API type, unknown/unowned handles, invalid metafields, and duplicate cart-transform registration. Shopify allowed multiple `validationCreate` calls for the same validation Function in this shop, so no duplicate-validation userError was observed; the capture script deletes all HAR-416 validation/cart-transform probe resources afterward. `taxAppConfigure` still returned top-level `ACCESS_DENIED` because the caller must be a tax calculations app.
 - HAR-221 captured `paymentTermsTemplates` against `harry-test-heelo.myshopify.com` on 2026-04-27. The standard catalog order is receipt, fulfillment, net 7/15/30/45/60/90, then fixed; `paymentTermsType: NET` filters to only the six net templates while preserving ids, names, descriptions, due-day values, and translated names.
 - HAR-222 locally stages `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` against the order/draft-order graph using the captured template catalog and Shopify-documented standalone mutation input shapes. The 2026-04 disposable-draft live lifecycle capture confirms NET templates compute `dueAt` from `issuedAt` plus template due days, FIXED updates replace the `PaymentSchedule` id, `PaymentSchedule.completed` is not selectable on this API surface, and downstream `draftOrder(id:)` returns `paymentTerms: null` after delete. Rejected local guardrails cover unknown targets, missing/unknown template ids, NET schedules without `issuedAt`, FIXED schedules without `dueAt`, missing update ids, and duplicate deletes without appending staged-write log entries.
+- A 2026-04 live capture for `paymentTermsCreate` unknown owners showed public Admin GraphQL serializes the internal base reference-not-found error as `field: null`, not `["base"]`: unknown `Order` returns `Cannot find the specific Order with id <numeric id>.`, and unknown `DraftOrder` returns `Cannot find the specific Draft order with id <numeric id>.`
 - customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.
 - HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
@@ -3266,22 +3267,24 @@ Practical rule:
 
 - model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
-## 76. `locationAdd` required input errors are parser-level, but country validation is topology-sensitive
+## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
-HAR-654 captured `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+The `location-add-validation-and-defaults` scenario captures `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
 
 Captured facts:
 
 - omitting inline `input.address` returns a top-level GraphQL error with `extensions.code: "missingRequiredInputObjectAttribute"` and no mutation payload
+- omitting `input.address` or nested `input.address.countryCode` through variables returns top-level `INVALID_VARIABLE`; omitting inline nested `address.countryCode` returns `missingRequiredInputObjectAttribute`
 - blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
 - omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
 - explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
-- a probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError; the location was deactivated and deleted immediately after capture
+- invalid `address.countryCode: "QQ"` variables are rejected by enum coercion before the resolver; a separate probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError because `ZZ` is a public enum member
+- current 2026-04 schema does not expose `LocationAddInput.capabilities`, `capabilitiesToAdd`, `capabilitiesToRemove`, or `Location.capabilities`; inline unknown input fields return `argumentNotAccepted`, variable unknown input fields return `INVALID_VARIABLE`, and selecting `Location.capabilities` returns `undefinedField`
 
 Practical rule:
 
-- keep required-address and blank-name behavior aligned with the captured parser/userError shapes
-- keep the proxy's obvious non-ISO country-code rejection as a local guardrail requested by HAR-654, but treat exact Shopify country acceptance/rejection as store/topology-sensitive until a stricter live branch is captured
+- keep required-address, required-country-code, blank-name, capabilities-schema, and country enum behavior aligned with the captured parser/userError/schema shapes
+- treat exact Shopify country acceptance/rejection as schema-version sensitive; 2026-04 includes `ZZ` in the public `CountryCode` enum
 
 ## 77. B2B customer-as-contact validation codes are version/evidence-sensitive
 
@@ -3390,3 +3393,28 @@ Practical rule:
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
+
+## 81. validationCreate title fallback can use the raw Function extension name
+
+A live capture against `harry-test-heelo.myshopify.com` on Admin GraphQL
+2026-04 created validations through the released `conformance-validation`
+Function with omitted, explicit `null`, and explicit empty-string `title`
+inputs.
+
+Observed behavior:
+
+- omitted `title` persisted as `t:name`
+- explicit `title: null` also persisted as `t:name`
+- explicit `title: ""` persisted as the empty string
+- `validation(id:)` and `validations(first:)` returned the same persisted
+  titles after create
+- the same shop's `shopifyFunctions` Admin read returned
+  `title: "conformance-validation"` for the Function, while the checked-in
+  extension TOML uses `name = "t:name"` and a locale value of
+  `conformance-validation`
+
+Practical rule:
+
+- when local Function metadata carries the resolver title, omitted and `null`
+  validationCreate title input should fall back to that value; do not treat
+  empty string as missing input

@@ -8,8 +8,9 @@ query B2BCompanyRootsRead(
   $unknownContactId: ID!
   $unknownRoleId: ID!
   $unknownLocationId: ID!
+  $companyQuery: String!
 ) {
-  companies(first: $first) {
+  companies(first: $first, query: $companyQuery) {
     nodes {
       id
       name
@@ -115,24 +116,6 @@ query B2BCompanyRootsRead(
     company {
       id
       name
-    }
-  }
-  companyLocations(first: $first) {
-    nodes {
-      id
-      name
-      externalId
-      locale
-      phone
-      note
-      company {
-        id
-        name
-      }
-    }
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
     }
   }
   unknownCompany: company(id: $unknownCompanyId) {

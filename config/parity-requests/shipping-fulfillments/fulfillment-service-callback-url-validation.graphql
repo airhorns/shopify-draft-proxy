@@ -1,0 +1,150 @@
+mutation FulfillmentServiceCallbackUrlValidation(
+  $validHttpsName: String!
+  $validHttpsCallbackUrl: URL!
+  $validHttpName: String!
+  $validHttpCallbackUrl: URL!
+  $originName: String!
+  $originCallbackUrl: URL!
+  $ftpName: String!
+  $ftpCallbackUrl: URL!
+  $exampleName: String!
+  $exampleCallbackUrl: URL!
+  $shopifyName: String!
+  $shopifyCallbackUrl: URL!
+) {
+  validHttpsCreate: fulfillmentServiceCreate(
+    name: $validHttpsName
+    callbackUrl: $validHttpsCallbackUrl
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      handle
+      serviceName
+      callbackUrl
+      trackingSupport
+      inventoryManagement
+      requiresShippingMethod
+      type
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validHttpCreate: fulfillmentServiceCreate(
+    name: $validHttpName
+    callbackUrl: $validHttpCallbackUrl
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      handle
+      serviceName
+      callbackUrl
+      trackingSupport
+      inventoryManagement
+      requiresShippingMethod
+      type
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  originCreate: fulfillmentServiceCreate(
+    name: $originName
+    callbackUrl: $originCallbackUrl
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      handle
+      serviceName
+      callbackUrl
+      trackingSupport
+      inventoryManagement
+      requiresShippingMethod
+      type
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  ftpCreate: fulfillmentServiceCreate(
+    name: $ftpName
+    callbackUrl: $ftpCallbackUrl
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  exampleCreate: fulfillmentServiceCreate(
+    name: $exampleName
+    callbackUrl: $exampleCallbackUrl
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  shopifyCreate: fulfillmentServiceCreate(
+    name: $shopifyName
+    callbackUrl: $shopifyCallbackUrl
+    trackingSupport: false
+    inventoryManagement: false
+    requiresShippingMethod: false
+  ) {
+    fulfillmentService {
+      id
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

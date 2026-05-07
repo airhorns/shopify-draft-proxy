@@ -1,0 +1,5 @@
+mutation FlowGenerateSignatureNullPayloadRequiredArg {
+  flowGenerateSignature(id: "gid://shopify/FlowActionDefinition/0", payload: null) {
+    signature
+  }
+}

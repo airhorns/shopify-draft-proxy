@@ -1,0 +1,701 @@
+{
+  "metadata": {
+    "capturedAt": "2026-05-07T00:22:08.200Z",
+    "startedAt": "2026-05-07T00:22:05.236Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderHold", "fulfillmentOrderReleaseHold"],
+    "createdOrder": {
+      "id": "gid://shopify/Order/8733296558386",
+      "name": "#1328",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9656897175858"
+    }
+  },
+  "setup": {
+    "create": {
+      "query": "mutation CreateFulfillmentOrderReleaseHoldSelectiveOrder(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            id\n            status\n            requestStatus\n            updatedAt\n            lineItems(first: 5) {\n              nodes {\n                id\n                totalQuantity\n                remainingQuantity\n                lineItem {\n                  id\n                  title\n                  quantity\n                  fulfillableQuantity\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "selective-release-20260507002205@example.com",
+          "note": "fulfillment-order selective release 20260507002205",
+          "tags": ["draft-proxy", "fulfillment-order-release-hold-selective"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Draft",
+            "lastName": "Proxy",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Selective release item 20260507002205",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8733296558386",
+                "name": "#1328",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9656897175858",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-07T00:22:06Z",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19308583747890",
+                              "title": "Selective release item 20260507002205",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrate": {
+      "query": "query FulfillmentOrderReleaseHoldSelectiveHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    merchantRequests(first: 10) {\n      nodes {\n        kind\n        message\n        requestOptions\n      }\n    }\n    lineItems(first: 20) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9656897175858"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9656897175858",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-07T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-07T00:22:06Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19308583747890",
+                      "title": "Selective release item 20260507002205",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8733296558386",
+                "name": "#1328",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "workflows": {
+    "selectiveRelease": {
+      "firstHold": {
+        "query": "mutation FulfillmentOrderReleaseHoldSelectiveHold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n  fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n    fulfillmentHold {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      updatedAt\n      supportedActions {\n        action\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    remainingFulfillmentOrder {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9656897175858",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "Selective release selective-release-first",
+            "notifyMerchant": false,
+            "externalId": "selective-release-first",
+            "handle": "selective-release-first"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": {
+                  "id": "gid://shopify/FulfillmentHold/263830864178",
+                  "handle": "selective-release-first",
+                  "reason": "OTHER",
+                  "reasonNotes": "Selective release selective-release-first",
+                  "displayReason": "Other",
+                  "heldByRequestingApp": true
+                },
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9656897175858",
+                  "status": "ON_HOLD",
+                  "requestStatus": "UNSUBMITTED",
+                  "updatedAt": "2026-05-07T00:22:06Z",
+                  "supportedActions": [
+                    {
+                      "action": "RELEASE_HOLD"
+                    },
+                    {
+                      "action": "HOLD"
+                    },
+                    {
+                      "action": "MOVE"
+                    }
+                  ],
+                  "fulfillmentHolds": [
+                    {
+                      "id": "gid://shopify/FulfillmentHold/263830864178",
+                      "handle": "selective-release-first",
+                      "reason": "OTHER",
+                      "reasonNotes": "Selective release selective-release-first",
+                      "displayReason": "Other",
+                      "heldByRequestingApp": true
+                    }
+                  ],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                        "totalQuantity": 2,
+                        "remainingQuantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19308583747890",
+                          "title": "Selective release item 20260507002205",
+                          "quantity": 2,
+                          "fulfillableQuantity": 0
+                        }
+                      }
+                    ]
+                  }
+                },
+                "remainingFulfillmentOrder": null,
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 20,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "secondHold": {
+        "query": "mutation FulfillmentOrderReleaseHoldSelectiveHold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n  fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n    fulfillmentHold {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      updatedAt\n      supportedActions {\n        action\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    remainingFulfillmentOrder {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9656897175858",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "Selective release selective-release-second",
+            "notifyMerchant": false,
+            "externalId": "selective-release-second",
+            "handle": "selective-release-second"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": {
+                  "id": "gid://shopify/FulfillmentHold/263830896946",
+                  "handle": "selective-release-second",
+                  "reason": "OTHER",
+                  "reasonNotes": "Selective release selective-release-second",
+                  "displayReason": "Other",
+                  "heldByRequestingApp": true
+                },
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9656897175858",
+                  "status": "ON_HOLD",
+                  "requestStatus": "UNSUBMITTED",
+                  "updatedAt": "2026-05-07T00:22:06Z",
+                  "supportedActions": [
+                    {
+                      "action": "RELEASE_HOLD"
+                    },
+                    {
+                      "action": "HOLD"
+                    },
+                    {
+                      "action": "MOVE"
+                    }
+                  ],
+                  "fulfillmentHolds": [
+                    {
+                      "id": "gid://shopify/FulfillmentHold/263830864178",
+                      "handle": "selective-release-first",
+                      "reason": "OTHER",
+                      "reasonNotes": "Selective release selective-release-first",
+                      "displayReason": "Other",
+                      "heldByRequestingApp": true
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentHold/263830896946",
+                      "handle": "selective-release-second",
+                      "reason": "OTHER",
+                      "reasonNotes": "Selective release selective-release-second",
+                      "displayReason": "Other",
+                      "heldByRequestingApp": true
+                    }
+                  ],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                        "totalQuantity": 2,
+                        "remainingQuantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19308583747890",
+                          "title": "Selective release item 20260507002205",
+                          "quantity": 2,
+                          "fulfillableQuantity": 0
+                        }
+                      }
+                    ]
+                  }
+                },
+                "remainingFulfillmentOrder": null,
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 20,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "releaseFirstHold": {
+        "query": "mutation FulfillmentOrderReleaseHoldSelectiveRelease($id: ID!, $holdIds: [ID!]) {\n  fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) {\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      updatedAt\n      supportedActions {\n        action\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9656897175858",
+          "holdIds": ["gid://shopify/FulfillmentHold/263830864178"]
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderReleaseHold": {
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9656897175858",
+                  "status": "ON_HOLD",
+                  "requestStatus": "UNSUBMITTED",
+                  "updatedAt": "2026-05-07T00:22:06Z",
+                  "supportedActions": [
+                    {
+                      "action": "RELEASE_HOLD"
+                    },
+                    {
+                      "action": "HOLD"
+                    },
+                    {
+                      "action": "MOVE"
+                    }
+                  ],
+                  "fulfillmentHolds": [
+                    {
+                      "id": "gid://shopify/FulfillmentHold/263830896946",
+                      "handle": "selective-release-second",
+                      "reason": "OTHER",
+                      "reasonNotes": "Selective release selective-release-second",
+                      "displayReason": "Other",
+                      "heldByRequestingApp": true
+                    }
+                  ],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                        "totalQuantity": 2,
+                        "remainingQuantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19308583747890",
+                          "title": "Selective release item 20260507002205",
+                          "quantity": 2,
+                          "fulfillableQuantity": 0
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 20,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "afterReleaseRead": {
+        "query": "query FulfillmentOrderReleaseHoldSelectiveOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        updatedAt\n        supportedActions {\n          action\n        }\n        fulfillmentHolds {\n          id\n          handle\n          reason\n          reasonNotes\n          displayReason\n          heldByRequestingApp\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Order/8733296558386"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "order": {
+                "id": "gid://shopify/Order/8733296558386",
+                "name": "#1328",
+                "displayFulfillmentStatus": "ON_HOLD",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9656897175858",
+                      "status": "ON_HOLD",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-07T00:22:06Z",
+                      "supportedActions": [
+                        {
+                          "action": "RELEASE_HOLD"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "MOVE"
+                        }
+                      ],
+                      "fulfillmentHolds": [
+                        {
+                          "id": "gid://shopify/FulfillmentHold/263830896946",
+                          "handle": "selective-release-second",
+                          "reason": "OTHER",
+                          "reasonNotes": "Selective release selective-release-second",
+                          "displayReason": "Other",
+                          "heldByRequestingApp": true
+                        }
+                      ],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19308583747890",
+                              "title": "Selective release item 20260507002205",
+                              "quantity": 2,
+                              "fulfillableQuantity": 0
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 36,
+                "actualQueryCost": 8,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1992,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "releaseRemainingHold": {
+      "query": "mutation FulfillmentOrderReleaseHoldSelectiveRelease($id: ID!, $holdIds: [ID!]) {\n  fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) {\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      updatedAt\n      supportedActions {\n        action\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9656897175858",
+        "holdIds": ["gid://shopify/FulfillmentHold/263830896946"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderReleaseHold": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9656897175858",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-07T00:22:07Z",
+                "supportedActions": [
+                  {
+                    "action": "CREATE_FULFILLMENT"
+                  },
+                  {
+                    "action": "REPORT_PROGRESS"
+                  },
+                  {
+                    "action": "MOVE"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "SPLIT"
+                  }
+                ],
+                "fulfillmentHolds": [],
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                      "totalQuantity": 2,
+                      "remainingQuantity": 2,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19308583747890",
+                        "title": "Selective release item 20260507002205",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancel": {
+      "query": "mutation CleanupFulfillmentOrderReleaseHoldSelectiveOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8733296558386",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/c935780c-45da-4fb3-9b74-99f4da7c6593"
+              },
+              "userErrors": [],
+              "orderCancelUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9656897175858"
+      },
+      "query": "query FulfillmentOrderReleaseHoldSelectiveHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    merchantRequests(first: 10) {\n      nodes {\n        kind\n        message\n        requestOptions\n      }\n    }\n    lineItems(first: 20) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9656897175858",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-07T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-07T00:22:06Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19457788379442",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19308583747890",
+                      "title": "Selective release item 20260507002205",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8733296558386",
+                "name": "#1328",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

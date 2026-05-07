@@ -102,7 +102,20 @@
         "proxyPath": "$.data.fulfillmentOrderReleaseHold",
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-release-hold.graphql",
-          "variablesCapturePath": "$.workflows.holdRelease.releaseHold.variables"
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.workflows.holdRelease.releaseHold.variables.id"
+            },
+            "holdIds": [
+              {
+                "fromProxyResponse": "hold-mutation-data",
+                "path": "$.data.fulfillmentOrderHold.fulfillmentHold.id"
+              }
+            ],
+            "externalId": {
+              "fromCapturePath": "$.workflows.holdRelease.releaseHold.variables.externalId"
+            }
+          }
         },
         "expectedDifferences": [
           {

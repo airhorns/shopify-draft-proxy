@@ -1,0 +1,39 @@
+mutation FulfillmentOrderReleaseHoldSelectiveRelease($id: ID!, $holdIds: [ID!]) {
+  fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) {
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+      updatedAt
+      supportedActions {
+        action
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByRequestingApp
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
