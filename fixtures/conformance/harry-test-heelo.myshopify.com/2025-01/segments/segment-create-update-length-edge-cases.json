@@ -58,9 +58,7 @@
               "segment": null,
               "userErrors": [
                 {
-                  "field": [
-                    "query"
-                  ],
+                  "field": ["query"],
                   "message": "Query is too long (maximum is 5000 characters)"
                 }
               ]
@@ -135,9 +133,7 @@
               "segment": null,
               "userErrors": [
                 {
-                  "field": [
-                    "query"
-                  ],
+                  "field": ["query"],
                   "message": "Query is too long (maximum is 5000 characters)"
                 }
               ]
