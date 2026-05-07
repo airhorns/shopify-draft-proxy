@@ -1,0 +1,67 @@
+{
+  "scenarioId": "discount-customer-selection-internal-conflicts",
+  "operationNames": ["discountCodeBasicCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "top-level-errors-parity", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-customer-selection-internal-conflicts.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql",
+    "variablesCapturePath": "$.cases.allWithCustomers.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "all-with-customers-errors",
+        "capturePath": "$.cases.allWithCustomers.response.errors",
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "all-with-customers-data",
+        "capturePath": "$.cases.allWithCustomers.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "all-with-saved-searches-errors",
+        "capturePath": "$.cases.allWithSavedSearches.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql",
+          "variablesCapturePath": "$.cases.allWithSavedSearches.variables"
+        }
+      },
+      {
+        "name": "all-with-segments-errors",
+        "capturePath": "$.cases.allWithSegments.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql",
+          "variablesCapturePath": "$.cases.allWithSegments.variables"
+        }
+      },
+      {
+        "name": "all-with-segments-data",
+        "capturePath": "$.cases.allWithSegments.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql",
+          "variablesCapturePath": "$.cases.allWithSegments.variables"
+        }
+      },
+      {
+        "name": "happy-customers-user-errors",
+        "capturePath": "$.cases.happyCustomers.response.data.discountCodeBasicCreate.userErrors",
+        "proxyPath": "$.data.discountCodeBasicCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-selection-internal-conflicts-create.graphql",
+          "variablesCapturePath": "$.cases.happyCustomers.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 validation evidence for DiscountCodeBasicInput customerSelection mutual exclusivity: all=true with customers returns a BAD_REQUEST top-level error saying customerSelection cannot be set to all when customers or customerSavedSearches is specified; customerSavedSearches is not a public DiscountCustomerSelectionInput field and returns INVALID_VARIABLE during input coercion; all=true with customerSegments returns a BAD_REQUEST top-level error saying customerSelection cannot be set to all when customerSegments is specified. The same capture confirms customerSelection.customers.add remains accepted without the all flag."
+}

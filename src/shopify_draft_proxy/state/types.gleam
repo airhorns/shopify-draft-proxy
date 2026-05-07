@@ -863,6 +863,7 @@ pub type ShopFeaturesRecord {
     live_view: Bool,
     paypal_express_subscription_gateway_status: String,
     reports: Bool,
+    discounts_by_market_enabled: Bool,
     sells_subscriptions: Bool,
     show_metrics: Bool,
     storefront: Bool,
@@ -1288,6 +1289,12 @@ pub type MetaobjectFieldDefinitionValidationRecord {
   MetaobjectFieldDefinitionValidationRecord(name: String, value: Option(String))
 }
 
+pub type MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: Option(MetaobjectDefinitionCapabilityRecord),
+  )
+}
+
 pub type MetaobjectFieldDefinitionRecord {
   MetaobjectFieldDefinitionRecord(
     key: String,
@@ -1295,6 +1302,7 @@ pub type MetaobjectFieldDefinitionRecord {
     description: Option(String),
     required: Option(Bool),
     type_: MetaobjectDefinitionTypeRecord,
+    capabilities: MetaobjectFieldDefinitionCapabilitiesRecord,
     validations: List(MetaobjectFieldDefinitionValidationRecord),
   )
 }

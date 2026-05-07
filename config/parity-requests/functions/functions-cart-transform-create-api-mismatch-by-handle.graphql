@@ -1,0 +1,13 @@
+mutation FunctionsCartTransformApiMismatchByHandle($functionHandle: String!, $blockOnFailure: Boolean) {
+  cartTransformCreate(functionHandle: $functionHandle, blockOnFailure: $blockOnFailure) {
+    cartTransform {
+      id
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

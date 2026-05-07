@@ -1,0 +1,15 @@
+mutation CommentModerationStateApprove($id: ID!) {
+  commentApprove(id: $id) {
+    comment {
+      id
+      status
+      isPublished
+      publishedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

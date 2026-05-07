@@ -20,7 +20,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/markets/types as market_types
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, combine_error_lists, single_root_log_draft,
 }
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
@@ -938,26 +938,15 @@ fn catalog_context_object_errors_without_driver_type(
   store: Store,
   context: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
-  case read_arg_string_array(context, "marketIds") {
-    Some(_) -> {
-      case
-        require_catalog_context_ids(
-          context,
-          "marketIds",
-          "Market ids can't be blank",
-        )
-      {
-        Ok(ids) -> missing_market_context_errors(store, ids)
-        Error(errors) -> errors
-      }
-    }
-    None -> [
-      user_error(
-        ["input", "context", "driverType"],
-        "Driver type is required",
-        "INVALID",
-      ),
-    ]
+  case
+    require_catalog_context_ids(
+      context,
+      "marketIds",
+      "Market ids can't be blank",
+    )
+  {
+    Ok(ids) -> missing_market_context_errors(store, ids)
+    Error(errors) -> errors
   }
 }
 
@@ -1154,6 +1143,80 @@ pub fn market_connection_from_ids(
 }
 
 @internal
+pub fn catalog_connection_from_ids(
+  store: Store,
+  catalog_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(catalog_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", catalog_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(list.map(catalog_ids, catalog_node_for_id(store, _))),
+    ),
+    #("pageInfo", page_info_for_cursors(catalog_ids)),
+  ])
+}
+
+fn catalog_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_catalog_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketCatalog")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
+pub fn web_presence_connection_from_ids(
+  store: Store,
+  web_presence_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(web_presence_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", web_presence_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(
+        list.map(web_presence_ids, web_presence_node_for_id(store, _)),
+      ),
+    ),
+    #("pageInfo", page_info_for_cursors(web_presence_ids)),
+  ])
+}
+
+fn web_presence_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_web_presence_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketWebPresence")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
 pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
   case store.get_effective_market_by_id(store, id) {
     Some(record) -> record.data
@@ -1167,6 +1230,7 @@ pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
 
 @internal
 pub fn price_list_input_errors(
+  _store: Store,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
 ) -> List(CapturedJsonValue) {
@@ -1184,9 +1248,7 @@ pub fn price_list_input_errors(
     [] -> price_list_parent_errors(input, existing)
     _ -> []
   }
-  name_errors
-  |> list.append(currency_errors)
-  |> list.append(parent_errors)
+  combine_error_lists([name_errors, currency_errors, parent_errors])
 }
 
 @internal
@@ -1225,7 +1287,8 @@ pub fn price_list_parent_errors(
     Some(parent) -> price_list_parent_adjustment_errors(parent)
     None ->
       case existing {
-        Some(_) -> []
+        Some(existing_value) ->
+          price_list_existing_parent_adjustment_errors(existing_value)
         None -> [
           user_error(["input", "parent"], "Parent must exist", "REQUIRED"),
         ]
@@ -1234,13 +1297,48 @@ pub fn price_list_parent_errors(
 }
 
 @internal
+pub fn price_list_existing_parent_adjustment_errors(
+  existing_value: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case
+    captured_field(existing_value, "parent")
+    |> option.then(captured_field(_, "adjustment"))
+  {
+    Some(adjustment) ->
+      case captured_string_field(adjustment, "type") {
+        Some("PERCENTAGE_DECREASE") ->
+          price_list_captured_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_DECREASE",
+          )
+        Some("PERCENTAGE_INCREASE") ->
+          price_list_captured_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_INCREASE",
+          )
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+@internal
 pub fn price_list_parent_adjustment_errors(
   parent: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   case graphql_helpers.read_arg_object(parent, "adjustment") {
-    Some(adjustment) ->
+    Some(adjustment) -> {
       case graphql_helpers.read_arg_string_nonempty(adjustment, "type") {
-        Some("PERCENTAGE_DECREASE") | Some("PERCENTAGE_INCREASE") -> []
+        Some("PERCENTAGE_DECREASE") ->
+          price_list_parent_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_DECREASE",
+          )
+        Some("PERCENTAGE_INCREASE") ->
+          price_list_parent_adjustment_value_errors(
+            adjustment,
+            "PERCENTAGE_INCREASE",
+          )
         _ -> [
           user_error(
             ["input", "parent", "adjustment", "type"],
@@ -1249,6 +1347,7 @@ pub fn price_list_parent_adjustment_errors(
           ),
         ]
       }
+    }
     None -> [
       user_error(
         ["input", "parent", "adjustment"],
@@ -1256,6 +1355,123 @@ pub fn price_list_parent_adjustment_errors(
         "REQUIRED",
       ),
     ]
+  }
+}
+
+@internal
+pub fn price_list_parent_adjustment_value_errors(
+  adjustment: Dict(String, root_field.ResolvedValue),
+  adjustment_type: String,
+) -> List(CapturedJsonValue) {
+  case read_price_list_adjustment_number(adjustment) {
+    Some(value) -> price_list_adjustment_number_errors(value, adjustment_type)
+    None -> []
+  }
+}
+
+@internal
+pub fn price_list_captured_adjustment_value_errors(
+  adjustment: CapturedJsonValue,
+  adjustment_type: String,
+) -> List(CapturedJsonValue) {
+  case captured_adjustment_number(adjustment) {
+    Some(value) -> price_list_adjustment_number_errors(value, adjustment_type)
+    None -> []
+  }
+}
+
+@internal
+pub fn price_list_adjustment_number_errors(
+  value: Float,
+  adjustment_type: String,
+) -> List(CapturedJsonValue) {
+  let invalid_adjustment_error = [
+    user_error(
+      ["input", "parent", "adjustment", "value"],
+      "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+      "INVALID_ADJUSTMENT_VALUE",
+    ),
+  ]
+
+  case value <. 0.0 {
+    True -> invalid_adjustment_error
+    False ->
+      case adjustment_type, value >. 100.0, value >. 1000.0 {
+        "PERCENTAGE_DECREASE", True, _ -> invalid_adjustment_error
+        "PERCENTAGE_INCREASE", _, True -> invalid_adjustment_error
+        _, _, _ -> []
+      }
+  }
+}
+
+@internal
+pub fn price_list_market_currency_errors(
+  _store: Store,
+  _input: Dict(String, root_field.ResolvedValue),
+  _existing: Option(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  // Current public Admin GraphQL accepts catalog-linked price lists whose
+  // currency differs from the linked market base currency.
+  []
+}
+
+@internal
+pub fn effective_price_list_currency(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> Option(String) {
+  graphql_helpers.read_arg_string_nonempty(input, "currency")
+  |> option.or(option.then(existing, captured_string_field(_, "currency")))
+}
+
+@internal
+pub fn effective_price_list_catalog_market_currency(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> Option(String) {
+  case effective_price_list_catalog_id(input, existing) {
+    Some(catalog_id) ->
+      case store.get_effective_catalog_by_id(store, catalog_id) {
+        Some(catalog) -> catalog_market_currency(catalog.data)
+        None -> None
+      }
+    None -> None
+  }
+}
+
+@internal
+pub fn effective_price_list_catalog_id(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CapturedJsonValue),
+) -> Option(String) {
+  graphql_helpers.read_arg_string_nonempty(input, "catalogId")
+  |> option.or(option.then(existing, price_list_catalog_id))
+}
+
+@internal
+pub fn price_list_catalog_id(value: CapturedJsonValue) -> Option(String) {
+  captured_field(value, "catalog")
+  |> option.then(captured_string_field(_, "id"))
+}
+
+@internal
+pub fn catalog_market_currency(catalog: CapturedJsonValue) -> Option(String) {
+  captured_field(catalog, "markets")
+  |> option.then(captured_field(_, "nodes"))
+  |> option.then(first_captured_array_value)
+  |> option.then(captured_field(_, "currencySettings"))
+  |> option.then(captured_field(_, "baseCurrency"))
+  |> option.then(captured_string_field(_, "currencyCode"))
+}
+
+@internal
+pub fn first_captured_array_value(
+  value: CapturedJsonValue,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedArray([first, ..]) -> Some(first)
+    _ -> None
   }
 }
 
@@ -1288,6 +1504,7 @@ pub fn iso_currency_codes() -> List(String) {
 
 @internal
 pub fn price_list_data(
+  store: Store,
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
@@ -1313,10 +1530,7 @@ pub fn price_list_data(
         |> option.unwrap(CapturedInt(0)),
     ),
     #("parent", price_list_parent_data(input, existing_value)),
-    #(
-      "catalog",
-      captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull),
-    ),
+    #("catalog", price_list_catalog_data(store, input, existing_value)),
     #(
       "prices",
       captured_field(existing_value, "prices")
@@ -1328,6 +1542,27 @@ pub fn price_list_data(
         |> option.unwrap(empty_connection()),
     ),
   ])
+}
+
+@internal
+pub fn price_list_catalog_data(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case graphql_helpers.read_arg_string_nonempty(input, "catalogId") {
+    Some(id) ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(record) -> record.data
+        None ->
+          CapturedObject([
+            #("__typename", CapturedString("MarketCatalog")),
+            #("id", CapturedString(id)),
+          ])
+      }
+    None ->
+      captured_field(existing_value, "catalog") |> option.unwrap(CapturedNull)
+  }
 }
 
 @internal
@@ -1368,6 +1603,28 @@ pub fn read_price_list_adjustment_value(
   case dict.get(adjustment, "value") {
     Ok(root_field.IntVal(value)) -> Some(CapturedInt(value))
     Ok(root_field.FloatVal(value)) -> Some(CapturedFloat(value))
+    _ -> None
+  }
+}
+
+@internal
+pub fn read_price_list_adjustment_number(
+  adjustment: Dict(String, root_field.ResolvedValue),
+) -> Option(Float) {
+  case dict.get(adjustment, "value") {
+    Ok(root_field.IntVal(value)) -> Some(int.to_float(value))
+    Ok(root_field.FloatVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+@internal
+pub fn captured_adjustment_number(
+  adjustment: CapturedJsonValue,
+) -> Option(Float) {
+  case captured_field(adjustment, "value") {
+    Some(CapturedInt(value)) -> Some(int.to_float(value))
+    Some(CapturedFloat(value)) -> Some(value)
     _ -> None
   }
 }
@@ -1423,22 +1680,21 @@ pub fn product_level_fixed_price_errors(
           ))
       }
     })
-  no_op_errors
-  |> list.append(add_errors)
-  |> list.append(delete_errors)
-  |> list.append(price_currency_mismatch_errors(price_list, price_inputs))
-  |> list.append(duplicate_price_input_errors(price_inputs))
-  |> list.append(duplicate_delete_product_errors(delete_product_ids))
-  |> list.append(mutually_exclusive_product_errors(
-    price_inputs,
-    delete_product_ids,
-  ))
-  |> list.append(price_list_fixed_price_limit_errors(
-    store,
-    price_list,
-    price_inputs,
-    delete_product_ids,
-  ))
+  combine_error_lists([
+    no_op_errors,
+    add_errors,
+    delete_errors,
+    price_currency_mismatch_errors(price_list, price_inputs),
+    duplicate_price_input_errors(price_inputs),
+    duplicate_delete_product_errors(delete_product_ids),
+    mutually_exclusive_product_errors(price_inputs, delete_product_ids),
+    price_list_fixed_price_limit_errors(
+      store,
+      price_list,
+      price_inputs,
+      delete_product_ids,
+    ),
+  ])
 }
 
 fn price_currency_mismatch_errors(
@@ -1452,13 +1708,15 @@ fn price_currency_mismatch_errors(
       |> enumerate_dicts
       |> list.flat_map(fn(entry) {
         let #(input, index) = entry
-        money_currency_mismatch_error(input, index, "price", currency)
-        |> list.append(money_currency_mismatch_error(
-          input,
-          index,
-          "compareAtPrice",
-          currency,
-        ))
+        combine_error_lists([
+          money_currency_mismatch_error(input, index, "price", currency),
+          money_currency_mismatch_error(
+            input,
+            index,
+            "compareAtPrice",
+            currency,
+          ),
+        ])
       })
     }
     None -> []
@@ -1664,7 +1922,7 @@ pub fn upsert_fixed_price_nodes(
   let retained =
     existing_edges
     |> list.filter(fn(edge) {
-      case fixed_price_edge_variant_id(edge) {
+      case price_edge_variant_id(edge) {
         Some(id) -> !list.contains(input_variant_ids, id)
         None -> True
       }
@@ -1686,7 +1944,7 @@ pub fn upsert_fixed_price_nodes(
         price_list_currency(price_list),
       ))
     })
-  rebuild_price_list_prices(price_list, list.append(retained, new_edges))
+  rebuild_price_list_prices(price_list, list.append(new_edges, retained))
 }
 
 @internal
@@ -1861,16 +2119,18 @@ pub fn quantity_pricing_input_errors(
       "PRICE_ADD_VARIANT_NOT_FOUND",
       "Variant not found.",
     )
-  list.append(price_break_errors, list.append(rule_errors, price_errors))
+  combine_error_lists([price_break_errors, rule_errors, price_errors])
 }
 
 @internal
 pub fn quantity_rules_input_errors(
   store: Store,
+  price_list: PriceListRecord,
   inputs: List(Dict(String, root_field.ResolvedValue)),
 ) -> List(CapturedJsonValue) {
   quantity_rules_input_errors_loop(
     store,
+    price_list,
     enumerate_dicts(inputs),
     duplicate_quantity_rule_variant_ids(inputs),
   )
@@ -1878,6 +2138,7 @@ pub fn quantity_rules_input_errors(
 
 fn quantity_rules_input_errors_loop(
   store: Store,
+  price_list: PriceListRecord,
   entries: List(#(Dict(String, root_field.ResolvedValue), Int)),
   duplicate_variant_ids: List(String),
 ) -> List(CapturedJsonValue) {
@@ -1888,20 +2149,24 @@ fn quantity_rules_input_errors_loop(
       let variant_id =
         graphql_helpers.read_arg_string_nonempty(input, "variantId")
       let current_errors =
-        list.append(
+        combine_error_lists([
           quantity_rule_variant_errors(store, input, index),
-          list.append(
-            quantity_rule_numeric_errors(input, index),
-            quantity_rule_duplicate_variant_errors(
-              variant_id,
-              index,
-              duplicate_variant_ids,
-            ),
+          quantity_rule_numeric_errors(input, index),
+          quantity_rule_price_break_errors(price_list, input, index),
+          quantity_rule_duplicate_variant_errors(
+            variant_id,
+            index,
+            duplicate_variant_ids,
           ),
-        )
+        ])
       list.append(
         current_errors,
-        quantity_rules_input_errors_loop(store, rest, duplicate_variant_ids),
+        quantity_rules_input_errors_loop(
+          store,
+          price_list,
+          rest,
+          duplicate_variant_ids,
+        ),
       )
     }
   }
@@ -2072,6 +2337,31 @@ fn quantity_rule_maximum_divisibility_errors(
   }
 }
 
+fn quantity_rule_price_break_errors(
+  price_list: PriceListRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  let variant_id = graphql_helpers.read_arg_string_nonempty(input, "variantId")
+  let maximum = graphql_helpers.read_arg_int(input, "maximum")
+  case variant_id, maximum {
+    Some(id), Some(maximum_value) -> {
+      let break_minimums = quantity_price_break_minimums(price_list, id)
+      case list.any(break_minimums, fn(value) { value > maximum_value }) {
+        True -> [
+          quantity_rule_user_error(
+            ["quantityRules", int.to_string(index), "maximum"],
+            "Maximum must be greater than or equal to all quantity price break minimums associated with this variant in the specified price list.",
+            "MAXIMUM_IS_LOWER_THAN_QUANTITY_PRICE_BREAK_MINIMUM",
+          ),
+        ]
+        False -> []
+      }
+    }
+    _, _ -> []
+  }
+}
+
 fn quantity_rule_duplicate_variant_errors(
   variant_id: Option(String),
   index: Int,
@@ -2139,6 +2429,7 @@ fn duplicate_quantity_rule_variant_ids_loop(
 @internal
 pub fn quantity_rule_delete_errors(
   store: Store,
+  price_list: PriceListRecord,
   variant_ids: List(String),
 ) -> List(CapturedJsonValue) {
   variant_ids
@@ -2146,13 +2437,36 @@ pub fn quantity_rule_delete_errors(
   |> list.filter_map(fn(entry) {
     let #(variant_id, index) = entry
     case store.get_effective_variant_by_id(store, variant_id) {
-      Some(_) -> Error(Nil)
+      Some(_) ->
+        case price_list_has_fixed_quantity_rule(price_list, variant_id) {
+          True -> Error(Nil)
+          False ->
+            Ok(user_error(
+              ["variantIds", int.to_string(index)],
+              "Quantity rule for variant associated with the price list provided does not exist.",
+              "VARIANT_QUANTITY_RULE_DOES_NOT_EXIST",
+            ))
+        }
       None ->
         Ok(user_error(
           ["variantIds", int.to_string(index)],
           "Product variant ID does not exist.",
           "PRODUCT_VARIANT_DOES_NOT_EXIST",
         ))
+    }
+  })
+}
+
+fn price_list_has_fixed_quantity_rule(
+  price_list: PriceListRecord,
+  variant_id: String,
+) -> Bool {
+  quantity_rule_edges(price_list.data)
+  |> list.any(fn(edge) {
+    quantity_rule_edge_variant_id(edge) == Some(variant_id)
+    && case captured_edge_node(edge) {
+      Some(node) -> captured_string_field(node, "originType") == Some("FIXED")
+      None -> False
     }
   })
 }
@@ -2222,7 +2536,7 @@ pub fn upsert_quantity_rule_nodes(
     data: captured_object_upsert(price_list.data, [
       #(
         "quantityRules",
-        price_connection_from_edges(list.append(retained, new_edges)),
+        price_connection_from_edges(list.append(new_edges, retained)),
       ),
     ]),
   )
@@ -2517,6 +2831,17 @@ pub fn fixed_price_edge_variant_id(edge: CapturedJsonValue) -> Option(String) {
   }
 }
 
+fn price_edge_variant_id(edge: CapturedJsonValue) -> Option(String) {
+  case captured_edge_node(edge) {
+    Some(node) ->
+      case captured_field(node, "variant") {
+        Some(variant) -> captured_string_field(variant, "id")
+        None -> None
+      }
+    None -> None
+  }
+}
+
 @internal
 pub fn quantity_rule_edge_variant_id(
   edge: CapturedJsonValue,
@@ -2536,6 +2861,31 @@ pub fn captured_edge_node(
   edge: CapturedJsonValue,
 ) -> Option(CapturedJsonValue) {
   captured_field(edge, "node")
+}
+
+fn quantity_price_break_minimums(
+  price_list: PriceListRecord,
+  variant_id: String,
+) -> List(Int) {
+  price_edges(price_list.data)
+  |> list.filter(fn(edge) {
+    fixed_price_edge_variant_id(edge) == Some(variant_id)
+  })
+  |> list.flat_map(fn(edge) {
+    case captured_edge_node(edge) {
+      Some(node) ->
+        captured_field(node, "quantityPriceBreaks")
+        |> captured_connection_edges
+        |> list.filter_map(fn(break_edge) {
+          use break_node <- result.try(
+            captured_edge_node(break_edge) |> option_to_result,
+          )
+          captured_int_field(break_node, "minimumQuantity")
+          |> option_to_result
+        })
+      None -> []
+    }
+  })
 }
 
 @internal
@@ -2592,6 +2942,7 @@ pub fn empty_price_connection() -> CapturedJsonValue {
 pub fn market_localizable_resource_payload(
   store: Store,
   resource_id: String,
+  market_id: Option(String),
 ) -> CapturedJsonValue {
   case store.find_effective_metafield_by_id(store, resource_id) {
     Some(metafield) ->
@@ -2608,6 +2959,12 @@ pub fn market_localizable_resource_payload(
           "marketLocalizations",
           CapturedArray(
             store.list_effective_market_localizations(store, resource_id)
+            |> list.filter(fn(record) {
+              case market_id {
+                Some(id) -> record.market_id == id
+                None -> True
+              }
+            })
             |> list.map(fn(record) {
               market_localization_payload(store, record)
             }),
@@ -2902,15 +3259,19 @@ pub fn root_payload_for_field(
         "marketLocalizableResource" -> {
           let args = graphql_helpers.field_args(field, variables)
           case graphql_helpers.read_arg_string_nonempty(args, "resourceId") {
-            Some(resource_id) ->
+            Some(resource_id) -> {
+              let market_id =
+                market_localizations_market_id_arg(field, variables)
               project_record(
                 field,
                 fragments,
                 captured_json_source(market_localizable_resource_payload(
                   store,
                   resource_id,
+                  market_id,
                 )),
               )
+            }
             None -> json.null()
           }
         }
@@ -2919,6 +3280,30 @@ pub fn root_payload_for_field(
         _ -> json.null()
       }
     _ -> json.null()
+  }
+}
+
+fn market_localizations_market_id_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.find_map(fn(child) {
+      case child {
+        Field(name: name, ..) if name.value == "marketLocalizations" -> {
+          let args = graphql_helpers.field_args(child, variables)
+          case graphql_helpers.read_arg_string_nonempty(args, "marketId") {
+            Some(id) -> Ok(id)
+            None -> Error(Nil)
+          }
+        }
+        _ -> Error(Nil)
+      }
+    })
+  {
+    Ok(id) -> Some(id)
+    Error(_) -> None
   }
 }
 
@@ -3196,6 +3581,13 @@ pub fn captured_string_field(
 ) -> Option(String) {
   case captured_field(value, key) {
     Some(CapturedString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn captured_int_field(value: CapturedJsonValue, key: String) -> Option(Int) {
+  case captured_field(value, key) {
+    Some(CapturedInt(i)) -> Some(i)
     _ -> None
   }
 }

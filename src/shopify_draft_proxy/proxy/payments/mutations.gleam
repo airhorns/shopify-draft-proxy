@@ -47,6 +47,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types as state_types
 
+const max_active_payment_customizations = 5
+
 @internal
 pub fn process_mutation(
   store: Store,
@@ -424,6 +426,22 @@ fn required_customization_input_error(field_name: String) -> UserError {
   )
 }
 
+fn missing_function_identifier_error() -> UserError {
+  payment_customization_error(
+    ["paymentCustomization", "functionHandle"],
+    "Either function_id or function_handle must be provided.",
+    "MISSING_FUNCTION_IDENTIFIER",
+  )
+}
+
+fn multiple_function_identifiers_error() -> UserError {
+  payment_customization_error(
+    ["paymentCustomization", "base"],
+    "Only one of function_id or function_handle can be provided, not both.",
+    "MULTIPLE_FUNCTION_IDENTIFIERS",
+  )
+}
+
 fn missing_function_error(function_id: String) -> UserError {
   payment_customization_error(
     ["paymentCustomization", "functionId"],
@@ -449,6 +467,14 @@ fn function_id_cannot_be_changed_error() -> UserError {
     ["paymentCustomization", "functionId"],
     "Function ID cannot be changed.",
     "FUNCTION_ID_CANNOT_BE_CHANGED",
+  )
+}
+
+fn maximum_active_payment_customizations_error() -> UserError {
+  payment_customization_error(
+    ["paymentCustomization", "enabled"],
+    "Maximum active payment customizations reached.",
+    "MAXIMUM_ACTIVE_PAYMENT_CUSTOMIZATIONS",
   )
 }
 
@@ -487,26 +513,73 @@ fn customization_activation_not_found_error(ids: List(String)) -> UserError {
 }
 
 fn validate_create_input(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
-  let function_id = read_string_field(input, "functionId")
-  let function_handle = read_string_field(input, "functionHandle")
+  let errors =
+    list.append(
+      required_create_input_errors(input),
+      validate_create_function_identifier(input),
+    )
+    |> list.append(validate_payment_customization_metafield_input(input))
+
+  case errors {
+    [_, ..] -> errors
+    [] -> validate_active_payment_customization_limit(store, input)
+  }
+}
+
+fn required_create_input_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  ["title", "enabled", "metafields"]
+  |> list.filter_map(fn(field_name) {
+    case has_key(input, field_name) {
+      True -> Error(Nil)
+      False -> Ok(required_customization_input_error(field_name))
+    }
+  })
+}
+
+fn validate_create_function_identifier(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
   case
-    has_key(input, "title"),
-    has_key(input, "enabled"),
-    function_id,
-    function_handle
+    read_string_field(input, "functionId"),
+    read_string_field(input, "functionHandle")
   {
-    False, _, _, _ -> [required_customization_input_error("title")]
-    _, False, _, _ -> [required_customization_input_error("enabled")]
-    _, _, None, None -> [required_customization_input_error("functionId")]
-    _, _, Some(function_id), _ ->
+    Some(_), Some(_) -> [multiple_function_identifiers_error()]
+    None, None -> [missing_function_identifier_error()]
+    Some(function_id), None ->
       case gid_tail(function_id) == "0" {
         True -> [missing_function_error(function_id)]
-        False -> validate_payment_customization_metafield_input(input)
+        False -> []
       }
-    _, _, None, Some(_) -> validate_payment_customization_metafield_input(input)
+    None, Some(_) -> []
   }
+}
+
+fn validate_active_payment_customization_limit(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_bool_field(input, "enabled") {
+    Some(True) ->
+      case
+        active_payment_customization_count(store)
+        >= max_active_payment_customizations
+      {
+        True -> [maximum_active_payment_customizations_error()]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn active_payment_customization_count(store: Store) -> Int {
+  store.list_effective_payment_customizations(store)
+  |> list.filter(fn(record) { record.enabled == Some(True) })
+  |> list.length
 }
 
 fn validate_update_input(
@@ -836,7 +909,7 @@ fn create_payment_customization(store, identity, field, fragments, variables) {
       "paymentCustomization",
     )
     |> option.unwrap(dict.new())
-  let errors = validate_create_input(input)
+  let errors = validate_create_input(store, input)
   case errors {
     [_, ..] -> #(
       MutationFieldResult(

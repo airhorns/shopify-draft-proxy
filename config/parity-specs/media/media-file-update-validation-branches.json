@@ -67,6 +67,16 @@
         }
       },
       {
+        "name": "missing-reference-targets",
+        "capturePath": "$.branches.missingReferences.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.branches.missingReferences.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "source-and-revert-version-conflict",
         "capturePath": "$.branches.sourceAndVersion.response.data.fileUpdate",
         "proxyPath": "$.data.fileUpdate",

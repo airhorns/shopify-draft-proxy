@@ -1,0 +1,37 @@
+query CatalogDeleteDetachesPriceListSetupRead($catalogId: ID!, $priceListId: ID!) {
+  catalog(id: $catalogId) {
+    __typename
+    id
+    title
+    status
+    priceList {
+      id
+      name
+      currency
+    }
+    ... on MarketCatalog {
+      markets(first: 10) {
+        nodes {
+          __typename
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    catalog {
+      id
+      title
+      status
+    }
+  }
+}

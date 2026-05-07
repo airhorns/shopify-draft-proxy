@@ -738,6 +738,119 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
     == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\",\"code\":\"CARRIER_SERVICE_DELETE_FAILED\"}]}}}"
 }
 
+pub fn carrier_service_create_callback_url_user_errors_reject_without_staging_test() {
+  let http_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes HTTP Carrier")),
+        #("callbackUrl", root_field.StringVal("http://example.com/rates")),
+        #("active", root_field.BoolVal(False)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let http_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", http_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(http_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider callback url must use HTTPS\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
+  assert http_outcome.staged_resource_ids == []
+  assert store.list_effective_carrier_services(http_outcome.store) == []
+
+  let banned_host_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Banned Carrier")),
+        #("callbackUrl", root_field.StringVal("https://shopify.com/rates")),
+        #("active", root_field.BoolVal(False)),
+        #("supportsServiceDiscovery", root_field.BoolVal(False)),
+      ]),
+    )
+  let banned_host_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", banned_host_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(banned_host_outcome.data)
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider callback url invalid host\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
+  assert banned_host_outcome.staged_resource_ids == []
+  assert store.list_effective_carrier_services(banned_host_outcome.store) == []
+}
+
+pub fn carrier_service_update_callback_url_user_errors_reject_without_staging_test() {
+  let existing =
+    CarrierServiceRecord(
+      id: "gid://shopify/DeliveryCarrierService/1",
+      name: Some("Hermes Carrier"),
+      formatted_name: Some("Hermes Carrier (Rates provided by app)"),
+      callback_url: Some("https://mock.shop/carrier-service-rates"),
+      active: False,
+      supports_service_discovery: False,
+      created_at: "2026-04-27T00:00:00.000Z",
+      updated_at: "2026-04-27T00:00:00.000Z",
+    )
+  let draft_store = store.upsert_base_carrier_services(store.new(), [existing])
+  let update_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("id", root_field.StringVal(existing.id)),
+        #("callbackUrl", root_field.StringVal("http://example.com/rates")),
+      ]),
+    )
+  let update_outcome =
+    shipping_fulfillments.process_mutation(
+      draft_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", update_input)]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider callback url must use HTTPS\",\"code\":\"CARRIER_SERVICE_UPDATE_FAILED\"}]}}}"
+  assert update_outcome.staged_resource_ids == []
+  let assert Some(after_reject) =
+    store.get_effective_carrier_service_by_id(update_outcome.store, existing.id)
+  assert after_reject.callback_url
+    == Some("https://mock.shop/carrier-service-rates")
+
+  let normalized_http =
+    CarrierServiceRecord(
+      ..existing,
+      callback_url: Some("http://example.com:80/rates"),
+    )
+  let normalized_store =
+    store.upsert_base_carrier_services(store.new(), [normalized_http])
+  let normalized_input =
+    root_field.ObjectVal(
+      dict.from_list([
+        #("id", root_field.StringVal(existing.id)),
+        #("callbackUrl", root_field.StringVal("http://example.com/rates")),
+      ]),
+    )
+  let normalized_outcome =
+    shipping_fulfillments.process_mutation(
+      normalized_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation NormalizedCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id callbackUrl } userErrors { field message code } } }",
+      dict.from_list([#("input", normalized_input)]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(normalized_outcome.data)
+    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":{\"id\":\"gid://shopify/DeliveryCarrierService/1\",\"callbackUrl\":\"http://example.com/rates\"},\"userErrors\":[]}}}"
+}
+
 pub fn shipping_settings_availability_filters_active_services_and_locations_test() {
   let assert Ok(response) =
     shipping_fulfillments.process(
@@ -3051,6 +3164,103 @@ pub fn fulfillment_order_split_validates_indexed_inputs_test() {
     )
   assert json.to_string(unknown_order.data)
     == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
+}
+
+pub fn fulfillment_order_submit_request_splits_partial_line_item_test() {
+  let order_id = "gid://shopify/FulfillmentOrder/partial-submit"
+  let line_item_id = "gid://shopify/FulfillmentOrderLineItem/partial-submit"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(order_id, [
+        #(line_item_id, "gid://shopify/LineItem/partial-submit", 2),
+      ]),
+    ])
+  let mutation =
+    "
+    mutation Submit($id: ID!, $items: [FulfillmentOrderLineItemInput!]) {
+      fulfillmentOrderSubmitFulfillmentRequest(
+        id: $id
+        fulfillmentOrderLineItems: $items
+        message: \"partial submit\"
+        notifyCustomer: false
+      ) {
+        originalFulfillmentOrder {
+          id
+          status
+          requestStatus
+          merchantRequests(first: 5) {
+            nodes { kind message requestOptions responseData }
+          }
+          lineItems(first: 5) {
+            nodes { id totalQuantity remainingQuantity lineItem { id } }
+          }
+        }
+        submittedFulfillmentOrder { id status requestStatus }
+        unsubmittedFulfillmentOrder {
+          id
+          status
+          requestStatus
+          lineItems(first: 5) {
+            nodes { totalQuantity remainingQuantity lineItem { id } }
+          }
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(order_id)),
+        #(
+          "items",
+          root_field.ListVal([
+            root_field.ObjectVal(
+              dict.from_list([
+                #("id", root_field.StringVal(line_item_id)),
+                #("quantity", root_field.IntVal(1)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"originalFulfillmentOrder\":{\"id\":\"" <> order_id,
+  )
+  assert string.contains(body, "\"requestStatus\":\"SUBMITTED\"")
+  assert string.contains(body, "\"kind\":\"FULFILLMENT_REQUEST\"")
+  assert string.contains(body, "\"message\":\"partial submit\"")
+  assert string.contains(body, "\"notify_customer\":false")
+  assert string.contains(body, "\"unsubmittedFulfillmentOrder\":{\"id\":\"")
+  assert string.contains(body, "\"requestStatus\":\"UNSUBMITTED\"")
+  assert string.contains(body, "\"totalQuantity\":1")
+  assert string.contains(body, "\"remainingQuantity\":1")
+
+  let assert [unsubmitted_id] =
+    store.list_effective_fulfillment_orders(outcome.store)
+    |> list.filter(fn(order) {
+      order.id != order_id && order.request_status == "UNSUBMITTED"
+    })
+    |> list.map(fn(order) { order.id })
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      outcome.store,
+      "query Read($id: ID!) { fulfillmentOrder(id: $id) { id status requestStatus lineItems(first: 5) { nodes { totalQuantity remainingQuantity lineItem { id } } } } }",
+      dict.from_list([#("id", root_field.StringVal(unsubmitted_id))]),
+    )
+  let read_json = json.to_string(read_response)
+  assert string.contains(read_json, "\"id\":\"" <> unsubmitted_id <> "\"")
+  assert string.contains(read_json, "\"requestStatus\":\"UNSUBMITTED\"")
+  assert string.contains(read_json, "\"remainingQuantity\":1")
 }
 
 pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {

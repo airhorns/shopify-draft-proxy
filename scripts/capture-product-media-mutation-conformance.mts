@@ -16,7 +16,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-media-mutation-conformance-scope-blocker.md');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -109,6 +109,27 @@ const createMediaMutation = `#graphql
   }
 `;
 
+const createMediaDualUserErrorsMutation = `#graphql
+  mutation ProductCreateMediaDualUserErrors($productId: ID!, $media: [CreateMediaInput!]!) {
+    productCreateMedia(productId: $productId, media: $media) {
+      media {
+        id
+        alt
+        mediaContentType
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+      mediaUserErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const updateMediaMutation = `#graphql
   mutation ProductUpdateMediaParityPlan($productId: ID!, $media: [UpdateMediaInput!]!) {
     productUpdateMedia(productId: $productId, media: $media) {
@@ -196,12 +217,64 @@ const mediaReadQuery = `#graphql
   }
 `;
 
+const productHydrateNodesQuery = `#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on Product {
+        title
+        handle
+        status
+        media(first: 250) {
+          nodes {
+            __typename
+            id
+            alt
+            mediaContentType
+            status
+            preview {
+              image {
+                url
+                width
+                height
+              }
+            }
+            ... on MediaImage {
+              image {
+                id
+                url
+                altText
+                width
+                height
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 function buildCreateProductVariables(runId) {
   return {
     product: {
       title: `Hermes Product Media Conformance ${runId}`,
       status: 'DRAFT',
     },
+  };
+}
+
+function buildInvalidCreateMediaVariables(productId) {
+  return {
+    productId,
+    media: [
+      {
+        mediaContentType: 'IMAGE',
+        originalSource: 'not-a-url',
+        alt: 'Invalid source',
+      },
+    ],
   };
 }
 
@@ -229,6 +302,24 @@ async function waitForReadyMedia(productId, mediaId) {
   }
 
   throw new Error(`Timed out waiting for media ${mediaId} to become READY.`);
+}
+
+function expectSameUserErrors(pathLabel, userErrors, mediaUserErrors) {
+  if (
+    Array.isArray(userErrors) &&
+    Array.isArray(mediaUserErrors) &&
+    JSON.stringify(userErrors) === JSON.stringify(mediaUserErrors)
+  ) {
+    return;
+  }
+
+  throw new Error(
+    `${pathLabel} returned divergent userErrors/mediaUserErrors: ${JSON.stringify(
+      { userErrors: userErrors ?? null, mediaUserErrors: mediaUserErrors ?? null },
+      null,
+      2,
+    )}`,
+  );
 }
 
 async function writeScopeBlocker(blocker) {
@@ -268,6 +359,20 @@ try {
   }
 
   const createMediaVariables = buildCreateMediaVariables(productId);
+  const dualUserErrorsVariables = buildInvalidCreateMediaVariables(productId);
+  const dualUserErrorsResponse = await runGraphql(createMediaDualUserErrorsMutation, dualUserErrorsVariables);
+  expectSameUserErrors(
+    'productCreateMedia dual userErrors',
+    dualUserErrorsResponse.data?.productCreateMedia?.userErrors,
+    dualUserErrorsResponse.data?.productCreateMedia?.mediaUserErrors,
+  );
+  const productHydrateResponse = await runGraphqlRequest(productHydrateNodesQuery, {
+    ids: [productId],
+  });
+  if (productHydrateResponse.status < 200 || productHydrateResponse.status >= 300) {
+    throw new Error(`Product media dual userErrors hydrate failed: ${JSON.stringify(productHydrateResponse)}`);
+  }
+
   const createMediaResponse = await runGraphql(createMediaMutation, createMediaVariables);
   expectNoUserErrors('productCreateMedia', createMediaResponse.data?.productCreateMedia?.mediaUserErrors);
   mediaId = createMediaResponse.data?.productCreateMedia?.media?.[0]?.id ?? null;
@@ -295,6 +400,31 @@ try {
   const postDeleteRead = await runGraphql(mediaReadQuery, { id: productId });
 
   const captures = {
+    'productCreateMedia-dual-userErrors.json': {
+      capturedAt: new Date().toISOString(),
+      storeDomain,
+      apiVersion,
+      setup: {
+        productCreate: createProductResponse,
+      },
+      mutation: {
+        variables: dualUserErrorsVariables,
+        response: dualUserErrorsResponse,
+      },
+      upstreamCalls: [
+        {
+          operationName: 'ProductsHydrateNodes',
+          variables: {
+            ids: [productId],
+          },
+          query: productHydrateNodesQuery,
+          response: {
+            status: productHydrateResponse.status,
+            body: productHydrateResponse.payload,
+          },
+        },
+      ],
+    },
     'product-create-media-parity.json': {
       mutation: {
         variables: createMediaVariables,

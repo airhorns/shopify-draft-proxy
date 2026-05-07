@@ -45,7 +45,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
   type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
+  type MetaobjectDefinitionTypeRecord,
+  type MetaobjectFieldDefinitionCapabilitiesRecord,
+  type MetaobjectFieldDefinitionRecord,
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectJsonValue, type MetaobjectOnlineStoreCapabilityRecord,
@@ -53,8 +55,8 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectStandardTemplateRecord, MetaobjectBool,
   MetaobjectCapabilitiesRecord, MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
-  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionRecord,
-  MetaobjectFieldDefinitionReferenceRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionCapabilitiesRecord,
+  MetaobjectFieldDefinitionRecord, MetaobjectFieldDefinitionReferenceRecord,
   MetaobjectFieldDefinitionValidationRecord, MetaobjectFieldRecord,
   MetaobjectInt, MetaobjectList, MetaobjectNull, MetaobjectObject,
   MetaobjectOnlineStoreCapabilityRecord, MetaobjectPublishableCapabilityRecord,
@@ -1186,20 +1188,13 @@ fn handle_metaobject_upsert(
               }
             }
             None -> {
-              let create_input =
-                dict.insert(input, "type", root_field.StringVal(t))
-              let create_input =
-                dict.insert(create_input, "handle", root_field.StringVal(h))
-              let #(created, next_identity, field_errors) =
-                metaobject_definition_types.build_metaobject_from_create_input(
-                  store,
-                  identity,
-                  create_input,
-                  definition,
+              let limit_errors =
+                metaobject_definition_types.append_metaobjects_per_type_user_errors(
+                  [],
+                  Some(definition),
                 )
-              let field_errors = partition_upsert_user_errors(field_errors)
-              case field_errors, created {
-                [_, ..], _ -> #(
+              case limit_errors {
+                [_, ..] -> #(
                   MutationFieldResult(
                     key,
                     metaobject_payload(
@@ -1207,7 +1202,7 @@ fn handle_metaobject_upsert(
                       field,
                       fragments,
                       None,
-                      field_errors,
+                      limit_errors,
                     ),
                     [],
                     [],
@@ -1216,50 +1211,83 @@ fn handle_metaobject_upsert(
                   store,
                   identity,
                 )
-                [], Some(metaobject) -> {
-                  let #(staged, staged_store) =
-                    upsert_staged_metaobject(store, metaobject)
-                  let #(next_store, final_identity) =
-                    metaobject_definition_types.adjust_definition_count(
-                      staged_store,
-                      next_identity,
-                      staged.type_,
-                      1,
+                [] -> {
+                  let create_input =
+                    dict.insert(input, "type", root_field.StringVal(t))
+                  let create_input =
+                    dict.insert(create_input, "handle", root_field.StringVal(h))
+                  let #(created, next_identity, field_errors) =
+                    metaobject_definition_types.build_metaobject_from_create_input(
+                      store,
+                      identity,
+                      create_input,
+                      definition,
                     )
-                  #(
-                    MutationFieldResult(
-                      key,
-                      metaobject_payload(
-                        next_store,
-                        field,
-                        fragments,
-                        Some(staged),
+                  let field_errors = partition_upsert_user_errors(field_errors)
+                  case field_errors, created {
+                    [_, ..], _ -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(
+                          store,
+                          field,
+                          fragments,
+                          None,
+                          field_errors,
+                        ),
+                        [],
+                        [],
                         [],
                       ),
-                      [staged.id],
-                      [],
-                      [
-                        metaobject_definition_types.log_draft(
-                          "metaobjectUpsert",
+                      store,
+                      identity,
+                    )
+                    [], Some(metaobject) -> {
+                      let #(staged, staged_store) =
+                        upsert_staged_metaobject(store, metaobject)
+                      let #(next_store, final_identity) =
+                        metaobject_definition_types.adjust_definition_count(
+                          staged_store,
+                          next_identity,
+                          staged.type_,
+                          1,
+                        )
+                      #(
+                        MutationFieldResult(
+                          key,
+                          metaobject_payload(
+                            next_store,
+                            field,
+                            fragments,
+                            Some(staged),
+                            [],
+                          ),
                           [staged.id],
+                          [],
+                          [
+                            metaobject_definition_types.log_draft(
+                              "metaobjectUpsert",
+                              [staged.id],
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    next_store,
-                    final_identity,
-                  )
+                        next_store,
+                        final_identity,
+                      )
+                    }
+                    [], None -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(store, field, fragments, None, []),
+                        [],
+                        [],
+                        [],
+                      ),
+                      store,
+                      identity,
+                    )
+                  }
                 }
-                [], None -> #(
-                  MutationFieldResult(
-                    key,
-                    metaobject_payload(store, field, fragments, None, []),
-                    [],
-                    [],
-                    [],
-                  ),
-                  store,
-                  identity,
-                )
               }
             }
           }
@@ -1875,9 +1903,21 @@ fn field_definition_from_json(
     description: json_get_nullable_string(value, "description"),
     required: json_get_bool(value, "required"),
     type_: type_record,
+    capabilities: field_definition_capabilities_from_json(json_get(
+      value,
+      "capabilities",
+    )),
     validations: json_array(json_get(value, "validations"))
       |> list.filter_map(validation_from_json),
   ))
+}
+
+fn field_definition_capabilities_from_json(
+  value: Option(commit.JsonValue),
+) -> MetaobjectFieldDefinitionCapabilitiesRecord {
+  MetaobjectFieldDefinitionCapabilitiesRecord(
+    admin_filterable: definition_capability_from_json(value, "adminFilterable"),
+  )
 }
 
 fn validation_from_json(
@@ -2106,19 +2146,19 @@ fn metaobject_json_value_from_json(
 }
 
 fn metaobject_definition_hydrate_query() -> String {
-  "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
+  "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
 }
 
 fn metaobject_hydrate_query() -> String {
-  "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
+  "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
 }
 
 fn metaobject_hydrate_by_handle_query() -> String {
-  "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
+  "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
 }
 
 fn metaobject_bulk_delete_hydrate_query() -> String {
-  "query MetaobjectBulkDeleteHydrateByType($type: String!) { catalog: metaobjects(type: $type, first: 250) { nodes { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } } } definition: metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
+  "query MetaobjectBulkDeleteHydrateByType($type: String!) { catalog: metaobjects(type: $type, first: 250) { nodes { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } } } definition: metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
 }
 
 fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   conformanceCaptureIndex,
   loadConformanceCaptureScriptPaths,
+  profileConformanceFixtureProvenance,
   renderCaptureIndexMarkdown,
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
@@ -31,6 +32,12 @@ describe('conformance capture index', () => {
       expect(entry.purpose.length, entry.captureId).toBeGreaterThan(0);
       expect(entry.requiredAuthScopes.length, entry.captureId).toBeGreaterThan(0);
       expect(entry.fixtureOutputs.length, entry.captureId).toBeGreaterThan(0);
+      for (const output of entry.fixtureOutputs) {
+        expect(output, entry.captureId).toMatch(
+          /^(fixtures\/conformance\/|config\/parity-specs\/|config\/parity-requests\/|config\/|src\/)/u,
+        );
+        expect(output, entry.captureId).not.toContain('*');
+      }
       expect(entry.cleanupBehavior.length, entry.captureId).toBeGreaterThan(0);
       expect(entry.expectedStatusChecks.length, entry.captureId).toBeGreaterThan(0);
     }
@@ -45,5 +52,16 @@ describe('conformance capture index', () => {
     expect(markdown).toContain('Required auth/scopes');
     expect(markdown).toContain('Cleanup');
     expect(markdown).not.toContain('## customers');
+  });
+
+  it('profiles checked-in live Shopify fixtures without recorder-declared outputs', () => {
+    const profile = profileConformanceFixtureProvenance(repoRoot);
+
+    expect(profile.fixtureCount).toBeGreaterThan(0);
+    expect(profile.liveShopifyFixtureCount).toBeGreaterThan(0);
+    expect(profile.localRuntimeFixtureCount).toBeGreaterThan(0);
+    expect(profile.indexedFixtureOutputPatterns.length).toBeGreaterThan(0);
+    expect(profile.orphanedFixturePaths).not.toContainEqual(expect.stringContaining('/local-runtime/'));
+    expect(profile.orphanedFixturePaths).toMatchSnapshot();
   });
 });

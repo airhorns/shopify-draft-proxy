@@ -1,0 +1,44 @@
+{
+  "scenarioId": "web-presence-partial-update-alternate-locales",
+  "operationNames": ["webPresenceCreate", "webPresenceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "local-staging", "market-web-presence-partial-update"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[10].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "partial-update-preserves-absent-fields",
+        "capturePath": "$.cases[11].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "selectedPaths": [
+          "$.webPresence.defaultLocale.locale",
+          "$.webPresence.alternateLocales",
+          "$.webPresence.subfolderSuffix",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-partial-update-alternate-locales.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[11].variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves webPresenceUpdate accepts a partial input with only alternateLocales, preserves the existing defaultLocale fr and subfolderSuffix, and updates alternateLocales to de without userErrors. The target intentionally compares the locale fields under test rather than the full MarketWebPresence payload because existing web-presence parity coverage documents separate Shopify rootUrls and locale-primary quirks."
+}

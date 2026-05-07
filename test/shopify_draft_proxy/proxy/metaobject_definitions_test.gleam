@@ -2,14 +2,16 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/proxy_state
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query
+import shopify_draft_proxy/shopify/upstream_client
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types as state_types
@@ -46,9 +48,25 @@ fn run_mutation(
       path,
       query,
       dict.new(),
-      empty_upstream_context(),
+      upstream_query.empty_upstream_context(),
     )
   outcome
+}
+
+fn run_mutation_with_upstream(
+  s: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  query: String,
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  metaobject_definitions.process_mutation(
+    s,
+    identity,
+    path,
+    query,
+    dict.new(),
+    upstream,
+  )
 }
 
 fn run_mutation_with_api_client_id(
@@ -63,12 +81,53 @@ fn run_mutation_with_api_client_id(
       path,
       query,
       dict.new(),
-      empty_upstream_context(),
+      upstream_query.empty_upstream_context(),
       dict.from_list([
         #(app_identity.api_client_id_header, test_api_client_id),
       ]),
     )
   outcome
+}
+
+fn metaobject_create_query(type_: String, handle: String) -> String {
+  "mutation {
+    metaobjectCreate(metaobject: {
+      type: \"" <> type_ <> "\",
+      handle: \"" <> handle <> "\",
+      fields: [{ key: \"title\", value: \"" <> handle <> "\" }]
+    }) {
+      metaobject { id }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn definition_hydrate_response(type_: String, count: Int) -> String {
+  "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/remote-cached-count\",\"type\":\""
+  <> type_
+  <> "\",\"name\":\"Cached Count\",\"description\":null,\"displayNameKey\":\"title\",\"access\":{\"admin\":\"PUBLIC_READ_WRITE\",\"storefront\":\"NONE\"},\"capabilities\":{\"publishable\":{\"enabled\":false},\"translatable\":{\"enabled\":false},\"renderable\":{\"enabled\":false},\"onlineStore\":{\"enabled\":false}},\"fieldDefinitions\":[{\"key\":\"title\",\"name\":\"Title\",\"description\":null,\"required\":true,\"type\":{\"name\":\"single_line_text_field\",\"category\":\"TEXT\"},\"capabilities\":{\"adminFilterable\":{\"enabled\":false}},\"validations\":[]}],\"hasThumbnailField\":false,\"metaobjectsCount\":"
+  <> int.to_string(count)
+  <> ",\"standardTemplate\":null,\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}}}"
+}
+
+fn definition_hydrate_transport(
+  type_: String,
+  count: Int,
+) -> upstream_client.SyncTransport {
+  upstream_client.SyncTransport(send: fn(req) {
+    assert string.contains(
+      req.body,
+      "\"operationName\":\"MetaobjectDefinitionHydrateByType\"",
+    )
+    assert string.contains(req.body, "\"type\":\"" <> type_ <> "\"")
+    Ok(
+      commit.HttpOutcome(
+        status: 200,
+        body: definition_hydrate_response(type_, count),
+        headers: [],
+      ),
+    )
+  })
 }
 
 fn graphql_request(query: String) -> proxy_state.Request {
@@ -99,6 +158,40 @@ fn create_definition_query(type_: String) -> String {
         capabilities { publishable { enabled } translatable { enabled } }
         fieldDefinitions { key name required type { name category } }
         metaobjectsCount
+      }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn create_definition_with_capabilities_query(type_: String) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"Codex Capability Rows\",
+      displayNameKey: \"title\",
+      capabilities: {
+        publishable: { enabled: true },
+        translatable: { enabled: true },
+        renderable: { enabled: true },
+        onlineStore: { enabled: true }
+      },
+      fieldDefinitions: [
+        { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true },
+        { key: \"count\", name: \"Count\", type: \"number_integer\", required: false }
+      ]
+    }) {
+      metaobjectDefinition {
+        id
+        type
+        name
+        capabilities {
+          publishable { enabled }
+          translatable { enabled }
+          renderable { enabled }
+          onlineStore { enabled }
+        }
+        fieldDefinitions { key type { name category } }
       }
       userErrors { field message code elementKey elementIndex }
     }
@@ -165,6 +258,14 @@ fn field_definition_input(key: String) -> String {
   <> "\", type: \"single_line_text_field\", required: false }"
 }
 
+fn admin_filterable_field_definition_input(key: String) -> String {
+  "{ key: \""
+  <> key
+  <> "\", name: \""
+  <> key
+  <> "\", type: \"single_line_text_field\", required: false, capabilities: { adminFilterable: { enabled: true } } }"
+}
+
 fn create_definition_with_field_keys_query(
   type_: String,
   display_name_key: String,
@@ -180,6 +281,36 @@ fn create_definition_with_field_keys_query(
       ]
     }) {
       metaobjectDefinition { id type displayNameKey fieldDefinitions { key } }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn create_definition_with_admin_filterable_fields_query(
+  type_: String,
+  field_count: Int,
+) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"Admin Filterable Limit\",
+      displayNameKey: \"field_1\",
+      fieldDefinitions: [
+        " <> string.join(
+    int_range(from: 1, to: field_count)
+      |> list.map(fn(index) {
+        admin_filterable_field_definition_input(
+          "field_" <> int.to_string(index),
+        )
+      }),
+    ",",
+  ) <> "
+      ]
+    }) {
+      metaobjectDefinition {
+        id
+        fieldDefinitions { key capabilities { adminFilterable { enabled } } }
+      }
       userErrors { field message code elementKey elementIndex }
     }
   }"
@@ -240,6 +371,81 @@ fn int_range(from from: Int, to to: Int) -> List(Int) {
     True -> []
     False -> [from, ..int_range(from + 1, to)]
   }
+}
+
+fn text_field_definition(
+  key: String,
+) -> state_types.MetaobjectFieldDefinitionRecord {
+  state_types.MetaobjectFieldDefinitionRecord(
+    key: key,
+    name: Some(key),
+    description: None,
+    required: Some(False),
+    type_: state_types.MetaobjectDefinitionTypeRecord(
+      "single_line_text_field",
+      Some("TEXT"),
+    ),
+    capabilities: state_types.MetaobjectFieldDefinitionCapabilitiesRecord(
+      admin_filterable: Some(state_types.MetaobjectDefinitionCapabilityRecord(
+        False,
+      )),
+    ),
+    validations: [],
+  )
+}
+
+fn definition_record(
+  id_suffix: String,
+  type_: String,
+  standard_template: Bool,
+  metaobjects_count: Int,
+) -> state_types.MetaobjectDefinitionRecord {
+  state_types.MetaobjectDefinitionRecord(
+    id: "gid://shopify/MetaobjectDefinition/" <> id_suffix,
+    type_: type_,
+    name: Some("Seed " <> id_suffix),
+    description: None,
+    display_name_key: Some("title"),
+    access: dict.new(),
+    capabilities: state_types.MetaobjectDefinitionCapabilitiesRecord(
+      publishable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+      translatable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+      renderable: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+      online_store: Some(state_types.MetaobjectDefinitionCapabilityRecord(False)),
+    ),
+    field_definitions: [text_field_definition("title")],
+    has_thumbnail_field: Some(False),
+    metaobjects_count: Some(metaobjects_count),
+    standard_template: case standard_template {
+      True ->
+        Some(state_types.MetaobjectStandardTemplateRecord(
+          type_: Some(type_),
+          name: Some("Seed standard"),
+        ))
+      False -> None
+    },
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+  )
+}
+
+fn seed_definitions(
+  store_in: store.Store,
+  prefix: String,
+  count: Int,
+  standard_template: Bool,
+) -> store.Store {
+  let records =
+    int_range(from: 1, to: count)
+    |> list.map(fn(index) {
+      definition_record(
+        prefix <> int.to_string(index),
+        prefix <> int.to_string(index),
+        standard_template,
+        0,
+      )
+    })
+  store.upsert_base_metaobject_definitions(store_in, records)
 }
 
 pub fn is_metaobject_root_predicates_test() {
@@ -632,6 +838,95 @@ pub fn definition_create_validates_field_definition_input_test() {
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
+pub fn definition_create_rejects_more_than_forty_admin_filterable_fields_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_admin_filterable_fields_query(
+        "codex_admin_filterable_limit",
+        41,
+      ),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 admin-filterable fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let read_after =
+    run_query(
+      outcome.store,
+      "{ metaobjectDefinitionByType(type: \"codex_admin_filterable_limit\") { id } }",
+    )
+  assert read_after == "{\"data\":{\"metaobjectDefinitionByType\":null}}"
+}
+
+pub fn definition_create_rejects_default_merchant_definition_cap_test() {
+  let seeded = seed_definitions(store.new(), "merchant_seed_", 128, False)
+  let outcome =
+    run_mutation(
+      seeded,
+      synthetic_identity.new(),
+      create_definition_query("merchant_seed_next"),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Maximum metaobject definitions has been exceeded\",\"code\":\"MAX_DEFINITIONS_EXCEEDED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let read_after =
+    run_query(
+      outcome.store,
+      "{ metaobjectDefinitionByType(type: \"merchant_seed_next\") { id } }",
+    )
+  assert read_after == "{\"data\":{\"metaobjectDefinitionByType\":null}}"
+}
+
+pub fn definition_create_rejects_app_owned_definition_cap_per_api_client_test() {
+  let seeded = seed_definitions(store.new(), "app--999001--seed_", 128, False)
+  let outcome =
+    run_mutation_with_api_client_id(
+      seeded,
+      synthetic_identity.new(),
+      create_definition_with_access_query("$app:LimitNext"),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Maximum metaobject definitions has been exceeded\",\"code\":\"MAX_DEFINITIONS_EXCEEDED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let read_after =
+    run_query_with_api_client_id(
+      outcome.store,
+      "{ metaobjectDefinitionByType(type: \"$app:LimitNext\") { id } }",
+    )
+  assert read_after == "{\"data\":{\"metaobjectDefinitionByType\":null}}"
+}
+
+pub fn definition_create_excludes_standard_templates_from_definition_cap_test() {
+  let standard_seeded =
+    seed_definitions(store.new(), "shopify--standard-seed-", 128, True)
+  let seeded =
+    seed_definitions(standard_seeded, "merchant_cap_seed_", 127, False)
+  let outcome =
+    run_mutation(
+      seeded,
+      synthetic_identity.new(),
+      create_definition_query("merchant_cap_allowed"),
+    )
+
+  assert string.contains(
+    json.to_string(outcome.data),
+    "\"type\":\"merchant_cap_allowed\"",
+  )
+  assert string.contains(json.to_string(outcome.data), "\"userErrors\":[]")
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic"]
+}
+
 pub fn definition_update_validates_type_and_field_key_test() {
   let created =
     run_mutation(
@@ -843,6 +1138,223 @@ pub fn definition_update_validates_field_definition_input_test() {
     == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
+pub fn definition_update_rejects_capability_disables_atomically_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_capabilities_query("codex_capability_disable"),
+    )
+
+  let entry =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_capability_disable\",
+          handle: \"draft-row\",
+          fields: [
+            { key: \"title\", value: \"Draft row\" },
+            { key: \"count\", value: \"4\" }
+          ]
+        }) {
+          metaobject { id capabilities { publishable { status } } }
+          userErrors { field message code }
+        }
+      }",
+    )
+  assert json.to_string(entry.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"capabilities\":{\"publishable\":{\"status\":\"DRAFT\"}}},\"userErrors\":[]}}}"
+
+  let update =
+    run_mutation(
+      entry.store,
+      entry.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Should Not Persist\",
+            capabilities: {
+              publishable: { enabled: false },
+              onlineStore: { enabled: false },
+              renderable: { enabled: false }
+            }
+          }
+        ) {
+          metaobjectDefinition { id name capabilities { publishable { enabled } onlineStore { enabled } renderable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"publishable\"],\"message\":\"Cannot disable publishable while draft metaobjects exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null},{\"field\":[\"definition\",\"capabilities\",\"onlineStore\"],\"message\":\"Cannot disable online store while metaobjects exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null},{\"field\":[\"definition\",\"capabilities\",\"renderable\"],\"message\":\"Cannot disable renderable while metaobjects exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      update.store,
+      "{ metaobjectDefinitionByType(type: \"codex_capability_disable\") { name capabilities { publishable { enabled } onlineStore { enabled } renderable { enabled } translatable { enabled } } metaobjectsCount } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"name\":\"Codex Capability Rows\",\"capabilities\":{\"publishable\":{\"enabled\":true},\"onlineStore\":{\"enabled\":true},\"renderable\":{\"enabled\":true},\"translatable\":{\"enabled\":true}},\"metaobjectsCount\":1}}}"
+}
+
+pub fn definition_update_rejects_translatable_disable_with_translations_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_capabilities_query("codex_translatable_disable"),
+    )
+  let entry =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_translatable_disable\",
+          handle: \"translated-row\",
+          fields: [{ key: \"title\", value: \"Translated row\" }]
+        }) {
+          metaobject { id }
+          userErrors { field message code }
+        }
+      }",
+    )
+  let #(_, translated_store) =
+    store.stage_translation(
+      entry.store,
+      state_types.TranslationRecord(
+        resource_id: "gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic",
+        key: "title",
+        locale: "fr",
+        value: "Ligne traduite",
+        translatable_content_digest: "digest-title",
+        market_id: None,
+        updated_at: "2024-01-01T00:00:03.000Z",
+        outdated: False,
+      ),
+    )
+
+  let update =
+    run_mutation(
+      translated_store,
+      entry.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { capabilities: { translatable: { enabled: false } } }
+        ) {
+          metaobjectDefinition { id capabilities { translatable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"translatable\"],\"message\":\"Cannot disable translatable while translations exist.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_update_validates_renderable_enable_data_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_keys_query(
+        "codex_renderable_enable",
+        "title",
+        ["title"],
+      ),
+    )
+
+  let missing =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            name: \"Should Not Persist\",
+            capabilities: { renderable: { enabled: true, data: { metaTitleKey: \"missing\" } } }
+          }
+        ) {
+          metaobjectDefinition { id name capabilities { renderable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(missing.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"renderable\"],\"message\":\"Field definition \\\"missing\\\" does not exist\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let with_number_field =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            fieldDefinitions: [{ create: { key: \"count\", name: \"Count\", type: \"number_integer\" } }],
+            capabilities: { renderable: { enabled: true, data: { metaDescriptionKey: \"count\" } } }
+          }
+        ) {
+          metaobjectDefinition { id capabilities { renderable { enabled } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(with_number_field.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"capabilities\",\"renderable\"],\"message\":\"Renderable Capability \\\"meta_description_key\\\" cannot reference the field definition \\\"count\\\" of type \\\"number_integer\\\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed.\",\"code\":\"FIELD_TYPE_INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      missing.store,
+      "{ metaobjectDefinitionByType(type: \"codex_renderable_enable\") { name capabilities { renderable { enabled } } fieldDefinitions { key } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"name\":\"Codex Rows\",\"capabilities\":{\"renderable\":{\"enabled\":false}},\"fieldDefinitions\":[{\"key\":\"title\"}]}}}"
+}
+
+pub fn definition_update_rejects_more_than_forty_admin_filterable_fields_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_admin_filterable_fields_query(
+        "codex_update_admin_filterable_limit",
+        40,
+      ),
+    )
+  assert string.contains(json.to_string(created.data), "\"userErrors\":[]")
+
+  let rejected = run_mutation(created.store, created.identity, "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: {
+            fieldDefinitions: [
+              { create: " <> admin_filterable_field_definition_input("field_41") <> " }
+            ]
+          }
+        ) {
+          metaobjectDefinition { id fieldDefinitions { key capabilities { adminFilterable { enabled } } } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }")
+
+  assert json.to_string(rejected.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\"],\"message\":\"Maximum 40 admin-filterable fields per metaobject definition\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert rejected.staged_resource_ids == []
+  assert rejected.log_drafts == []
+
+  let read_after =
+    run_query(
+      rejected.store,
+      "{ metaobjectDefinitionByType(type: \"codex_update_admin_filterable_limit\") { fieldDefinitions { key } } }",
+    )
+  assert !string.contains(read_after, "\"key\":\"field_41\"")
+}
+
 pub fn definition_and_entry_lifecycle_stages_locally_test() {
   let identity = synthetic_identity.new()
   let definition_outcome =
@@ -1006,6 +1518,153 @@ pub fn metaobject_capabilities_require_enabled_definition_capability_test() {
     )
   assert after_rejected_upsert
     == "{\"data\":{\"existing\":{\"handle\":\"existing\"},\"upserted\":null,\"definition\":{\"metaobjectsCount\":1}}}"
+}
+
+pub fn metaobject_create_rejects_non_standard_type_at_default_cap_test() {
+  let seeded =
+    store.upsert_base_metaobject_definitions(store.new(), [
+      definition_record("9001", "codex_metaobject_cap", False, 1_000_000),
+    ])
+  let outcome =
+    run_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_metaobject_cap\",
+          handle: \"over-limit\",
+          fields: [{ key: \"title\", value: \"Over limit\" }]
+        }) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":null,\"userErrors\":[{\"field\":null,\"message\":\"Maximum metaobjects of type 'codex_metaobject_cap' has been exceeded\",\"code\":\"MAX_OBJECTS_EXCEEDED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let read_after =
+    run_query(
+      outcome.store,
+      "{ metaobjects(type: \"codex_metaobject_cap\", first: 5) { nodes { id } } definition: metaobjectDefinitionByType(type: \"codex_metaobject_cap\") { metaobjectsCount } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":1000000}}}"
+}
+
+pub fn metaobject_upsert_rejects_non_standard_create_at_default_cap_test() {
+  let seeded =
+    store.upsert_base_metaobject_definitions(store.new(), [
+      definition_record("9002", "codex_metaobject_upsert_cap", False, 1_000_000),
+    ])
+  let outcome =
+    run_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectUpsert(
+          handle: { type: \"codex_metaobject_upsert_cap\", handle: \"over-limit\" },
+          metaobject: { fields: [{ key: \"title\", value: \"Over limit\" }] }
+        ) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":null,\"message\":\"Maximum metaobjects of type 'codex_metaobject_upsert_cap' has been exceeded\",\"code\":\"MAX_OBJECTS_EXCEEDED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let read_after =
+    run_query(
+      outcome.store,
+      "{ metaobjectByHandle(handle: { type: \"codex_metaobject_upsert_cap\", handle: \"over-limit\" }) { id } definition: metaobjectDefinitionByType(type: \"codex_metaobject_upsert_cap\") { metaobjectsCount } }",
+    )
+  assert read_after
+    == "{\"data\":{\"metaobjectByHandle\":null,\"definition\":{\"metaobjectsCount\":1000000}}}"
+}
+
+pub fn metaobject_create_uses_cached_hydrated_definition_count_test() {
+  let type_ = "codex_cached_count"
+  let first =
+    run_mutation_with_upstream(
+      store.new(),
+      synthetic_identity.new(),
+      metaobject_create_query(type_, "fills-cap"),
+      upstream_query.UpstreamContext(
+        transport: Some(definition_hydrate_transport(type_, 999_999)),
+        origin: "https://example.myshopify.com",
+        headers: dict.new(),
+        allow_upstream_reads: True,
+      ),
+    )
+  assert json.to_string(first.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let second =
+    run_mutation(
+      first.store,
+      first.identity,
+      metaobject_create_query(type_, "over-cap"),
+    )
+  assert json.to_string(second.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":null,\"userErrors\":[{\"field\":null,\"message\":\"Maximum metaobjects of type 'codex_cached_count' has been exceeded\",\"code\":\"MAX_OBJECTS_EXCEEDED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let read_after =
+    run_query(
+      second.store,
+      "{ definition: metaobjectDefinitionByType(type: \"codex_cached_count\") { metaobjectsCount } }",
+    )
+  assert read_after
+    == "{\"data\":{\"definition\":{\"metaobjectsCount\":1000000}}}"
+}
+
+pub fn metaobject_create_and_upsert_skip_cap_for_standard_templates_test() {
+  let seeded =
+    store.upsert_base_metaobject_definitions(store.new(), [
+      definition_record("9003", "shopify--standard-cap", True, 1_000_000),
+    ])
+  let created =
+    run_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"shopify--standard-cap\",
+          handle: \"created\",
+          fields: [{ key: \"title\", value: \"Created\" }]
+        }) {
+          metaobject { id handle displayName }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert json.to_string(created.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/1?shopify-draft-proxy=synthetic\",\"handle\":\"created\",\"displayName\":\"Created\"},\"userErrors\":[]}}}"
+
+  let upserted =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectUpsert(
+          handle: { type: \"shopify--standard-cap\", handle: \"upserted\" },
+          metaobject: { fields: [{ key: \"title\", value: \"Upserted\" }] }
+        ) {
+          metaobject { id handle displayName }
+          userErrors { field message code }
+        }
+      }",
+    )
+
+  assert json.to_string(upserted.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"upserted\",\"displayName\":\"Upserted\"},\"userErrors\":[]}}}"
 }
 
 pub fn metaobject_update_missing_id_returns_record_not_found_test() {
