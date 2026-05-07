@@ -1,0 +1,23 @@
+mutation B2BBuyerExperienceLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+    companyLocation {
+      id
+      name
+      buyerExperienceConfiguration {
+        editableShippingAddress
+        checkoutToDraft
+        paymentTermsTemplate {
+          id
+        }
+        deposit {
+          __typename
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

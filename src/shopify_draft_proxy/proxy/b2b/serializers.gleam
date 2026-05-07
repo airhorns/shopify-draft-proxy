@@ -693,6 +693,14 @@ pub fn serialize_location(
               key,
               serialize_tax_settings(location, child, fragments),
             )
+            "buyerExperienceConfiguration" -> #(
+              key,
+              serialize_buyer_experience_configuration(
+                location,
+                child,
+                fragments,
+              ),
+            )
             "metafield" -> #(key, json.null())
             _ -> source_field(source, child, fragments)
           }
@@ -700,6 +708,66 @@ pub fn serialize_location(
       }
     }),
   )
+}
+
+@internal
+pub fn serialize_buyer_experience_configuration(
+  location: B2BCompanyLocationRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let stored = case data_get(location.data, "buyerExperienceConfiguration") {
+    SrcObject(fields) -> fields
+    _ -> dict.new()
+  }
+  let source =
+    src_object([
+      #("__typename", SrcString("BuyerExperienceConfiguration")),
+      #(
+        "checkoutToDraft",
+        dict.get(stored, "checkoutToDraft") |> result.unwrap(SrcBool(False)),
+      ),
+      #(
+        "editableShippingAddress",
+        dict.get(stored, "editableShippingAddress")
+          |> result.unwrap(SrcBool(False)),
+      ),
+      #("paymentTermsTemplate", buyer_experience_payment_terms_template(stored)),
+      #("deposit", buyer_experience_deposit(stored)),
+    ])
+  project_source(source, field, fragments)
+}
+
+fn buyer_experience_payment_terms_template(
+  stored: Dict(String, SourceValue),
+) -> SourceValue {
+  case dict.get(stored, "paymentTermsTemplate") {
+    Ok(SrcObject(_) as template) -> template
+    Ok(SrcNull) -> SrcNull
+    _ ->
+      case dict.get(stored, "paymentTermsTemplateId") {
+        Ok(SrcString(id)) ->
+          src_object([
+            #("__typename", SrcString("PaymentTermsTemplate")),
+            #("id", SrcString(id)),
+          ])
+        _ -> SrcNull
+      }
+  }
+}
+
+fn buyer_experience_deposit(stored: Dict(String, SourceValue)) -> SourceValue {
+  case dict.get(stored, "deposit") {
+    Ok(SrcObject(fields)) ->
+      SrcObject(dict.insert(
+        fields,
+        "__typename",
+        dict.get(fields, "__typename")
+          |> result.unwrap(SrcString("DepositPercentage")),
+      ))
+    Ok(SrcNull) -> SrcNull
+    _ -> SrcNull
+  }
 }
 
 @internal
@@ -1658,6 +1726,74 @@ pub fn validate_location_input(
       prefix,
     ))
   #(input, errors)
+}
+
+@internal
+pub fn validate_buyer_experience_configuration_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  empty_is_invalid: Bool,
+) -> List(b2b_types.UserError) {
+  case dict.get(input, "buyerExperienceConfiguration") {
+    Ok(root_field.ObjectVal(configuration)) -> {
+      let configuration_path =
+        field_path(prefix, "buyerExperienceConfiguration")
+      let empty_errors = case empty_is_invalid && dict.is_empty(configuration) {
+        True -> [
+          detailed_user_error(
+            Some(configuration_path),
+            "Invalid input.",
+            user_error_code.invalid_input,
+            b2b_types.buyer_experience_configuration_empty_detail,
+          ),
+        ]
+        False -> []
+      }
+      empty_errors
+      |> list.append(validate_buyer_experience_deposit(
+        store,
+        configuration,
+        configuration_path,
+      ))
+    }
+    _ -> []
+  }
+}
+
+fn validate_buyer_experience_deposit(
+  store: Store,
+  configuration: Dict(String, root_field.ResolvedValue),
+  configuration_path: List(String),
+) -> List(b2b_types.UserError) {
+  case dict.get(configuration, "deposit") {
+    Ok(root_field.ObjectVal(_)) -> {
+      let deposit_path = field_path(configuration_path, "deposit")
+      case read_string(configuration, "paymentTermsTemplateId") {
+        None -> [
+          detailed_user_error(
+            Some(deposit_path),
+            "Deposit requires a payment terms template.",
+            user_error_code.invalid,
+            b2b_types.deposit_without_payment_terms_detail,
+          ),
+        ]
+        Some(_) ->
+          case store.shop_b2b_deposits_enabled(store) {
+            True -> []
+            False -> [
+              detailed_user_error(
+                Some(deposit_path),
+                "Deposits are not enabled.",
+                user_error_code.invalid,
+                b2b_types.deposit_not_enabled_detail,
+              ),
+            ]
+          }
+      }
+    }
+    _ -> []
+  }
 }
 
 @internal

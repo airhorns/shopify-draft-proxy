@@ -1,0 +1,46 @@
+mutation DiscountBulkSearchEffectsCreateCodeAndAutomatic(
+  $codeInput: DiscountCodeBasicInput!
+  $automaticInput: DiscountAutomaticBasicInput!
+) {
+  code: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 1) {
+            nodes {
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automatic: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

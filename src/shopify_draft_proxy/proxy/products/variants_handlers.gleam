@@ -45,9 +45,9 @@ import shopify_draft_proxy/proxy/products/variants_options.{
   make_created_variant_record, make_options_from_variant_selections,
   product_has_standalone_default_variant, read_product_variant_positions,
   remap_variant_selections_for_option_update, reorder_product_options,
-  update_product_option_record, update_variant_record,
-  upsert_variant_selections_into_options, validate_product_option_update_inputs,
-  validate_product_variant_positions,
+  sort_variants_by_reordered_options, update_product_option_record,
+  update_variant_record, upsert_variant_selections_into_options,
+  validate_product_option_update_inputs, validate_product_variant_positions,
 }
 import shopify_draft_proxy/proxy/products/variants_options_core.{
   bulk_variant_user_errors_source, insert_option_at_position,
@@ -1120,7 +1120,7 @@ pub fn stage_product_options_reorder(
     reorder_product_options(existing_options, option_inputs)
   case user_errors {
     [_, ..] ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         product_options_reorder_payload(
           store,
@@ -1131,12 +1131,12 @@ pub fn stage_product_options_reorder(
         ),
         store,
         identity,
-        [],
       )
     [] -> {
       let next_variants =
         store.get_effective_variants_by_product_id(store, product_id)
         |> reorder_variant_selections_for_options(next_options)
+        |> sort_variants_by_reordered_options(next_options)
       let synced_options =
         sync_product_options_with_variants(next_options, next_variants)
       let next_store =

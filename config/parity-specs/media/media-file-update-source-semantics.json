@@ -1,0 +1,85 @@
+{
+  "scenarioId": "media-file-update-source-semantics",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-source-semantics.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-update-source-semantics-update.graphql",
+    "variablesCapturePath": "$.updates.imageOriginalSource.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 source-update semantics for READY Files API records: MediaImage fileUpdate.originalSource is interpreted as a preview image source update while the original image stays unchanged, and GenericFile fileUpdate.originalSource updates the generic file URL directly. Downstream files reads are captured after each update; the proxy hydrates the live READY records from cassette-backed upstream reads before staging each local update.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "image-original-source-update-payload",
+        "capturePath": "$.updates.imageOriginalSource.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].preview.image.url",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify may increment the preview CDN version when accepting a preview-source replacement; the proxy preserves the cassette-hydrated URL because it does not transfer external media bytes."
+          }
+        ]
+      },
+      {
+        "name": "image-files-read-after-original-source",
+        "capturePath": "$.reads.imageAfterOriginalSource.response.data.files.nodes[0]",
+        "proxyPath": "$.data.files.nodes[0]",
+        "expectedDifferences": [
+          {
+            "path": "$.preview.image.url",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify may increment the preview CDN version when accepting a preview-source replacement; the proxy preserves the cassette-hydrated URL because it does not transfer external media bytes."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-source-semantics-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "generic-original-source-update-payload",
+        "capturePath": "$.updates.genericOriginalSource.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].url",
+            "matcher": "regex:^https://www.w3.org/WAI/WCAG21/working-examples/pdf-table/table.pdf",
+            "reason": "GenericFile accepts originalSource directly, but Shopify stores and returns a CDN copy while the proxy keeps the accepted external source URL."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-source-semantics-update.graphql",
+          "variablesCapturePath": "$.updates.genericOriginalSource.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "generic-files-read-after-original-source",
+        "capturePath": "$.reads.genericAfterOriginalSource.response.data.files.nodes[0]",
+        "proxyPath": "$.data.files.nodes[1]",
+        "expectedDifferences": [
+          {
+            "path": "$.url",
+            "matcher": "regex:^https://www.w3.org/WAI/WCAG21/working-examples/pdf-table/table.pdf",
+            "reason": "GenericFile accepts originalSource directly, but Shopify stores and returns a CDN copy while the proxy keeps the accepted external source URL."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-source-semantics-generic-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

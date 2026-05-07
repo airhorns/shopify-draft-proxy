@@ -103,6 +103,10 @@ const max_bulk_query_connections: Int = 5
 
 const max_bulk_query_connection_depth: Int = 2
 
+const bulk_query_invalid_operation_type_message: String = "Invalid operation type. Only `query` operations are supported."
+
+const bulk_query_connection_within_list_message: String = "Queries that contain a connection field within a list field are not currently supported."
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -354,82 +358,125 @@ fn build_run_query_jsonl(
   query_string: String,
   upstream: UpstreamContext,
 ) -> Result(BulkQueryResult, List(UserError)) {
-  case root_field.get_root_fields(query_string) {
-    Ok(fields) -> {
-      let fragments = get_document_fragments(query_string)
-      let validation_errors = validate_admin_bulk_query(fields, fragments)
-      case validation_errors {
-        [_, ..] -> Error(validation_errors)
+  case parse_bulk_query_document(query_string) {
+    Ok(#(fields, fragments)) -> {
+      case validate_admin_bulk_query(fields, fragments) {
+        [_, ..] as validation_errors -> Error(validation_errors)
         [] ->
-          case fields {
-            [root] ->
-              case selected_bulk_query_node_fields(root, fragments) {
-                Some(node_fields) ->
-                  case find_in_progress_bulk_operation(store, "QUERY") {
-                    Some(operation) ->
-                      Error([operation_in_progress_error(operation, "query")])
-                    None ->
-                      case root_field_name(root) {
-                        Some("products") -> {
-                          let products = store.list_effective_products(store)
-                          let root_count =
-                            local_or_upstream_products_count(
-                              products,
-                              root,
-                              upstream,
-                            )
-                          Ok(BulkQueryResult(
-                            result_jsonl: make_jsonl(
-                              list.map(products, fn(product) {
-                                project_graphql_value(
-                                  product_export_source(product),
-                                  node_fields,
-                                  fragments,
-                                )
-                              }),
-                            ),
-                            object_count: root_count,
-                            root_object_count: root_count,
-                          ))
-                        }
-                        Some("productVariants") -> {
-                          let variants =
-                            store.list_effective_product_variants(store)
-                          let root_count = list.length(variants)
-                          Ok(BulkQueryResult(
-                            result_jsonl: make_jsonl(
-                              list.map(variants, fn(variant) {
-                                project_graphql_value(
-                                  product_variant_export_source(store, variant),
-                                  node_fields,
-                                  fragments,
-                                )
-                              }),
-                            ),
-                            object_count: root_count,
-                            root_object_count: root_count,
-                          ))
-                        }
-                        _ -> Error([no_connection_bulk_query_error()])
-                      }
-                  }
-                None -> Error([no_connection_bulk_query_error()])
-              }
-            _ ->
-              Error([
-                UserError(
-                  field: Some(["query"]),
-                  message: "Bulk queries must contain exactly one top-level field.",
-                  code: Some("INVALID"),
-                ),
-              ])
-          }
+          build_supported_run_query_jsonl(store, fields, fragments, upstream)
       }
     }
-    Error(_) ->
+    Error(BulkQueryParseFailed) ->
       Error([
         invalid_bulk_query_error("syntax error, unexpected end of file"),
       ])
+    Error(BulkQueryInvalidOperationType) ->
+      Error([invalid_operation_type_bulk_query_error()])
+    Error(BulkQueryNoOperation) ->
+      Error([
+        invalid_bulk_query_error("syntax error, unexpected end of file"),
+      ])
+  }
+}
+
+type BulkQueryDocumentError {
+  BulkQueryParseFailed
+  BulkQueryInvalidOperationType
+  BulkQueryNoOperation
+}
+
+fn parse_bulk_query_document(
+  query_string: String,
+) -> Result(#(List(Selection), FragmentMap), BulkQueryDocumentError) {
+  case parser.parse(source.new(query_string)) {
+    Error(_) -> Error(BulkQueryParseFailed)
+    Ok(document) ->
+      case parse_operation.find_operation(document.definitions) {
+        Some(OperationDefinition(operation: Query, selection_set: set, ..)) -> {
+          let SelectionSet(selections: selections, ..) = set
+          Ok(#(
+            top_level_fields(selections),
+            get_document_fragments(query_string),
+          ))
+        }
+        Some(OperationDefinition(operation: Mutation, ..))
+        | Some(OperationDefinition(operation: Subscription, ..)) ->
+          Error(BulkQueryInvalidOperationType)
+        _ -> Error(BulkQueryNoOperation)
+      }
+  }
+}
+
+fn build_supported_run_query_jsonl(
+  store: Store,
+  fields: List(Selection),
+  fragments: FragmentMap,
+  upstream: UpstreamContext,
+) -> Result(BulkQueryResult, List(UserError)) {
+  case find_supported_bulk_query_root(fields, fragments) {
+    Some(#(root, node_fields)) ->
+      case find_in_progress_bulk_operation(store, "QUERY") {
+        Some(operation) ->
+          Error([operation_in_progress_error(operation, "query")])
+        None ->
+          case root_field_name(root) {
+            Some("products") -> {
+              let products = store.list_effective_products(store)
+              let root_count =
+                local_or_upstream_products_count(products, root, upstream)
+              Ok(BulkQueryResult(
+                result_jsonl: make_jsonl(
+                  list.map(products, fn(product) {
+                    project_graphql_value(
+                      product_export_source(product),
+                      node_fields,
+                      fragments,
+                    )
+                  }),
+                ),
+                object_count: root_count,
+                root_object_count: root_count,
+              ))
+            }
+            Some("productVariants") -> {
+              let variants = store.list_effective_product_variants(store)
+              let root_count = list.length(variants)
+              Ok(BulkQueryResult(
+                result_jsonl: make_jsonl(
+                  list.map(variants, fn(variant) {
+                    project_graphql_value(
+                      product_variant_export_source(store, variant),
+                      node_fields,
+                      fragments,
+                    )
+                  }),
+                ),
+                object_count: root_count,
+                root_object_count: root_count,
+              ))
+            }
+            _ -> Error([no_connection_bulk_query_error()])
+          }
+      }
+    None -> Error([no_connection_bulk_query_error()])
+  }
+}
+
+fn find_supported_bulk_query_root(
+  fields: List(Selection),
+  fragments: FragmentMap,
+) -> Option(#(Selection, List(Selection))) {
+  case fields {
+    [field] ->
+      case root_field_name(field) {
+        Some("products") | Some("productVariants") ->
+          case selected_bulk_query_node_fields(field, fragments) {
+            Some(node_fields) -> Some(#(field, node_fields))
+            None -> None
+          }
+        _ -> None
+      }
+    _ -> None
   }
 }
 
@@ -501,11 +548,20 @@ fn invalid_bulk_query_error(reason: String) -> UserError {
   )
 }
 
+fn invalid_operation_type_bulk_query_error() -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: bulk_query_invalid_operation_type_message,
+    code: Some("INVALID"),
+  )
+}
+
 type BulkQueryAnalysis {
   BulkQueryAnalysis(
     connection_count: Int,
     max_connection_depth: Int,
     top_level_node: Bool,
+    connection_within_list: Bool,
     connections_without_node: List(String),
     nested_connections_without_parent_id: List(String),
   )
@@ -516,6 +572,7 @@ fn empty_bulk_query_analysis() -> BulkQueryAnalysis {
     connection_count: 0,
     max_connection_depth: 0,
     top_level_node: False,
+    connection_within_list: False,
     connections_without_node: [],
     nested_connections_without_parent_id: [],
   )
@@ -540,12 +597,16 @@ fn validate_admin_bulk_query(
           BulkQueryAnalysis(..acc, top_level_node: True)
         _ -> acc
       }
-      analyze_bulk_query_field(field, fragments, -1, acc)
+      analyze_bulk_query_field(field, fragments, -1, False, acc)
     })
   let structural_errors =
     []
     |> append_errors(case analysis.top_level_node {
       True -> [top_level_node_bulk_query_error()]
+      False -> []
+    })
+    |> append_errors(case analysis.connection_within_list {
+      True -> [connection_within_list_bulk_query_error()]
       False -> []
     })
     |> append_errors(
@@ -586,6 +647,7 @@ fn analyze_bulk_query_field(
   field: Selection,
   fragments: FragmentMap,
   connection_depth: Int,
+  inside_list_field: Bool,
   analysis: BulkQueryAnalysis,
 ) -> BulkQueryAnalysis {
   case connection_selection(field, fragments) {
@@ -599,6 +661,8 @@ fn analyze_bulk_query_field(
             analysis.max_connection_depth,
             next_depth,
           ),
+          connection_within_list: analysis.connection_within_list
+            || inside_list_field,
         )
       let analysis = case connection.edges_node_field, connection.nodes_field {
         Some(_), None -> analysis
@@ -618,11 +682,20 @@ fn analyze_bulk_query_field(
         analysis,
       )
     }
-    None ->
+    None -> {
+      let child_inside_list =
+        inside_list_field || is_curated_bulk_query_list_field(field)
       direct_field_children(field, fragments)
       |> list.fold(analysis, fn(acc, child) {
-        analyze_bulk_query_field(child, fragments, connection_depth, acc)
+        analyze_bulk_query_field(
+          child,
+          fragments,
+          connection_depth,
+          child_inside_list,
+          acc,
+        )
       })
+    }
   }
 }
 
@@ -655,9 +728,54 @@ fn analyze_connection_node_selections(
     }
     direct_field_children(node_field, fragments)
     |> list.fold(acc, fn(inner_acc, child) {
-      analyze_bulk_query_field(child, fragments, connection_depth, inner_acc)
+      analyze_bulk_query_field(
+        child,
+        fragments,
+        connection_depth,
+        False,
+        inner_acc,
+      )
     })
   })
+}
+
+fn is_curated_bulk_query_list_field(field: Selection) -> Bool {
+  case field {
+    Field(name: name, ..) ->
+      case name.value {
+        "additionalFees"
+        | "alerts"
+        | "bundleConsolidatedOptions"
+        | "companyContactProfiles"
+        | "customAttributes"
+        | "currentTaxLines"
+        | "discountAllocations"
+        | "discountCodes"
+        | "disputes"
+        | "duties"
+        | "fields"
+        | "formatted"
+        | "fulfillments"
+        | "merchantEditableErrors"
+        | "optionValues"
+        | "options"
+        | "paymentGatewayNames"
+        | "profileLocationGroups"
+        | "refunds"
+        | "selectedOptions"
+        | "shareableUrls"
+        | "shopPolicies"
+        | "tags"
+        | "taxExemptions"
+        | "taxLines"
+        | "transactions"
+        | "translations"
+        | "unassignedLocations"
+        | "values" -> True
+        _ -> False
+      }
+    _ -> False
+  }
 }
 
 fn node_selection_contains_connection(
@@ -821,6 +939,14 @@ fn connection_nested_too_deep_bulk_query_error() -> UserError {
   UserError(
     field: Some(["query"]),
     message: "Bulk queries cannot contain connections with a nesting depth greater than 2.",
+    code: Some("INVALID"),
+  )
+}
+
+fn connection_within_list_bulk_query_error() -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: bulk_query_connection_within_list_message,
     code: Some("INVALID"),
   )
 }

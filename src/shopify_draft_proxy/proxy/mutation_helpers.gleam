@@ -1365,6 +1365,16 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "StoreCreditAccountCreditInput"
+                      | "StoreCreditAccountDebitInput" -> [
+                        build_unknown_input_object_field_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       "MetafieldAccessInput"
                       | "MetafieldAccessUpdateInput"
                       | "StandardMetafieldDefinitionAccessInput" -> [
@@ -1980,6 +1990,18 @@ fn collect_unknown_variable_fields(
           explanation: "Field is not defined on " <> io.name,
           message: None,
         ))
+      "StoreCreditAccountCreditInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "StoreCreditAccountDebitInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
       "ProductInput", None ->
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
@@ -1999,7 +2021,33 @@ fn unknown_variable_field_names(
     "RefundInput" ->
       dict.keys(fields)
       |> list.sort(compare_refund_input_variable_field_names)
+    "StoreCreditAccountDebitInput" ->
+      dict.keys(fields)
+      |> list.sort(compare_store_credit_debit_input_variable_field_names)
     _ -> dict.keys(fields)
+  }
+}
+
+fn compare_store_credit_debit_input_variable_field_names(
+  left: String,
+  right: String,
+) {
+  case
+    int.compare(
+      store_credit_debit_input_variable_field_rank(left),
+      store_credit_debit_input_variable_field_rank(right),
+    )
+  {
+    order.Eq -> string.compare(left, right)
+    order -> order
+  }
+}
+
+fn store_credit_debit_input_variable_field_rank(field_name: String) -> Int {
+  case field_name {
+    "notify" -> 1
+    "attribution" -> 2
+    _ -> 1000
   }
 }
 

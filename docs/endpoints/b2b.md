@@ -70,9 +70,12 @@ Contacts created from `companyCreate(input.companyContact)` or
 `companyContactCreate(input.email)` keep a contact-local synthetic customer
 reference so downstream B2B `CompanyContact.customer { id }` reads match
 Shopify's company/customer-contact relationship without broadening customer
-catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
-as that contact reference only after resolving the customer from the effective
-local customer registry. It rejects unknown customers, customers without an
+catalog state. Successful `companyContactUpdate` calls refresh that embedded
+customer snapshot's mutable identity scalars (`firstName`, `lastName`, `email`,
+and `phone`) when those inputs are provided, while preserving the customer ID.
+`companyAssignCustomerAsContact` stores the provided customer ID as that contact
+reference only after resolving the customer from the effective local customer
+registry. It rejects unknown customers, customers without an
 email address, duplicate customer/contact assignments on the same company, and
 companies that have reached the 10,000-contact cap. Main-contact lifecycle
 stores a single `Company.mainContactId` pointer; returned
@@ -277,6 +280,21 @@ the active live target accepts the `billingSameAsShipping: false` / no billing
 create branch, and does not expose these location fields on
 `CompanyLocationUpdateInput`; those ticket-required guardrails are therefore
 runtime-test-backed instead of parity-compared.
+
+`companyCreate(input.companyLocation)`, `companyLocationCreate`, and
+`companyLocationUpdate` now preserve
+`buyerExperienceConfiguration` on the normalized company-location record.
+Downstream `CompanyLocation.buyerExperienceConfiguration` reads project
+`editableShippingAddress`, `checkoutToDraft`, `paymentTermsTemplate { id }`,
+and `deposit { __typename }` from staged state, with Shopify-like default false
+booleans and null template/deposit values when the location has no explicit BEC
+input. The 2026-04 `b2b-buyer-experience-configuration` capture records real
+Shopify behavior for nested company create, location create, location update,
+read-after-write, empty BEC validation, and deposit-without-payment-terms
+validation. The same capture records that the current conformance shop accepts
+deposit when a valid `paymentTermsTemplateId` is present; the local
+`deposit_not_enabled` guard is runtime-test-backed through the synthetic shop
+capability helper because it depends on merchant feature posture.
 
 HAR-623 tightens B2B location/address lifecycle behavior. `companyLocationCreate`
 now derives an omitted or blank location name from
