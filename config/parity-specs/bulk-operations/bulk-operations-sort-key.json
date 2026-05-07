@@ -1,0 +1,73 @@
+{
+  "scenarioId": "bulk-operations-sort-key",
+  "operationNames": ["bulkOperations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "sort-order-parity", "graphql-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-sort-key.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operations-sort-key.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.completedAtDesc.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin GraphQL bulkOperations ordering for public CREATED_AT and COMPLETED_AT sort keys in both directions plus public-schema rejection for hidden ID sort key. Sort comparisons are strict over the full selected connection payload.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "completed-at-desc",
+        "capturePath": "$.cases.completedAtDesc.response.data.bulkOperations",
+        "proxyPath": "$.data.bulkOperations",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-sort-key.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.completedAtDesc.variables"
+        }
+      },
+      {
+        "name": "completed-at-asc",
+        "capturePath": "$.cases.completedAtAsc.response.data.bulkOperations",
+        "proxyPath": "$.data.bulkOperations",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-sort-key.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.completedAtAsc.variables"
+        }
+      },
+      {
+        "name": "created-at-desc",
+        "capturePath": "$.cases.createdAtDesc.response.data.bulkOperations",
+        "proxyPath": "$.data.bulkOperations",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-sort-key.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.createdAtDesc.variables"
+        }
+      },
+      {
+        "name": "created-at-asc",
+        "capturePath": "$.cases.createdAtAsc.response.data.bulkOperations",
+        "proxyPath": "$.data.bulkOperations",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-sort-key.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.createdAtAsc.variables"
+        }
+      },
+      {
+        "name": "id-sort-key-rejected",
+        "capturePath": "$.cases.idRejected.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-sort-key-id-rejected.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.idRejected.variables"
+        }
+      }
+    ]
+  }
+}

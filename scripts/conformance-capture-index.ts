@@ -4744,6 +4744,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operations-sort-key',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operations-sort-key-conformance.ts',
+    purpose:
+      'bulkOperations public CREATED_AT/COMPLETED_AT ordering in both directions and public-schema rejection for hidden ID sort key.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operations-sort-key.json`,
+      'config/parity-specs/bulk-operations/bulk-operations-sort-key.json',
+      'config/parity-requests/bulk-operations/bulk-operations-sort-key.graphql',
+      'config/parity-requests/bulk-operations/bulk-operations-sort-key-id-rejected.graphql',
+    ],
+    cleanupBehavior: 'Read-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-query-validators',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-query-validators-conformance.ts',
