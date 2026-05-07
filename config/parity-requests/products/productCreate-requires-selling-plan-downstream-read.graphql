@@ -1,0 +1,12 @@
+query ProductCreateRequiresSellingPlanDownstreamRead($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    handle
+    requiresSellingPlan
+    category {
+      id
+      fullName
+    }
+  }
+}

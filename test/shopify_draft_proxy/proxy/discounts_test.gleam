@@ -124,6 +124,7 @@ fn discount_ref_product(id: String, handle: String) -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    requires_selling_plan: None,
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
