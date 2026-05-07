@@ -89,9 +89,14 @@ const validation = {
   createDuplicateSetup: null as CapturedRequest | null,
   createDuplicateRejected: null as CapturedRequest | null,
   updateBadNameFormatRejected: null as CapturedRequest | null,
+  createCaseInsensitiveNameDuplicateSetup: null as CapturedRequest | null,
+  createCaseInsensitiveNameDuplicateRejected: null as CapturedRequest | null,
+  updateCaseInsensitiveNameDuplicateRejected: null as CapturedRequest | null,
   cleanup: null as CapturedRequest | null,
+  cleanupCaseInsensitiveNameDuplicateSetup: null as CapturedRequest | null,
 };
 let createdId: string | null = null;
+let caseInsensitiveNameSetupId: string | null = null;
 
 try {
   validation.createXmlOnJsonOnlyTopicRejected = await capture(createRequestPath, {
@@ -150,7 +155,39 @@ try {
       name: 'has spaces',
     },
   });
+  validation.createCaseInsensitiveNameDuplicateSetup = await capture(createRequestPath, {
+    topic: 'SHOP_UPDATE',
+    webhookSubscription: {
+      uri: `${duplicateUri}-name-setup`,
+      format: 'JSON',
+      name: 'OrderHook',
+    },
+  });
+  caseInsensitiveNameSetupId = readCreatedWebhookId(validation.createCaseInsensitiveNameDuplicateSetup);
+  if (caseInsensitiveNameSetupId === null) {
+    throw new Error('case-insensitive duplicate name setup did not return a webhookSubscription.id.');
+  }
+
+  validation.createCaseInsensitiveNameDuplicateRejected = await capture(createRequestPath, {
+    topic: 'SHOP_UPDATE',
+    webhookSubscription: {
+      uri: `${duplicateUri}-name-duplicate`,
+      format: 'JSON',
+      name: 'orderhook',
+    },
+  });
+  validation.updateCaseInsensitiveNameDuplicateRejected = await capture(updateRequestPath, {
+    id: createdId,
+    webhookSubscription: {
+      name: 'ORDERHOOK',
+    },
+  });
 } finally {
+  if (caseInsensitiveNameSetupId !== null) {
+    validation.cleanupCaseInsensitiveNameDuplicateSetup = await capture(deleteRequestPath, {
+      id: caseInsensitiveNameSetupId,
+    });
+  }
   if (createdId !== null) {
     validation.cleanup = await capture(deleteRequestPath, { id: createdId });
   }
@@ -165,8 +202,9 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'HAR-727 captures webhookSubscriptionCreate topic/format, cloud format, name validation, and duplicate active registration userErrors.',
+        'Captures webhookSubscriptionCreate topic/format, cloud format, name validation, duplicate active registration userErrors, and case-insensitive name uniqueness.',
         'The duplicate branch creates one temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.',
+        'The case-insensitive name branch creates a second temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.',
         'The script does not trigger webhook delivery.',
       ],
       deliveryPolicy: {

@@ -18,6 +18,7 @@ import shopify_draft_proxy/proxy/markets/serializers.{
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/store_properties/serializers as store_properties_serializers
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{is_proxy_synthetic_gid}
@@ -646,6 +647,7 @@ fn hydrate_from_upstream_response(
   case json_get(value, "data") {
     Some(data) ->
       store_in
+      |> hydrate_shop_record(data)
       |> hydrate_market_records(data)
       |> hydrate_catalog_records(data)
       |> hydrate_price_list_records(data)
@@ -655,6 +657,16 @@ fn hydrate_from_upstream_response(
       |> hydrate_market_localizable_resource_content(data)
       |> hydrate_market_localizable_resource_records(data)
       |> hydrate_markets_root_payloads(data)
+    None -> store_in
+  }
+}
+
+fn hydrate_shop_record(store_in: Store, data: commit.JsonValue) -> Store {
+  case
+    json_get(data, "shop")
+    |> option.then(store_properties_serializers.shop_from_json)
+  {
+    Some(shop) -> store.upsert_base_shop(store_in, shop)
     None -> store_in
   }
 }

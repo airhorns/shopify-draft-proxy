@@ -1468,9 +1468,14 @@ HAR-675 live parity work replaces the old local definition-delete associated-ent
 HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
 
 - `metaobjectDefinitionCreate` resolves `$app:<rest>` to the requesting app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`, and local parity replays provide that app identity through `x-shopify-draft-proxy-api-client-id`.
+- reserved create handling for an existing standard-template type (`shopify--qa-pair`) and an unresolved `shopify--*` type returns public GraphQL `NOT_AUTHORIZED` on `["definition"]` with message `Not authorized. This type is reserved for use by another application.` The internal service path may call this reserved-name handling, but do not emit `RESERVED_NAME` for the captured public 2026-04 shape without a newer live capture proving that code.
 - definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
 - uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
 - Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
+
+Delete guard caveat:
+
+- public Admin GraphQL 2026-04 does not expose the internal `app_config_managed?`, `standard_template_id`, or standard-template `dependent_on_app?` metadata needed to safely discover protected delete candidates. The current conformance shop's visible definitions are created by the conformance app, so `APP_CONFIG_MANAGED` and `STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP` delete responses remain runtime-test-backed until an eligible shop/app setup is available.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -2406,7 +2411,7 @@ tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
-- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
+- `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`. Variable-bound invalid `ShopPolicyType` values plus missing/null `ShopPolicyInput.body` are top-level `INVALID_VARIABLE` coercion errors before resolver userErrors, while blank `REFUND_POLICY` bodies are accepted by the public Admin API.
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
 
@@ -3194,11 +3199,15 @@ Captured facts:
 - `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
 - `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
 - selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+- On the captured 2025-01 shop, `giftCardConfiguration.issueLimit` was `3000.0 CAD` while `purchaseLimit` was `14000.0 CAD`; a card created at exactly the issue limit rejected a one-cent `giftCardCredit` with `GIFT_CARD_LIMIT_EXCEEDED`, so credit limit validation follows the issue-limit ceiling rather than the larger purchase limit in this public Admin path
+- The credit over-limit message is not the create-time formatted limit message. Public Admin returned `The gift card's value exceeds the allowed limits.` on `["creditInput", "creditAmount", "amount"]`
+- A one-cent `giftCardDebit` after the rejected credit succeeded with empty `userErrors`; debit decreases balance and did not surface `GIFT_CARD_LIMIT_EXCEEDED` in this path
 
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
+- credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

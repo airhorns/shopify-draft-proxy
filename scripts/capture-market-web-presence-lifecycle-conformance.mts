@@ -57,6 +57,25 @@ const webPresencesReadQuery = `#graphql
   }
 `;
 
+const primaryWebPresenceSetupQuery = `#graphql
+  ${webPresenceFields}
+  query WebPresenceDeletePrimarySetupRead($first: Int!) {
+    webPresences(first: $first) {
+      nodes {
+        ...MarketWebPresenceLifecycleFields
+      }
+    }
+    shop {
+      id
+      myshopifyDomain
+      primaryDomain {
+        host
+        url
+      }
+    }
+  }
+`;
+
 const createMutation = `#graphql
   ${webPresenceFields}
   mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
@@ -181,6 +200,82 @@ function readUserErrors(payload: unknown, root: string): unknown[] {
   return Array.isArray(rootPayload.userErrors) ? rootPayload.userErrors : [];
 }
 
+function normalizeHost(value: string): string {
+  let host = value.trim().toLowerCase();
+  if (host.startsWith('http://') || host.startsWith('https://')) {
+    try {
+      host = new URL(host).host;
+    } catch {
+      host = host.replace(/^https?:\/\//, '').split('/')[0] ?? host;
+    }
+  } else {
+    host = host.split('/')[0] ?? host;
+  }
+  return host.replace(/\.$/, '');
+}
+
+function isPrimaryRootUrl(value: unknown, primaryHost: string): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return normalizeHost(url.host) === primaryHost && (url.pathname === '' || url.pathname === '/');
+  } catch {
+    return false;
+  }
+}
+
+function findPrimaryWebPresence(payload: unknown): { id: string; node: unknown } {
+  if (typeof payload !== 'object' || payload === null || !('data' in payload)) {
+    throw new Error(`Expected primary setup GraphQL data: ${JSON.stringify(payload)}`);
+  }
+  const data = (payload as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) {
+    throw new Error(`Expected primary setup data object: ${JSON.stringify(payload)}`);
+  }
+  const shop = (data as { shop?: unknown }).shop;
+  if (typeof shop !== 'object' || shop === null) {
+    throw new Error(`Expected shop in primary setup response: ${JSON.stringify(payload)}`);
+  }
+  const primaryDomain = (shop as { primaryDomain?: unknown }).primaryDomain;
+  const primaryHost =
+    typeof primaryDomain === 'object' &&
+    primaryDomain !== null &&
+    typeof (primaryDomain as { host?: unknown }).host === 'string'
+      ? normalizeHost((primaryDomain as { host: string }).host)
+      : undefined;
+  if (!primaryHost) {
+    throw new Error(`Expected shop.primaryDomain.host in primary setup response: ${JSON.stringify(payload)}`);
+  }
+  const webPresences = (data as { webPresences?: unknown }).webPresences;
+  const nodes =
+    typeof webPresences === 'object' &&
+    webPresences !== null &&
+    Array.isArray((webPresences as { nodes?: unknown }).nodes)
+      ? (webPresences as { nodes: unknown[] }).nodes
+      : [];
+
+  for (const node of nodes) {
+    if (typeof node !== 'object' || node === null || typeof (node as { id?: unknown }).id !== 'string') continue;
+    const domain = (node as { domain?: unknown }).domain;
+    const domainHost =
+      typeof domain === 'object' && domain !== null && typeof (domain as { host?: unknown }).host === 'string'
+        ? normalizeHost((domain as { host: string }).host)
+        : undefined;
+    const rootUrls = Array.isArray((node as { rootUrls?: unknown }).rootUrls)
+      ? (node as { rootUrls: unknown[] }).rootUrls
+      : [];
+    const hasPrimaryRootUrl = rootUrls.some((rootUrl) => {
+      if (typeof rootUrl !== 'object' || rootUrl === null) return false;
+      return isPrimaryRootUrl((rootUrl as { url?: unknown }).url, primaryHost);
+    });
+    if (domainHost === primaryHost || hasPrimaryRootUrl) {
+      return { id: (node as { id: string }).id, node };
+    }
+  }
+
+  throw new Error(`Could not find primary-host web presence for ${primaryHost}: ${JSON.stringify(nodes)}`);
+}
+
 function isAlreadyAbsentLocaleCleanup(action: LocaleRestoreAction, userErrors: unknown[]): boolean {
   return (
     action.kind === 'disable' &&
@@ -280,6 +375,13 @@ async function restoreEnabledLocales(): Promise<Record<string, unknown>> {
 }
 
 try {
+  const primarySetupVariables = { first: 20 };
+  const primarySetupRead = await runGraphql(primaryWebPresenceSetupQuery, primarySetupVariables);
+  const primaryWebPresence = findPrimaryWebPresence(primarySetupRead);
+  const primaryDeleteVariables = { id: primaryWebPresence.id };
+  const primaryDeleteResponse = await runGraphql(deleteMutation, primaryDeleteVariables);
+  const primaryReadAfterDelete = await runGraphql(webPresencesReadQuery, { first: 20 });
+
   const baselineRead = await runGraphql(webPresencesReadQuery, { first: 20 });
   const createVariables = {
     input: {
@@ -441,8 +543,9 @@ try {
       caseInsensitive: caseInsensitiveSuffix,
     },
     scope:
-      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, and web-presence locale catalog/error-shape parity',
+      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, and primary-domain delete guard parity',
     data: {
+      shop: primarySetupRead.data?.shop,
       webPresences: baselineRead.data?.webPresences,
     },
     har613Expected: {
@@ -605,6 +708,33 @@ try {
           payload: partialUpdateResponse,
         },
       },
+      {
+        name: 'webPresenceDeletePrimarySetupRead',
+        query: primaryWebPresenceSetupQuery,
+        variables: primarySetupVariables,
+        response: {
+          status: 200,
+          payload: primarySetupRead,
+        },
+      },
+      {
+        name: 'webPresenceDeletePrimaryBlocked',
+        query: deleteMutation,
+        variables: primaryDeleteVariables,
+        response: {
+          status: 200,
+          payload: primaryDeleteResponse,
+        },
+      },
+      {
+        name: 'webPresenceReadAfterPrimaryBlockedDelete',
+        query: webPresencesReadQuery,
+        variables: { first: 20 },
+        response: {
+          status: 200,
+          payload: primaryReadAfterDelete,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -658,6 +788,15 @@ try {
       enabledLocaleCleanup: localeCleanupResponses,
     },
     upstreamCalls: [
+      {
+        operationName: 'WebPresenceDeletePrimarySetupRead',
+        variables: primarySetupVariables,
+        query: primaryWebPresenceSetupQuery,
+        response: {
+          status: 200,
+          body: primarySetupRead,
+        },
+      },
       {
         operationName: 'MarketsMutationPreflightHydrate',
         variables: createVariables,

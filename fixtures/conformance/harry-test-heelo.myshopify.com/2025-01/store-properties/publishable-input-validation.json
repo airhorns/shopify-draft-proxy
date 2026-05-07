@@ -1,0 +1,809 @@
+{
+  "scenarioId": "publishable-input-validation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-07T10:21:25.328Z",
+  "setup": {
+    "product": {
+      "id": "gid://shopify/Product/10179659858226",
+      "title": "Publishable input validation movc67ea",
+      "status": "DRAFT"
+    }
+  },
+  "publications": [
+    {
+      "id": "gid://shopify/Publication/268039389490",
+      "name": "Online Store"
+    },
+    {
+      "id": "gid://shopify/Publication/268039455026",
+      "name": "Point of Sale"
+    },
+    {
+      "id": "gid://shopify/Publication/268039487794",
+      "name": "Shop"
+    },
+    {
+      "id": "gid://shopify/Publication/273897881906",
+      "name": "Shopify GraphiQL App"
+    },
+    {
+      "id": "gid://shopify/Publication/292074258738",
+      "name": "example.com"
+    }
+  ],
+  "cases": {
+    "publishDuplicate": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          },
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "1", "publicationId"],
+                  "message": "The same publication was specified more than once"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publishPastDate": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490",
+            "publishDate": "1900-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "0", "publishDate"],
+                  "message": "Publish date must be a date after the year 1969"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publishBlankPublication": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [{}]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "0", "publicationId"],
+                  "message": "PublicationId cannot be empty"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publishEmptyStringPublication": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": ""
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [PublicationInput!]! was provided invalid value for 0.publicationId (Invalid global id '')",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 56
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "publicationId": ""
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "publicationId"],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "publishUnknownPublication": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/999999999999"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "0", "publicationId"],
+                  "message": "Publication does not exist or is not publishable"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishDuplicate": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          },
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "1", "publicationId"],
+                  "message": "The same publication was specified more than once"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishPastDate": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490",
+            "publishDate": "1900-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "0", "publishDate"],
+                  "message": "Publish date must be a date after the year 1969"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishBlankPublication": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [{}]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "0", "publicationId"],
+                  "message": "PublicationId cannot be empty"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishEmptyStringPublication": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": ""
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [PublicationInput!]! was provided invalid value for 0.publicationId (Invalid global id '')",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 58
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "publicationId": ""
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "publicationId"],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "unpublishUnknownPublication": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/999999999999"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublish": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": [
+                {
+                  "field": ["input", "0", "publicationId"],
+                  "message": "Publication does not exist or is not publishable"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "publishToCurrentChannel": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": []
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishablePublishToCurrentChannel": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unpublishToCurrentChannel": {
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226",
+        "input": []
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publishableUnpublishToCurrentChannel": {
+              "publishable": {
+                "id": "gid://shopify/Product/10179659858226",
+                "publishedOnCurrentPublication": false,
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10179659858226",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live Admin API validation for generic publishable PublicationInput branches.",
+    "Current-channel publishable siblings are captured with their schema-supported id-only shape."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesPublishablePublishHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226"
+      },
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/10179659858226",
+              "publishedOnCurrentPublication": false,
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "shop": {
+              "publicationCount": 5
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/292074258738",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesPublishableUnpublishHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226"
+      },
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/10179659858226",
+              "publishedOnCurrentPublication": false,
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "shop": {
+              "publicationCount": 5
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/292074258738",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesPublishablePublishToCurrentChannelHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226"
+      },
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/10179659858226",
+              "publishedOnCurrentPublication": false,
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "shop": {
+              "publicationCount": 5
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/292074258738",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesPublishableUnpublishToCurrentChannelHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10179659858226"
+      },
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publishable": {
+              "id": "gid://shopify/Product/10179659858226",
+              "publishedOnCurrentPublication": false,
+              "resourcePublicationsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "shop": {
+              "publicationCount": 5
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/292074258738",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

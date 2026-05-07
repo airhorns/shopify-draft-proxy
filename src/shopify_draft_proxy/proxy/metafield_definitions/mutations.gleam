@@ -28,14 +28,16 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
+  type AdminPlatformGenericNodeRecord,
   type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionConstraintValueRecord,
   type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
-  type MetafieldDefinitionValidationRecord,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionConstraintValueRecord, MetafieldDefinitionConstraintsRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord,
+  type MetafieldDefinitionValidationRecord, type ProductMetafieldRecord,
+  AdminPlatformGenericNodeRecord, CapturedBool, CapturedNull, CapturedObject,
+  CapturedString, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintValueRecord,
+  MetafieldDefinitionConstraintsRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
 }
 
 const metafield_definition_resource_type_limit = 256
@@ -359,14 +361,22 @@ pub fn cross_app_namespace_access_errors(
 ) -> List(Json) {
   case definition_types.read_optional_string(input, "namespace") {
     Some(namespace) ->
-      case
-        definition_types.namespace_belongs_to_requesting_api_client(
-          namespace,
-          requesting_api_client_id,
-        )
-      {
-        True -> []
-        False -> [metafield_definition_namespace_access_denied_error(root_name)]
+      case namespace {
+        "shopify" -> [
+          metafield_definition_namespace_access_denied_error(root_name),
+        ]
+        _ ->
+          case
+            definition_types.namespace_belongs_to_requesting_api_client(
+              namespace,
+              requesting_api_client_id,
+            )
+          {
+            True -> []
+            False -> [
+              metafield_definition_namespace_access_denied_error(root_name),
+            ]
+          }
       }
     None -> []
   }
@@ -726,6 +736,7 @@ pub fn validate_standard_enable_input(
 ) -> Result(Nil, List(definition_types.UserError)) {
   let errors =
     validate_standard_admin_access(raw_args, template)
+    |> list.append(validate_standard_reserved_access_input(args, template))
     |> list.append(validate_standard_unstructured_metafields(
       store_in,
       args,
@@ -753,13 +764,10 @@ fn validate_standard_admin_access(
   case
     dict.has_key(access, "admin")
     && !standard_template_allows_admin_access(template)
+    && !access_admin_is_public_read_write(access)
   {
     True -> [
-      definition_types.UserError(
-        field: Some(["access"]),
-        message: "Admin access input is not allowed for this standard metafield definition.",
-        code: "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
-      ),
+      access_control_not_permitted_error(Some(["access"]), "INVALID"),
     ]
     False -> []
   }
@@ -769,6 +777,93 @@ fn standard_template_allows_admin_access(
   template: definition_types.StandardMetafieldDefinitionTemplate,
 ) -> Bool {
   string.starts_with(template.namespace, "app--")
+}
+
+fn validate_definition_create_access_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  let access = definition_types.read_object(input, "access")
+  case access_admin_is_public_read_write(access) {
+    True -> []
+    False -> [
+      access_control_not_permitted_error(Some(["definition"]), "INVALID"),
+    ]
+  }
+}
+
+fn validate_definition_update_access_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  case definition_types.has_field(input, "access") {
+    False -> []
+    True -> {
+      let access = definition_types.read_object(input, "access")
+      case access_admin_is_public_read_write(access) {
+        True -> []
+        False -> [
+          access_control_not_permitted_error(
+            Some(["definition"]),
+            "INVALID_INPUT",
+          ),
+        ]
+      }
+    }
+  }
+}
+
+fn validate_standard_reserved_access_input(
+  args: Dict(String, root_field.ResolvedValue),
+  template: definition_types.StandardMetafieldDefinitionTemplate,
+) -> List(definition_types.UserError) {
+  case
+    access_input_is_present(args)
+    && definition_reserved_namespace(template.namespace)
+  {
+    True -> [
+      definition_types.UserError(
+        field: Some(["access"]),
+        message: "Setting access controls on a definition under this namespace is not permitted.",
+        code: "INVALID",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn access_input_is_present(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(args, "access") {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+}
+
+fn access_admin_is_public_read_write(
+  access: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case definition_types.read_optional_string(access, "admin") {
+    Some(admin) -> normalize_admin_access(admin) == "PUBLIC_READ_WRITE"
+    None -> True
+  }
+}
+
+fn normalize_admin_access(value: String) -> String {
+  case value {
+    "MERCHANT_READ_WRITE" -> "PUBLIC_READ_WRITE"
+    _ -> value
+  }
+}
+
+fn access_control_not_permitted_error(
+  field: Option(List(String)),
+  code: String,
+) -> definition_types.UserError {
+  definition_types.UserError(
+    field: field,
+    message: "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+    code: code,
+  )
 }
 
 fn validate_standard_unstructured_metafields(
@@ -902,6 +997,7 @@ pub fn build_standard_access(
       "admin",
       json.string(
         definition_types.read_optional_string(access, "admin")
+        |> option.map(normalize_admin_access)
         |> option.unwrap("PUBLIC_READ_WRITE"),
       ),
     ),
@@ -935,6 +1031,7 @@ pub fn build_input_access(
       "admin",
       json.string(
         definition_types.read_optional_string(access, "admin")
+        |> option.map(normalize_admin_access)
         |> option.unwrap("PUBLIC_READ_WRITE"),
       ),
     ),
@@ -1220,7 +1317,15 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
     [] -> validate_definition_validation_records(input, type_name)
     [_, ..] -> []
   }
-  let capability_errors = case list.append(input_errors, validation_errors) {
+  let access_errors = case list.append(input_errors, validation_errors) {
+    [] -> validate_definition_create_access_input(input)
+    [_, ..] -> []
+  }
+  let capability_errors = case
+    input_errors
+    |> list.append(validation_errors)
+    |> list.append(access_errors)
+  {
     [] ->
       validate_capability_inputs(
         store_in,
@@ -1235,6 +1340,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
   let errors =
     input_errors
     |> list.append(validation_errors)
+    |> list.append(access_errors)
     |> list.append(capability_errors)
   case errors {
     [_, ..] -> #(
@@ -1455,10 +1561,9 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
     definition_types.read_object(args, "definition")
     |> definition_types.resolve_namespace_input(requesting_api_client_id)
   let errors =
-    list.append(
-      definition_types.validate_definition_input(input, False),
-      constraint_update_input_conflict_errors(input),
-    )
+    definition_types.validate_definition_input(input, False)
+    |> list.append(constraint_update_input_conflict_errors(input))
+    |> list.append(validate_definition_update_access_input(input))
   case errors {
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(
@@ -2358,6 +2463,17 @@ pub fn update_definition_success(
   input: Dict(String, root_field.ResolvedValue),
   definition: MetafieldDefinitionRecord,
 ) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let validation_records = case
+    definition_types.has_field(input, "validations")
+  {
+    True -> read_validation_records(input)
+    False -> definition.validations
+  }
+  let validations_changed =
+    definition_types.has_field(input, "validations")
+    && validation_records != definition.validations
+  let should_stage_validation_job =
+    validations_changed && has_matching_product_metafields(store_in, definition)
   let updated =
     MetafieldDefinitionRecord(
       ..definition,
@@ -2368,7 +2484,7 @@ pub fn update_definition_success(
         False -> definition.description
       },
       validations: case definition_types.has_field(input, "validations") {
-        True -> read_validation_records(input)
+        True -> validation_records
         False -> definition.validations
       },
       access: case definition_types.has_field(input, "access") {
@@ -2385,21 +2501,93 @@ pub fn update_definition_success(
         False -> definition.capabilities
       },
       constraints: update_definition_constraints(input, definition.constraints),
+      validation_status: "ALL_VALID",
     )
+  let #(validation_job_id, next_identity) = case should_stage_validation_job {
+    True -> {
+      let #(job_id, identity_after_job) =
+        synthetic_identity.make_synthetic_gid(identity, "Job")
+      #(Some(job_id), identity_after_job)
+    }
+    False -> #(None, identity)
+  }
   let next_store =
     store.upsert_staged_metafield_definitions(store_in, [updated])
+    |> maybe_stage_validation_job(validation_job_id)
   #(
-    serializers.serialize_definition_mutation_payload(
+    serializers.serialize_definition_mutation_payload_with_validation_job(
       store_in,
       "updatedDefinition",
       Some(updated),
       [],
       field,
       variables,
+      validation_job_id,
     ),
     next_store,
-    identity,
-    [updated.id],
+    next_identity,
+    case validation_job_id {
+      Some(job_id) -> [updated.id, job_id]
+      None -> [updated.id]
+    },
+  )
+}
+
+fn has_matching_product_metafields(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> Bool {
+  case definition.owner_type {
+    "PRODUCT" -> {
+      let staged =
+        store_in.staged_state.product_metafields
+        |> dict.values
+        |> list.any(metafield_matches_definition(definition))
+      let base =
+        store_in.base_state.product_metafields
+        |> dict.values
+        |> list.any(metafield_matches_definition(definition))
+      staged || base
+    }
+    _ -> False
+  }
+}
+
+fn metafield_matches_definition(
+  definition: MetafieldDefinitionRecord,
+) -> fn(ProductMetafieldRecord) -> Bool {
+  fn(metafield: ProductMetafieldRecord) {
+    {
+      metafield.owner_type == Some(definition.owner_type)
+      || metafield.owner_type == None
+    }
+    && metafield.namespace == definition.namespace
+    && metafield.key == definition.key
+  }
+}
+
+fn maybe_stage_validation_job(
+  store_in: Store,
+  job_id: Option(String),
+) -> Store {
+  case job_id {
+    Some(id) ->
+      store.upsert_staged_admin_platform_generic_nodes(store_in, [
+        validation_job_record(id),
+      ])
+    None -> store_in
+  }
+}
+
+fn validation_job_record(job_id: String) -> AdminPlatformGenericNodeRecord {
+  AdminPlatformGenericNodeRecord(
+    id: job_id,
+    typename: "Job",
+    data: CapturedObject([
+      #("id", CapturedString(job_id)),
+      #("done", CapturedBool(False)),
+      #("query", CapturedNull),
+    ]),
   )
 }
 

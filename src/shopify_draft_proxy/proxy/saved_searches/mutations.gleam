@@ -516,7 +516,7 @@ fn handle_update(
     None -> None
   }
   let existing = case id_from_input {
-    Some(id) -> store.get_effective_saved_search_by_id(store, id)
+    Some(id) -> queries.get_effective_saved_search_by_id(store, id)
     None -> None
   }
   let errors = case existing {
@@ -619,7 +619,7 @@ fn handle_delete(
     None -> None
   }
   let existing = case id_from_input {
-    Some(id) -> store.get_effective_saved_search_by_id(store, id)
+    Some(id) -> queries.get_effective_saved_search_by_id(store, id)
     None -> None
   }
   let errors = case existing {
@@ -724,7 +724,7 @@ fn read_uniqueness_resource_type(
     None ->
       case excluded_id {
         Some(id) ->
-          case store.get_effective_saved_search_by_id(store, id) {
+          case queries.get_effective_saved_search_by_id(store, id) {
             Some(record) -> Some(record.resource_type)
             None -> None
           }
@@ -742,7 +742,7 @@ fn saved_search_name_taken(
   let local_records = list_effective_saved_searches(store)
   let records =
     list.append(
-      queries.defaults_for_resource_type(resource_type),
+      queries.visible_defaults_for_resource_type(store, resource_type),
       local_records,
     )
   list.any(records, fn(record) {
@@ -971,7 +971,7 @@ fn validate_query_for_resource_type(
   case first_reserved_filter(resource_type, keys) {
     Some(filter) -> [reserved_filter_error(operation, filter)]
     None ->
-      case unknown_filter_errors(resource_type, keys, operation) {
+      case unknown_filter_errors(resource_type, keys) {
         [_, ..] as errors -> errors
         [] ->
           case product_incompatible_filter_pair(resource_type, keys) {
@@ -1056,7 +1056,6 @@ fn reserved_filter_error(
 fn unknown_filter_errors(
   resource_type: String,
   keys: List(String),
-  operation: SavedSearchValidationOperation,
 ) -> List(saved_search_types.UserError) {
   case valid_filter_fields_for_resource_type(resource_type) {
     Some(valid_fields) ->
@@ -1066,21 +1065,14 @@ fn unknown_filter_errors(
         !list.contains(valid_fields, string.lowercase(key))
       })
       |> list.sort(by: string.compare)
-      |> list.map(fn(key) { unknown_filter_error(operation, key) })
+      |> list.map(unknown_filter_error)
     None -> []
   }
 }
 
-fn unknown_filter_error(
-  operation: SavedSearchValidationOperation,
-  filter: String,
-) -> saved_search_types.UserError {
-  let field = case operation {
-    CreateValidation -> ["input", "query"]
-    UpdateValidation -> ["input", "searchTerms"]
-  }
+fn unknown_filter_error(filter: String) -> saved_search_types.UserError {
   saved_search_types.UserError(
-    field: Some(field),
+    field: Some(["input", "query"]),
     message: "Query is invalid, '" <> filter <> "' is not a valid filter",
   )
 }

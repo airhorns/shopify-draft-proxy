@@ -107,6 +107,9 @@ pub type FileRecord {
     image_url: Option(String),
     image_width: Option(Int),
     image_height: Option(Int),
+    preview_image_url: Option(String),
+    preview_image_width: Option(Int),
+    preview_image_height: Option(Int),
     update_failure_acknowledged_at: Option(String),
   )
 }
@@ -1350,6 +1353,9 @@ pub type MetaobjectDefinitionRecord {
     has_thumbnail_field: Option(Bool),
     metaobjects_count: Option(Int),
     standard_template: Option(MetaobjectStandardTemplateRecord),
+    standard_template_id: Option(String),
+    standard_template_dependent_on_app: Bool,
+    app_config_managed: Bool,
     linked_metafields: List(MetaobjectDefinitionLinkedMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
@@ -1469,6 +1475,21 @@ pub type ValidationMetafieldRecord {
   )
 }
 
+pub type CartTransformMetafieldRecord {
+  CartTransformMetafieldRecord(
+    id: String,
+    cart_transform_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
 pub type ValidationRecord {
   ValidationRecord(
     id: String,
@@ -1494,6 +1515,7 @@ pub type CartTransformRecord {
     function_id: Option(String),
     function_handle: Option(String),
     shopify_function_id: Option(String),
+    metafields: List(CartTransformMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
   )

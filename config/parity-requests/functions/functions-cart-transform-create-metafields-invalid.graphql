@@ -1,0 +1,12 @@
+mutation CartTransformCreateInvalidMetafields($functionId: String!, $metafields: [MetafieldInput!]) {
+  cartTransformCreate(functionId: $functionId, metafields: $metafields) {
+    cartTransform {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
