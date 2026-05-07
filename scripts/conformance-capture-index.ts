@@ -387,6 +387,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-location-input-normalization',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-location-input-normalization-conformance.mts',
+    purpose:
+      'B2B company location phone normalization, create-time locale defaulting, update-time locale preservation, and malformed locale passthrough for nested companyCreate, companyLocationCreate, and companyLocationUpdate inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-location-input-normalization.json`,
+      'config/parity-specs/b2b/b2b-location-input-normalization.json',
+      'config/parity-requests/b2b/b2b-location-input-normalization-company-create.graphql',
+      'config/parity-requests/b2b/b2b-location-input-normalization-location-create.graphql',
+      'config/parity-requests/b2b/b2b-location-input-normalization-location-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable companies with B2B locations, deletes the extra malformed-locale nested company immediately, then deletes the main company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-email-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-email-name-validation-conformance.mts',

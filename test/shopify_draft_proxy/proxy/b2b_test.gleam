@@ -3025,6 +3025,150 @@ pub fn b2b_contact_create_rejects_invalid_phone_locale_and_html_notes_test() {
   assert string.contains(contact_json, "\"detail\":\"contains_html_tags\"")
 }
 
+pub fn b2b_location_create_normalizes_phone_and_defaults_locale_test() {
+  let proxy = proxy_with_primary_locale("fr-CA")
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Location Locale\" }, companyLocation: { name: \"HQ\", phone: \"(415) 555-1234\" } }) { companyLocation { id phone locale } userErrors { field message code detail } } }"
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(proxy, create_company)
+  assert company_status == 200
+  let company_json = json.to_string(company_body)
+  assert string.contains(company_json, "\"phone\":\"+14155551234\"")
+  assert string.contains(company_json, "\"locale\":\"fr-CA\"")
+  assert string.contains(company_json, "\"userErrors\":[]")
+
+  let create_location =
+    "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Branch\", phone: \"415.555.5678\" }) { companyLocation { id phone locale } userErrors { field message code detail } } }"
+  let #(Response(status: location_status, body: location_body, ..), proxy) =
+    graphql(proxy, create_location)
+  assert location_status == 200
+  let location_json = json.to_string(location_body)
+  assert string.contains(location_json, "\"phone\":\"+14155555678\"")
+  assert string.contains(location_json, "\"locale\":\"fr-CA\"")
+  assert string.contains(location_json, "\"userErrors\":[]")
+
+  let read_locations =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { locations(first: 5) { nodes { phone locale } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_locations)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"phone\":\"+14155551234\"")
+  assert string.contains(read_json, "\"phone\":\"+14155555678\"")
+  assert string.contains(read_json, "\"locale\":\"fr-CA\"")
+}
+
+pub fn b2b_location_update_normalizes_phone_and_preserves_supplied_locale_test() {
+  let proxy = proxy_with_primary_locale("en")
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Location Update\" }, companyLocation: { name: \"HQ\", phone: \"+14155550000\", locale: \"fr-CA\" } }) { companyLocation { id phone locale } userErrors { field message code } } }"
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(proxy, create_company)
+  assert company_status == 200
+  assert string.contains(json.to_string(company_body), "\"userErrors\":[]")
+
+  let update_location =
+    "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { phone: \"(415) 555-9999\" }) { companyLocation { id phone locale } userErrors { field message code detail } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update_location)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"phone\":\"+14155559999\"")
+  assert string.contains(update_json, "\"locale\":\"fr-CA\"")
+  assert string.contains(update_json, "\"userErrors\":[]")
+
+  let invalid_phone_update =
+    "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { phone: \"not-a-phone\" }) { companyLocation { id phone locale } userErrors { field message code detail } } }"
+  let #(
+    Response(status: invalid_phone_status, body: invalid_phone_body, ..),
+    proxy,
+  ) = graphql(proxy, invalid_phone_update)
+  assert invalid_phone_status == 200
+  let invalid_phone_json = json.to_string(invalid_phone_body)
+  assert string.contains(invalid_phone_json, "\"companyLocation\":null")
+  assert string.contains(
+    invalid_phone_json,
+    "\"field\":[\"input\",\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"",
+  )
+
+  let invalid_locale_update =
+    "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { locale: \"not_a_locale\" }) { companyLocation { id phone locale } userErrors { field message code detail } } }"
+  let #(
+    Response(status: invalid_locale_status, body: invalid_locale_body, ..),
+    proxy,
+  ) = graphql(proxy, invalid_locale_update)
+  assert invalid_locale_status == 200
+  let invalid_locale_json = json.to_string(invalid_locale_body)
+  assert string.contains(invalid_locale_json, "\"locale\":\"not_a_locale\"")
+  assert string.contains(invalid_locale_json, "\"userErrors\":[]")
+
+  let read_location =
+    "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { phone locale } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_location)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"phone\":\"+14155559999\"")
+  assert string.contains(read_json, "\"locale\":\"not_a_locale\"")
+}
+
+pub fn b2b_location_inputs_reject_invalid_phone_and_preserve_locale_test() {
+  let proxy = draft_proxy.new()
+  let nested_phone_create =
+    "mutation { companyCreate(input: { company: { name: \"Invalid Nested Phone\" }, companyLocation: { name: \"HQ\", phone: \"not-a-phone\" } }) { company { id } companyLocation { id } userErrors { field message code detail } } }"
+  let #(Response(status: nested_phone_status, body: nested_phone_body, ..), _) =
+    graphql(proxy, nested_phone_create)
+  assert nested_phone_status == 200
+  let nested_phone_json = json.to_string(nested_phone_body)
+  assert string.contains(nested_phone_json, "\"company\":null")
+  assert string.contains(nested_phone_json, "\"companyLocation\":null")
+  assert string.contains(
+    nested_phone_json,
+    "\"field\":[\"input\",\"companyLocation\",\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"",
+  )
+
+  let nested_locale_create =
+    "mutation { companyCreate(input: { company: { name: \"Live Nested Locale\" }, companyLocation: { name: \"HQ\", locale: \"not_a_locale\" } }) { company { id } companyLocation { id locale } userErrors { field message code detail } } }"
+  let #(Response(status: nested_locale_status, body: nested_locale_body, ..), _) =
+    graphql(proxy, nested_locale_create)
+  assert nested_locale_status == 200
+  let nested_locale_json = json.to_string(nested_locale_body)
+  assert string.contains(nested_locale_json, "\"locale\":\"not_a_locale\"")
+  assert string.contains(nested_locale_json, "\"userErrors\":[]")
+
+  let root_proxy = draft_proxy.new()
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Invalid Root Location\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: company_status, body: company_body, ..), root_proxy) =
+    graphql(root_proxy, create_company)
+  assert company_status == 200
+  assert string.contains(json.to_string(company_body), "\"userErrors\":[]")
+
+  let root_phone_create =
+    "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Bad Phone Branch\", phone: \"not-a-phone\" }) { companyLocation { id } userErrors { field message code detail } } }"
+  let #(
+    Response(status: root_phone_status, body: root_phone_body, ..),
+    root_proxy,
+  ) = graphql(root_proxy, root_phone_create)
+  assert root_phone_status == 200
+  let root_phone_json = json.to_string(root_phone_body)
+  assert string.contains(root_phone_json, "\"companyLocation\":null")
+  assert string.contains(
+    root_phone_json,
+    "\"field\":[\"input\",\"phone\"],\"message\":\"Phone is invalid\",\"code\":\"INVALID\"",
+  )
+
+  let root_locale_create =
+    "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Bad Locale Branch\", locale: \"not_a_locale\" }) { companyLocation { id locale } userErrors { field message code detail } } }"
+  let #(Response(status: root_locale_status, body: root_locale_body, ..), _) =
+    graphql(root_proxy, root_locale_create)
+  assert root_locale_status == 200
+  let root_locale_json = json.to_string(root_locale_body)
+  assert string.contains(root_locale_json, "\"companyLocation\":{\"id\"")
+  assert string.contains(root_locale_json, "\"locale\":\"not_a_locale\"")
+  assert string.contains(root_locale_json, "\"userErrors\":[]")
+}
+
 pub fn b2b_contact_create_rejects_invalid_email_and_name_spam_test() {
   let proxy = draft_proxy.new()
   let create_company =
