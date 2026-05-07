@@ -1,0 +1,15 @@
+#graphql
+mutation RefundCreateAttributionValidation($input: RefundInput!) {
+  refundCreate(input: $input) {
+    refund {
+      id
+    }
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

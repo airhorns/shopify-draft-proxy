@@ -5349,6 +5349,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-refund-attribution-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-refund-attribution-validation-conformance.mts',
+    purpose:
+      'refundCreate public-schema attribution field coercion and unchanged downstream order read after rejection.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}refund-create-attribution-validation.json`,
+      'config/parity-specs/orders/refundCreate-attribution-validation.json',
+      'config/parity-requests/orders/refundCreate-attribution-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable paid order, captures pre-resolver coercion failures, records an unchanged downstream read, then attempts orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-refunds',
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
     purpose: 'Order refund calculation/create behavior against disposable orders.',
