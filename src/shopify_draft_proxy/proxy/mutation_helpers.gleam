@@ -32,6 +32,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Argument, type Location, type Selection, type Value, Argument,
@@ -1298,6 +1299,15 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "RefundInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       _ -> []
                     }
                   Some(schema_field) ->
@@ -1796,7 +1806,7 @@ fn collect_unknown_variable_fields(
   io: mutation_schema.SchemaInputObject,
   path: List(PathSegment),
 ) -> List(ValueProblem) {
-  dict.keys(fields)
+  unknown_variable_field_names(fields, io.name)
   |> list.filter_map(fn(field_name) {
     case io.name, find_schema_input_field(io.input_fields, field_name) {
       _, Some(_) -> Error(Nil)
@@ -1830,9 +1840,49 @@ fn collect_unknown_variable_fields(
           explanation: "Field is not defined on " <> io.name,
           message: None,
         ))
+      "RefundInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
       _, None -> Error(Nil)
     }
   })
+}
+
+fn unknown_variable_field_names(
+  fields: Dict(String, root_field.ResolvedValue),
+  input_object_name: String,
+) -> List(String) {
+  case input_object_name {
+    "RefundInput" ->
+      dict.keys(fields)
+      |> list.sort(compare_refund_input_variable_field_names)
+    _ -> dict.keys(fields)
+  }
+}
+
+fn compare_refund_input_variable_field_names(left: String, right: String) {
+  case
+    int.compare(
+      refund_input_variable_field_rank(left),
+      refund_input_variable_field_rank(right),
+    )
+  {
+    order.Eq -> string.compare(left, right)
+    order -> order
+  }
+}
+
+fn refund_input_variable_field_rank(field_name: String) -> Int {
+  case field_name {
+    "pointOfSaleDeviceId" -> 1
+    "locationId" -> 2
+    "userId" -> 3
+    "transactionGroupId" -> 4
+    _ -> 1000
+  }
 }
 
 fn build_unknown_input_object_field_error(

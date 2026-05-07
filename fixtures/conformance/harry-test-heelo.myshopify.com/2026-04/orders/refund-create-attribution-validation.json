@@ -1,0 +1,502 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "schemaProbe": {
+    "query": "#graphql\n  query RefundCreateAttributionSchemaProbe {\n    refundInput: __type(name: \"RefundInput\") {\n      inputFields {\n        name\n      }\n    }\n    userError: __type(name: \"UserError\") {\n      fields {\n        name\n      }\n    }\n  }\n",
+    "response": {
+      "data": {
+        "refundInput": {
+          "inputFields": [
+            {
+              "name": "currency"
+            },
+            {
+              "name": "orderId"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "notify"
+            },
+            {
+              "name": "shipping"
+            },
+            {
+              "name": "processedAt"
+            },
+            {
+              "name": "refundLineItems"
+            },
+            {
+              "name": "refundDuties"
+            },
+            {
+              "name": "transactions"
+            },
+            {
+              "name": "refundMethods"
+            },
+            {
+              "name": "discrepancyReason"
+            },
+            {
+              "name": "allowOverRefunding"
+            }
+          ]
+        },
+        "userError": {
+          "fields": [
+            {
+              "name": "field"
+            },
+            {
+              "name": "message"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  mutation RefundAttributionValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        displayFulfillmentStatus\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalReceivedSet { shopMoney { amount currencyCode } }\n        totalRefundedSet { shopMoney { amount currencyCode } }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            quantity\n            currentQuantity\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n          }\n        }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        refunds {\n          id\n          note\n          totalRefundedSet { shopMoney { amount currencyCode } }\n        }\n        returns(first: 5) {\n          nodes { id status }\n          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "order": {
+          "email": "hermes-refund-attribution-1778124832014@example.com",
+          "note": "refundCreate attribution validation parity seed order",
+          "tags": [
+            "parity-probe",
+            "refund-create",
+            "attribution-validation"
+          ],
+          "test": true,
+          "lineItems": [
+            {
+              "title": "Hermes refundable attribution validation item 1778124832014",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "hermes-refund-attribution-1778124832014"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8733530685746",
+              "name": "#1332",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19309069566258",
+                    "title": "Hermes refundable attribution validation item 1778124832014",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10421765177650",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "returns": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1974,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidVariable": {
+    "query": "#graphql\n  mutation RefundCreateAttributionValidation($input: RefundInput!) {\n    refundCreate(input: $input) {\n      refund {\n        id\n      }\n      order {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8733530685746",
+        "pointOfSaleDeviceId": "9999999",
+        "locationId": "gid://shopify/Location/0",
+        "userId": 0,
+        "transactionGroupId": "0"
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type RefundInput! was provided invalid value for pointOfSaleDeviceId (Field is not defined on RefundInput), locationId (Field is not defined on RefundInput), userId (Field is not defined on RefundInput), transactionGroupId (Field is not defined on RefundInput)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 46
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "orderId": "gid://shopify/Order/8733530685746",
+              "pointOfSaleDeviceId": "9999999",
+              "locationId": "gid://shopify/Location/0",
+              "userId": 0,
+              "transactionGroupId": "0"
+            },
+            "problems": [
+              {
+                "path": [
+                  "pointOfSaleDeviceId"
+                ],
+                "explanation": "Field is not defined on RefundInput"
+              },
+              {
+                "path": [
+                  "locationId"
+                ],
+                "explanation": "Field is not defined on RefundInput"
+              },
+              {
+                "path": [
+                  "userId"
+                ],
+                "explanation": "Field is not defined on RefundInput"
+              },
+              {
+                "path": [
+                  "transactionGroupId"
+                ],
+                "explanation": "Field is not defined on RefundInput"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "invalidInline": {
+    "document": "mutation RefundCreateAttributionInlineProbe {\n  refundCreate(input: {\n    orderId: \"gid://shopify/Order/8733530685746\"\n    pointOfSaleDeviceId: \"9999999\"\n    locationId: \"gid://shopify/Location/0\"\n    userId: 0\n    transactionGroupId: \"0\"\n  }) {\n    refund {\n      id\n    }\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {},
+    "response": {
+      "errors": [
+        {
+          "message": "InputObject 'RefundInput' doesn't accept argument 'pointOfSaleDeviceId'",
+          "locations": [
+            {
+              "line": 4,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "pointOfSaleDeviceId"
+          ],
+          "extensions": {
+            "code": "argumentNotAccepted",
+            "name": "RefundInput",
+            "typeName": "InputObject",
+            "argumentName": "pointOfSaleDeviceId"
+          }
+        },
+        {
+          "message": "InputObject 'RefundInput' doesn't accept argument 'locationId'",
+          "locations": [
+            {
+              "line": 5,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "locationId"
+          ],
+          "extensions": {
+            "code": "argumentNotAccepted",
+            "name": "RefundInput",
+            "typeName": "InputObject",
+            "argumentName": "locationId"
+          }
+        },
+        {
+          "message": "InputObject 'RefundInput' doesn't accept argument 'userId'",
+          "locations": [
+            {
+              "line": 6,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "userId"
+          ],
+          "extensions": {
+            "code": "argumentNotAccepted",
+            "name": "RefundInput",
+            "typeName": "InputObject",
+            "argumentName": "userId"
+          }
+        },
+        {
+          "message": "InputObject 'RefundInput' doesn't accept argument 'transactionGroupId'",
+          "locations": [
+            {
+              "line": 7,
+              "column": 5
+            }
+          ],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "transactionGroupId"
+          ],
+          "extensions": {
+            "code": "argumentNotAccepted",
+            "name": "RefundInput",
+            "typeName": "InputObject",
+            "argumentName": "transactionGroupId"
+          }
+        }
+      ]
+    }
+  },
+  "downstreamRead": {
+    "query": "#graphql\n  query OrderRefundReadParity($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      displayFinancialStatus\n      displayFulfillmentStatus\n      refunds {\n        id\n        note\n        totalRefundedSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      returns(first: 5) {\n        nodes {\n          id\n          status\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n",
+    "variables": {
+      "id": "gid://shopify/Order/8733530685746"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8733530685746",
+          "name": "#1332",
+          "displayFinancialStatus": "PAID",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "refunds": [],
+          "returns": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "transactions": [
+            {
+              "id": "gid://shopify/OrderTransaction/10421765177650",
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "totalRefundedSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/133c41b1-4df4-4d8e-a3d6-21e2a7ff8edc",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrderRefundReadParity",
+      "variables": {
+        "id": "gid://shopify/Order/8733530685746"
+      },
+      "query": "captured downstream order read after refundCreate attribution validation rejection",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8733530685746",
+              "name": "#1332",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "refunds": [],
+              "returns": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10421765177650",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

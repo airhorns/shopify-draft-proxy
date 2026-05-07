@@ -1,0 +1,47 @@
+{
+  "scenarioId": "refund-create-attribution-validation",
+  "operationNames": ["refundCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-coercion-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/refund-create-attribution-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/refundCreate-attribution-validation.graphql",
+    "variablesCapturePath": "$.invalidVariable.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variable attribution fields reject before refundCreate resolver",
+        "capturePath": "$.invalidVariable.response",
+        "proxyPath": "$"
+      },
+      {
+        "name": "inline attribution fields reject before refundCreate resolver",
+        "capturePath": "$.invalidInline.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-attribution-validation.graphql",
+          "documentCapturePath": "$.invalidInline.document",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "downstream order remains unchanged after rejected attribution",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Shopify Admin GraphQL 2026-04 public-schema behavior for refundCreate attribution keys. `RefundInput` does not expose pointOfSaleDeviceId, locationId, userId, or transactionGroupId, and `UserError` does not expose code for this payload; variable-bound input returns a top-level INVALID_VARIABLE envelope, inline input returns argumentNotAccepted errors, and the disposable paid order remains unchanged on downstream read."
+}

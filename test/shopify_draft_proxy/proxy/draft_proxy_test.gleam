@@ -500,6 +500,72 @@ pub fn graphql_validation_update_rejects_unknown_function_handle_input_test() {
     == "{\"errors\":[{\"message\":\"Field 'functionHandle' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionHandle\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionHandle\"}}]}"
 }
 
+pub fn graphql_refund_create_variable_rejects_public_schema_attribution_fields_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request_for_version(
+      "2026-04",
+      "{\"query\":\"mutation RefundCreateAttributionValidation($input: RefundInput!) { refundCreate(input: $input) { refund { id } userErrors { field message } } }\",\"variables\":{\"input\":{\"orderId\":\"gid://shopify/Order/0\",\"pointOfSaleDeviceId\":\"9999999\",\"locationId\":\"gid://shopify/Location/0\",\"userId\":0,\"transactionGroupId\":\"0\"}}}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, request)
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "pointOfSaleDeviceId (Field is not defined on RefundInput)",
+  )
+  assert string.contains(
+    serialized,
+    "locationId (Field is not defined on RefundInput)",
+  )
+  assert string.contains(
+    serialized,
+    "transactionGroupId (Field is not defined on RefundInput)",
+  )
+  let #(Response(body: log_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "GET",
+        path: "/__meta/log",
+        headers: empty_headers(),
+        body: "",
+      ),
+    )
+  assert json.to_string(log_body) == "{\"entries\":[]}"
+}
+
+pub fn graphql_refund_create_literal_rejects_public_schema_attribution_fields_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request_for_version(
+      "2026-04",
+      "{\"query\":\"mutation RefundCreateAttributionInlineProbe { refundCreate(input: { orderId: \\\"gid://shopify/Order/0\\\", pointOfSaleDeviceId: \\\"9999999\\\", locationId: \\\"gid://shopify/Location/0\\\", userId: 0, transactionGroupId: \\\"0\\\" }) { refund { id } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  let serialized = json.to_string(body)
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"message\":\"InputObject 'RefundInput' doesn't accept argument 'pointOfSaleDeviceId'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"InputObject 'RefundInput' doesn't accept argument 'locationId'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"message\":\"InputObject 'RefundInput' doesn't accept argument 'transactionGroupId'\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"extensions\":{\"code\":\"argumentNotAccepted\",\"name\":\"RefundInput\",\"typeName\":\"InputObject\",\"argumentName\":\"userId\"}",
+  )
+}
+
 pub fn graphql_validation_update_rejects_enabled_alias_input_test() {
   let proxy = draft_proxy.new()
   let request =
