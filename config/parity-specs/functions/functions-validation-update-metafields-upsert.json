@@ -1,0 +1,223 @@
+{
+  "scenarioId": "functions-validation-update-metafields-upsert",
+  "operationNames": ["validationCreate", "validationUpdate", "validation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "functions-validation-update-metafields-upsert"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.createInitial.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-initial-metafields",
+        "capturePath": "$.createInitial.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy mints a synthetic Validation ID while Shopify returns the live disposable validation ID."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      },
+      {
+        "name": "validation-update-title-only-retains-metafields",
+        "capturePath": "$.updateTitleOnly.response.payload.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "validation": {
+              "title": "Validation metafields upsert renamed"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy updates the synthetic Validation ID created by the primary request."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      },
+      {
+        "name": "validation-read-after-title-only-retains-metafields",
+        "capturePath": "$.readAfterTitleOnly.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy reads the synthetic Validation ID created by the primary request."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      },
+      {
+        "name": "validation-update-empty-metafields-retains-metafields",
+        "capturePath": "$.updateEmpty.response.payload.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "validation": {
+              "metafields": []
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy updates the synthetic Validation ID created by the primary request."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      },
+      {
+        "name": "validation-read-after-empty-metafields-retains-metafields",
+        "capturePath": "$.readAfterEmpty.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy reads the synthetic Validation ID created by the primary request."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      },
+      {
+        "name": "validation-update-partial-metafields-upserts-and-retains",
+        "capturePath": "$.updatePartial.response.payload.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "validation": {
+              "metafields": [
+                {
+                  "namespace": "custom",
+                  "key": "mode",
+                  "type": "single_line_text_field",
+                  "value": "relaxed"
+                },
+                {
+                  "namespace": "custom",
+                  "key": "size",
+                  "type": "single_line_text_field",
+                  "value": "large"
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy updates the synthetic Validation ID created by the primary request."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      },
+      {
+        "name": "validation-read-after-partial-metafields-upsert",
+        "capturePath": "$.readAfterPartial.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-metafields-upsert-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy reads the synthetic Validation ID created by the primary request."
+          },
+          {
+            "path": "$.validation.metafields.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged metafields deterministically while Shopify returns live timestamps."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify parity evidence for validationUpdate metafield semantics. The capture creates a disposable validation with two metafields, proves title-only and explicit empty metafields updates preserve both rows, then proves a partial non-empty metafields update changes the matching namespace/key row, appends a new row, and retains the unrelated existing row. The cassette contains only the ShopifyFunction lookup needed for local validationCreate staging; supported mutations remain local-only under the proxy."
+}
