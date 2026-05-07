@@ -1348,6 +1348,17 @@ pub fn metaobject_definition_decoder() -> Decoder(
     None,
     decode.optional(metaobject_standard_template_decoder()),
   )
+  use standard_template_id <- optional_string_field("standardTemplateId")
+  use standard_template_dependent_on_app <- optional_field(
+    "standardTemplateDependentOnApp",
+    False,
+    decode.bool,
+  )
+  use app_config_managed <- optional_field(
+    "appConfigManaged",
+    False,
+    decode.bool,
+  )
   use linked_metafields <- optional_field(
     "linkedMetafields",
     [],
@@ -1367,6 +1378,9 @@ pub fn metaobject_definition_decoder() -> Decoder(
     has_thumbnail_field: has_thumbnail_field,
     metaobjects_count: metaobjects_count,
     standard_template: standard_template,
+    standard_template_id: standard_template_id,
+    standard_template_dependent_on_app: standard_template_dependent_on_app,
+    app_config_managed: app_config_managed,
     linked_metafields: linked_metafields,
     created_at: created_at,
     updated_at: updated_at,

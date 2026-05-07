@@ -1874,6 +1874,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-lifecycle-invariants',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-lifecycle-invariants-conformance.ts',
+    purpose:
+      'metaobjectDefinitionCreate reserved standard-template and shopify-- namespace validation plus live discovery for unavailable app-managed/dependent-on-app delete guard candidates.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-lifecycle-invariants.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-lifecycle-invariants.json',
+      'config/parity-requests/metaobjects/metaobject-definition-lifecycle-invariants-create.graphql',
+    ],
+    cleanupBehavior:
+      'Runs validation-only create probes and read-only schema/catalog discovery; no records are created and no cleanup is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Delete guard branches remain runtime-test-backed until a conformance credential can reach an app-config-managed definition and an app-dependent standard definition.',
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-update-capability-invariants',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-capability-invariants-conformance.ts',
@@ -4538,6 +4557,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable validation through conformance-validation, updates it, reads it back, captures the missing-id branch, then deletes the disposable validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-validation-update-metafields-upsert',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-update-metafields-upsert-conformance.ts',
+    purpose:
+      'validationUpdate omitted, empty, and partial non-empty metafields input semantics for validation-owned metafield rows.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for disposable validationCreate/update/delete lifecycle capture',
+      'released conformance-validation Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-update-metafields-upsert.json`,
+      'config/parity-specs/functions/functions-validation-update-metafields-upsert.json',
+      'config/parity-requests/functions/functions-validation-update-metafields-upsert-create.graphql',
+      'config/parity-requests/functions/functions-validation-update-metafields-upsert-update.graphql',
+      'config/parity-requests/functions/functions-validation-update-metafields-upsert-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable validation with two metafields through conformance-validation, updates it with title-only, empty metafields, and partial metafields inputs, reads after each update, then deletes the disposable validation.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
