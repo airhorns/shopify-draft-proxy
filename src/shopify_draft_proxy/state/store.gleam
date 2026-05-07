@@ -572,6 +572,8 @@ pub const upsert_staged_saved_search = content.upsert_staged_saved_search
 
 pub const delete_staged_saved_search = content.delete_staged_saved_search
 
+pub const saved_search_id_deleted = content.saved_search_id_deleted
+
 pub const get_effective_saved_search_by_id = content.get_effective_saved_search_by_id
 
 pub const list_effective_saved_searches = content.list_effective_saved_searches

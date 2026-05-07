@@ -169,6 +169,39 @@ pub fn defaults_for_resource_type(
   list.map(raw, derive_default_saved_search_query_parts)
 }
 
+@internal
+pub fn visible_defaults_for_resource_type(
+  store: Store,
+  resource_type: String,
+) -> List(SavedSearchRecord) {
+  defaults_for_resource_type(resource_type)
+  |> list.filter(fn(default) {
+    !store.saved_search_id_deleted(store, default.id)
+  })
+}
+
+@internal
+pub fn get_effective_saved_search_by_id(
+  store: Store,
+  id: String,
+) -> Option(SavedSearchRecord) {
+  case store.get_effective_saved_search_by_id(store, id) {
+    Some(record) -> Some(record)
+    None -> {
+      let found =
+        ["ORDER", "DRAFT_ORDER"]
+        |> list.flat_map(fn(resource_type) {
+          visible_defaults_for_resource_type(store, resource_type)
+        })
+        |> list.find(fn(default) { default.id == id })
+      case found {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+    }
+  }
+}
+
 fn derive_default_saved_search_query_parts(
   record: SavedSearchRecord,
 ) -> SavedSearchRecord {
@@ -298,12 +331,24 @@ fn list_saved_searches(
     _ -> False
   }
   let local_records = list_effective_saved_searches(store)
-  let local_ids = list.map(local_records, fn(record) { record.id })
+  let local_records_by_id =
+    local_records
+    |> list.map(fn(record) { #(record.id, record) })
+    |> dict.from_list
   let defaults =
-    defaults_for_resource_type(resource_type)
-    |> list.filter(fn(default) { !list.contains(local_ids, default.id) })
+    visible_defaults_for_resource_type(store, resource_type)
+    |> list.map(fn(default) {
+      case dict.get(local_records_by_id, default.id) {
+        Ok(local_record) -> local_record
+        Error(_) -> default
+      }
+    })
+  let default_ids = list.map(defaults, fn(default) { default.id })
+  let non_default_local_records =
+    local_records
+    |> list.filter(fn(record) { !list.contains(default_ids, record.id) })
   let filtered =
-    list.append(defaults, local_records)
+    list.append(defaults, non_default_local_records)
     |> list.filter(fn(record) { record.resource_type == resource_type })
     |> list.filter(fn(record) { matches_query(record, query_arg) })
   case reverse {
