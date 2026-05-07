@@ -79,6 +79,24 @@ new version-specific capture proves Shopify changed the public API branch. The
 checked-in anchor is
 `config/parity-specs/payments/payment-terms-create-order-eligibility.json`.
 
+## Current: productCreate legacy ProductInput key guard differs from internal notes
+
+A 2026-04 `productCreate(input:)` capture against `harry-test-heelo` showed
+that public Admin GraphQL still accepts the deprecated `input: ProductInput`
+argument even though mutation introspection lists only `productCreate(product:)`.
+For that legacy branch, `input.id` returns a payload `userErrors` entry with
+`field: ["input"]` and message `id cannot be specified during creation`; it is
+not a top-level GraphQL error on this store. The same public schema rejects
+`input.variants` before resolver execution because `ProductInput` does not
+define `variants`, so variant `productId` never reaches a product-create
+resolver guard through that shape.
+
+Practical rule: for this proxy, follow the captured public Admin behavior:
+reject legacy `input.id` before scalar validation without staging a product, and
+let schema validation reject unknown `ProductInput` fields such as `variants`.
+The checked-in anchor is
+`config/parity-specs/products/product-create-no-key-on-create.json`.
+
 ## Current: Customer address Atlas validation normalizes some apparent conflicts
 
 HAR-776 captured Admin GraphQL 2025-01 customer address validation against

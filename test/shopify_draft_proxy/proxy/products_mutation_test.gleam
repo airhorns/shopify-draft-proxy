@@ -3978,6 +3978,76 @@ pub fn product_create_legacy_input_validation_uses_input_field_path_test() {
   assert entry.staged_resource_ids == []
 }
 
+pub fn product_create_legacy_input_id_rejects_before_scalar_validation_test() {
+  let query =
+    "mutation { productCreate(input: { id: \\\"gid://shopify/Product/1\\\", title: \\\"\\\" }) { product { id title } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\"],\"message\":\"id cannot be specified during creation\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productCreate")
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+  assert store.list_effective_products(next_proxy.store) == []
+
+  let read_query =
+    "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id title } node(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id } products(first: 10) { nodes { id title } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":null,\"node\":null,\"products\":{\"nodes\":[]}}}"
+}
+
+pub fn product_create_legacy_input_variants_rejected_by_schema_test() {
+  let inline_query =
+    "mutation { productCreate(input: { title: \\\"No Key Variant\\\", variants: [{ productId: \\\"gid://shopify/Product/1\\\", price: \\\"1.00\\\" }] }) { product { id title } userErrors { field message } } }"
+  let #(Response(status: inline_status, body: inline_body, ..), inline_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(inline_query),
+    )
+
+  assert inline_status == 200
+  let inline_serialized = json.to_string(inline_body)
+  assert string.contains(inline_serialized, "\"errors\":[")
+  assert string.contains(
+    inline_serialized,
+    "InputObject 'ProductInput' doesn't accept argument 'variants'",
+  )
+  assert string.contains(inline_serialized, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(inline_serialized, "\"argumentName\":\"variants\"")
+  assert store.get_log(inline_proxy.store) == []
+
+  let variable_request_body =
+    "{\"query\":\"mutation Legacy($input: ProductInput!) { productCreate(input: $input) { product { id title } userErrors { field message } } }\",\"variables\":{\"input\":{\"title\":\"No Key Variant\",\"variants\":[{\"productId\":\"gid://shopify/Product/1\",\"price\":\"1.00\"}]}}}"
+  let #(
+    Response(status: variable_status, body: variable_body, ..),
+    variable_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request_body(variable_request_body),
+    )
+
+  assert variable_status == 200
+  let variable_serialized = json.to_string(variable_body)
+  assert string.contains(variable_serialized, "\"errors\":[")
+  assert string.contains(variable_serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    variable_serialized,
+    "Variable $input of type ProductInput! was provided invalid value for variants",
+  )
+  assert string.contains(
+    variable_serialized,
+    "\"explanation\":\"Field is not defined on ProductInput\"",
+  )
+  assert store.get_log(variable_proxy.store) == []
+}
+
 pub fn product_create_missing_input_argument_top_level_error_test() {
   // No `product:` and no `input:` argument → top-level GraphQL error,
   // mirroring real Shopify's `missingRequiredArguments` extension code,
