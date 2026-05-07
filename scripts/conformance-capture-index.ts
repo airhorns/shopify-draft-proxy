@@ -5459,6 +5459,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-allowed-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-allowed-roots-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation accepts non-products inner mutation roots and returns CREATED for customerCreate, metaobjectDefinitionCreate, and metafieldsSet bulk imports.',
+    requiredAuthScopes: [
+      'bulk operation access through active Admin token',
+      'write_customers',
+      'write_metaobjects',
+      'write_metafields',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-allowed-roots.json`,
+      'config/parity-specs/bulk-operations/run-mutation-allowed-roots.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-allowed-roots.graphql',
+    ],
+    cleanupBehavior:
+      'Uploads three JSONL files, submits customerCreate, metaobjectDefinitionCreate, and metafieldsSet bulk mutations, waits for terminal completion, then deletes the created customer, metaobject definition, and shop metafield.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'platform-payments-orphaned-fixtures-bulk-operations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04', ORPHAN_FIXTURE_GROUP: 'bulk-operations' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
