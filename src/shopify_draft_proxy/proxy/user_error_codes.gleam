@@ -29,3 +29,5 @@ pub const return_line_item_quantity_invalid = "RETURN_LINE_ITEM_QUANTITY_INVALID
 pub const tax_line_rate_missing = "TAX_LINE_RATE_MISSING"
 
 pub const too_long = "TOO_LONG"
+
+pub const too_many_tags = "TOO_MANY_TAGS"
