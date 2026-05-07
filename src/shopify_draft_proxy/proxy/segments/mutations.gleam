@@ -936,12 +936,14 @@ fn validate_segment_name(
       segment_types.user_error(field_path, "Name can't be blank", None),
     ]
     True, Some(name) ->
-      case string.trim(name) {
+      case normalize_segment_name(name) {
         "" -> [
           segment_types.user_error(field_path, "Name can't be blank", None),
         ]
-        _ ->
-          case string.length(name) > segment_types.max_segment_name_length {
+        normalized ->
+          case
+            string.length(normalized) > segment_types.max_segment_name_length
+          {
             True -> [
               segment_types.user_error(
                 field_path,
@@ -1122,7 +1124,7 @@ pub fn validate_segment_query(
           segment_types.user_error(field_path, "Query can't be blank", None),
         ]
         trimmed ->
-          case string.length(trimmed) > segment_types.max_segment_query_length {
+          case string.length(q) > segment_types.max_segment_query_length {
             True -> [
               segment_types.user_error(
                 field_path,

@@ -37,10 +37,10 @@ Staged mutations:
 - Unknown `segment(id:)` returns `null` with Shopify's captured `NOT_FOUND` error shape.
 - `segmentCreate` stages a local segment with a stable synthetic Segment GID, creation/last-edit timestamps, name, and query. Duplicate names follow Shopify's suffix behavior by bumping an existing trailing ` (N)` counter or appending ` (2)` when there is no counter. After 10 duplicate retries the proxy returns `Name has already been taken` without staging a segment.
 - Locally staged Segment payloads project Shopify-like defaults for schema non-null fields: `tagMigrated: false` and `valid: true`. Computed Shopify-owned fields that the proxy cannot derive locally are selected as null for staged segments: `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author`.
-- `segmentCreate` rejects names longer than 255 characters, queries longer than 5000 characters, and shops that already have 6000 effective local segments before staging a new segment. Length validation runs before query grammar validation so overlong queries return Shopify's length error rather than parser errors.
+- `segmentCreate` rejects stripped names longer than 255 characters, raw query strings longer than 5000 characters, and shops that already have 6000 effective local segments before staging a new segment. Length validation runs before query grammar validation so overlong queries return Shopify's length error rather than parser errors. Accepted names are persisted in stripped form; query blankness is detected on the trimmed string, but query length is measured before trimming.
 - `segmentCreate` and `segmentUpdate` accept the broader Shopify segment query grammar at save time for supported filter names, comparison operators, `IS NULL` / `IS NOT NULL`, `CONTAINS` / `NOT CONTAINS`, `BETWEEN`, boolean `AND` / `OR`, parentheses, escaped string literals, and relative date literals. This is storage validation only; it does not mean local member evaluation understands every accepted filter.
 - `segmentUpdate` stages name/query replacement on an existing base or staged segment and preserves the original creation timestamp while advancing `lastEditDate`. Rename collisions use the same bump-then-Taken behavior as `segmentCreate`.
-- `segmentUpdate` applies the same 255-character name and 5000-character query limits before staging updates.
+- `segmentUpdate` applies the same stripped-name and raw-query length limits before staging updates.
 - `segmentDelete` records local deletion state and removes the segment from downstream detail, catalog, and count reads.
 - Captured validation coverage currently includes blank names, overlong names, blank/invalid/overlong query strings, unknown IDs, missing required GraphQL arguments, segment-limit rejection, and delete-after-delete/unknown delete behavior.
 - `customerSegmentMembersQueryCreate` stages a local query job and retains the original raw mutation request in the
@@ -79,6 +79,7 @@ Staged mutations:
 - Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
 - Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
 - Segment length/limit validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segments-create-update-validation-limits.json`
+- Segment length edge-case fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-update-length-edge-cases.json`
 - Segment payload non-null field fixture: `fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json`
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-query-grammar-not-contains.json`
@@ -86,6 +87,7 @@ Staged mutations:
 - Conformance request/spec: `config/parity-requests/segments/segments-baseline-read.graphql`, `config/parity-specs/segments/segments-baseline-read.json`
 - Segment lifecycle validation specs: `config/parity-specs/segments/segment-create-invalid-query-validation.json`, `config/parity-specs/segments/segment-update-unknown-id-validation.json`, `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
 - Segment length/limit validation spec: `config/parity-specs/segments/segments-create-update-validation-limits.json`
+- Segment length edge-case spec: `config/parity-specs/segments/segment-create-update-length-edge-cases.json`
 - Segment payload non-null field spec: `config/parity-specs/segments/segment-payload-non-null-fields.json`
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
