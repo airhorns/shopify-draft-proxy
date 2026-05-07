@@ -201,14 +201,29 @@ pub fn first_customer_set_custom_id_error(
           let identifier =
             graphql_helpers.read_arg_object(args, "identifier")
             |> option.unwrap(dict.new())
-          case dict.has_key(identifier, "customId") {
-            True -> Some(customer_set_custom_id_error(field, document))
-            False ->
+          let input =
+            graphql_helpers.read_arg_object(args, "input")
+            |> option.unwrap(dict.new())
+          case
+            dict.has_key(identifier, "customId"),
+            customer_set_input_has_non_null_id(input)
+          {
+            True, False -> Some(customer_set_custom_id_error(field, document))
+            _, _ ->
               first_customer_set_custom_id_error(rest, variables, document)
           }
         }
         _ -> first_customer_set_custom_id_error(rest, variables, document)
       }
+  }
+}
+
+fn customer_set_input_has_non_null_id(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(input, "id") {
+    Ok(root_field.NullVal) | Error(_) -> False
+    Ok(_) -> True
   }
 }
 
