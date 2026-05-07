@@ -1316,7 +1316,7 @@ pub fn subscription_cancel_unknown_id_emits_user_error_test() {
 
 // ----------- appSubscriptionLineItemUpdate -----------
 
-pub fn line_item_update_caps_usage_amount_test() {
+pub fn line_item_update_requires_approval_keeps_current_amount_test() {
   let sub_id = "gid://shopify/AppSubscription/30"
   let li_id = "gid://shopify/AppSubscriptionLineItem/30?v=1&index=1"
   let s =
@@ -1336,7 +1336,38 @@ pub fn line_item_update_caps_usage_amount_test() {
     <> "\", cappedAmount: { amount: \"200.00\", currencyCode: USD }) { confirmationUrl appSubscription { id lineItems { id plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } } } } userErrors { field message } } }"
   let outcome = run_mutation_outcome(s, document)
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/30/RecurringApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/30\",\"lineItems\":[{\"id\":\"gid://shopify/AppSubscriptionLineItem/30?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppUsagePricing\",\"cappedAmount\":{\"amount\":\"200.00\",\"currencyCode\":\"USD\"}}}}]},\"userErrors\":[]}}}"
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/30/RecurringApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/30\",\"lineItems\":[{\"id\":\"gid://shopify/AppSubscriptionLineItem/30?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppUsagePricing\",\"cappedAmount\":{\"amount\":\"50.00\",\"currencyCode\":\"USD\"}}}}]},\"userErrors\":[]}}}"
+  let assert Some(updated) =
+    store.get_effective_app_subscription_line_item_by_id(outcome.store, li_id)
+  case updated.plan.pricing_details {
+    AppUsagePricing(capped_amount: c, ..) -> {
+      assert c.amount == "50.00"
+    }
+    _ -> panic as "expected usage pricing"
+  }
+}
+
+pub fn line_item_update_without_approval_caps_usage_amount_test() {
+  let sub_id = "gid://shopify/AppSubscription/30"
+  let li_id = "gid://shopify/AppSubscriptionLineItem/30?v=1&index=1"
+  let s =
+    seeded_with_line_item(
+      sub_id,
+      li_id,
+      AppUsagePricing(
+        capped_amount: money("50.00", "USD"),
+        balance_used: money("0.00", "USD"),
+        interval: "ANNUAL",
+        terms: Some("per row"),
+      ),
+    )
+  let document =
+    "mutation { appSubscriptionLineItemUpdate(id: \""
+    <> li_id
+    <> "\", cappedAmount: { amount: \"200.00\", currencyCode: USD }, requireApproval: false) { confirmationUrl appSubscription { id lineItems { id plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } } } } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"confirmationUrl\":null,\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/30\",\"lineItems\":[{\"id\":\"gid://shopify/AppSubscriptionLineItem/30?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppUsagePricing\",\"cappedAmount\":{\"amount\":\"200.00\",\"currencyCode\":\"USD\"}}}}]},\"userErrors\":[]}}}"
   let assert Some(updated) =
     store.get_effective_app_subscription_line_item_by_id(outcome.store, li_id)
   case updated.plan.pricing_details {
