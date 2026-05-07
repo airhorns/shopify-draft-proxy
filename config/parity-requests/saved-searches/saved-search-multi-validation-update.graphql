@@ -1,0 +1,14 @@
+mutation SavedSearchMultiValidationUpdate($input: SavedSearchUpdateInput!) {
+  savedSearchUpdate(input: $input) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

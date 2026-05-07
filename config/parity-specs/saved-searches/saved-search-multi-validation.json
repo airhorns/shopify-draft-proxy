@@ -1,0 +1,65 @@
+{
+  "scenarioId": "saved-search-multi-validation",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-multi-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-multi-validation-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateMultiValidation.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that savedSearchCreate and savedSearchUpdate aggregate saved-search validation classes instead of short-circuiting after the first error. Shopify reports update unknown-filter and incompatible-filter errors at input.query, while reserved-filter update errors remain input.searchTerms in the existing reserved-filter capture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-reserved-name-and-unknown-filter-create",
+        "capturePath": "$.savedSearchCreateMultiValidation.payload.data.productReservedUnknown",
+        "proxyPath": "$.data.productReservedUnknown",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-long-name-and-incompatible-filter-create",
+        "capturePath": "$.savedSearchCreateMultiValidation.payload.data.productLongIncompatible",
+        "proxyPath": "$.data.productLongIncompatible",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "order-reserved-and-unknown-filter-create",
+        "capturePath": "$.savedSearchCreateMultiValidation.payload.data.orderReservedUnknown",
+        "proxyPath": "$.data.orderReservedUnknown",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-duplicate-name-and-query-errors-update",
+        "capturePath": "$.savedSearchUpdateMultiValidation.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.savedSearch.name", "$.savedSearch.query", "$.savedSearch.resourceType", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-multi-validation-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productPositiveB.savedSearch.id"
+              },
+              "name": {
+                "fromCapturePath": "$.savedSearchUpdateMultiValidation.variables.input.name"
+              },
+              "query": {
+                "fromCapturePath": "$.savedSearchUpdateMultiValidation.variables.input.query"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

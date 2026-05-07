@@ -1,0 +1,215 @@
+{
+  "capturedAt": "2026-05-07T12:27:05.511Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "multi-movgnv6g",
+  "notes": [
+    "SavedSearch create aggregates name and query validation userErrors in one payload.",
+    "SavedSearch query validation reports reserved and unknown filters together for ORDER saved searches.",
+    "SavedSearch update aggregates duplicate-name, unknown-filter, and incompatible-filter userErrors while returning a non-staged payload echo."
+  ],
+  "savedSearchCreateMultiValidation": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-multi-validation-create.graphql",
+    "variables": {
+      "productReservedUnknown": {
+        "resourceType": "PRODUCT",
+        "name": "All products",
+        "query": "made_up_filter:foo"
+      },
+      "productLongIncompatible": {
+        "resourceType": "PRODUCT",
+        "name": "12345678901234567890123456789012345678901",
+        "query": "collection_id:\"123\" tag:\"AAA\""
+      },
+      "orderReservedUnknown": {
+        "resourceType": "ORDER",
+        "name": "SDP Order multi-movgnv6g",
+        "query": "reference_location_id:1 made_up_filter:foo"
+      },
+      "productPositiveA": {
+        "resourceType": "PRODUCT",
+        "name": "SDP Multi A multi-movgnv6g",
+        "query": "vendor:multi-movgnv6g tag:a"
+      },
+      "productPositiveB": {
+        "resourceType": "PRODUCT",
+        "name": "SDP Multi B multi-movgnv6g",
+        "query": "vendor:multi-movgnv6g tag:b"
+      }
+    },
+    "payload": {
+      "data": {
+        "productReservedUnknown": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            },
+            {
+              "field": ["input", "query"],
+              "message": "Query is invalid, 'made_up_filter' is not a valid filter"
+            }
+          ]
+        },
+        "productLongIncompatible": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name is too long (maximum is 40 characters)"
+            },
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, tag"
+            }
+          ]
+        },
+        "orderReservedUnknown": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
+            },
+            {
+              "field": ["input", "query"],
+              "message": "Query is invalid, 'made_up_filter' is not a valid filter"
+            }
+          ]
+        },
+        "productPositiveA": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008986247474",
+            "name": "SDP Multi A multi-movgnv6g",
+            "query": "vendor:multi-movgnv6g tag:a",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        },
+        "productPositiveB": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008986280242",
+            "name": "SDP Multi B multi-movgnv6g",
+            "query": "vendor:multi-movgnv6g tag:b",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 50,
+          "actualQueryCost": 50,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1950,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateMultiValidation": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-multi-validation-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4008986280242",
+        "name": "SDP Multi A multi-movgnv6g",
+        "query": "made_up_filter:foo collection_id:\"123\" tag:\"AAA\""
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008986280242",
+            "name": "SDP Multi B multi-movgnv6g",
+            "query": "made_up_filter:foo collection_id:\"123\" tag:\"AAA\"",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            },
+            {
+              "field": ["input", "query"],
+              "message": "Query is invalid, 'made_up_filter' is not a valid filter"
+            },
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, tag"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupA": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4008986247474"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4008986247474",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupB": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4008986280242"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4008986280242",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1960,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
