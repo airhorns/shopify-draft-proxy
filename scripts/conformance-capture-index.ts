@@ -2355,6 +2355,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-update-url-handle-redirect',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-update-url-handle-redirect-conformance.ts',
+    purpose:
+      'metaobjectDefinitionUpdate onlineStore.data.urlHandle change with createRedirects true, two published row redirects, URL redirect downstream reads, and canCreateRedirects definition readback.',
+    requiredAuthScopes: [
+      'read_metaobjects',
+      'write_metaobjects',
+      'read_online_store_navigation',
+      'write_online_store_navigation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinitionUpdate-url-handle-redirect.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-url-handle-redirect.json',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-definition-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirect.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-update-url-handle-redirect-url-redirects.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable online-store metaobject definition and two ACTIVE rows, updates the definition URL handle with createRedirects true, deletes observed URL redirects, then deletes rows and the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'standard-metaobject-definition-enable-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
