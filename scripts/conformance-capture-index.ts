@@ -1114,6 +1114,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-default-method',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-default-method-conformance.ts',
+    purpose:
+      'stagedUploadsCreate default httpMethod target metadata for IMAGE and FILE resources when the input omits httpMethod.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-default-http-method.json`,
+      'config/parity-specs/media/media-staged-uploads-create-default-http-method.json',
+      'config/parity-requests/media/media-staged-uploads-create-default-http-method.graphql',
+    ],
+    cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'staged-upload-non-merchandising-targets',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-non-merchandising-conformance.ts',
