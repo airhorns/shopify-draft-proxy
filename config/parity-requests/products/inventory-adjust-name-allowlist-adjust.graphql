@@ -1,0 +1,24 @@
+mutation InventoryAdjustNameAllowlistAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+  inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup {
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        ledgerDocumentUri
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

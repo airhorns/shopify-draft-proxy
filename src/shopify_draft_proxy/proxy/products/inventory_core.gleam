@@ -574,10 +574,9 @@ pub fn valid_inventory_set_quantity_name(name: String) -> Bool {
 }
 
 @internal
-pub fn valid_staged_inventory_quantity_name(name: String) -> Bool {
+pub fn valid_public_inventory_quantity_name(name: String) -> Bool {
   case name {
     "available"
-    | "committed"
     | "damaged"
     | "incoming"
     | "quality_control"
@@ -588,18 +587,13 @@ pub fn valid_staged_inventory_quantity_name(name: String) -> Bool {
 }
 
 @internal
+pub fn valid_staged_inventory_quantity_name(name: String) -> Bool {
+  valid_public_inventory_quantity_name(name)
+}
+
+@internal
 pub fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
-  case name {
-    "available"
-    | "on_hand"
-    | "committed"
-    | "damaged"
-    | "incoming"
-    | "quality_control"
-    | "reserved"
-    | "safety_stock" -> True
-    _ -> False
-  }
+  valid_public_inventory_quantity_name(name)
 }
 
 @internal
@@ -1356,8 +1350,8 @@ pub fn invalid_inventory_adjust_quantity_name_error(
 ) -> ProductUserError {
   ProductUserError(
     field,
-    "The specified quantity name is invalid. Valid values are: available, on_hand, committed, damaged, incoming, quality_control, reserved, safety_stock.",
-    Some("INVALID_QUANTITY_NAME"),
+    "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.",
+    Some("INVALID"),
   )
 }
 
@@ -1368,7 +1362,7 @@ pub fn invalid_inventory_quantity_name_error(
   ProductUserError(
     field,
     "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.",
-    None,
+    Some("INVALID"),
   )
 }
 
