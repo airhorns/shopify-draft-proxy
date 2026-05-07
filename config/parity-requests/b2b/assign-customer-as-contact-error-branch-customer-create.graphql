@@ -1,0 +1,15 @@
+mutation AssignCustomerAsContactErrorBranchCustomerCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      defaultPhoneNumber {
+        phoneNumber
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

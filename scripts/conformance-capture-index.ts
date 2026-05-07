@@ -109,6 +109,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'assign-customer-as-contact-error-branches',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-assign-customer-as-contact-error-branches-conformance.mts',
+    purpose:
+      'B2B companyAssignCustomerAsContact userError branches for unknown customer, duplicate customer contact, and existing customer without email.',
+    requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}assign-customer-as-contact-no-email-invalid-input.json`,
+      'config/parity-specs/b2b/assign_customer_as_contact_no_email_invalid_input.json',
+      'config/parity-requests/b2b/assign-customer-as-contact-error-branch-company-create.graphql',
+      'config/parity-requests/b2b/assign-customer-as-contact-error-branch-customer-create.graphql',
+      'config/parity-requests/b2b/assign-customer-as-contact-error-branch-assign.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company, one normal disposable customer, and one disposable phone-only customer; records validation branches, then deletes all created records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'orphaned-b2b-custom-data-fixtures',
     scriptPath: 'scripts/capture-orphaned-b2b-custom-data-fixtures-conformance.ts',
     purpose:

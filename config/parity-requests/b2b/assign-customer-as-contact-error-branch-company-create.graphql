@@ -1,0 +1,38 @@
+mutation AssignCustomerAsContactErrorBranchCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      contactsCount {
+        count
+      }
+      mainContact {
+        id
+        isMainContact
+      }
+      contacts(first: 5) {
+        nodes {
+          id
+          isMainContact
+        }
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+      contactRoles(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -2001,7 +2001,7 @@ pub fn handle_assign_customer_as_contact(
                         identity,
                         ["companyId"],
                         "Customer must have an email address.",
-                        user_error_code.resource_not_found,
+                        user_error_code.invalid_input,
                         Some(b2b_types.customer_email_must_exist_detail),
                       )
                     Some(email) ->
