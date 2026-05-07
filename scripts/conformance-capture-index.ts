@@ -4688,10 +4688,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-callback-url-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath:
-      'scripts/capture-fulfillment-service-callback-url-validation-conformance.ts',
-    purpose:
-      'Current app-scoped FulfillmentService callbackUrl allow/deny behavior for create and update.',
+    scriptPath: 'scripts/capture-fulfillment-service-callback-url-validation-conformance.ts',
+    purpose: 'Current app-scoped FulfillmentService callbackUrl allow/deny behavior for create and update.',
     requiredAuthScopes: ['read_assigned_fulfillment_orders', 'write_assigned_fulfillment_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-service-callback-url-validation.json`,

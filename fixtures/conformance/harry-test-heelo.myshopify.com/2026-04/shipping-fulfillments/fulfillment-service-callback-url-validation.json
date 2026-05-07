@@ -92,9 +92,7 @@
             "fulfillmentService": null,
             "userErrors": [
               {
-                "field": [
-                  "callbackUrl"
-                ],
+                "field": ["callbackUrl"],
                 "message": "Callback url protocol ftp:// is not supported"
               }
             ]
@@ -103,9 +101,7 @@
             "fulfillmentService": null,
             "userErrors": [
               {
-                "field": [
-                  "callbackUrl"
-                ],
+                "field": ["callbackUrl"],
                 "message": "Callback url is not allowed"
               }
             ]
@@ -114,9 +110,7 @@
             "fulfillmentService": null,
             "userErrors": [
               {
-                "field": [
-                  "callbackUrl"
-                ],
+                "field": ["callbackUrl"],
                 "message": "Callback url is not allowed"
               }
             ]
@@ -182,9 +176,7 @@
             "fulfillmentService": null,
             "userErrors": [
               {
-                "field": [
-                  "callbackUrl"
-                ],
+                "field": ["callbackUrl"],
                 "message": "Callback url is not allowed"
               }
             ]
