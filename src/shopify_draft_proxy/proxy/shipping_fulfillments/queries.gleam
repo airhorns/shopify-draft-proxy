@@ -46,18 +46,18 @@ import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{is_proxy_synthetic_gid}
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CarrierServiceRecord, type DeliveryProfileRecord,
-  type FulfillmentOrderRecord, type FulfillmentRecord, type ProductRecord,
-  type ProductVariantRecord, type ShippingOrderRecord,
-  type ShippingPackageDimensionsRecord, type ShippingPackageRecord,
-  type ShippingPackageWeightRecord, type StorePropertyRecord,
-  type StorePropertyValue, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  type FulfillmentOrderRecord, type FulfillmentRecord,
+  type FulfillmentServiceRecord, type ProductRecord, type ProductVariantRecord,
+  type ShippingOrderRecord, type ShippingPackageDimensionsRecord,
+  type ShippingPackageRecord, type ShippingPackageWeightRecord,
+  type StorePropertyRecord, type StorePropertyValue, CapturedArray, CapturedBool,
+  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
   CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
-  FulfillmentRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ShippingOrderRecord, ShippingPackageDimensionsRecord, ShippingPackageRecord,
-  ShippingPackageWeightRecord, StorePropertyBool, StorePropertyFloat,
-  StorePropertyInt, StorePropertyList, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString,
+  FulfillmentRecord, FulfillmentServiceRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ShippingOrderRecord, ShippingPackageDimensionsRecord,
+  ShippingPackageRecord, ShippingPackageWeightRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyRecord, StorePropertyString,
 }
 
 fn process(
@@ -405,6 +405,24 @@ pub fn hydrate_fulfillment_roots(
   store_in: Store,
   data: commit.JsonValue,
 ) -> Store {
+  let fulfillment_services =
+    [
+      json_get(data, "fulfillmentService")
+        |> option.then(non_null_json)
+        |> option_to_list,
+      fulfillment_services_from_shop(data),
+    ]
+    |> list.flatten
+    |> list.filter_map(fulfillment_service_record_from_json)
+  let fulfillment_service_locations =
+    [
+      json_get(data, "fulfillmentService")
+        |> option.then(non_null_json)
+        |> option_to_list,
+      fulfillment_services_from_shop(data),
+    ]
+    |> list.flatten
+    |> list.filter_map(fulfillment_service_location_from_json)
   let fulfillments =
     list.append(
       json_get(data, "fulfillment")
@@ -426,8 +444,19 @@ pub fn hydrate_fulfillment_roots(
     |> list.flatten
     |> list.filter_map(fulfillment_order_record_from_json)
   store_in
+  |> store.upsert_base_fulfillment_services(fulfillment_services)
   |> store.upsert_base_fulfillments(fulfillments)
   |> store.upsert_base_fulfillment_orders(fulfillment_orders)
+  |> upsert_base_locations(fulfillment_service_locations)
+}
+
+fn upsert_base_locations(
+  store_in: Store,
+  locations: List(StorePropertyRecord),
+) -> Store {
+  list.fold(locations, store_in, fn(current, location) {
+    store.upsert_base_store_property_location(current, location)
+  })
 }
 
 @internal
@@ -519,6 +548,27 @@ pub fn fulfillments_from_order(
 }
 
 @internal
+pub fn fulfillment_services_from_shop(
+  data: commit.JsonValue,
+) -> List(commit.JsonValue) {
+  case json_get(data, "shop") {
+    Some(shop) ->
+      fulfillment_service_nodes(json_get(shop, "fulfillmentServices"))
+    None -> []
+  }
+}
+
+fn fulfillment_service_nodes(
+  value: Option(commit.JsonValue),
+) -> List(commit.JsonValue) {
+  case value {
+    Some(commit.JsonArray(items)) -> items
+    _ -> nodes_from_connection(value)
+  }
+  |> non_null_json_values
+}
+
+@internal
 pub fn fulfillment_orders_from_order(
   data: commit.JsonValue,
 ) -> List(commit.JsonValue) {
@@ -587,6 +637,40 @@ pub fn delivery_profile_record_from_json(
       |> option.unwrap(True),
     data: captured_json_from_commit(value),
   ))
+}
+
+@internal
+pub fn fulfillment_service_record_from_json(
+  value: commit.JsonValue,
+) -> Result(FulfillmentServiceRecord, Nil) {
+  use id <- result.try(json_get_string(value, "id") |> option.to_result(Nil))
+  Ok(FulfillmentServiceRecord(
+    id: id,
+    handle: json_get_string(value, "handle") |> option.unwrap(""),
+    service_name: json_get_string(value, "serviceName") |> option.unwrap(""),
+    callback_url: json_get_string(value, "callbackUrl"),
+    inventory_management: json_get_bool(value, "inventoryManagement")
+      |> option.unwrap(False),
+    location_id: case json_get(value, "location") {
+      Some(location) -> json_get_string(location, "id")
+      None -> None
+    },
+    requires_shipping_method: json_get_bool(value, "requiresShippingMethod")
+      |> option.unwrap(True),
+    tracking_support: json_get_bool(value, "trackingSupport")
+      |> option.unwrap(False),
+    type_: json_get_string(value, "type") |> option.unwrap("THIRD_PARTY"),
+  ))
+}
+
+@internal
+pub fn fulfillment_service_location_from_json(
+  value: commit.JsonValue,
+) -> Result(StorePropertyRecord, Nil) {
+  use location <- result.try(
+    json_get(value, "location") |> option.to_result(Nil),
+  )
+  store_property_location_from_json(location)
 }
 
 @internal
