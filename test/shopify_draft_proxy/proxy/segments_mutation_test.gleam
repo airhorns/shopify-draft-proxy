@@ -248,7 +248,7 @@ pub fn member_query_create_rejects_neither_query_nor_segment_id_test() {
     == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"You must provide one of segment_id or query.\"}]}}}"
 }
 
-pub fn member_query_create_invalid_query_uses_member_error_type_test() {
+pub fn member_query_create_captured_malformed_query_uses_cdp_error_test() {
   let body =
     run_mutation(
       store.new(),
@@ -256,6 +256,17 @@ pub fn member_query_create_invalid_query_uses_member_error_type_test() {
     )
   assert body
     == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":null,\"code\":\"INVALID\",\"message\":\"Line 1 Column 6: 'valid' is unexpected.\"}]}}}"
+}
+
+pub fn member_query_create_uncaptured_malformed_query_stages_job_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { customerSegmentMembersQueryCreate(input: { query: \"not_a_captured_filter ???\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},\"userErrors\":[]}}}"
 }
 
 pub fn member_query_create_stages_initialized_query_job_test() {

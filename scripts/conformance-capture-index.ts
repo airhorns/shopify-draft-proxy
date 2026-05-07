@@ -3563,6 +3563,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'segments',
+    captureId: 'customer-segment-members-query-create-direct-query-grammar',
+    scriptPath: 'scripts/capture-customer-segment-members-query-create-direct-query-grammar-conformance.ts',
+    purpose:
+      'customerSegmentMembersQueryCreate direct query branch accepted broad grammar and representative CDP malformed-query error shape.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-segment-members-query-create-direct-query-grammar.json`,
+      'config/parity-specs/segments/customer-segment-members-query-create-direct-query-grammar.json',
+      'config/parity-requests/segments/customer-segment-members-query-create-direct-query-grammar.graphql',
+    ],
+    cleanupBehavior:
+      'Creates customer segment member query jobs only; Shopify exposes them as async query state without a cleanup mutation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'online-store',
     captureId: 'online-store-content-lifecycle',
     scriptPath: 'scripts/capture-online-store-content-lifecycle-conformance.ts',

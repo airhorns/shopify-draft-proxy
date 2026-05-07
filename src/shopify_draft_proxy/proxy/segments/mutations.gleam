@@ -895,7 +895,9 @@ fn validate_customer_segment_members_query_create(
       ),
     ]
     Some(_), None ->
-      segment_types.validate_customer_segment_members_query(raw_query)
+      segment_types.validate_customer_segment_members_query_create_direct_query(
+        raw_query,
+      )
     None, Some(_) ->
       case resolved_segment {
         Some(_) -> []
