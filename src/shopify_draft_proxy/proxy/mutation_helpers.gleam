@@ -1307,6 +1307,17 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
+                      "MetafieldAccessInput"
+                      | "MetafieldAccessUpdateInput"
+                      | "StandardMetafieldDefinitionAccessInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
                       _ -> []
                     }
                   Some(schema_field) ->
@@ -1832,6 +1843,24 @@ fn collect_unknown_variable_fields(
           message: None,
         ))
       "LocationAddAddressInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "MetafieldAccessInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "MetafieldAccessUpdateInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
+      "StandardMetafieldDefinitionAccessInput", None ->
         Ok(ValueProblem(
           path: list.append(path, [StringSegment(field_name)]),
           explanation: "Field is not defined on " <> io.name,

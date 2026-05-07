@@ -18,8 +18,9 @@ import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppRecord, type CartTransformRecord,
-  type ShopifyFunctionRecord, type ValidationRecord, AccessScopeRecord,
-  AppInstallationRecord, AppRecord, CartTransformRecord, ShopifyFunctionRecord,
+  type ShopifyFunctionRecord, type ValidationMetafieldRecord,
+  type ValidationRecord, AccessScopeRecord, AppInstallationRecord, AppRecord,
+  CartTransformRecord, ShopifyFunctionRecord, ValidationMetafieldRecord,
   ValidationRecord,
 }
 
@@ -114,6 +115,27 @@ fn installation(id: String, app_id: String) -> AppInstallationRecord {
     all_subscription_ids: [],
     one_time_purchase_ids: [],
     uninstalled_at: None,
+  )
+}
+
+fn validation_metafield(
+  id: String,
+  validation_id: String,
+  namespace: String,
+  key: String,
+  value: String,
+) -> ValidationMetafieldRecord {
+  ValidationMetafieldRecord(
+    id: id,
+    validation_id: validation_id,
+    namespace: namespace,
+    key: key,
+    type_: Some("single_line_text_field"),
+    value: Some(value),
+    compare_digest: None,
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+    owner_type: Some("VALIDATION"),
   )
 }
 
@@ -625,6 +647,82 @@ pub fn validation_update_persists_metafields_for_downstream_reads_test() {
     )
   assert json.to_string(read_data)
     == "{\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
+}
+
+pub fn validation_update_upserts_metafields_without_wiping_existing_rows_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/metafield-validation",
+      "metafield-validation",
+      "VALIDATION",
+    )
+  let validation_id = "gid://shopify/Validation/metafields-upsert"
+  let base_metafields = [
+    validation_metafield(
+      "gid://shopify/Metafield/existing-mode",
+      validation_id,
+      "custom",
+      "mode",
+      "strict",
+    ),
+    validation_metafield(
+      "gid://shopify/Metafield/existing-color",
+      validation_id,
+      "custom",
+      "color",
+      "blue",
+    ),
+  ]
+  let v =
+    ValidationRecord(
+      id: validation_id,
+      title: Some("Original"),
+      enable: Some(True),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("metafield-validation"),
+      shopify_function_id: Some(fn_record.id),
+      metafields: base_metafields,
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let seeded =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(v)
+
+  let title_only =
+    run_mutation_outcome(
+      seeded,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/metafields-upsert\", validation: { title: \"Renamed\" }) { validation { id metafields(first: 5) { nodes { namespace key value updatedAt } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(title_only.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/metafields-upsert\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"custom\",\"key\":\"color\",\"value\":\"blue\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
+
+  let empty_update =
+    run_mutation_outcome(
+      title_only.store,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/metafields-upsert\", validation: { metafields: [] }) { validation { id metafields(first: 5) { nodes { namespace key value updatedAt } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(empty_update.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/metafields-upsert\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"custom\",\"key\":\"color\",\"value\":\"blue\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
+
+  let partial_upsert =
+    run_mutation_outcome(
+      empty_update.store,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/metafields-upsert\", validation: { metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"relaxed\" }, { namespace: \"custom\", key: \"size\", type: \"single_line_text_field\", value: \"large\" }] }) { validation { id metafields(first: 5) { nodes { namespace key value updatedAt } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(partial_upsert.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/metafields-upsert\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"relaxed\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"custom\",\"key\":\"color\",\"value\":\"blue\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"custom\",\"key\":\"size\",\"value\":\"large\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      partial_upsert.store,
+      "{ validation(id: \"gid://shopify/Validation/metafields-upsert\") { metafields(first: 5) { nodes { namespace key value updatedAt } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"validation\":{\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"relaxed\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"custom\",\"key\":\"color\",\"value\":\"blue\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"custom\",\"key\":\"size\",\"value\":\"large\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}}}"
 }
 
 pub fn validation_update_unknown_id_emits_user_error_test() {

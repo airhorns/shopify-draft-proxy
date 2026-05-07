@@ -516,7 +516,7 @@ fn handle_update(
     None -> None
   }
   let existing = case id_from_input {
-    Some(id) -> store.get_effective_saved_search_by_id(store, id)
+    Some(id) -> queries.get_effective_saved_search_by_id(store, id)
     None -> None
   }
   let errors = case existing {
@@ -619,7 +619,7 @@ fn handle_delete(
     None -> None
   }
   let existing = case id_from_input {
-    Some(id) -> store.get_effective_saved_search_by_id(store, id)
+    Some(id) -> queries.get_effective_saved_search_by_id(store, id)
     None -> None
   }
   let errors = case existing {
@@ -724,7 +724,7 @@ fn read_uniqueness_resource_type(
     None ->
       case excluded_id {
         Some(id) ->
-          case store.get_effective_saved_search_by_id(store, id) {
+          case queries.get_effective_saved_search_by_id(store, id) {
             Some(record) -> Some(record.resource_type)
             None -> None
           }
@@ -742,7 +742,7 @@ fn saved_search_name_taken(
   let local_records = list_effective_saved_searches(store)
   let records =
     list.append(
-      queries.defaults_for_resource_type(resource_type),
+      queries.visible_defaults_for_resource_type(store, resource_type),
       local_records,
     )
   list.any(records, fn(record) {

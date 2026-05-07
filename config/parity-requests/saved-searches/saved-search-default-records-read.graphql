@@ -1,0 +1,30 @@
+query SavedSearchDefaultRecordsRead {
+  orderSavedSearches(first: 10) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+  }
+  draftOrderSavedSearches(first: 10) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+  }
+}

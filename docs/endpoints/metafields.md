@@ -43,6 +43,8 @@ Update resolves the existing definition by immutable identity (`ownerType`, `nam
 
 Capability handling is type- and owner-aware for the modeled capability slice. `uniqueValues` is eligible only for `id`, `number_integer`, `single_line_text_field`, and `url` definitions; `smartCollectionCondition` is eligible for `PRODUCT` `single_line_text_field` definitions; and `adminFilterable` is eligible only for modeled filterable owner/type combinations. Ineligible capability inputs on create/update return Shopify's captured `INVALID_CAPABILITY` user error without staging. `id` definitions auto-enable `uniqueValues` unless the input explicitly disables it, matching Shopify's required-capability behavior. Enabled `adminFilterable` definitions are capped at 50 per owner type; the 51st PRODUCT definition returns `OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS`. Serialized `capabilities.*.eligible` and `adminFilterable.status` are derived from this same local eligibility model rather than defaulting to eligible.
 
+Access input handling follows the public Admin GraphQL 2026-04 surface captured in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-access-validation.json`. The public schema does not expose `access.grants`, so inline grants are rejected as a top-level `argumentNotAccepted` schema error before resolver execution, and variable-bound grants are rejected by variable validation. Merchant-owned create/update access requires writable admin access; `access.admin: MERCHANT_READ` returns Shopify's captured `INVALID` create user error and `INVALID_INPUT` update user error at `field: ["definition"]` without staging. `MERCHANT_READ_WRITE` is accepted as the public input spelling for the stored/default `PUBLIC_READ_WRITE` access record.
+
 App-owned namespace forms follow Shopify's canonicalization rule. Mutation inputs, identifier lookups, catalog namespace filters, pin/unpin selectors, and standard-definition namespace selectors resolve `$app:<suffix>` through the request's `x-shopify-draft-proxy-api-client-id` identity before validation, persistence, lookup, and serialization. Stored and returned definitions use the canonical `app--<api_client_id>--<suffix>` namespace. Canonical `app--<other_id>--<suffix>` create/update inputs from another API client return Shopify's top-level `ACCESS_DENIED` error shape instead of staging a definition.
 
 Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph for `PRODUCT` definitions only; it does not invent broad async job state for other owner families.
@@ -78,7 +80,8 @@ Successful local enablement:
 - translates the deprecated local inputs `useAsCollectionCondition`, `useAsAdminFilter`, and `visibleToStorefrontApi` into the corresponding capability/access records before staging
 - rejects matching existing unstructured metafields with `UNSTRUCTURED_ALREADY_EXISTS` unless `forceEnable: true` is provided
 - returns `INVALID_CAPABILITY` for ineligible capability input, and returns `TYPE_NOT_ALLOWED_FOR_CONDITIONS` for the deprecated collection-condition argument on an ineligible type
-- returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` when merchant admin access is supplied for non-app-owned standard templates
+- returns `INVALID` with the captured public-read-write access message when merchant read-only admin access is supplied for non-app-owned standard templates
+- returns `INVALID` when any explicit access controls are supplied while enabling a reserved `shopify` standard template
 - when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
@@ -125,6 +128,7 @@ Validation entry points:
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
 - `config/parity-specs/metafields/metafield-definition-non-product-owner-types.json`
 - `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
+- `config/parity-specs/metafield-definitions/access-validation.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldDelete-parity-plan.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`

@@ -105,7 +105,12 @@ HTML-name create payload (`INVALID_INPUT` at `["input"]`) because the public
 `customerId` arguments in the checked-in Admin schema, so the local handler
 defaults the created contact locale and derives the contact customer payload
 from the resolved local `Customer` record instead of synthesizing an arbitrary
-customer shape.
+customer shape. Public Admin `2026-04` capture shows its error branches use
+`RESOURCE_NOT_FOUND` at `customerId` for an unknown customer, `INVALID_INPUT`
+at `companyId` for a customer already assigned as a company contact, and
+`INVALID_INPUT` at `companyId` for an existing customer whose email is null.
+The public `BusinessCustomerUserError` schema rejects selecting `detail`, so
+the local `customer_email_must_exist` detail remains covered by runtime tests.
 
 Empty-object B2B write inputs short-circuit before local staging. The
 2026-04 `b2b-no-input-validation` parity capture records the public Admin
