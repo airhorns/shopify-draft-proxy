@@ -1225,6 +1225,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-access-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-access-validation-conformance.ts',
+    purpose:
+      'metafieldDefinitionCreate/update and standardMetafieldDefinitionEnable access input validation for grants, merchant admin access, and reserved standard namespaces.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-access-validation.json`,
+      'config/parity-specs/metafield-definitions/access-validation.json',
+      'config/parity-requests/metafield-definitions/access-validation-create.graphql',
+      'config/parity-requests/metafield-definitions/access-validation-update.graphql',
+      'config/parity-requests/metafield-definitions/access-validation-standard-enable.graphql',
+      'config/parity-requests/metafield-definitions/access-validation-inline-grants.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned definition for update validation, records validation branches, then deletes the setup definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public 2026-04 schema rejects access.grants as an unknown MetafieldAccessInput field before resolver execution; resolver userErrors cover merchant admin access and reserved standard namespace access controls.',
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-pinning',
     scriptPath: 'scripts/capture-metafield-definition-pinning-conformance.mts',
     purpose: 'metafieldDefinitionPin/metafieldDefinitionUnpin behavior.',
