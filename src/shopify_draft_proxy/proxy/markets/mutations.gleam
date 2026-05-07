@@ -3039,27 +3039,44 @@ fn handle_web_presence_delete(
   case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
       case store.get_effective_web_presence_by_id(store, id) {
-        Some(_) -> {
-          let next_store = store.delete_staged_web_presence(store, id)
-          let payload =
-            CapturedObject([
-              #("deletedId", CapturedString(id)),
-              #("userErrors", CapturedArray([])),
-            ])
-          let staged_ids: List(String) = []
-          MutationFieldResult(
-            key: key,
-            payload: project_record(
-              field,
-              fragments,
-              captured_json_source(payload),
-            ),
-            store: next_store,
-            identity: identity,
-            staged_resource_ids: staged_ids,
-            log_drafts: [markets_log_draft("webPresenceDelete", staged_ids)],
-          )
-        }
+        Some(record) ->
+          case store.web_presence_matches_shop_primary_host(store, record) {
+            True ->
+              delete_error_result(
+                key,
+                field,
+                fragments,
+                "webPresenceDelete",
+                ["id"],
+                "The shop must have a web presence that uses the primary domain.",
+                "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE",
+                store,
+                identity,
+              )
+            False -> {
+              let next_store = store.delete_staged_web_presence(store, id)
+              let payload =
+                CapturedObject([
+                  #("deletedId", CapturedString(id)),
+                  #("userErrors", CapturedArray([])),
+                ])
+              let staged_ids: List(String) = []
+              MutationFieldResult(
+                key: key,
+                payload: project_record(
+                  field,
+                  fragments,
+                  captured_json_source(payload),
+                ),
+                store: next_store,
+                identity: identity,
+                staged_resource_ids: staged_ids,
+                log_drafts: [
+                  markets_log_draft("webPresenceDelete", staged_ids),
+                ],
+              )
+            }
+          }
         None ->
           web_presence_delete_not_found_result(
             key,

@@ -422,6 +422,8 @@ pub const upsert_staged_web_presence = markets.upsert_staged_web_presence
 
 pub const delete_staged_web_presence = markets.delete_staged_web_presence
 
+pub const web_presence_matches_shop_primary_host = markets.web_presence_matches_shop_primary_host
+
 pub const upsert_base_markets_root_payload = markets.upsert_base_markets_root_payload
 
 pub const get_effective_markets_root_payload = markets.get_effective_markets_root_payload
