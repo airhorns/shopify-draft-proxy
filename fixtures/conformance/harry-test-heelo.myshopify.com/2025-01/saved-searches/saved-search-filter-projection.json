@@ -1,0 +1,303 @@
+{
+  "capturedAt": "2026-05-07T16:02:19.391Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "SFP-movocnlc",
+  "notes": [
+    "Live capture for saved-search filter projection shapes.",
+    "Range upper-only syntax inventory_total:<10 projected to filters[{ key: \"inventory_total_max\", value: \"10\" }] with empty searchTerms.",
+    "Range lower-only syntax inventory_total:>2 projected to filters[{ key: \"inventory_total_min\", value: \"2\" }] with empty searchTerms.",
+    "Bounded ranges are represented by two range tokens and project to both inventory_total_min and inventory_total_max filters.",
+    "Exists syntax sku:* projected to filters[{ key: \"sku\", value: \"true\" }] with empty searchTerms.",
+    "Negated range syntax -inventory_total:<3 projected to inventory_total_min with canonical downstream query inventory_total:>=3.",
+    "The fixture includes cleanup delete evidence for every created saved search."
+  ],
+  "savedSearchFilterProjectionCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-filter-projection-create.graphql",
+    "variables": {
+      "upperOnly": {
+        "resourceType": "PRODUCT",
+        "name": "SFP Upper SFP-movocnlc",
+        "query": "inventory_total:<10"
+      },
+      "lowerOnly": {
+        "resourceType": "PRODUCT",
+        "name": "SFP Lower SFP-movocnlc",
+        "query": "inventory_total:>2"
+      },
+      "boundedRange": {
+        "resourceType": "PRODUCT",
+        "name": "SFP Bounded SFP-movocnlc",
+        "query": "inventory_total:>2 inventory_total:<10"
+      },
+      "existsFilter": {
+        "resourceType": "PRODUCT",
+        "name": "SFP Exists SFP-movocnlc",
+        "query": "sku:*"
+      },
+      "negatedRange": {
+        "resourceType": "PRODUCT",
+        "name": "SFP Negated SFP-movocnlc",
+        "query": "-inventory_total:<3"
+      }
+    },
+    "payload": {
+      "data": {
+        "upperOnly": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009097265458",
+            "legacyResourceId": "4009097265458",
+            "name": "SFP Upper SFP-movocnlc",
+            "query": "inventory_total:<10",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "inventory_total_max",
+                "value": "10"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "lowerOnly": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009097298226",
+            "legacyResourceId": "4009097298226",
+            "name": "SFP Lower SFP-movocnlc",
+            "query": "inventory_total:>2",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "inventory_total_min",
+                "value": "2"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "boundedRange": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009097330994",
+            "legacyResourceId": "4009097330994",
+            "name": "SFP Bounded SFP-movocnlc",
+            "query": "inventory_total:>2 inventory_total:<10",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "inventory_total_min",
+                "value": "2"
+              },
+              {
+                "key": "inventory_total_max",
+                "value": "10"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "existsFilter": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009097363762",
+            "legacyResourceId": "4009097363762",
+            "name": "SFP Exists SFP-movocnlc",
+            "query": "sku:*",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "sku",
+                "value": "true"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "negatedRange": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4009097396530",
+            "legacyResourceId": "4009097396530",
+            "name": "SFP Negated SFP-movocnlc",
+            "query": "-inventory_total:<3",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "inventory_total_min",
+                "value": "3"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 55,
+          "actualQueryCost": 55,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1945,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterFilterProjectionCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-filter-projection-read-after-create.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4009097396530",
+              "name": "SFP Negated SFP-movocnlc",
+              "query": "inventory_total:>=3",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "inventory_total_min",
+                  "value": "3"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4009097363762",
+              "name": "SFP Exists SFP-movocnlc",
+              "query": "sku:*",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "sku",
+                  "value": "true"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4009097330994",
+              "name": "SFP Bounded SFP-movocnlc",
+              "query": "inventory_total:>2 inventory_total:<10",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "inventory_total_min",
+                  "value": "2"
+                },
+                {
+                  "key": "inventory_total_max",
+                  "value": "10"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4009097298226",
+              "name": "SFP Lower SFP-movocnlc",
+              "query": "inventory_total:>2",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "inventory_total_min",
+                  "value": "2"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4009097265458",
+              "name": "SFP Upper SFP-movocnlc",
+              "query": "inventory_total:<10",
+              "resourceType": "PRODUCT",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "inventory_total_max",
+                  "value": "10"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDA5MDk3Mzk2NTMwLCJsYXN0X3ZhbHVlIjoiNDAwOTA5NzM5NjUzMCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDA5MDk3MjY1NDU4LCJsYXN0X3ZhbHVlIjoiNDAwOTA5NzI2NTQ1OCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1961,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-filter-projection-delete.graphql",
+    "variables": {
+      "upperOnly": {
+        "id": "gid://shopify/SavedSearch/4009097265458"
+      },
+      "lowerOnly": {
+        "id": "gid://shopify/SavedSearch/4009097298226"
+      },
+      "boundedRange": {
+        "id": "gid://shopify/SavedSearch/4009097330994"
+      },
+      "existsFilter": {
+        "id": "gid://shopify/SavedSearch/4009097363762"
+      },
+      "negatedRange": {
+        "id": "gid://shopify/SavedSearch/4009097396530"
+      }
+    },
+    "payload": {
+      "data": {
+        "upperOnly": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009097265458",
+          "userErrors": []
+        },
+        "lowerOnly": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009097298226",
+          "userErrors": []
+        },
+        "boundedRange": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009097330994",
+          "userErrors": []
+        },
+        "existsFilter": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009097363762",
+          "userErrors": []
+        },
+        "negatedRange": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009097396530",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 50,
+          "actualQueryCost": 50,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1921,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
