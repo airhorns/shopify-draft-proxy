@@ -70,9 +70,12 @@ Contacts created from `companyCreate(input.companyContact)` or
 `companyContactCreate(input.email)` keep a contact-local synthetic customer
 reference so downstream B2B `CompanyContact.customer { id }` reads match
 Shopify's company/customer-contact relationship without broadening customer
-catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
-as that contact reference only after resolving the customer from the effective
-local customer registry. It rejects unknown customers, customers without an
+catalog state. Successful `companyContactUpdate` calls refresh that embedded
+customer snapshot's mutable identity scalars (`firstName`, `lastName`, `email`,
+and `phone`) when those inputs are provided, while preserving the customer ID.
+`companyAssignCustomerAsContact` stores the provided customer ID as that contact
+reference only after resolving the customer from the effective local customer
+registry. It rejects unknown customers, customers without an
 email address, duplicate customer/contact assignments on the same company, and
 companies that have reached the 10,000-contact cap. Main-contact lifecycle
 stores a single `Company.mainContactId` pointer; returned

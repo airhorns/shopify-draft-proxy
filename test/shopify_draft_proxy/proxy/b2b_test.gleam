@@ -3251,6 +3251,65 @@ pub fn b2b_contact_update_rejects_invalid_email_and_names_test() {
   assert !string.contains(read_json, "www.spam.example")
 }
 
+pub fn b2b_contact_update_refreshes_customer_subobject_test() {
+  let proxy = draft_proxy.new()
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"Contact Customer Sync\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: company_status, body: company_body, ..), proxy) =
+    graphql(proxy, create_company)
+  assert company_status == 200
+  let company_json = json.to_string(company_body)
+  assert string.contains(company_json, "\"userErrors\":[]")
+
+  let create_contact =
+    "mutation { companyContactCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { email: \"old-contact@example.com\", firstName: \"Old\", lastName: \"Buyer\", phone: \"(415) 555-0100\" }) { companyContact { id email firstName lastName phone customer { id email firstName lastName phone } } userErrors { code } } }"
+  let #(Response(status: contact_status, body: contact_body, ..), proxy) =
+    graphql(proxy, create_contact)
+  assert contact_status == 200
+  let contact_json = json.to_string(contact_body)
+  assert string.contains(contact_json, "\"userErrors\":[]")
+  assert string.contains(
+    contact_json,
+    "\"id\":\"gid://shopify/Customer/7?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(contact_json, "\"phone\":\"+14155550100\"")
+
+  let update_contact =
+    "mutation { companyContactUpdate(companyContactId: \"gid://shopify/CompanyContact/6?shopify-draft-proxy=synthetic\", input: { email: \"new-contact@example.com\", firstName: \"New\", lastName: \"Name\", phone: \"(650) 555-0101\" }) { companyContact { id email firstName lastName phone customer { id email firstName lastName phone } } userErrors { field message code detail } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, update_contact)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"userErrors\":[]")
+  assert string.contains(
+    update_json,
+    "\"id\":\"gid://shopify/Customer/7?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(update_json, "\"email\":\"new-contact@example.com\"")
+  assert string.contains(update_json, "\"firstName\":\"New\"")
+  assert string.contains(update_json, "\"lastName\":\"Name\"")
+  assert string.contains(update_json, "\"phone\":\"+16505550101\"")
+  assert !string.contains(update_json, "old-contact@example.com")
+  assert !string.contains(update_json, "\"firstName\":\"Old\"")
+
+  let read_contact =
+    "query { companyContact(id: \"gid://shopify/CompanyContact/6?shopify-draft-proxy=synthetic\") { id email firstName lastName phone customer { id email firstName lastName phone } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_contact)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"id\":\"gid://shopify/Customer/7?shopify-draft-proxy=synthetic\"",
+  )
+  assert string.contains(read_json, "\"email\":\"new-contact@example.com\"")
+  assert string.contains(read_json, "\"firstName\":\"New\"")
+  assert string.contains(read_json, "\"lastName\":\"Name\"")
+  assert string.contains(read_json, "\"phone\":\"+16505550101\"")
+  assert !string.contains(read_json, "old-contact@example.com")
+  assert !string.contains(read_json, "\"firstName\":\"Old\"")
+}
+
 pub fn b2b_contact_delete_rejects_contacts_with_associated_orders_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(
