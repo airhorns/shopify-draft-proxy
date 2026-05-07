@@ -4950,7 +4950,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-conformance.ts',
-    purpose: 'Webhook subscription create/read/delete and access-scope observations.',
+    purpose: 'Webhook subscription create/read/update/delete, filter validation, and access-scope observations.',
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-cloud-uri-validation.json',
