@@ -4444,7 +4444,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, name/type/description validation guardrails, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model.",
+        "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, name/type/description validation guardrails, and resetFieldOrder-driven read ordering when resetFieldOrder is provided inside the definition input. Top-level resetFieldOrder is rejected before staging. Entry migration/validation side effects remain outside the current local entry model.",
       ),
     ),
     RegistryEntry(
@@ -4471,7 +4471,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages standard metaobject definition enablement from the checked-in 2026-04 template catalog and returns RECORD_NOT_FOUND for unknown template types without runtime Shopify writes.",
+        "Locally stages standard metaobject definition enablement from the checked-in 2026-04 template catalog, returns RECORD_NOT_FOUND for unknown template types, rejects public enabledByShopify argument use, and records enabled-by-Shopify provenance for internal-visibility requests without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(

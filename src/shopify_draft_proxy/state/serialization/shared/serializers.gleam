@@ -1232,6 +1232,8 @@ pub fn metaobject_definition_json(
       json.bool(record.standard_template_dependent_on_app),
     ),
     #("appConfigManaged", json.bool(record.app_config_managed)),
+    #("enabledByShopify", json.bool(record.enabled_by_shopify)),
+    #("enabledByShopifyAt", optional_string(record.enabled_by_shopify_at)),
     #(
       "linkedMetafields",
       json.array(
@@ -1364,6 +1366,8 @@ pub fn metaobject_standard_template_json(
   json.object([
     #("type", optional_string(record.type_)),
     #("name", optional_string(record.name)),
+    #("enabledByShopify", json.bool(record.enabled_by_shopify)),
+    #("enabledByShopifyAt", optional_string(record.enabled_by_shopify_at)),
   ])
 }
 
