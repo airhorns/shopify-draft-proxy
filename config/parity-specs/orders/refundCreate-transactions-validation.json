@@ -1,0 +1,105 @@
+{
+  "scenarioId": "refund-create-transactions-validation",
+  "operationNames": ["refundCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "transaction-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/refund-create-transactions-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/refundCreate-transactions-validation.graphql",
+    "variablesCapturePath": "$.invalidKind.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid transaction kind rejects without staging",
+        "capturePath": "$.invalidKind.response.data.refundCreate",
+        "proxyPath": "$.data.refundCreate",
+        "selectedPaths": [
+          "$.refund",
+          "$.order.displayFinancialStatus",
+          "$.order.totalRefundedSet",
+          "$.userErrors[0].message"
+        ]
+      },
+      {
+        "name": "missing parent transaction rejects without staging",
+        "capturePath": "$.missingParent.response.data.refundCreate",
+        "proxyPath": "$.data.refundCreate",
+        "selectedPaths": [
+          "$.refund",
+          "$.order.displayFinancialStatus",
+          "$.order.totalRefundedSet",
+          "$.userErrors[0].message"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-transactions-validation.graphql",
+          "variablesCapturePath": "$.missingParent.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mismatched gateway branch records public Shopify normalization divergence",
+        "capturePath": "$.mismatchedGateway.response.data.refundCreate",
+        "proxyPath": "$.data.refundCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.refund",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The local guardrail rejects when transactions[i].gateway differs from the parent transaction. The 2026-04 public Admin capture instead accepted the refund and normalized the gateway to the parent transaction gateway."
+          },
+          {
+            "path": "$.order.displayFinancialStatus",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The local guardrail stages nothing and keeps the order paid; the live public capture accepted the refund and returned PARTIALLY_REFUNDED."
+          },
+          {
+            "path": "$.order.totalRefundedSet",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The local guardrail stages nothing and leaves refunded totals unchanged; the live public capture accepted the refund and reported a 1.00 refund."
+          },
+          {
+            "path": "$.userErrors",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The local guardrail returns a gateway userError for mismatched gateway input; the 2026-04 public Admin capture returned no userErrors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-transactions-validation.graphql",
+          "variablesCapturePath": "$.mismatchedGateway.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "matching parent transaction happy path stages refund transaction shape",
+        "capturePath": "$.happyPath.response.data.refundCreate",
+        "proxyPath": "$.data.refundCreate",
+        "selectedPaths": [
+          "$.refund.totalRefundedSet",
+          "$.refund.transactions.nodes[0].kind",
+          "$.refund.transactions.nodes[0].status",
+          "$.refund.transactions.nodes[0].gateway",
+          "$.refund.transactions.nodes[0].amountSet",
+          "$.order.displayFinancialStatus",
+          "$.order.totalRefundedSet",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-transactions-validation.graphql",
+          "variablesCapturePath": "$.happyPath.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live Shopify Admin GraphQL 2026-04 public-schema refundCreate transaction validation against disposable orderCreate orders. Invalid kind and missing parent are strict for refund:null, unchanged order state, and messages; local field/code paths are covered by focused Gleam runtime tests because the public schema returned no code field and less specific field paths. The mismatched gateway branch is included as executable evidence of a known public-schema divergence: Shopify accepted and normalized gateway while this local implementation explicitly requires a gateway guardrail."
+}

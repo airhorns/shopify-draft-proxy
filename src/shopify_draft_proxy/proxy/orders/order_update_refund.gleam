@@ -293,76 +293,103 @@ pub fn handle_refund_create_mutation(
                   [refund_create_log_draft([order.id], store_types.Failed)],
                 )
                 [] -> {
-                  let refund_amount =
-                    refund_create_requested_amount(input, order)
-                  let refundable_amount = order_refundable_payment_amount(order)
-                  let allow_over_refunding =
-                    read_bool(input, "allowOverRefunding", False)
-                  case
-                    !allow_over_refunding && refund_amount >. refundable_amount
-                  {
-                    True -> {
-                      let message =
-                        "Refund amount $"
-                        <> float_to_fixed_2(refund_amount)
-                        <> " is greater than net payment received $"
-                        <> float_to_fixed_2(refundable_amount)
-                      #(
-                        key,
-                        serialize_refund_create_payload(
-                          field,
-                          None,
-                          Some(order),
-                          [
-                            RefundCreateUserError(
-                              Some(over_refund_field_path(input)),
-                              message,
-                              Some(user_error_codes.invalid),
+                  let transaction_errors =
+                    refund_create_transaction_errors(input, order)
+                  case transaction_errors {
+                    [_, ..] -> #(
+                      key,
+                      serialize_refund_create_payload(
+                        field,
+                        None,
+                        Some(order),
+                        transaction_errors,
+                        fragments,
+                      ),
+                      hydrated_store,
+                      identity,
+                      [],
+                      [],
+                      [refund_create_log_draft([order.id], store_types.Failed)],
+                    )
+                    [] -> {
+                      let refund_amount =
+                        refund_create_requested_amount(input, order)
+                      let refundable_amount =
+                        order_refundable_payment_amount(order)
+                      let allow_over_refunding =
+                        read_bool(input, "allowOverRefunding", False)
+                      case
+                        !allow_over_refunding
+                        && refund_amount >. refundable_amount
+                      {
+                        True -> {
+                          let message =
+                            "Refund amount $"
+                            <> float_to_fixed_2(refund_amount)
+                            <> " is greater than net payment received $"
+                            <> float_to_fixed_2(refundable_amount)
+                          #(
+                            key,
+                            serialize_refund_create_payload(
+                              field,
+                              None,
+                              Some(order),
+                              [
+                                RefundCreateUserError(
+                                  Some(over_refund_field_path(input)),
+                                  message,
+                                  Some(user_error_codes.invalid),
+                                ),
+                              ],
+                              fragments,
                             ),
-                          ],
-                          fragments,
-                        ),
-                        hydrated_store,
-                        identity,
-                        [],
-                        [],
-                        [
-                          refund_create_log_draft(
+                            hydrated_store,
+                            identity,
+                            [],
+                            [],
+                            [
+                              refund_create_log_draft(
+                                [order.id],
+                                store_types.Failed,
+                              ),
+                            ],
+                          )
+                        }
+                        False -> {
+                          let #(refund, refund_transaction, next_identity) =
+                            build_refund_from_input(order, input, identity)
+                          let updated_order =
+                            apply_refund_to_order(
+                              order,
+                              refund,
+                              refund_transaction,
+                            )
+                          let next_store =
+                            store.stage_order(hydrated_store, updated_order)
+                          let payload =
+                            serialize_refund_create_payload(
+                              field,
+                              Some(refund),
+                              Some(updated_order),
+                              [],
+                              fragments,
+                            )
+                          #(
+                            key,
+                            payload,
+                            next_store,
+                            next_identity,
                             [order.id],
-                            store_types.Failed,
-                          ),
-                        ],
-                      )
-                    }
-                    False -> {
-                      let #(refund, refund_transaction, next_identity) =
-                        build_refund_from_input(order, input, identity)
-                      let updated_order =
-                        apply_refund_to_order(order, refund, refund_transaction)
-                      let next_store =
-                        store.stage_order(hydrated_store, updated_order)
-                      let payload =
-                        serialize_refund_create_payload(
-                          field,
-                          Some(refund),
-                          Some(updated_order),
-                          [],
-                          fragments,
-                        )
-                      #(
-                        key,
-                        payload,
-                        next_store,
-                        next_identity,
-                        [order.id],
-                        [],
-                        [
-                          refund_create_log_draft(
-                            [order.id],
-                            store_types.Staged,
-                          ),
-                        ],
-                      )
+                            [],
+                            [
+                              refund_create_log_draft(
+                                [order.id],
+                                store_types.Staged,
+                              ),
+                            ],
+                          )
+                        }
+                      }
                     }
                   }
                 }
@@ -608,6 +635,95 @@ pub fn build_refund_transaction(
       #("amountSet", amount_set),
     ])
   #(transaction, next_identity)
+}
+
+@internal
+pub fn refund_create_transaction_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
+) -> List(RefundCreateUserError) {
+  let #(errors, _) =
+    read_object_list(input, "transactions")
+    |> list.fold(#([], 0), fn(acc, transaction) {
+      let #(errors, index) = acc
+      let transaction_errors =
+        refund_create_transaction_error(order, transaction, index)
+      #(list.append(errors, transaction_errors), index + 1)
+    })
+  errors
+}
+
+@internal
+pub fn refund_create_transaction_error(
+  order: OrderRecord,
+  transaction: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(RefundCreateUserError) {
+  let index_path = int.to_string(index)
+  let kind = read_string(transaction, "kind") |> option.unwrap("REFUND")
+  case is_refund_transaction_kind(kind) {
+    False -> [
+      RefundCreateUserError(
+        Some(["transactions", index_path, "kind"]),
+        "Kind " <> string.lowercase(kind) <> " is not a valid transaction",
+        Some(user_error_codes.invalid),
+      ),
+    ]
+    True -> {
+      case read_string(transaction, "parentId") {
+        Some(parent_id) -> {
+          case find_order_transaction(order, parent_id) {
+            None -> [
+              RefundCreateUserError(
+                Some(["transactions", index_path, "parentId"]),
+                "Transactions require a parent_id associated with the order",
+                Some(user_error_codes.invalid),
+              ),
+            ]
+            Some(parent) -> {
+              case read_string(transaction, "gateway") {
+                Some(gateway) -> {
+                  case captured_string_field(parent, "gateway") {
+                    Some(parent_gateway) if parent_gateway == gateway -> []
+                    _ -> [
+                      RefundCreateUserError(
+                        Some(["transactions", index_path, "gateway"]),
+                        "Gateway does not match parent transaction",
+                        Some(user_error_codes.invalid),
+                      ),
+                    ]
+                  }
+                }
+                None -> []
+              }
+            }
+          }
+        }
+        None -> []
+      }
+    }
+  }
+}
+
+@internal
+pub fn is_refund_transaction_kind(kind: String) -> Bool {
+  case kind {
+    "REFUND" | "VOID" -> True
+    _ -> False
+  }
+}
+
+@internal
+pub fn find_order_transaction(
+  order: OrderRecord,
+  transaction_id: String,
+) -> Option(CapturedJsonValue) {
+  order_transactions(order)
+  |> list.find(fn(transaction) {
+    captured_string_field(transaction, "id") == Some(transaction_id)
+  })
+  |> result.map(Some)
+  |> result.unwrap(None)
 }
 
 @internal

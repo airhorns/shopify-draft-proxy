@@ -103,6 +103,11 @@ High-risk paths with executable evidence:
 - `refundCreate` covers staged line-item and shipping refunds, refund
   transactions, downstream `Order.refunds`, `Order.transactions`,
   `totalRefundedSet`, `totalRefundedShippingSet`, and over-refund validation.
+  Refund transaction inputs are locally validated before staging: `kind` must be
+  `REFUND` or `VOID`, supplied `parentId` values must resolve to a transaction
+  on the same order, and supplied `gateway` values must match the parent
+  transaction gateway. Invalid branches return indexed transaction userErrors
+  and leave local order/refund state unchanged.
   The public Admin GraphQL 2026-04 `RefundInput` schema does not expose the
   retail attribution keys `pointOfSaleDeviceId`, `locationId`, `userId`, or
   `transactionGroupId`; the proxy mirrors the captured top-level coercion
