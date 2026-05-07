@@ -809,6 +809,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'store-properties',
+    captureId: 'publishable-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-publishable-input-validation-conformance.ts',
+    purpose:
+      'Generic publishable PublicationInput validation for duplicate publicationId, blank publicationId, pre-1970 publishDate, unknown publicationId, and current-channel id-only sibling behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-input-validation.json',
+      'config/parity-specs/store-properties/publishable-input-validation.json',
+      'config/parity-requests/store-properties/publishable-input-validation.graphql',
+      'config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql',
+      'config/parity-requests/store-properties/publishable-input-validation-publish-current.graphql',
+      'config/parity-requests/store-properties/publishable-input-validation-unpublish-current.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, records generic publishable validation branches and current-channel sibling payloads, captures a hydration cassette while the product exists, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-media-mutations',
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',

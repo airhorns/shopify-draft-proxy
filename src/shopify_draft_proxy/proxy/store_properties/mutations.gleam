@@ -209,21 +209,26 @@ pub fn process_mutation(
                       variables,
                       upstream,
                     )
-                  let #(logged_store, logged_identity) =
-                    record_mutation_log(
-                      result.store,
-                      result.identity,
-                      request_path,
-                      document,
-                      name.value,
-                      result.staged_resource_ids,
-                    )
+                  let #(logged_store, logged_identity) = case
+                    result.should_log
+                  {
+                    True ->
+                      record_mutation_log(
+                        result.store,
+                        result.identity,
+                        request_path,
+                        document,
+                        name.value,
+                        result.staged_resource_ids,
+                      )
+                    False -> #(result.store, result.identity)
+                  }
                   #(
                     list.append(data_entries, [#(key, result.payload)]),
                     logged_store,
                     logged_identity,
                     list.append(current_ids, result.staged_resource_ids),
-                    current_errors,
+                    list.append(current_errors, result.top_level_errors),
                   )
                 }
                 _ -> #(
@@ -2418,36 +2423,270 @@ fn stage_publishable_mutation(
         ),
       ])
   }
-  let next_store = case dict.get(payload_data, "publishable") {
-    Ok(StorePropertyObject(data)) ->
-      case dict.get(data, "id") {
-        Ok(StorePropertyString(publishable_id)) -> {
-          let #(_, staged) =
-            store.upsert_staged_publishable(
-              store,
-              StorePropertyRecord(id: publishable_id, cursor: None, data: data),
-            )
-          staged
-        }
+  let input_errors =
+    publishable_input_user_errors(store, payload_data, root_name, args)
+  let has_input_errors = !list.is_empty(input_errors)
+  let response_data = case has_input_errors {
+    True ->
+      dict.insert(payload_data, "userErrors", StorePropertyList(input_errors))
+    False -> payload_data
+  }
+  let next_store = case has_input_errors {
+    True -> store
+    False ->
+      case dict.get(payload_data, "publishable") {
+        Ok(StorePropertyObject(data)) ->
+          case dict.get(data, "id") {
+            Ok(StorePropertyString(publishable_id)) -> {
+              let #(_, staged) =
+                store.upsert_staged_publishable(
+                  store,
+                  StorePropertyRecord(
+                    id: publishable_id,
+                    cursor: None,
+                    data: data,
+                  ),
+                )
+              staged
+            }
+            _ -> store
+          }
         _ -> store
       }
-    _ -> store
   }
   store_properties_types.GenericMutationResult(
     payload: project_graphql_value(
-      store_property_data_to_source(payload_data),
+      store_property_data_to_source(response_data),
       selected_children(field),
       fragments,
     ),
     store: next_store,
     identity: identity,
-    staged_resource_ids: case id {
-      "" -> []
-      _ -> [id]
+    staged_resource_ids: case id, has_input_errors {
+      "", _ -> []
+      _, True -> []
+      _, False -> [id]
     },
     top_level_errors: [],
-    should_log: True,
+    should_log: !has_input_errors,
   )
+}
+
+fn publishable_input_user_errors(
+  store: Store,
+  payload_data: Dict(String, StorePropertyValue),
+  root_name: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(StorePropertyValue) {
+  case root_name {
+    "publishablePublish" | "publishableUnpublish" ->
+      publishable_input_items(args)
+      |> validate_publishable_inputs(
+        known_publishable_publication_ids(store, payload_data),
+        [],
+        0,
+        [],
+      )
+    _ -> []
+  }
+}
+
+fn publishable_input_items(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, "input") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(fields) -> Ok(fields)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn validate_publishable_inputs(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  known_publication_ids: List(String),
+  seen_publication_ids: List(String),
+  index: Int,
+  errors: List(StorePropertyValue),
+) -> List(StorePropertyValue) {
+  case inputs {
+    [] -> list.reverse(errors)
+    [input, ..rest] -> {
+      let #(next_seen, next_errors) =
+        validate_publishable_input(
+          input,
+          known_publication_ids,
+          seen_publication_ids,
+          index,
+          errors,
+        )
+      validate_publishable_inputs(
+        rest,
+        known_publication_ids,
+        next_seen,
+        index + 1,
+        next_errors,
+      )
+    }
+  }
+}
+
+fn validate_publishable_input(
+  input: Dict(String, root_field.ResolvedValue),
+  known_publication_ids: List(String),
+  seen_publication_ids: List(String),
+  index: Int,
+  errors: List(StorePropertyValue),
+) -> #(List(String), List(StorePropertyValue)) {
+  let path = ["input", int.to_string(index)]
+  let publication_id = read_publishable_input_string(input, "publicationId")
+  let publish_date = read_publishable_input_string(input, "publishDate")
+  case publication_id {
+    None -> #(seen_publication_ids, [
+      publishable_user_error(
+        list.append(path, ["publicationId"]),
+        "PublicationId cannot be empty",
+      ),
+      ..errors
+    ])
+    Some(id) -> {
+      let trimmed_id = string.trim(id)
+      case trimmed_id {
+        "" -> #(seen_publication_ids, [
+          publishable_user_error(
+            list.append(path, ["publicationId"]),
+            "PublicationId cannot be empty",
+          ),
+          ..errors
+        ])
+        _ ->
+          case list.contains(seen_publication_ids, trimmed_id) {
+            True -> #(seen_publication_ids, [
+              publishable_user_error(
+                list.append(path, ["publicationId"]),
+                "The same publication was specified more than once",
+              ),
+              ..errors
+            ])
+            False ->
+              case publish_date {
+                Some(value) ->
+                  case publish_date_before_1970(value) {
+                    True -> #([trimmed_id, ..seen_publication_ids], [
+                      publishable_user_error(
+                        list.append(path, ["publishDate"]),
+                        "Publish date must be a date after the year 1969",
+                      ),
+                      ..errors
+                    ])
+                    False ->
+                      case
+                        !list.is_empty(known_publication_ids)
+                        && !list.contains(known_publication_ids, trimmed_id)
+                      {
+                        True -> #([trimmed_id, ..seen_publication_ids], [
+                          publishable_user_error(
+                            list.append(path, ["publicationId"]),
+                            "Publication does not exist or is not publishable",
+                          ),
+                          ..errors
+                        ])
+                        False -> #([trimmed_id, ..seen_publication_ids], errors)
+                      }
+                  }
+                _ ->
+                  case
+                    !list.is_empty(known_publication_ids)
+                    && !list.contains(known_publication_ids, trimmed_id)
+                  {
+                    True -> #([trimmed_id, ..seen_publication_ids], [
+                      publishable_user_error(
+                        list.append(path, ["publicationId"]),
+                        "Publication does not exist or is not publishable",
+                      ),
+                      ..errors
+                    ])
+                    False -> #([trimmed_id, ..seen_publication_ids], errors)
+                  }
+              }
+          }
+      }
+    }
+  }
+}
+
+fn read_publishable_input_string(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(String) {
+  case dict.get(input, key) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn publish_date_before_1970(value: String) -> Bool {
+  case int.parse(string.slice(string.trim(value), 0, 4)) {
+    Ok(year) -> year < 1970
+    Error(_) -> False
+  }
+}
+
+fn publishable_user_error(
+  field: List(String),
+  message: String,
+) -> StorePropertyValue {
+  StorePropertyObject(
+    dict.from_list([
+      #(
+        "field",
+        StorePropertyList(
+          list.map(field, fn(part) { StorePropertyString(part) }),
+        ),
+      ),
+      #("message", StorePropertyString(message)),
+    ]),
+  )
+}
+
+fn known_publishable_publication_ids(
+  store: Store,
+  payload_data: Dict(String, StorePropertyValue),
+) -> List(String) {
+  list.append(
+    store.list_effective_publications(store)
+      |> list.map(fn(publication) { publication.id }),
+    payload_publication_ids(payload_data),
+  )
+}
+
+fn payload_publication_ids(
+  payload_data: Dict(String, StorePropertyValue),
+) -> List(String) {
+  case dict.get(payload_data, "publications") {
+    Ok(StorePropertyObject(connection)) ->
+      case dict.get(connection, "nodes") {
+        Ok(StorePropertyList(nodes)) ->
+          nodes
+          |> list.filter_map(fn(node) {
+            case node {
+              StorePropertyObject(fields) ->
+                case dict.get(fields, "id") {
+                  Ok(StorePropertyString(id)) -> Ok(id)
+                  _ -> Error(Nil)
+                }
+              _ -> Error(Nil)
+            }
+          })
+        _ -> []
+      }
+    _ -> []
+  }
 }
 
 pub fn hydrate_shop_baseline_if_needed(
@@ -2565,6 +2804,13 @@ fn publishable_payload_data_from_json(
       ]
       None -> base_fields
     }
+    let fields = case json_path(response, ["data", "publications"]) {
+      Some(publications) -> [
+        #("publications", store_property_value_from_json(publications)),
+        ..fields
+      ]
+      None -> fields
+    }
     Some(dict.from_list(fields))
   }
 }
@@ -2588,7 +2834,7 @@ fn publishable_hydrate_query(operation_name: String) -> String {
   <> "publishable: node(id: $id) { "
   <> "... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } "
   <> "... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: \"gid://shopify/Publication/0\") availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } "
-  <> "} shop { publicationCount } }"
+  <> "} shop { publicationCount } publications(first: 20) { nodes { id name } } }"
 }
 
 fn stage_valid_shop_policy_update(

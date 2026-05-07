@@ -9,15 +9,15 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type ShopPolicyRecord, type ShopRecord, type StorePropertyRecord,
-  type StorePropertyValue, CapturedArray, CapturedObject, CapturedString,
-  DeliveryProfileRecord, PaymentSettingsRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
-  StorePropertyBool, StorePropertyInt, StorePropertyList,
-  StorePropertyMutationPayloadRecord, StorePropertyNull, StorePropertyObject,
-  StorePropertyRecord, StorePropertyString,
+  type PublicationRecord, type ShopPolicyRecord, type ShopRecord,
+  type StorePropertyRecord, type StorePropertyValue, CapturedArray,
+  CapturedObject, CapturedString, DeliveryProfileRecord, PaymentSettingsRecord,
+  PublicationRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
+  ShopRecord, ShopResourceLimitsRecord, StorePropertyBool, StorePropertyInt,
+  StorePropertyList, StorePropertyMutationPayloadRecord, StorePropertyNull,
+  StorePropertyObject, StorePropertyRecord, StorePropertyString,
 }
 
 fn graphql_request(body: String) -> draft_proxy.Request {
@@ -170,6 +170,18 @@ fn make_raw_record(
       #("id", StorePropertyString(id)),
       ..fields
     ]),
+  )
+}
+
+fn make_publication(id: String) -> PublicationRecord {
+  PublicationRecord(
+    id: id,
+    name: Some("Online Store"),
+    auto_publish: Some(False),
+    supports_future_publishing: Some(True),
+    catalog_id: None,
+    channel_id: None,
+    cursor: None,
   )
 }
 
@@ -2138,5 +2150,264 @@ pub fn publishable_publish_stages_collection_projection_test() {
   assert string.contains(
     json.to_string(read_json),
     "\"publishedOnCurrentPublication\":true",
+  )
+}
+
+fn publishable_validation_base_record() -> StorePropertyRecord {
+  make_raw_record("gid://shopify/Product/1", "Product", [
+    #("publishedOnCurrentPublication", StorePropertyBool(False)),
+    #(
+      "resourcePublicationsCount",
+      StorePropertyObject(
+        dict.from_list([
+          #("count", StorePropertyInt(0)),
+          #("precision", StorePropertyString("EXACT")),
+        ]),
+      ),
+    ),
+  ])
+}
+
+fn publishable_validation_staged_record() -> StorePropertyRecord {
+  make_raw_record("gid://shopify/Product/1", "Product", [
+    #("publishedOnCurrentPublication", StorePropertyBool(True)),
+    #(
+      "resourcePublicationsCount",
+      StorePropertyObject(
+        dict.from_list([
+          #("count", StorePropertyInt(1)),
+          #("precision", StorePropertyString("EXACT")),
+        ]),
+      ),
+    ),
+  ])
+}
+
+fn seeded_publishable_validation_proxy() -> draft_proxy.DraftProxy {
+  let base_publishable = publishable_validation_base_record()
+  let staged_publishable = publishable_validation_staged_record()
+  let payload =
+    StorePropertyMutationPayloadRecord(
+      key: "publishablePublish:gid://shopify/Product/1",
+      data: dict.from_list([
+        #("publishable", StorePropertyObject(staged_publishable.data)),
+        #("userErrors", StorePropertyList([])),
+      ]),
+    )
+  let unpublish_payload =
+    StorePropertyMutationPayloadRecord(
+      key: "publishableUnpublish:gid://shopify/Product/1",
+      data: dict.from_list([
+        #("publishable", StorePropertyObject(base_publishable.data)),
+        #("userErrors", StorePropertyList([])),
+      ]),
+    )
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_publishable(base_publishable)
+    |> store.upsert_base_publications([
+      make_publication("gid://shopify/Publication/1"),
+    ])
+    |> store.upsert_base_store_property_mutation_payload(payload)
+    |> store.upsert_base_store_property_mutation_payload(unpublish_payload)
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn publishable_publish_validation_request(
+  input: json.Json,
+) -> draft_proxy.Request {
+  let query =
+    "mutation PublishableInputValidation($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { publishable { ... on Product { id publishedOnCurrentPublication resourcePublicationsCount { count precision } } } userErrors { field message } } }"
+  publishable_validation_request(query, input)
+}
+
+fn publishable_unpublish_validation_request(
+  input: json.Json,
+) -> draft_proxy.Request {
+  let query =
+    "mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) { publishableUnpublish(id: $id, input: $input) { publishable { ... on Product { id publishedOnCurrentPublication resourcePublicationsCount { count precision } } } userErrors { field message } } }"
+  publishable_validation_request(query, input)
+}
+
+fn publishable_validation_request(
+  query: String,
+  input: json.Json,
+) -> draft_proxy.Request {
+  graphql_request(
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #(
+          "variables",
+          json.object([
+            #("id", json.string("gid://shopify/Product/1")),
+            #("input", input),
+          ]),
+        ),
+      ]),
+    ),
+  )
+}
+
+fn one_publication_input(publication_id: String) -> json.Json {
+  json.object([#("publicationId", json.string(publication_id))])
+}
+
+fn publishable_validation_entries(entries: List(json.Json)) -> json.Json {
+  json.preprocessed_array(entries)
+}
+
+fn assert_publishable_validation_failure(
+  response_body: json.Json,
+  proxy: draft_proxy.DraftProxy,
+  expected_error: String,
+) {
+  let serialized = json.to_string(response_body)
+  assert string.contains(serialized, expected_error)
+  assert string.contains(serialized, "\"publishedOnCurrentPublication\":true")
+  assert string.contains(serialized, "\"count\":1")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+  assert dict.size(proxy.store.staged_state.publishables) == 0
+  let assert Some(record) =
+    store.get_effective_publishable_by_id(
+      proxy.store,
+      "gid://shopify/Product/1",
+    )
+  assert dict.get(record.data, "publishedOnCurrentPublication")
+    == Ok(StorePropertyBool(False))
+  assert dict.get(record.data, "resourcePublicationsCount")
+    == Ok(
+      StorePropertyObject(
+        dict.from_list([
+          #("count", StorePropertyInt(0)),
+          #("precision", StorePropertyString("EXACT")),
+        ]),
+      ),
+    )
+}
+
+pub fn publishable_publish_rejects_duplicate_publication_id_test() {
+  let proxy = seeded_publishable_validation_proxy()
+  let input =
+    publishable_validation_entries([
+      one_publication_input("gid://shopify/Publication/1"),
+      one_publication_input("gid://shopify/Publication/1"),
+    ])
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      publishable_publish_validation_request(input),
+    )
+
+  assert status == 200
+  assert_publishable_validation_failure(
+    response_body,
+    proxy,
+    "\"field\":[\"input\",\"1\",\"publicationId\"],\"message\":\"The same publication was specified more than once\"",
+  )
+}
+
+pub fn publishable_publish_rejects_omitted_publication_id_test() {
+  let proxy = seeded_publishable_validation_proxy()
+  let input = publishable_validation_entries([json.object([])])
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      publishable_publish_validation_request(input),
+    )
+
+  assert status == 200
+  assert_publishable_validation_failure(
+    response_body,
+    proxy,
+    "\"field\":[\"input\",\"0\",\"publicationId\"],\"message\":\"PublicationId cannot be empty\"",
+  )
+}
+
+pub fn publishable_publish_rejects_pre_1970_publish_date_test() {
+  let proxy = seeded_publishable_validation_proxy()
+  let input =
+    publishable_validation_entries([
+      json.object([
+        #("publicationId", json.string("gid://shopify/Publication/1")),
+        #("publishDate", json.string("1900-01-01T00:00:00Z")),
+      ]),
+    ])
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      publishable_publish_validation_request(input),
+    )
+
+  assert status == 200
+  assert_publishable_validation_failure(
+    response_body,
+    proxy,
+    "\"field\":[\"input\",\"0\",\"publishDate\"],\"message\":\"Publish date must be a date after the year 1969\"",
+  )
+}
+
+pub fn publishable_publish_rejects_unknown_publication_id_test() {
+  let proxy = seeded_publishable_validation_proxy()
+  let input =
+    publishable_validation_entries([
+      one_publication_input("gid://shopify/Publication/999999999"),
+    ])
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      publishable_publish_validation_request(input),
+    )
+
+  assert status == 200
+  assert_publishable_validation_failure(
+    response_body,
+    proxy,
+    "\"field\":[\"input\",\"0\",\"publicationId\"],\"message\":\"Publication does not exist or is not publishable\"",
+  )
+}
+
+pub fn publishable_unpublish_rejects_input_validation_failures_test() {
+  let proxy = seeded_publishable_validation_proxy()
+  let input =
+    publishable_validation_entries([
+      one_publication_input("gid://shopify/Publication/1"),
+      one_publication_input("gid://shopify/Publication/1"),
+    ])
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      publishable_unpublish_validation_request(input),
+    )
+
+  assert status == 200
+  assert string.contains(
+    json.to_string(response_body),
+    "\"field\":[\"input\",\"1\",\"publicationId\"],\"message\":\"The same publication was specified more than once\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn publishable_input_empty_string_variable_is_invalid_variable_test() {
+  let proxy = seeded_publishable_validation_proxy()
+  let input =
+    publishable_validation_entries([
+      one_publication_input(""),
+    ])
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      publishable_publish_validation_request(input),
+    )
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "\"problems\":[{\"path\":[0,\"publicationId\"],\"explanation\":\"Invalid global id ''\",\"message\":\"Invalid global id ''\"}]",
   )
 }
