@@ -411,14 +411,14 @@ pub fn build_order_from_create_input(
   let has_paid_transaction = order_transactions_include_paid(transactions)
   let has_authorization = order_transactions_include_authorization(transactions)
   let financial_status = case read_string(input, "financialStatus") {
-    Some(value) -> string.uppercase(value)
+    Some(value) -> Some(string.uppercase(value))
     None ->
       case has_paid_transaction {
-        True -> "PAID"
+        True -> Some("PAID")
         False ->
           case has_authorization {
-            True -> "AUTHORIZED"
-            False -> "PENDING"
+            True -> Some("AUTHORIZED")
+            False -> None
           }
       }
   }
@@ -481,7 +481,7 @@ pub fn build_order_from_create_input(
         optional_captured_string(read_string(input, "sourceName")),
       ),
       #("paymentGatewayNames", CapturedArray(payment_gateway_names)),
-      #("displayFinancialStatus", CapturedString(financial_status)),
+      #("displayFinancialStatus", optional_captured_string(financial_status)),
       #("displayFulfillmentStatus", CapturedString(fulfillment_status)),
       #("note", optional_captured_string(read_string(input, "note"))),
       #("tags", CapturedArray(order_create_tags(input))),
@@ -531,12 +531,12 @@ pub fn build_order_from_create_input(
       #(
         "totalOutstandingSet",
         money_set_with_presentment(
-          case has_paid_transaction {
+          case has_paid_transaction || has_authorization {
             True -> 0.0
             False -> current_total
           },
           currency_code,
-          case has_paid_transaction {
+          case has_paid_transaction || has_authorization {
             True -> 0.0
             False -> presentment_current_total
           },

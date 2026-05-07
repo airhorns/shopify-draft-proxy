@@ -1,0 +1,144 @@
+{
+  "scenarioId": "order-create-math-matrix",
+  "operationNames": ["orderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["money-math-parity", "payload-shape", "state-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-math-matrix.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+    "variablesCapturePath": "$.cases.pendingNoTax.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 orderCreate math matrix covering pending custom-line subtotal, paid tax+shipping totals, fixed-discount totals, authorization capturable/outstanding amounts, and presentment MoneyBag propagation. Volatile order, line item, and transaction IDs are not selected; all selected money/status slices compare strictly.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "pending-no-tax",
+        "capturePath": "$.cases.pendingNoTax.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.displayFulfillmentStatus",
+          "$.order.paymentGatewayNames",
+          "$.order.subtotalPriceSet",
+          "$.order.currentSubtotalPriceSet",
+          "$.order.totalShippingPriceSet",
+          "$.order.currentTotalTaxSet",
+          "$.order.totalTaxSet",
+          "$.order.currentTotalDiscountsSet",
+          "$.order.totalDiscountsSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.totalCapturableSet",
+          "$.order.capturable",
+          "$.order.discountCodes",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.order.lineItems.nodes[0].sku",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines"
+        ]
+      },
+      {
+        "name": "paid-tax-and-shipping",
+        "capturePath": "$.cases.paidTaxShipping.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.paidTaxShipping.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.paymentGatewayNames",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.totalShippingPriceSet",
+          "$.order.totalTaxSet",
+          "$.order.shippingLines.nodes[0].originalPriceSet",
+          "$.order.shippingLines.nodes[0].taxLines",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet"
+        ]
+      },
+      {
+        "name": "fixed-discount-response",
+        "capturePath": "$.cases.fixedDiscount.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.fixedDiscount.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalDiscountsSet",
+          "$.order.currentTotalDiscountsSet",
+          "$.order.discountCodes",
+          "$.order.totalTaxSet",
+          "$.order.totalShippingPriceSet"
+        ]
+      },
+      {
+        "name": "authorization-capturable",
+        "capturePath": "$.cases.authorization.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.authorization.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.paymentGatewayNames",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.totalCapturableSet",
+          "$.order.capturable",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet"
+        ]
+      },
+      {
+        "name": "presentment-money",
+        "capturePath": "$.cases.presentmentMoney.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.presentmentMoney.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.subtotalPriceSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.transactions[0].amountSet"
+        ]
+      }
+    ]
+  }
+}
