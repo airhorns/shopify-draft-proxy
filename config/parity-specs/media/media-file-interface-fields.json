@@ -1,0 +1,142 @@
+{
+  "scenarioId": "media-file-interface-fields",
+  "operationNames": ["fileCreate", "files"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-interface-fields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-interface-fields-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 File interface fields for an IMAGE and a generic FILE created through fileCreate, then read back through files(first: 2, reverse: true, sortKey: ID). Public 2026-04 exposes updatedAt and fileErrors on File, mimeType on MediaImage and GenericFile, and Media interface errors/warnings only on MediaImage; displayName, updateStatus, fileWarnings, presentation, and connectedResources* are not public File fields in this schema.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-create-interface-payload",
+        "capturePath": "$.create.response.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.files[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$.files[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live update timestamp."
+          },
+          {
+            "path": "$.files[0].mimeType",
+            "matcher": "exact-string:image/jpeg",
+            "reason": "Shopify returns null for mimeType in the immediate create payload; the proxy derives it from the accepted filename/source."
+          },
+          {
+            "path": "$.files[0].image",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns null for the image object while processing; the proxy keeps the accepted external image source immediately."
+          },
+          {
+            "path": "$.files[1].id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy generates a local GenericFile GID; Shopify returns the dev-store GenericFile GID."
+          },
+          {
+            "path": "$.files[1].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$.files[1].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live update timestamp."
+          },
+          {
+            "path": "$.files[1].mimeType",
+            "matcher": "exact-string:application/pdf",
+            "reason": "Shopify returns null for mimeType in the immediate create payload; the proxy derives it from the accepted filename/source."
+          },
+          {
+            "path": "$.files[1].url",
+            "matcher": "regex:^https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+            "reason": "Shopify returns null or a CDN URL while processing generic files; the proxy keeps the accepted external file source."
+          }
+        ]
+      },
+      {
+        "name": "files-interface-read-after-create",
+        "capturePath": "$.readAfterCreate.response.data.files.nodes",
+        "proxyPath": "$.data.files.nodes",
+        "expectedDifferences": [
+          {
+            "path": "$[0].id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy generates a local GenericFile GID; Shopify returns the dev-store GenericFile GID."
+          },
+          {
+            "path": "$[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live update timestamp."
+          },
+          {
+            "path": "$[0].fileStatus",
+            "matcher": "exact-string:UPLOADED",
+            "reason": "Shopify advances file processing asynchronously; the proxy keeps the staged create status."
+          },
+          {
+            "path": "$[0].url",
+            "matcher": "regex:^https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+            "reason": "Shopify returns its CDN file URL once the generic file is processed; the proxy keeps the accepted external file source."
+          },
+          {
+            "path": "$[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$[1].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$[1].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live update timestamp."
+          },
+          {
+            "path": "$[1].fileStatus",
+            "matcher": "exact-string:UPLOADED",
+            "reason": "Shopify advances file processing asynchronously; the proxy keeps the staged create status."
+          },
+          {
+            "path": "$[1].image.url",
+            "matcher": "regex:^https://placehold.co/600x400.jpg",
+            "reason": "Shopify returns its CDN media URL once the image is processed; the proxy keeps the accepted external image source."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-interface-fields-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

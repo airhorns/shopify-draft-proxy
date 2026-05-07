@@ -1007,6 +1007,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-interface-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-interface-fields-conformance.mts',
+    purpose:
+      'Files API File interface non-null fields and type-specific MediaImage/GenericFile field projection for fileCreate plus files read-after-write.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-interface-fields.json`,
+      'config/parity-specs/media/media-file-interface-fields.json',
+      'config/parity-requests/media/media-file-interface-fields-create.graphql',
+      'config/parity-requests/media/media-file-interface-fields-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable image file and one disposable generic file, then deletes both.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:

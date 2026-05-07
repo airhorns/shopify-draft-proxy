@@ -1,0 +1,36 @@
+query MediaFileInterfaceFieldsRead {
+  files(first: 2, reverse: true, sortKey: ID) {
+    nodes {
+      __typename
+      id
+      alt
+      createdAt
+      updatedAt
+      fileStatus
+      fileErrors {
+        code
+        message
+        details
+      }
+      ... on MediaImage {
+        mimeType
+        image {
+          url
+        }
+        mediaErrors {
+          code
+          message
+          details
+        }
+        mediaWarnings {
+          code
+          message
+        }
+      }
+      ... on GenericFile {
+        mimeType
+        url
+      }
+    }
+  }
+}

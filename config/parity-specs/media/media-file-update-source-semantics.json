@@ -67,7 +67,7 @@
       {
         "name": "generic-files-read-after-original-source",
         "capturePath": "$.reads.genericAfterOriginalSource.response.data.files.nodes[0]",
-        "proxyPath": "$.data.files.nodes[1]",
+        "proxyPath": "$.data.files.nodes[0]",
         "expectedDifferences": [
           {
             "path": "$.url",

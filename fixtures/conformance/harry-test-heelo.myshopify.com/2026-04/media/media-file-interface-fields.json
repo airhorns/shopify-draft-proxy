@@ -1,0 +1,182 @@
+{
+  "capturedAt": "2026-05-07T17:46:21.752Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-interface-fields",
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "contentType": "IMAGE",
+          "filename": "media-file-interface-fields-1778175979085-image.jpg",
+          "originalSource": "https://placehold.co/600x400.jpg",
+          "alt": "media-file-interface-fields-1778175979085 image"
+        },
+        {
+          "contentType": "FILE",
+          "filename": "media-file-interface-fields-1778175979085-generic.pdf",
+          "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "alt": "media-file-interface-fields-1778175979085 generic"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "__typename": "MediaImage",
+              "id": "gid://shopify/MediaImage/43685197775154",
+              "alt": "media-file-interface-fields-1778175979085 image",
+              "createdAt": "2026-05-07T17:46:19Z",
+              "updatedAt": "2026-05-07T17:46:19Z",
+              "fileStatus": "UPLOADED",
+              "fileErrors": [],
+              "mimeType": null,
+              "image": null,
+              "mediaErrors": [],
+              "mediaWarnings": []
+            },
+            {
+              "__typename": "GenericFile",
+              "id": "gid://shopify/GenericFile/43685197807922",
+              "alt": "media-file-interface-fields-1778175979085 generic",
+              "createdAt": "2026-05-07T17:46:19Z",
+              "updatedAt": "2026-05-07T17:46:19Z",
+              "fileStatus": "UPLOADED",
+              "fileErrors": [],
+              "mimeType": null,
+              "url": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 24,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readiness": {
+    "image": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/43685197775154",
+          "__typename": "MediaImage",
+          "fileStatus": "READY"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "generic": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/GenericFile/43685197807922",
+          "__typename": "GenericFile",
+          "fileStatus": "READY"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "__typename": "GenericFile",
+              "id": "gid://shopify/GenericFile/43685197807922",
+              "alt": "media-file-interface-fields-1778175979085 generic",
+              "createdAt": "2026-05-07T17:46:19Z",
+              "updatedAt": "2026-05-07T17:46:21Z",
+              "fileStatus": "READY",
+              "fileErrors": [],
+              "mimeType": "application/pdf",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/dummy.pdf?v=1778175981"
+            },
+            {
+              "__typename": "MediaImage",
+              "id": "gid://shopify/MediaImage/43685197775154",
+              "alt": "media-file-interface-fields-1778175979085 image",
+              "createdAt": "2026-05-07T17:46:19Z",
+              "updatedAt": "2026-05-07T17:46:21Z",
+              "fileStatus": "READY",
+              "fileErrors": [],
+              "mimeType": "image/jpeg",
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/media-file-interface-fields-1778175979085-image.jpg?v=1778175981"
+              },
+              "mediaErrors": [],
+              "mediaWarnings": []
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43685197775154", "gid://shopify/GenericFile/43685197807922"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43685197775154", "gid://shopify/GenericFile/43685197807922"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

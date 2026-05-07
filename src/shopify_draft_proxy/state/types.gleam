@@ -101,6 +101,7 @@ pub type FileRecord {
     alt: Option(String),
     content_type: Option(String),
     created_at: String,
+    updated_at: String,
     file_status: String,
     filename: Option(String),
     original_source: String,

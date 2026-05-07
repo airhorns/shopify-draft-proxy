@@ -68,6 +68,7 @@ fn ready_image() -> FileRecord {
     alt: Some("Seed"),
     content_type: Some("IMAGE"),
     created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
     file_status: "READY",
     filename: Some("seed.jpg"),
     original_source: "https://cdn.example.com/seed.jpg",
@@ -87,6 +88,7 @@ fn ready_video() -> FileRecord {
     alt: None,
     content_type: Some("VIDEO"),
     created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
     file_status: "READY",
     filename: Some("clip.mp4"),
     original_source: "https://cdn.example.com/clip.mp4",
@@ -106,6 +108,7 @@ fn ready_generic_file() -> FileRecord {
     alt: Some("Generic seed"),
     content_type: Some("FILE"),
     created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
     file_status: "READY",
     filename: Some("seed.pdf"),
     original_source: "https://cdn.example.com/seed.pdf",
@@ -227,6 +230,18 @@ pub fn files_returns_empty_connection_test() {
 pub fn files_with_edges_returns_empty_test() {
   let result = run("{ files(first: 10) { edges { cursor } } }")
   assert result == "{\"files\":{\"edges\":[]}}"
+}
+
+pub fn files_emit_file_interface_defaults_and_derived_fields_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image(), ready_generic_file()]),
+      "query { files(first: 5) { nodes { __typename id createdAt updatedAt displayName updateStatus fileErrors { code message } fileWarnings { code message } ... on MediaImage { mimeType mediaErrors { code message } mediaWarnings { code message } } ... on GenericFile { mimeType url } } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"files\":{\"nodes\":[{\"__typename\":\"MediaImage\",\"id\":\"gid://shopify/MediaImage/1\",\"createdAt\":\"2026-05-05T00:00:00.000Z\",\"updatedAt\":\"2026-05-05T00:00:00.000Z\",\"displayName\":\"seed.jpg\",\"updateStatus\":\"READY\",\"fileErrors\":[],\"fileWarnings\":[],\"mimeType\":\"image/jpeg\",\"mediaErrors\":[],\"mediaWarnings\":[]},{\"__typename\":\"GenericFile\",\"id\":\"gid://shopify/GenericFile/3\",\"createdAt\":\"2026-05-05T00:00:00.000Z\",\"updatedAt\":\"2026-05-05T00:00:00.000Z\",\"displayName\":\"seed.pdf\",\"updateStatus\":\"READY\",\"fileErrors\":[],\"fileWarnings\":[],\"mimeType\":\"application/pdf\",\"url\":\"https://cdn.example.com/seed.pdf\"}]}}}"
 }
 
 pub fn process_wraps_in_data_envelope_test() {
