@@ -1,0 +1,12 @@
+mutation GiftCardTemplateSuffixPrefixUpdate($id: ID!, $templateSuffix: String!) {
+  giftCardUpdate(id: $id, input: { templateSuffix: $templateSuffix }) {
+    giftCard {
+      id
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

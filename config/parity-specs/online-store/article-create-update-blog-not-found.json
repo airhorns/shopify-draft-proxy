@@ -1,0 +1,118 @@
+{
+  "scenarioId": "online-store/article-create-update-blog-not-found",
+  "operationNames": ["blogCreate", "articleCreate", "articleUpdate", "article"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail", "read-after-write", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/article-create-update-blog-not-found.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify articleCreate/articleUpdate behavior when ArticleCreateInput.blogId or ArticleUpdateInput.blogId references a missing blog. Both mutations return NOT_FOUND on field [\"article\"] with message \"Must reference an existing blog.\" The replay first earns a local blog/article through supported mutations, then verifies bad blogId validation and read-after-failed-update state without sending supported mutations upstream at runtime.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable blog reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate setup provides a usable update target",
+        "capturePath": "$.interactions[1].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[1].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[1].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[1].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article.title", "$.article.handle", "$.article.image", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate with unknown blogId returns NOT_FOUND",
+        "capturePath": "$.interactions[2].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-create-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.body"
+              },
+              "blogId": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.blogId"
+              },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[2].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleUpdate with unknown blogId returns NOT_FOUND",
+        "capturePath": "$.interactions[3].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-update-validation-article-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup provides a usable update target",
+              "path": "$.data.articleCreate.article.id"
+            },
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[3].request.variables.article.title"
+              },
+              "blogId": {
+                "fromCapturePath": "$.interactions[3].request.variables.article.blogId"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "article read after failed update keeps original blog and title",
+        "capturePath": "$.interactions[4].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/article-create-update-blog-not-found-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "articleCreate setup provides a usable update target",
+              "path": "$.data.articleCreate.article.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.article.title", "$.article.blog.title"]
+      }
+    ]
+  }
+}

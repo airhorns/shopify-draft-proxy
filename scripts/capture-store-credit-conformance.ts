@@ -338,6 +338,73 @@ try {
   const overLimitDebit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, overLimitDebitVariables);
   assertNoGraphqlFailure(overLimitDebit, 'storeCreditAccountDebit over-limit validation');
 
+  const overLimitCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '100000.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const overLimitCredit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, overLimitCreditVariables);
+  assertNoGraphqlFailure(overLimitCredit, 'storeCreditAccountCredit credit-limit validation');
+
+  const unsupportedAttributionCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.00',
+        currencyCode: 'USD',
+      },
+      notify: true,
+      attribution: {
+        userId: 'gid://shopify/User/1',
+        locationId: 'gid://shopify/Location/1',
+      },
+    },
+  };
+  const unsupportedAttributionCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    unsupportedAttributionCreditVariables,
+  );
+  if (!unsupportedAttributionCredit.payload.errors) {
+    throw new Error(
+      `storeCreditAccountCredit attribution validation unexpectedly succeeded: ${JSON.stringify(
+        unsupportedAttributionCredit.payload,
+        null,
+        2,
+      )}`,
+    );
+  }
+
+  const unsupportedDebitFieldsVariables = {
+    id: customerId,
+    debitInput: {
+      debitAmount: {
+        amount: '1.00',
+        currencyCode: 'USD',
+      },
+      notify: false,
+      attribution: {
+        userId: 'gid://shopify/User/1',
+      },
+    },
+  };
+  const unsupportedDebitFields = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    unsupportedDebitFieldsVariables,
+  );
+  if (!unsupportedDebitFields.payload.errors) {
+    throw new Error(
+      `storeCreditAccountDebit unsupported fields validation unexpectedly succeeded: ${JSON.stringify(
+        unsupportedDebitFields.payload,
+        null,
+        2,
+      )}`,
+    );
+  }
+
   const creditVariables = {
     id: accountId,
     creditInput: {
@@ -345,6 +412,7 @@ try {
         amount: '1.11',
         currencyCode: 'USD',
       },
+      notify: true,
     },
   };
   const credit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, creditVariables);
@@ -394,6 +462,17 @@ try {
         ownerSecondCurrencyCredit,
       ),
       overLimitDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, overLimitDebitVariables, overLimitDebit),
+      overLimitCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, overLimitCreditVariables, overLimitCredit),
+      unsupportedAttributionCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        unsupportedAttributionCreditVariables,
+        unsupportedAttributionCredit,
+      ),
+      unsupportedDebitFields: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        unsupportedDebitFieldsVariables,
+        unsupportedDebitFields,
+      ),
     },
     mutation: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, creditVariables, credit),
     debit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, debitVariables, debit),

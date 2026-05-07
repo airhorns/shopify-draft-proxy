@@ -386,7 +386,8 @@ fn saved_search_cursor_value(record: SavedSearchRecord, _index: Int) -> String {
   record.id
 }
 
-fn project_saved_search(
+@internal
+pub fn project_saved_search(
   record: SavedSearchRecord,
   field: Selection,
   fragments: FragmentMap,

@@ -1,0 +1,65 @@
+{
+  "scenarioId": "fulfillment-order-move-multi-line",
+  "operationNames": ["fulfillmentOrderMove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "quantity-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-move-multi-line.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-hold-multi-line-locations.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setup.locations.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 fulfillmentOrderMove with two fulfillmentOrderLineItems entries. The first submitted line is fully moved and the second is partially moved, proving remainingFulfillmentOrder classification is based on aggregate residual work rather than only the first input.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "locations-hydrate",
+        "capturePath": "$.setup.locations.response.payload.data.locationsAvailableForDeliveryProfilesConnection",
+        "proxyPath": "$.data.locationsAvailableForDeliveryProfilesConnection"
+      },
+      {
+        "name": "move-multi-line-success",
+        "capturePath": "$.workflow.move.response.payload.data.fulfillmentOrderMove",
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-multi-line.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.workflow.move.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.movedFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.movedFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy keeps source line-item identities for local split projections; Shopify returns store-assigned fulfillment-order line-item IDs for the moved order."
+          },
+          {
+            "path": "$.movedFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.originalFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      }
+    ]
+  }
+}

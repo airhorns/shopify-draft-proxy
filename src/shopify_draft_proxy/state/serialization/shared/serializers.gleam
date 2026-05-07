@@ -16,6 +16,7 @@ pub fn file_json(record: types.FileRecord) -> Json {
     #("alt", optional_string(record.alt)),
     #("contentType", optional_string(record.content_type)),
     #("createdAt", json.string(record.created_at)),
+    #("updatedAt", json.string(record.updated_at)),
     #("fileStatus", json.string(record.file_status)),
     #("filename", optional_string(record.filename)),
     #("originalSource", json.string(record.original_source)),
@@ -198,6 +199,7 @@ pub fn shop_features_json(record: types.ShopFeaturesRecord) -> Json {
       json.string(record.paypal_express_subscription_gateway_status),
     ),
     #("reports", json.bool(record.reports)),
+    #("b2bDepositsEnabled", json.bool(record.b2b_deposits_enabled)),
     #("discountsByMarketEnabled", json.bool(record.discounts_by_market_enabled)),
     #("marketsGranted", json.int(record.markets_granted)),
     #("sellsSubscriptions", json.bool(record.sells_subscriptions)),
@@ -1210,6 +1212,10 @@ pub fn metaobject_definition_json(
     #("description", optional_string(record.description)),
     #("displayNameKey", optional_string(record.display_name_key)),
     #("onlineStoreUrlHandle", optional_string(record.online_store_url_handle)),
+    #(
+      "onlineStoreCreateRedirects",
+      optional_bool(record.online_store_create_redirects),
+    ),
     #("access", dict_to_json(record.access, optional_string)),
     #(
       "capabilities",
@@ -2222,6 +2228,18 @@ pub fn store_credit_account_transaction_json(
     #("balanceAfterTransaction", money_json(record.balance_after_transaction)),
     #("createdAt", json.string(record.created_at)),
     #("event", json.string(record.event)),
+    #("notify", optional_bool(record.notify)),
+    #(
+      "attribution",
+      json.object([
+        #("userId", optional_string(record.attribution_user_id)),
+        #(
+          "pointOfSaleDeviceId",
+          optional_string(record.attribution_point_of_sale_device_id),
+        ),
+        #("locationId", optional_string(record.attribution_location_id)),
+      ]),
+    ),
   ])
 }
 

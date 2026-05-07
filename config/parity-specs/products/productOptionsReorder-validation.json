@@ -1,0 +1,322 @@
+{
+  "scenarioId": "productOptionsReorder-validation",
+  "operationNames": ["productCreate", "productOptionsCreate", "productVariantsBulkCreate", "productOptionsReorder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
+    "variablesCapturePath": "$.captures.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The live fixture uses Shopify product IDs while the proxy allocates deterministic synthetic product IDs."
+      },
+      {
+        "path": "$.product.options[*].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are generated independently by Shopify and by the proxy."
+      },
+      {
+        "path": "$.product.options[*].optionValues[*].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are generated independently by Shopify and by the proxy."
+      },
+      {
+        "path": "$.product.variants.nodes[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Product variant IDs are generated independently by Shopify and by the proxy."
+      },
+      {
+        "path": "$.productVariants[*].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Setup variant IDs are generated independently by Shopify and by the proxy."
+      }
+    ],
+    "targets": [
+      {
+        "name": "product-create-user-errors",
+        "capturePath": "$.captures.productCreate.result.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "setup-options",
+        "capturePath": "$.captures.setupOptions.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantStrategy": null,
+            "options": {
+              "fromCapturePath": "$.captures.setupOptions.variables.options"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-variants",
+        "capturePath": "$.captures.setupVariants.result.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.captures.setupVariants.variables.variants"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-option-name-user-errors",
+        "capturePath": "$.captures.unknownOptionName.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": {
+              "fromCapturePath": "$.captures.unknownOptionName.variables.options"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-option-id-user-errors",
+        "capturePath": "$.captures.unknownOptionId.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": {
+              "fromCapturePath": "$.captures.unknownOptionId.variables.options"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-value-name-user-errors",
+        "capturePath": "$.captures.unknownValueName.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": [
+              {
+                "name": "Color",
+                "values": {
+                  "fromCapturePath": "$.captures.unknownValueName.variables.options[0].values"
+                }
+              },
+              {
+                "name": "Size",
+                "values": [
+                  {
+                    "name": "Small"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "unknown-value-id-user-errors",
+        "capturePath": "$.captures.unknownValueId.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": [
+              {
+                "name": "Color",
+                "values": {
+                  "fromCapturePath": "$.captures.unknownValueId.variables.options[0].values"
+                }
+              },
+              {
+                "name": "Size",
+                "values": [
+                  {
+                    "name": "Small"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "duplicate-option-name-user-errors",
+        "capturePath": "$.captures.duplicateOptionName.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": {
+              "fromCapturePath": "$.captures.duplicateOptionName.variables.options"
+            }
+          }
+        }
+      },
+      {
+        "name": "duplicate-value-name-user-errors",
+        "capturePath": "$.captures.duplicateValueName.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": [
+              {
+                "name": "Color",
+                "values": {
+                  "fromCapturePath": "$.captures.duplicateValueName.variables.options[0].values"
+                }
+              },
+              {
+                "name": "Size",
+                "values": [
+                  {
+                    "name": "Small"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "mixed-option-selectors-user-errors",
+        "capturePath": "$.captures.mixedOptionSelectors.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": {
+              "fromCapturePath": "$.captures.mixedOptionSelectors.variables.options"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-value-selectors-user-errors",
+        "capturePath": "$.captures.mixedValueSelectors.result.data.productOptionsReorder.userErrors",
+        "proxyPath": "$.data.productOptionsReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": [
+              {
+                "name": "Color",
+                "values": {
+                  "fromCapturePath": "$.captures.mixedValueSelectors.variables.options[0].values"
+                }
+              },
+              {
+                "name": "Size",
+                "values": [
+                  {
+                    "name": "Small"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "success-reorder",
+        "capturePath": "$.captures.successReorder.result.data.productOptionsReorder",
+        "proxyPath": "$.data.productOptionsReorder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsReorder-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "options": [
+              {
+                "name": "Size",
+                "values": [
+                  {
+                    "name": "Small"
+                  }
+                ]
+              },
+              {
+                "name": "Color",
+                "values": [
+                  {
+                    "name": "Green"
+                  },
+                  {
+                    "name": "Red"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "downstream-read-after-reorder",
+        "capturePath": "$.captures.downstreamRead.result.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-product-options-read.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.id",
+          "$.title",
+          "$.handle",
+          "$.status",
+          "$.options[*].id",
+          "$.options[*].optionValues[*].id",
+          "$.variants.nodes[*].id"
+        ]
+      }
+    ]
+  },
+  "notes": "Captured validation parity for public productOptionsReorder userErrors and read-after-write ordering. Missing selector and position-key branches are also recorded in the fixture under schemaErrorCaptures because public Admin GraphQL rejects them at variable validation time before ProductOptionsReorderPayload is returned; inline local guardrails remain covered by runtime tests."
+}

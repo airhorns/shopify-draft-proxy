@@ -1,0 +1,13 @@
+mutation DiscountBulkSearchEffectsCodeDelete($search: String!) {
+  discountCodeBulkDelete(search: $search) {
+    job {
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -110,7 +110,7 @@ Local `bulkOperations` supports:
 
 Local `bulkOperationRunQuery` supports:
 
-- one top-level connection rooted at `products` or `productVariants`
+- a single locally materialized export root at `products` or `productVariants`
 - product scalar selections already supported by local product reads
 - nested `products { ... variants { ... } }` exports with flat JSONL output where each variant line receives `__parentId`
 - root `productVariants` exports with product-variant scalar selections already supported by local product variant reads
@@ -127,8 +127,9 @@ Local `bulkOperationRunQuery` rejects these branches locally with `userErrors` a
 
 - missing `query`, matching the captured top-level `missingRequiredArguments` shape
 - malformed submitted bulk query strings, including an empty string returning `Invalid bulk query: syntax error, unexpected end of file`
+- submitted `mutation` or `subscription` operation documents, using the captured message `Invalid operation type. Only \`query\` operations are supported.`
 - no connection, using the captured message `Bulk queries must contain at least one connection.`
-- multiple top-level fields, top-level `node`/`nodes`, unsupported roots, more than five detected connections, and connections deeper than two levels
+- top-level `node`/`nodes`, unsupported roots, more than five detected connections, connections deeper than two levels, and connections nested beneath curated list-returning fields such as `orders { ... fulfillments { ... events { ... } } }`
 - unsupported nested connections other than product `variants`
 - selected `BulkOperationUserError.code` values are serialized for these local validation branches as `INVALID`, matching the captured 2026-04 Admin API behavior instead of dropping the selected field
 - same-type in-progress operations: if any effective `QUERY` job has a non-terminal status, local `bulkOperationRunQuery` returns `bulkOperation: null` plus `userErrors[{ field: null, message: "A bulk query operation for this app and shop is already in progress: <id>.", code: "OPERATION_IN_PROGRESS" }]` without staging a second job. Daily/per-app `LIMIT_REACHED` quota modeling is not implemented.
@@ -172,6 +173,8 @@ HAR-725 adds focused 2026-04 validation evidence at `fixtures/conformance/harry-
 The allowed-roots fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-allowed-roots.json`, produced by `corepack pnpm conformance:capture -- --run bulk-operation-run-mutation-allowed-roots`, proves Shopify accepts non-products inner roots for `customerCreate`, `metaobjectDefinitionCreate`, and `metafieldsSet`. Each valid uploaded JSONL import returns a `CREATED` mutation BulkOperation, becomes visible through `currentBulkOperation(type: MUTATION)` and `bulkOperation(id:)`, completes with result JSONL, and is cleaned up by the recorder. The strict parity spec `config/parity-specs/bulk-operations/run-mutation-allowed-roots.json` replays the deterministic missing-upload branch for those same inner roots so the proxy proves it no longer rejects accepted non-product mutation roots before staged-upload lookup.
 
 HAR-733 adds a focused 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-user-error-codes.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-run-query-user-error-codes-conformance.ts`. The strict parity spec `config/parity-specs/bulk-operations/bulk-operation-run-query-user-error-codes.json` proves that selecting `userErrors { field message code }` returns `code: "INVALID"` for both no-connection validation and empty-query malformed-query branches.
+
+The shared run-query validator fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-validators.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-run-query-validators-conformance.ts`, also captures the submitted-operation-type guard and the connection-within-list guard. The strict parity spec `config/parity-specs/bulk-operations/bulk-operation-run-query-operation-type-and-list-validators.json` proves the local proxy returns `bulkOperation: null` and the captured `field`, `message`, and selected `code: "INVALID"` values for both branches without staging a local BulkOperation.
 
 The focused read-argument validation fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-read-arg-validation.json`, produced by `corepack pnpm conformance:capture -- --run bulk-operations-read-arg-validation`, is registered by `config/parity-specs/bulk-operations/bulk-operations-read-arg-validation.json`. It proves the exact top-level error envelopes for missing/conflicting connection windows, malformed `created_at`, malformed inline IDs, and non-BulkOperation GIDs. It also proves that invalid `status` and `operation_type` search values are not top-level errors in this API version; Shopify returns the selected empty connection plus `extensions.search[].warnings[{ code: "invalid_value" }]`.
 

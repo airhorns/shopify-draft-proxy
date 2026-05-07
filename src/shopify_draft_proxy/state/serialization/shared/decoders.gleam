@@ -521,6 +521,11 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     decode.string,
   )
   use reports <- decode.field("reports", decode.bool)
+  use b2b_deposits_enabled <- optional_field(
+    "b2bDepositsEnabled",
+    True,
+    decode.bool,
+  )
   use discounts_by_market_enabled <- optional_field(
     "discountsByMarketEnabled",
     False,
@@ -546,6 +551,7 @@ pub fn shop_features_decoder() -> Decoder(types.ShopFeaturesRecord) {
     live_view: live_view,
     paypal_express_subscription_gateway_status: paypal_express_subscription_gateway_status,
     reports: reports,
+    b2b_deposits_enabled: b2b_deposits_enabled,
     discounts_by_market_enabled: discounts_by_market_enabled,
     markets_granted: markets_granted,
     sells_subscriptions: sells_subscriptions,
@@ -1321,6 +1327,11 @@ pub fn metaobject_definition_decoder() -> Decoder(
   use description <- optional_string_field("description")
   use display_name_key <- optional_string_field("displayNameKey")
   use online_store_url_handle <- optional_string_field("onlineStoreUrlHandle")
+  use online_store_create_redirects <- optional_field(
+    "onlineStoreCreateRedirects",
+    None,
+    decode.optional(decode.bool),
+  )
   use access <- optional_field(
     "access",
     dict.new(),
@@ -1380,6 +1391,7 @@ pub fn metaobject_definition_decoder() -> Decoder(
     description: description,
     display_name_key: display_name_key,
     online_store_url_handle: online_store_url_handle,
+    online_store_create_redirects: online_store_create_redirects,
     access: access,
     capabilities: capabilities,
     field_definitions: field_definitions,

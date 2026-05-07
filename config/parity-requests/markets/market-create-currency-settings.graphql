@@ -1,0 +1,23 @@
+mutation MarketCreateCurrencySettings($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      status
+      enabled
+      currencySettings {
+        baseCurrency {
+          currencyCode
+          currencyName
+        }
+        localCurrencies
+        roundingEnabled
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

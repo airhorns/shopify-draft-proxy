@@ -526,7 +526,8 @@ fn payment_schedules_connection_source(
   ])
 }
 
-fn payment_schedule_source(
+@internal
+pub fn payment_schedule_source(
   schedule: state_types.PaymentScheduleRecord,
 ) -> SourceValue {
   src_object([

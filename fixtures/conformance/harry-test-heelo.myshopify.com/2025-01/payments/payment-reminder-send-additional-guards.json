@@ -1,0 +1,542 @@
+{
+  "capturedAt": "2026-05-07T15:23:22.261Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scenarioId": "payment-reminder-send-additional-guards",
+  "notes": "Live capture on disposable payment-terms orders for public Admin-reproducible paymentReminderSend guards: blank order email and one reminder per order per 24 hours. Selling-plan, capture-at-fulfillment, and unsent PaymentCollection branches depend on internal order/payment state not currently constructible through this public conformance harness; local runtime tests cover those guardrails with explicit order-side state hints.",
+  "requestDocument": "mutation PaymentReminderSendAdditionalGuards($paymentScheduleId: ID!) { paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field code message } } }",
+  "hydrateDocument": "query PaymentScheduleReminderHydrate($id: ID!) { paymentSchedule: node(id: $id) { ... on PaymentSchedule { id dueAt issuedAt completedAt paymentTerms { id overdue dueInDays paymentTermsName paymentTermsType translatedName order { id email closed closedAt cancelledAt displayFinancialStatus lineItems(first: 1) { nodes { sellingPlan { name } } } } draftOrder { id status completedAt } paymentSchedules(first: 10) { nodes { id dueAt issuedAt completedAt } } } } } }",
+  "setup": {
+    "missingEmail": {
+      "draftOrderCreate": {
+        "variables": {
+          "input": {
+            "note": "payment reminder missing-email additional guard capture",
+            "tags": ["payment-reminder", "additional-guard", "missing-email"],
+            "lineItems": [
+              {
+                "title": "Payment reminder missing-email",
+                "quantity": 1,
+                "originalUnitPrice": "18.50"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1251012706610",
+                "name": "#D172",
+                "status": "OPEN",
+                "email": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "draftOrderComplete": {
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1251012706610"
+        },
+        "response": {
+          "data": {
+            "draftOrderComplete": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1251012706610",
+                "status": "COMPLETED",
+                "order": {
+                  "id": "gid://shopify/Order/8734396776754",
+                  "name": "#1357",
+                  "email": null,
+                  "displayFinancialStatus": "PENDING",
+                  "cancelledAt": null,
+                  "closedAt": null,
+                  "closed": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "variables": {
+          "referenceId": "gid://shopify/Order/8734396776754",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2025-01-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/146143576370",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8734396776754",
+                  "email": null,
+                  "displayFinancialStatus": "PENDING"
+                },
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/178578522418",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "rateLimit": {
+      "draftOrderCreate": {
+        "variables": {
+          "input": {
+            "note": "payment reminder rate-limit additional guard capture",
+            "tags": ["payment-reminder", "additional-guard", "rate-limit"],
+            "lineItems": [
+              {
+                "title": "Payment reminder rate-limit",
+                "quantity": 1,
+                "originalUnitPrice": "18.50"
+              }
+            ],
+            "email": "payment-reminder-rate-limit-1778167397760@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1251012739378",
+                "name": "#D173",
+                "status": "OPEN",
+                "email": "payment-reminder-rate-limit-1778167397760@example.com"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "draftOrderComplete": {
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1251012739378"
+        },
+        "response": {
+          "data": {
+            "draftOrderComplete": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1251012739378",
+                "status": "COMPLETED",
+                "order": {
+                  "id": "gid://shopify/Order/8734396809522",
+                  "name": "#1358",
+                  "email": "payment-reminder-rate-limit-1778167397760@example.com",
+                  "displayFinancialStatus": "PENDING",
+                  "cancelledAt": null,
+                  "closedAt": null,
+                  "closed": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "variables": {
+          "referenceId": "gid://shopify/Order/8734396809522",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2025-01-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/146143609138",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8734396809522",
+                  "email": "payment-reminder-rate-limit-1778167397760@example.com",
+                  "displayFinancialStatus": "PENDING"
+                },
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/178578555186",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "missingEmail": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/178578522418"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentReminderSend": {
+            "success": null,
+            "userErrors": [
+              {
+                "field": null,
+                "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL",
+                "message": "Order does not have a contact email"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "rateFirst": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/178578555186"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentReminderSend": {
+            "success": true,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "rateSecond": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/178578555186"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentReminderSend": {
+            "success": null,
+            "userErrors": [
+              {
+                "field": null,
+                "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL",
+                "message": "You cannot send more than 1 payment reminders for the same order in a 24hour period"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "missingEmailOrderCancel": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/3b45a423-8b47-4f05-ba69-0dd273868500"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "rateLimitOrderCancel": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/3b45a423-8b47-4f05-ba69-0dd273868500"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentScheduleReminderHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentSchedule/178578522418"
+      },
+      "query": "captured live hydrate for missing contact email order schedule",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentSchedule": {
+              "id": "gid://shopify/PaymentSchedule/178578522418",
+              "dueAt": "2025-01-31T00:00:00Z",
+              "issuedAt": "2025-01-01T00:00:00Z",
+              "completedAt": null,
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/146143576370",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8734396776754",
+                  "email": null,
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "displayFinancialStatus": "PENDING",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "sellingPlan": null
+                      }
+                    ]
+                  }
+                },
+                "draftOrder": null,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/178578522418",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentScheduleReminderHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentSchedule/178578555186"
+      },
+      "query": "captured live hydrate for rate-limit order schedule",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentSchedule": {
+              "id": "gid://shopify/PaymentSchedule/178578555186",
+              "dueAt": "2025-01-31T00:00:00Z",
+              "issuedAt": "2025-01-01T00:00:00Z",
+              "completedAt": null,
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/146143609138",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8734396809522",
+                  "email": "payment-reminder-rate-limit-1778167397760@example.com",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "displayFinancialStatus": "PENDING",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "sellingPlan": null
+                      }
+                    ]
+                  }
+                },
+                "draftOrder": null,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/178578555186",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

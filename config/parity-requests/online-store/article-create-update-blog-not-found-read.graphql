@@ -1,0 +1,10 @@
+query OnlineStoreArticleBlogNotFoundRead($id: ID!) {
+  article(id: $id) {
+    id
+    title
+    blog {
+      id
+      title
+    }
+  }
+}

@@ -1,0 +1,9 @@
+mutation SegmentDeleteNullId {
+  segmentDelete(id: null) {
+    deletedSegmentId
+    userErrors {
+      field
+      message
+    }
+  }
+}

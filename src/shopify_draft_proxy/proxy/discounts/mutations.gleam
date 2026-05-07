@@ -16,8 +16,9 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/discounts/queries.{child_fields}
 
 import shopify_draft_proxy/proxy/discounts/serializers.{
-  apply_bulk_effects, build_discount_record, fetch_taken_code_error,
-  maybe_hydrate_discount, maybe_hydrate_discount_markets_capability,
+  apply_bulk_effects, build_discount_record, existing_discount_id,
+  fetch_taken_code_error, maybe_hydrate_discount,
+  maybe_hydrate_discount_markets_capability,
   maybe_hydrate_discount_subscription_capability, maybe_hydrate_shopify_function,
   payload_json, redeem_code_bulk_delete_target_ids,
   shopify_function_record_from_response, validate_bulk_selector,
@@ -1337,8 +1338,24 @@ pub fn bulk_job_payload(
             #("query", SrcNull),
           ]),
         )
-      let #(next_store, identity_after_effects) =
+      let #(next_store, identity_after_effects, matched_ids) =
         apply_bulk_effects(store, root, args, next_identity)
+      let #(_, next_store) =
+        store.stage_discount_bulk_operation(
+          next_store,
+          DiscountBulkOperationRecord(
+            id: job_id,
+            operation: root,
+            discount_id: "",
+            status: "COMPLETED",
+            payload: discount_types.source_to_captured(bulk_operation_payload(
+              root,
+              args,
+              job_id,
+              matched_ids,
+            )),
+          ),
+        )
       let payload =
         project_graphql_value(
           SrcObject(
@@ -1360,6 +1377,48 @@ pub fn bulk_job_payload(
       )
     }
   }
+}
+
+fn bulk_operation_payload(
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+  job_id: String,
+  matched_ids: List(String),
+) -> SourceValue {
+  SrcObject(
+    dict.from_list([
+      #("id", SrcString(job_id)),
+      #("operation", SrcString(root)),
+      #("status", SrcString("COMPLETED")),
+      #("selector", bulk_operation_selector_payload(args)),
+      #("matchedIds", SrcList(list.map(matched_ids, fn(id) { SrcString(id) }))),
+    ]),
+  )
+}
+
+fn bulk_operation_selector_payload(
+  args: Dict(String, root_field.ResolvedValue),
+) -> SourceValue {
+  let ids = discount_types.read_string_array(args, "ids", [])
+  let search = discount_types.read_string(args, "search")
+  let saved_search_id = apply_bulk_saved_search_id(args)
+  SrcObject(
+    dict.from_list([
+      #("ids", SrcList(list.map(ids, fn(id) { SrcString(id) }))),
+      #("search", search |> option.map(SrcString) |> option.unwrap(SrcNull)),
+      #(
+        "savedSearchId",
+        saved_search_id |> option.map(SrcString) |> option.unwrap(SrcNull),
+      ),
+    ]),
+  )
+}
+
+fn apply_bulk_saved_search_id(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  discount_types.read_string(args, "savedSearchId")
+  |> option.or(discount_types.read_string(args, "saved_search_id"))
 }
 
 @internal
@@ -1468,7 +1527,12 @@ pub fn redeem_code_bulk_add_after_size_validation(
               identity,
               "DiscountRedeemCodeBulkCreation",
             )
-          let validations = validate_redeem_codes(codes)
+          // Pattern 2: after pure per-code validation and local uniqueness
+          // checks, ask upstream whether otherwise-accepted codes are already
+          // present elsewhere in the shop. This catches LiveHybrid conflicts
+          // that are not yet in local state while still staging all accepted
+          // codes locally.
+          let validations = validate_redeem_codes(store, codes, upstream)
           let accepted_codes =
             validations
             |> list.filter(fn(item) { item.accepted })
@@ -1587,7 +1651,9 @@ pub fn validate_redeem_code_bulk_add_size(
 
 @internal
 pub fn validate_redeem_codes(
+  store: Store,
   codes: List(String),
+  upstream: UpstreamContext,
 ) -> List(RedeemCodeValidation) {
   let #(items, _) =
     list.fold(codes, #([], []), fn(acc, code) {
@@ -1599,28 +1665,90 @@ pub fn validate_redeem_codes(
           seen,
         )
         [] ->
-          case list.contains(seen, code) {
-            True -> #(
-              [
-                RedeemCodeValidation(code, False, [
-                  discount_types.user_error_with_code(
-                    ["code"],
-                    "Codes must be unique within BulkDiscountCodeCreation",
-                    None,
-                  ),
-                ]),
-                ..items
-              ],
+          case redeem_code_taken_by_input_or_local_store(store, code, seen) {
+            Some(error) -> #(
+              [RedeemCodeValidation(code, False, [error]), ..items],
               seen,
             )
-            False -> #([RedeemCodeValidation(code, True, []), ..items], [
-              code,
-              ..seen
-            ])
+            None ->
+              case fetch_taken_redeem_code_error(code, upstream) {
+                Some(error) -> #(
+                  [RedeemCodeValidation(code, False, [error]), ..items],
+                  seen,
+                )
+                None -> #([RedeemCodeValidation(code, True, []), ..items], [
+                  code,
+                  ..seen
+                ])
+              }
           }
       }
     })
   list.reverse(items)
+}
+
+@internal
+pub fn redeem_code_taken_by_input_or_local_store(
+  store: Store,
+  code: String,
+  seen: List(String),
+) -> Option(SourceValue) {
+  case list.contains(seen, code) {
+    True -> Some(bulk_creation_duplicate_redeem_code_error())
+    False ->
+      case discount_types.find_effective_discount_by_code(store, code) {
+        Some(_) -> Some(duplicate_redeem_code_error())
+        None -> None
+      }
+  }
+}
+
+@internal
+pub fn bulk_creation_duplicate_redeem_code_error() -> SourceValue {
+  discount_types.user_error_with_code(
+    ["code"],
+    "Codes must be unique within BulkDiscountCodeCreation",
+    None,
+  )
+}
+
+@internal
+pub fn duplicate_redeem_code_error() -> SourceValue {
+  discount_types.user_error_with_code(
+    ["code"],
+    "must be unique. Please try a different code.",
+    None,
+  )
+}
+
+@internal
+pub fn fetch_taken_redeem_code_error(
+  code: String,
+  upstream: UpstreamContext,
+) -> Option(SourceValue) {
+  let query =
+    "query DiscountUniquenessCheck($code: String!) {
+  codeDiscountNodeByCode(code: $code) { id }
+}
+"
+  let variables = json.object([#("code", json.string(code))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "DiscountUniquenessCheck",
+      query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      case existing_discount_id(value) {
+        True -> Some(duplicate_redeem_code_error())
+        False -> None
+      }
+    Error(_) -> None
+  }
 }
 
 @internal

@@ -103,6 +103,29 @@ fn assert_product_option_user_error(
   assert entry.status == store_types.Failed
 }
 
+fn product_options_reorder_validation_query(options: String) -> String {
+  "mutation { productOptionsReorder(productId: \\\"gid://shopify/Product/optioned\\\", options: "
+  <> options
+  <> ") { product { id } userErrors { field message code } } }"
+}
+
+fn assert_product_options_reorder_user_error(
+  options: String,
+  code: String,
+) -> String {
+  let #(status, body, next_proxy) =
+    run_product_mutation(
+      option_update_store(),
+      product_options_reorder_validation_query(options),
+    )
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  body
+}
+
 fn assert_combined_listing_user_error(
   initial_store: store.Store,
   query: String,
@@ -2044,6 +2067,78 @@ pub fn product_options_reorder_reorders_variants_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_options_reorder_reorders_used_option_values_and_variants_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: option_reorder_multi_variant_store())
+  let query =
+    "mutation { productOptionsReorder(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ id: \\\"gid://shopify/ProductOption/size\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/small\\\" }] }, { id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/green\\\" }, { id: \\\"gid://shopify/ProductOptionValue/red\\\" }] }]) { product { options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionsReorder\":{\"product\":{\"options\":[{\"name\":\"Size\",\"position\":1,\"values\":[\"Small\"],\"optionValues\":[{\"name\":\"Small\",\"hasVariants\":true}]},{\"name\":\"Color\",\"position\":2,\"values\":[\"Green\",\"Red\"],\"optionValues\":[{\"name\":\"Green\",\"hasVariants\":true},{\"name\":\"Red\",\"hasVariants\":true}]}],\"variants\":{\"nodes\":[{\"title\":\"Small / Green\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Color\",\"value\":\"Green\"}]},{\"title\":\"Small / Red\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Color\",\"value\":\"Red\"}]}]}},\"userErrors\":[]}}}"
+}
+
+pub fn product_options_reorder_emits_selector_validation_codes_test() {
+  assert_product_options_reorder_user_error(
+    "[{ name: \\\"Missing option\\\" }]",
+    "OPTION_NAME_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/missing\\\" }]",
+    "OPTION_ID_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ values: [] }]",
+    "MISSING_OPTION_NAME",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ name: \\\"Color\\\" }, { name: \\\"Color\\\" }]",
+    "DUPLICATED_OPTION_NAME",
+  )
+  let mixed_body =
+    assert_product_options_reorder_user_error(
+      "[{ id: \\\"gid://shopify/ProductOption/color\\\" }, { name: \\\"Size\\\" }]",
+      "MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED",
+    )
+  assert string.contains(
+    mixed_body,
+    "Only specify one of `id` or `name` fields for options.",
+  )
+  let position_body =
+    assert_product_options_reorder_user_error(
+      "[{ id: \\\"gid://shopify/ProductOption/color\\\", position: 2 }]",
+      "NO_KEY_ON_REORDER",
+    )
+  assert string.contains(position_body, "On reorder, this key cannot be used.")
+}
+
+pub fn product_options_reorder_emits_value_validation_codes_test() {
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ name: \\\"Missing value\\\" }] }]",
+    "OPTION_VALUE_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/missing\\\" }] }]",
+    "OPTION_VALUE_ID_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{}] }]",
+    "MISSING_OPTION_VALUE",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Red\\\" }] }]",
+    "DUPLICATED_OPTION_VALUE",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\" }, { name: \\\"Green\\\" }] }]",
+    "MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED",
+  )
 }
 
 pub fn product_change_status_stages_search_lagged_status_test() {
@@ -5932,6 +6027,7 @@ fn product_option_metaobject_definition(
     description: None,
     display_name_key: Some("label"),
     online_store_url_handle: None,
+    online_store_create_redirects: None,
     access: dict.new(),
     capabilities: MetaobjectDefinitionCapabilitiesRecord(
       publishable: Some(MetaobjectDefinitionCapabilityRecord(False)),
@@ -6358,6 +6454,72 @@ fn option_update_store() -> store.Store {
   ])
 }
 
+fn option_reorder_multi_variant_store() -> store.Store {
+  option_update_store()
+  |> store.upsert_base_product_variants([
+    option_update_variant(),
+    ProductVariantRecord(
+      ..option_update_variant(),
+      id: "gid://shopify/ProductVariant/optioned-green",
+      title: "Green / Small",
+      selected_options: [
+        ProductVariantSelectedOptionRecord(name: "Color", value: "Green"),
+        ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
+      ],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: "gid://shopify/InventoryItem/optioned-green",
+          tracked: Some(False),
+          requires_shipping: Some(True),
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [],
+        ),
+      ),
+    ),
+  ])
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      linked_metafield: None,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+          linked_metafield_value: None,
+        ),
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/green",
+          name: "Green",
+          has_variants: True,
+          linked_metafield_value: None,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      linked_metafield: None,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+          linked_metafield_value: None,
+        ),
+      ],
+    ),
+  ])
+}
+
 fn three_option_store() -> store.Store {
   option_update_store()
   |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
@@ -6587,6 +6749,7 @@ fn product_publication_shop() -> ShopRecord {
       live_view: True,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
+      b2b_deposits_enabled: True,
       discounts_by_market_enabled: False,
       markets_granted: 50,
       sells_subscriptions: False,

@@ -1,10 +1,10 @@
 {
   "scenarioId": "functions-cart-transform-create-metafields",
-  "capturedAt": "2026-05-07T08:19:56.415Z",
+  "capturedAt": "2026-05-07T17:20:12.577Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "cartTransformCreate metafield validation, valid metafield persistence, singular lookup, and downstream cartTransforms read evidence.",
+  "summary": "cartTransformCreate metafield validation, direct top-level argument shape, valid metafield persistence, downstream cartTransforms read evidence, and invalid CartTransform field/input rejection.",
   "shopifyFunctions": {
     "cartTransform": {
       "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
@@ -109,6 +109,120 @@
     }
   },
   "cleanupBefore": [],
+  "cartTransformInvalidFields": {
+    "query": "query CartTransformInvalidFields {\n  cartTransforms(first: 10) {\n    nodes {\n      id\n      title\n      functionHandle\n      createdAt\n      updatedAt\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'title' doesn't exist on type 'CartTransform'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 7
+              }
+            ],
+            "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "title"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "CartTransform",
+              "fieldName": "title"
+            }
+          },
+          {
+            "message": "Field 'functionHandle' doesn't exist on type 'CartTransform'",
+            "locations": [
+              {
+                "line": 6,
+                "column": 7
+              }
+            ],
+            "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "functionHandle"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "CartTransform",
+              "fieldName": "functionHandle"
+            }
+          },
+          {
+            "message": "Field 'createdAt' doesn't exist on type 'CartTransform'",
+            "locations": [
+              {
+                "line": 7,
+                "column": 7
+              }
+            ],
+            "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "createdAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "CartTransform",
+              "fieldName": "createdAt"
+            }
+          },
+          {
+            "message": "Field 'updatedAt' doesn't exist on type 'CartTransform'",
+            "locations": [
+              {
+                "line": 8,
+                "column": 7
+              }
+            ],
+            "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "updatedAt"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "CartTransform",
+              "fieldName": "updatedAt"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cartTransformCreateInvalidWrapper": {
+    "query": "mutation CartTransformCreateInvalidWrapper {\n  cartTransformCreate(\n    cartTransform: { functionHandle: \"conformance-cart-transform\", title: \"not accepted\" }\n    title: \"not accepted\"\n  ) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'cartTransformCreate' doesn't accept argument 'cartTransform'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation CartTransformCreateInvalidWrapper", "cartTransformCreate", "cartTransform"],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "cartTransformCreate",
+              "typeName": "Field",
+              "argumentName": "cartTransform"
+            }
+          },
+          {
+            "message": "Field 'cartTransformCreate' doesn't accept argument 'title'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 5
+              }
+            ],
+            "path": ["mutation CartTransformCreateInvalidWrapper", "cartTransformCreate", "title"],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "cartTransformCreate",
+              "typeName": "Field",
+              "argumentName": "title"
+            }
+          }
+        ]
+      }
+    }
+  },
   "cartTransformCreateMissingValue": {
     "query": "mutation CartTransformCreateInvalidMetafields($functionId: String!, $metafields: [MetafieldInput!]) {\n  cartTransformCreate(functionId: $functionId, metafields: $metafields) {\n    cartTransform {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
@@ -193,7 +307,7 @@
     }
   },
   "cartTransformCreateMetafields": {
-    "query": "mutation CartTransformCreateMetafields(\n  $functionId: String!\n  $blockOnFailure: Boolean\n  $metafields: [MetafieldInput!]\n) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "query": "mutation CartTransformCreateMetafields($functionId: String!, $blockOnFailure: Boolean, $metafields: [MetafieldInput!]) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
       "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
       "blockOnFailure": false,
@@ -218,43 +332,43 @@
         "data": {
           "cartTransformCreate": {
             "cartTransform": {
-              "id": "gid://shopify/CartTransform/115474738",
+              "id": "gid://shopify/CartTransform/116293938",
               "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
               "blockOnFailure": false,
               "metafield": {
-                "id": "gid://shopify/Metafield/43120296722738",
+                "id": "gid://shopify/Metafield/43125986558258",
                 "namespace": "bundles",
                 "key": "config",
                 "type": "json",
                 "value": "{\"enabled\":true}",
                 "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
                 "ownerType": "CARTTRANSFORM",
-                "createdAt": "2026-05-07T08:19:55Z",
-                "updatedAt": "2026-05-07T08:19:55Z"
+                "createdAt": "2026-05-07T17:20:12Z",
+                "updatedAt": "2026-05-07T17:20:12Z"
               },
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/43120296722738",
+                    "id": "gid://shopify/Metafield/43125986558258",
                     "namespace": "bundles",
                     "key": "config",
                     "type": "json",
                     "value": "{\"enabled\":true}",
                     "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
                     "ownerType": "CARTTRANSFORM",
-                    "createdAt": "2026-05-07T08:19:55Z",
-                    "updatedAt": "2026-05-07T08:19:55Z"
+                    "createdAt": "2026-05-07T17:20:12Z",
+                    "updatedAt": "2026-05-07T17:20:12Z"
                   },
                   {
-                    "id": "gid://shopify/Metafield/43120296755506",
+                    "id": "gid://shopify/Metafield/43125986591026",
                     "namespace": "bundles",
                     "key": "mode",
                     "type": "single_line_text_field",
                     "value": "strict",
                     "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
                     "ownerType": "CARTTRANSFORM",
-                    "createdAt": "2026-05-07T08:19:55Z",
-                    "updatedAt": "2026-05-07T08:19:55Z"
+                    "createdAt": "2026-05-07T17:20:12Z",
+                    "updatedAt": "2026-05-07T17:20:12Z"
                   }
                 ]
               }
@@ -288,43 +402,43 @@
           "cartTransforms": {
             "nodes": [
               {
-                "id": "gid://shopify/CartTransform/115474738",
+                "id": "gid://shopify/CartTransform/116293938",
                 "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
                 "blockOnFailure": false,
                 "metafield": {
-                  "id": "gid://shopify/Metafield/43120296755506",
+                  "id": "gid://shopify/Metafield/43125986591026",
                   "namespace": "bundles",
                   "key": "mode",
                   "type": "single_line_text_field",
                   "value": "strict",
                   "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
                   "ownerType": "CARTTRANSFORM",
-                  "createdAt": "2026-05-07T08:19:55Z",
-                  "updatedAt": "2026-05-07T08:19:55Z"
+                  "createdAt": "2026-05-07T17:20:12Z",
+                  "updatedAt": "2026-05-07T17:20:12Z"
                 },
                 "metafields": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/Metafield/43120296722738",
+                      "id": "gid://shopify/Metafield/43125986558258",
                       "namespace": "bundles",
                       "key": "config",
                       "type": "json",
                       "value": "{\"enabled\":true}",
                       "compareDigest": "58440d4e2b7e81e7a5318441381af282c0a2ec83cf926af55397244ff23e1181",
                       "ownerType": "CARTTRANSFORM",
-                      "createdAt": "2026-05-07T08:19:55Z",
-                      "updatedAt": "2026-05-07T08:19:55Z"
+                      "createdAt": "2026-05-07T17:20:12Z",
+                      "updatedAt": "2026-05-07T17:20:12Z"
                     },
                     {
-                      "id": "gid://shopify/Metafield/43120296755506",
+                      "id": "gid://shopify/Metafield/43125986591026",
                       "namespace": "bundles",
                       "key": "mode",
                       "type": "single_line_text_field",
                       "value": "strict",
                       "compareDigest": "c30b019a8fd5bb26e69d73f4a11d3c12ac733b6063d8be2562d08dd2ce61344b",
                       "ownerType": "CARTTRANSFORM",
-                      "createdAt": "2026-05-07T08:19:55Z",
-                      "updatedAt": "2026-05-07T08:19:55Z"
+                      "createdAt": "2026-05-07T17:20:12Z",
+                      "updatedAt": "2026-05-07T17:20:12Z"
                     }
                   ]
                 }
@@ -350,7 +464,7 @@
     "cartTransformDelete": {
       "data": {
         "cartTransformDelete": {
-          "deletedId": "gid://shopify/CartTransform/115474738",
+          "deletedId": "gid://shopify/CartTransform/116293938",
           "userErrors": []
         }
       },
@@ -410,7 +524,7 @@
     }
   ],
   "notes": {
-    "validation": "Invalid branches are captured before the success path so they prove INVALID_METAFIELDS without colliding with the one-cart-transform-per-Function constraint. Public Shopify Admin 2026-04 accepted an empty namespace during exploratory capture, so empty namespace is not modeled as a cartTransformCreate rejection here.",
+    "validation": "Invalid branches are captured before the success path so they prove CartTransform field/input schema rejection and INVALID_METAFIELDS without colliding with the one-cart-transform-per-Function constraint. Public Shopify Admin 2026-04 accepted an empty namespace during exploratory capture, so empty namespace is not modeled as a cartTransformCreate rejection here.",
     "sideEffectBoundary": "The invalid branches return cartTransform null; the success branch creates one disposable cart transform that is cleaned up after the fixture is written."
   }
 }

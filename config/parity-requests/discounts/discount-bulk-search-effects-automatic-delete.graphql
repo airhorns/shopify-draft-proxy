@@ -1,0 +1,13 @@
+mutation DiscountBulkSearchEffectsAutomaticDelete($search: String!) {
+  discountAutomaticBulkDelete(search: $search) {
+    job {
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

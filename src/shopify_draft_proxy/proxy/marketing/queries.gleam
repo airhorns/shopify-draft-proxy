@@ -394,7 +394,8 @@ fn marketing_page_info_options() -> ConnectionPageInfoOptions {
   )
 }
 
-fn project_marketing_record(
+@internal
+pub fn project_marketing_record(
   record: MarketingRecord,
   field: Selection,
   fragments: FragmentMap,

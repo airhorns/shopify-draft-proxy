@@ -1,0 +1,33 @@
+mutation MediaFileUpdateSourceSemantics($files: [FileUpdateInput!]!) {
+  fileUpdate(files: $files) {
+    files {
+      id
+      __typename
+      alt
+      createdAt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+            width
+            height
+          }
+        }
+      }
+      ... on GenericFile {
+        url
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
