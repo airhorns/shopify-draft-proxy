@@ -1,0 +1,23 @@
+#graphql
+mutation LocationAddEditValidationAdd($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      isActive
+      fulfillsOnlineOrders
+      address {
+        address1
+        city
+        countryCode
+        provinceCode
+        zip
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

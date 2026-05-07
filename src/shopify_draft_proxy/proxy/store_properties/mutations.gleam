@@ -69,6 +69,10 @@ const location_hydrate_operation: String = "StorePropertiesLocationHydrate"
 
 const location_hydrate_query: String = "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"
 
+const location_name_limit_chars = 100
+
+const location_address_component_limit_chars = 255
+
 @internal
 pub fn is_store_properties_mutation_root(name: String) -> Bool {
   case name {
@@ -421,59 +425,105 @@ fn stage_location_add(
             fragments,
           )
         _, Ok(_) -> {
-          let #(id, next_identity) =
-            synthetic_identity.make_synthetic_gid(identity, "Location")
-          let fields = [
-            #("__typename", StorePropertyString("Location")),
-            #("id", StorePropertyString(id)),
-            #("name", StorePropertyString(value)),
-            #("isActive", StorePropertyBool(True)),
-            #("activatable", StorePropertyBool(False)),
-            #("deactivatable", StorePropertyBool(True)),
-            #("deletable", StorePropertyBool(False)),
-            #(
-              "fulfillsOnlineOrders",
-              StorePropertyBool(
-                read_arg_bool(input_values, "fulfillsOnlineOrders")
-                |> option.unwrap(True),
-              ),
-            ),
-            #(
-              "address",
-              StorePropertyObject(location_add_address_data(address_values)),
-            ),
-          ]
-          let record =
-            StorePropertyRecord(
-              id: id,
-              cursor: None,
-              data: dict.from_list(fields),
-            )
-          let #(_, next_store) =
-            store.upsert_staged_store_property_location(store, record)
-          let payload_source =
-            src_object([
-              #("location", store_property_data_to_source(record.data)),
-              #("userErrors", SrcList([])),
-            ])
-          store_properties_types.GenericMutationResult(
-            payload: project_graphql_value(
-              payload_source,
-              selected_children(field),
-              fragments,
-            ),
-            store: next_store,
-            identity: next_identity,
-            staged_resource_ids: [id],
-            top_level_errors: [],
-            should_log: True,
-          )
+          let address_data = location_add_address_data(address_values)
+          let errors =
+            []
+            |> list.append(validate_location_name_length(value))
+            |> list.append(validate_location_duplicate_name(store, value, None))
+            |> list.append(validate_location_address_component_lengths(
+              address_data,
+            ))
+          case errors {
+            [_, ..] ->
+              location_add_errors_result(
+                store,
+                identity,
+                field,
+                fragments,
+                errors,
+              )
+            [] -> {
+              let #(id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Location")
+              let fields = [
+                #("__typename", StorePropertyString("Location")),
+                #("id", StorePropertyString(id)),
+                #("name", StorePropertyString(value)),
+                #("isActive", StorePropertyBool(True)),
+                #("activatable", StorePropertyBool(False)),
+                #("deactivatable", StorePropertyBool(True)),
+                #("deletable", StorePropertyBool(False)),
+                #(
+                  "fulfillsOnlineOrders",
+                  StorePropertyBool(
+                    read_arg_bool(input_values, "fulfillsOnlineOrders")
+                    |> option.unwrap(True),
+                  ),
+                ),
+                #("address", StorePropertyObject(address_data)),
+              ]
+              let record =
+                StorePropertyRecord(
+                  id: id,
+                  cursor: None,
+                  data: dict.from_list(fields),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_store_property_location(store, record)
+              let payload_source =
+                src_object([
+                  #("location", store_property_data_to_source(record.data)),
+                  #("userErrors", SrcList([])),
+                ])
+              store_properties_types.GenericMutationResult(
+                payload: project_graphql_value(
+                  payload_source,
+                  selected_children(field),
+                  fragments,
+                ),
+                store: next_store,
+                identity: next_identity,
+                staged_resource_ids: [id],
+                top_level_errors: [],
+                should_log: True,
+              )
+            }
+          }
         }
       }
     _, _, _ -> {
       location_add_blank_name_result(store, identity, field, fragments)
     }
   }
+}
+
+fn location_add_errors_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(store_properties_types.LocationEditUserError),
+) -> store_properties_types.GenericMutationResult {
+  let payload_source =
+    src_object([
+      #("location", SrcNull),
+      #(
+        "userErrors",
+        SrcList(list.map(errors, location_validation_error_source)),
+      ),
+    ])
+  store_properties_types.GenericMutationResult(
+    payload: project_graphql_value(
+      payload_source,
+      selected_children(field),
+      fragments,
+    ),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    top_level_errors: [],
+    should_log: False,
+  )
 }
 
 fn location_add_blank_name_result(
@@ -766,6 +816,12 @@ fn location_edit_result(
 fn location_edit_error_source(
   error: store_properties_types.LocationEditUserError,
 ) -> SourceValue {
+  location_validation_error_source(error)
+}
+
+fn location_validation_error_source(
+  error: store_properties_types.LocationEditUserError,
+) -> SourceValue {
   src_object([
     #("field", SrcList(list.map(error.field, SrcString))),
     #("message", SrcString(error.message)),
@@ -779,7 +835,7 @@ fn validate_location_edit_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(store_properties_types.LocationEditUserError) {
   []
-  |> list.append(validate_location_edit_name(input))
+  |> list.append(validate_location_edit_name(store, record, input))
   |> list.append(validate_location_edit_address(record, input))
   |> list.append(validate_location_edit_fulfills_online_orders(
     store,
@@ -790,20 +846,23 @@ fn validate_location_edit_input(
 }
 
 fn validate_location_edit_name(
+  store: Store,
+  record: StorePropertyRecord,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(store_properties_types.LocationEditUserError) {
   case read_arg_string(input, "name") {
     Some(name) ->
-      case string.trim(name) {
-        "" -> [
-          store_properties_types.LocationEditUserError(
-            field: ["input", "name"],
-            message: "Add a location name",
-            code: Some("BLANK"),
-          ),
-        ]
+      []
+      |> list.append(case string.trim(name) {
+        "" -> [location_blank_name_error()]
         _ -> []
-      }
+      })
+      |> list.append(validate_location_name_length(name))
+      |> list.append(validate_location_duplicate_name(
+        store,
+        name,
+        Some(record.id),
+      ))
     None -> []
   }
 }
@@ -836,7 +895,95 @@ fn validate_location_edit_address(
           None -> Error(Nil)
         }
       })
+      |> list.append(validate_location_address_component_lengths(fields))
   }
+}
+
+fn location_blank_name_error() -> store_properties_types.LocationEditUserError {
+  store_properties_types.LocationEditUserError(
+    field: ["input", "name"],
+    message: "Add a location name",
+    code: Some("BLANK"),
+  )
+}
+
+fn validate_location_name_length(
+  name: String,
+) -> List(store_properties_types.LocationEditUserError) {
+  case string.length(name) > location_name_limit_chars {
+    True -> [
+      store_properties_types.LocationEditUserError(
+        field: ["input", "name"],
+        message: "Use a shorter location name (up to 100 characters)",
+        code: Some("TOO_LONG"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_location_duplicate_name(
+  store: Store,
+  name: String,
+  except_id: Option(String),
+) -> List(store_properties_types.LocationEditUserError) {
+  case string.trim(name) {
+    "" -> []
+    _ ->
+      case active_location_name_exists(store, name, except_id) {
+        True -> [
+          store_properties_types.LocationEditUserError(
+            field: ["input", "name"],
+            message: "You already have a location with this name",
+            code: Some("TAKEN"),
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn active_location_name_exists(
+  store: Store,
+  name: String,
+  except_id: Option(String),
+) -> Bool {
+  store.list_effective_store_property_locations(store)
+  |> list.any(fn(other) {
+    let excluded = case except_id {
+      Some(id) -> other.id == id
+      None -> False
+    }
+    !excluded
+    && location_bool_field(other, "isActive", True)
+    && location_string_field(other, "name") == Some(name)
+  })
+}
+
+fn validate_location_address_component_lengths(
+  fields: Dict(String, StorePropertyValue),
+) -> List(store_properties_types.LocationEditUserError) {
+  [
+    #("address1", "Use a shorter name for the street (up to 255 characters)"),
+    #("city", "Use a shorter city name (up to 255 characters)"),
+    #("zip", "Use a shorter postal / ZIP code (up to 255 characters)"),
+  ]
+  |> list.filter_map(fn(entry) {
+    let #(key, message) = entry
+    case dict.get(fields, key) {
+      Ok(StorePropertyString(value)) ->
+        case string.length(value) > location_address_component_limit_chars {
+          True ->
+            Ok(store_properties_types.LocationEditUserError(
+              field: ["input", "address", key],
+              message: message,
+              code: Some("TOO_LONG"),
+            ))
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
 }
 
 fn required_location_address_error(
