@@ -1,0 +1,232 @@
+{
+  "scenarioId": "draftOrder-tag-validation",
+  "operationNames": ["draftOrderCreate", "draftOrderUpdate", "draftOrderCalculate", "draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrder-tag-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-create.graphql",
+    "variablesCapturePath": "$.setupCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-create-user-errors",
+        "capturePath": "$.setupCreate.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "create-normalized-count-accepted",
+        "capturePath": "$.createNormalizedOk.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-create.graphql",
+          "variablesCapturePath": "$.createNormalizedOk.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-long-tag-rejected",
+        "capturePath": "$.createLongTag.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-create.graphql",
+          "variablesCapturePath": "$.createLongTag.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-too-many-tags-error-message",
+        "capturePath": "$.createTooManyTags.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-create.graphql",
+          "variablesCapturePath": "$.createTooManyTags.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-too-many-tags-error-path",
+        "capturePath": "$.createTooManyTags.response.errors[0].path",
+        "proxyPath": "$.errors[0].path",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-create.graphql",
+          "variablesCapturePath": "$.createTooManyTags.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-too-many-tags-error-code",
+        "capturePath": "$.createTooManyTags.response.errors[0].extensions.code",
+        "proxyPath": "$.errors[0].extensions.code",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-create.graphql",
+          "variablesCapturePath": "$.createTooManyTags.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-long-tag-rejected",
+        "capturePath": "$.calculateLongTag.response.data.draftOrderCalculate",
+        "proxyPath": "$.data.draftOrderCalculate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-calculate.graphql",
+          "variablesCapturePath": "$.calculateLongTag.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-too-many-tags-error-message",
+        "capturePath": "$.calculateTooManyTags.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-calculate.graphql",
+          "variablesCapturePath": "$.calculateTooManyTags.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-too-many-tags-error-path",
+        "capturePath": "$.calculateTooManyTags.response.errors[0].path",
+        "proxyPath": "$.errors[0].path",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-calculate.graphql",
+          "variablesCapturePath": "$.calculateTooManyTags.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-too-many-tags-error-code",
+        "capturePath": "$.calculateTooManyTags.response.errors[0].extensions.code",
+        "proxyPath": "$.errors[0].extensions.code",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-calculate.graphql",
+          "variablesCapturePath": "$.calculateTooManyTags.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-long-tag-rejected",
+        "capturePath": "$.updateLongTag.response.data.draftOrderUpdate",
+        "proxyPath": "$.data.draftOrderUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateLongTag.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-long-tag-reject",
+        "capturePath": "$.readAfterLongTag.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The proxy creates a deterministic local DraftOrder id for the disposable setup draft."
+          }
+        ]
+      },
+      {
+        "name": "update-too-many-tags-error-message",
+        "capturePath": "$.updateTooManyTags.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateTooManyTags.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-too-many-tags-error-path",
+        "capturePath": "$.updateTooManyTags.response.errors[0].path",
+        "proxyPath": "$.errors[0].path",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateTooManyTags.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-too-many-tags-error-code",
+        "capturePath": "$.updateTooManyTags.response.errors[0].extensions.code",
+        "proxyPath": "$.errors[0].extensions.code",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateTooManyTags.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-too-many-tags-reject",
+        "capturePath": "$.readAfterTooManyTags.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrder-tag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The proxy creates a deterministic local DraftOrder id for the disposable setup draft."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured Shopify 2026-04 DraftOrderInput tag validation for create, update, and calculate. The setup and normalized-count branches create disposable draft orders and the script deletes them after capture. Per-tag length violations are synchronous mutation userErrors; raw tag arrays above 250 entries are rejected earlier by Admin GraphQL with MAX_INPUT_SIZE_EXCEEDED, so those parity targets compare the top-level GraphQL error message/path/code."
+}

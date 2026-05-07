@@ -1,0 +1,12 @@
+mutation DraftOrderTagValidationCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

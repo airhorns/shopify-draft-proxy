@@ -1,0 +1,11 @@
+mutation DraftOrderTagValidationCalculate($input: DraftOrderInput!) {
+  draftOrderCalculate(input: $input) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

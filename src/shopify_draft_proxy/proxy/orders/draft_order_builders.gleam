@@ -12,7 +12,6 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import gleam/string
 
 import shopify_draft_proxy/graphql/root_field
 
@@ -21,6 +20,9 @@ import shopify_draft_proxy/proxy/orders/common.{
   captured_object_field, captured_string_field, max_float, money_set,
   optional_captured_string, parse_amount, read_bool, read_int, read_number,
   read_object, read_object_list, read_string, read_string_list,
+}
+import shopify_draft_proxy/proxy/orders/draft_order_tags.{
+  normalize_draft_order_tags,
 }
 
 import shopify_draft_proxy/state/store.{type Store}
@@ -109,7 +111,7 @@ pub fn build_draft_order_from_input(
         "tags",
         CapturedArray(
           read_string_list(input, "tags")
-          |> list.sort(by: string.compare)
+          |> normalize_draft_order_tags
           |> list.map(CapturedString),
         ),
       ),
