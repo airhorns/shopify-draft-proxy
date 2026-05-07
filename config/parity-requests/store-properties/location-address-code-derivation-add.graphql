@@ -1,0 +1,19 @@
+mutation LocationAddressCodeDerivationAdd($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      address {
+        country
+        countryCode
+        province
+        provinceCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
