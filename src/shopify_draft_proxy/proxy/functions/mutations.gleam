@@ -1,7 +1,9 @@
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
@@ -14,6 +16,8 @@ import shopify_draft_proxy/proxy/functions/types as function_types
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, get_document_fragments, get_field_response_key,
 }
+import shopify_draft_proxy/proxy/metafield_definitions/types as metafield_definition_types
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationFieldResult, type MutationOutcome, LogDraft, MutationFieldResult,
   MutationOutcome,
@@ -28,8 +32,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CartTransformRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, type ValidationMetafieldRecord,
+  type CartTransformMetafieldRecord, type CartTransformRecord,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
+  type ValidationMetafieldRecord, CartTransformMetafieldRecord,
   CartTransformRecord, ShopifyFunctionAppRecord, ShopifyFunctionRecord,
   TaxAppConfigurationRecord, ValidationMetafieldRecord, ValidationRecord,
 }
@@ -267,6 +272,53 @@ fn active_validation_count_excluding(store: Store, exclude_id: String) -> Int {
 }
 
 fn read_validation_metafields(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  validation_id: String,
+  timestamp: String,
+  identity: SyntheticIdentityRegistry,
+) -> Result(
+  #(List(ValidationMetafieldRecord), SyntheticIdentityRegistry),
+  List(function_types.UserError),
+) {
+  case validate_validation_metafields_input(store, input) {
+    [_, ..] as errors -> Error(errors)
+    [] ->
+      Ok(upsert_validation_metafields(
+        [],
+        input,
+        validation_id,
+        timestamp,
+        identity,
+      ))
+  }
+}
+
+fn validate_validation_metafields_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(function_types.UserError) {
+  case dict.get(input, "metafields") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> enumerate()
+      |> list.map(fn(pair) {
+        let #(index, item) = pair
+        case item {
+          root_field.ObjectVal(fields) ->
+            validate_validation_metafield(store, fields, index)
+          _ -> [
+            validation_metafield_error(index, "presence", None),
+          ]
+        }
+      })
+      |> list.flatten
+    _ -> []
+  }
+}
+
+fn upsert_validation_metafields(
+  existing: List(ValidationMetafieldRecord),
   input: Dict(String, root_field.ResolvedValue),
   validation_id: String,
   timestamp: String,
@@ -274,15 +326,114 @@ fn read_validation_metafields(
 ) -> #(List(ValidationMetafieldRecord), SyntheticIdentityRegistry) {
   case dict.get(input, "metafields") {
     Ok(root_field.ListVal(items)) ->
-      list.fold(items, #([], identity), fn(acc, item) {
+      list.fold(items, #(existing, identity), fn(acc, item) {
         let #(rows, current_identity) = acc
         case item {
-          root_field.ObjectVal(fields) ->
-            case
-              graphql_helpers.read_arg_string(fields, "namespace"),
+          root_field.ObjectVal(fields) -> {
+            let namespace = read_validation_metafield_namespace(fields)
+            let key =
               graphql_helpers.read_arg_string(fields, "key")
-            {
-              Some(namespace), Some(key) -> {
+              |> option.unwrap("")
+            upsert_validation_metafield(
+              rows,
+              validation_id,
+              namespace,
+              key,
+              graphql_helpers.read_arg_string(fields, "type"),
+              graphql_helpers.read_arg_string(fields, "value"),
+              timestamp,
+              current_identity,
+            )
+          }
+          _ -> acc
+        }
+      })
+    _ -> #(existing, identity)
+  }
+}
+
+fn upsert_validation_metafield(
+  rows: List(ValidationMetafieldRecord),
+  validation_id: String,
+  namespace: String,
+  key: String,
+  type_: Option(String),
+  value: Option(String),
+  timestamp: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(List(ValidationMetafieldRecord), SyntheticIdentityRegistry) {
+  let #(updated_rows, matched) =
+    list.fold(rows, #([], False), fn(acc, row) {
+      let #(next_rows, already_matched) = acc
+      case row.namespace == namespace && row.key == key {
+        True -> #(
+          list.append(next_rows, [
+            ValidationMetafieldRecord(
+              ..row,
+              validation_id: validation_id,
+              type_: type_,
+              value: value,
+              compare_digest: None,
+              updated_at: Some(timestamp),
+              owner_type: Some("VALIDATION"),
+            ),
+          ]),
+          True,
+        )
+        False -> #(list.append(next_rows, [row]), already_matched)
+      }
+    })
+
+  case matched {
+    True -> #(updated_rows, identity)
+    False -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "Metafield")
+      #(
+        list.append(updated_rows, [
+          ValidationMetafieldRecord(
+            id: id,
+            validation_id: validation_id,
+            namespace: namespace,
+            key: key,
+            type_: type_,
+            value: value,
+            compare_digest: None,
+            created_at: Some(timestamp),
+            updated_at: Some(timestamp),
+            owner_type: Some("VALIDATION"),
+          ),
+        ]),
+        next_identity,
+      )
+    }
+  }
+}
+
+fn read_cart_transform_metafields(
+  input: Dict(String, root_field.ResolvedValue),
+  cart_transform_id: String,
+  timestamp: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(
+  List(CartTransformMetafieldRecord),
+  List(function_types.UserError),
+  SyntheticIdentityRegistry,
+) {
+  case dict.get(input, "metafields") {
+    Ok(root_field.ListVal(items)) ->
+      list.index_fold(items, #([], [], identity), fn(acc, item, index) {
+        let #(rows, errors, current_identity) = acc
+        case item {
+          root_field.ObjectVal(fields) -> {
+            let item_errors =
+              cart_transform_metafield_input_errors(fields, index)
+            case item_errors {
+              [] -> {
+                let assert Some(namespace) =
+                  graphql_helpers.read_arg_string(fields, "namespace")
+                let assert Some(key) =
+                  graphql_helpers.read_arg_string(fields, "key")
                 let #(id, next_identity) =
                   synthetic_identity.make_synthetic_gid(
                     current_identity,
@@ -290,9 +441,9 @@ fn read_validation_metafields(
                   )
                 #(
                   list.append(rows, [
-                    ValidationMetafieldRecord(
+                    CartTransformMetafieldRecord(
                       id: id,
-                      validation_id: validation_id,
+                      cart_transform_id: cart_transform_id,
                       namespace: namespace,
                       key: key,
                       type_: graphql_helpers.read_arg_string(fields, "type"),
@@ -300,19 +451,260 @@ fn read_validation_metafields(
                       compare_digest: None,
                       created_at: Some(timestamp),
                       updated_at: Some(timestamp),
-                      owner_type: Some("VALIDATION"),
+                      owner_type: Some("CARTTRANSFORM"),
                     ),
                   ]),
+                  errors,
                   next_identity,
                 )
               }
-              _, _ -> acc
+              _ -> #(rows, list.append(errors, item_errors), current_identity)
             }
-          _ -> acc
+          }
+          _ -> #(
+            rows,
+            list.append(errors, [
+              invalid_cart_transform_metafield_error(index, "namespace"),
+            ]),
+            current_identity,
+          )
         }
       })
-    _ -> #([], identity)
+    _ -> #([], [], identity)
   }
+}
+
+fn validate_validation_metafield(
+  store: Store,
+  fields: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(function_types.UserError) {
+  let namespace = read_validation_metafield_namespace(fields)
+  let key = graphql_helpers.read_arg_string(fields, "key")
+  let type_ = graphql_helpers.read_arg_string(fields, "type")
+  let value = graphql_helpers.read_arg_string(fields, "value")
+
+  []
+  |> list.append(validate_validation_metafield_key(key, index))
+  |> list.append(validate_validation_metafield_type(type_, index))
+  |> list.append(validate_validation_metafield_reserved_namespace(
+    namespace,
+    index,
+  ))
+  |> list.append(validate_validation_metafield_value(store, type_, value, index))
+}
+
+fn read_validation_metafield_namespace(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case graphql_helpers.read_arg_string(fields, "namespace") {
+    Some(namespace) ->
+      case string.trim(namespace) {
+        "" -> default_validation_metafield_namespace()
+        _ -> namespace
+      }
+    None -> default_validation_metafield_namespace()
+  }
+}
+
+fn default_validation_metafield_namespace() -> String {
+  "app--" <> function_app_id
+}
+
+fn validate_validation_metafield_key(
+  key: Option(String),
+  index: Int,
+) -> List(function_types.UserError) {
+  case key {
+    Some(k) ->
+      case string.trim(k) {
+        "" -> [validation_metafield_error(index, "presence", None)]
+        _ -> []
+      }
+    None -> [validation_metafield_error(index, "presence", None)]
+  }
+}
+
+fn validate_validation_metafield_type(
+  type_: Option(String),
+  index: Int,
+) -> List(function_types.UserError) {
+  case type_ {
+    Some(type_name) ->
+      case string.trim(type_name) {
+        "" -> [
+          validation_metafield_error(
+            index,
+            "One or more required inputs are blank.",
+            Some("BLANK"),
+          ),
+        ]
+        _ ->
+          case list.contains(metafields.valid_type_names(), type_name) {
+            True -> []
+            False -> [
+              validation_metafield_error(
+                index,
+                "The type is invalid.",
+                Some("INVALID_TYPE"),
+              ),
+            ]
+          }
+      }
+    None -> [
+      validation_metafield_error(
+        index,
+        "One or more required inputs are blank.",
+        Some("BLANK"),
+      ),
+    ]
+  }
+}
+
+fn validate_validation_metafield_reserved_namespace(
+  namespace: String,
+  index: Int,
+) -> List(function_types.UserError) {
+  case namespace == "shopify" {
+    True -> [
+      validation_metafield_error(
+        index,
+        "ApiPermission metafields can only be created or updated by the app owner.",
+        Some("APP_NOT_AUTHORIZED"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_validation_metafield_value(
+  store: Store,
+  type_: Option(String),
+  value: Option(String),
+  index: Int,
+) -> List(function_types.UserError) {
+  case value {
+    None -> [validation_metafield_error(index, "presence", None)]
+    Some(raw_value) ->
+      case type_ {
+        Some(type_name) ->
+          case
+            string.trim(raw_value) == "",
+            validation_metafield_type_is_valid(type_name)
+          {
+            _, False -> []
+            True, True -> [
+              validation_metafield_error(
+                index,
+                "The value is invalid.",
+                Some("INVALID_VALUE"),
+              ),
+            ]
+            False, True ->
+              case
+                metafield_definition_types.valid_metafield_value_for_type(
+                  store,
+                  type_name,
+                  raw_value,
+                )
+              {
+                True -> []
+                False -> [
+                  validation_metafield_error(
+                    index,
+                    "The value is invalid.",
+                    Some("INVALID_VALUE"),
+                  ),
+                ]
+              }
+          }
+        None -> []
+      }
+  }
+}
+
+fn validation_metafield_type_is_valid(type_name: String) -> Bool {
+  string.trim(type_name) != ""
+  && list.contains(metafields.valid_type_names(), type_name)
+}
+
+fn validation_metafield_error(
+  index: Int,
+  message: String,
+  code: Option(String),
+) -> function_types.UserError {
+  function_types.UserError(
+    field: ["validation", "metafields", int.to_string(index)],
+    message: message,
+    code: code,
+  )
+}
+
+fn enumerate(items: List(a)) -> List(#(Int, a)) {
+  let #(_, indexed) =
+    list.fold(items, #(0, []), fn(acc, item) {
+      let #(index, pairs) = acc
+      #(index + 1, list.append(pairs, [#(index, item)]))
+    })
+  indexed
+}
+
+fn cart_transform_metafield_input_errors(
+  fields: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(function_types.UserError) {
+  let missing_errors =
+    ["namespace", "key", "type", "value"]
+    |> list.filter_map(fn(attribute) {
+      case graphql_helpers.read_arg_string(fields, attribute) {
+        Some(_) -> Error(Nil)
+        None -> Ok(invalid_cart_transform_metafield_error(index, attribute))
+      }
+    })
+  let value_errors = case
+    graphql_helpers.read_arg_string(fields, "type"),
+    graphql_helpers.read_arg_string(fields, "value")
+  {
+    Some("json"), Some(value) ->
+      case json.parse(value, commit.json_value_decoder()) {
+        Ok(_) -> []
+        Error(_) -> [invalid_cart_transform_metafield_json_error(index, value)]
+      }
+    _, _ -> []
+  }
+  list.append(missing_errors, value_errors)
+}
+
+fn invalid_cart_transform_metafield_error(
+  index: Int,
+  attribute: String,
+) -> function_types.UserError {
+  function_types.UserError(
+    field: ["metafields", int.to_string(index), attribute],
+    message: "may not be empty",
+    code: Some("INVALID_METAFIELDS"),
+  )
+}
+
+fn invalid_cart_transform_metafield_json_error(
+  index: Int,
+  value: String,
+) -> function_types.UserError {
+  function_types.UserError(
+    field: ["metafields", int.to_string(index), "value"],
+    message: "is invalid JSON: unexpected token '"
+      <> invalid_json_error_token(value)
+      <> "' at line 1 column 1.",
+    code: Some("INVALID_METAFIELDS"),
+  )
+}
+
+fn invalid_json_error_token(value: String) -> String {
+  value
+  |> string.trim
+  |> string.split(" ")
+  |> list.first
+  |> result.unwrap("")
 }
 
 fn missing_cart_transform_function_error() -> function_types.UserError {
@@ -558,64 +950,88 @@ fn handle_validation_create(
                 Some(t) -> Some(t)
                 None -> shopify_fn.title
               }
-              let #(timestamp, identity_after_ts) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              let #(validation_id, identity_final) =
-                synthetic_identity.make_synthetic_gid(
-                  identity_after_ts,
-                  "Validation",
-                )
-              let #(metafields, identity_after_metafields) =
-                read_validation_metafields(
-                  input,
-                  validation_id,
-                  timestamp,
-                  identity_final,
-                )
-              let block_on_failure = case
-                graphql_helpers.read_arg_bool(input, "blockOnFailure")
-              {
-                Some(b) -> Some(b)
-                None -> Some(False)
+              case validate_validation_metafields_input(store, input) {
+                [_, ..] as user_errors -> {
+                  let payload =
+                    serializers.validation_mutation_payload(
+                      store,
+                      field,
+                      fragments,
+                      None,
+                      user_errors,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [],
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                [] -> {
+                  let #(timestamp, identity_after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let #(validation_id, identity_final) =
+                    synthetic_identity.make_synthetic_gid(
+                      identity_after_ts,
+                      "Validation",
+                    )
+                  let assert Ok(#(metafields, identity_after_metafields)) =
+                    read_validation_metafields(
+                      store,
+                      input,
+                      validation_id,
+                      timestamp,
+                      identity_final,
+                    )
+                  let block_on_failure = case
+                    graphql_helpers.read_arg_bool(input, "blockOnFailure")
+                  {
+                    Some(b) -> Some(b)
+                    None -> Some(False)
+                  }
+                  let function_handle = case reference.function_handle {
+                    Some(_) -> reference.function_handle
+                    None -> shopify_fn.handle
+                  }
+                  let validation =
+                    ValidationRecord(
+                      id: validation_id,
+                      title: final_title,
+                      enable: enable,
+                      block_on_failure: block_on_failure,
+                      function_id: reference.function_id,
+                      function_handle: function_handle,
+                      shopify_function_id: Some(shopify_fn.id),
+                      metafields: metafields,
+                      created_at: Some(timestamp),
+                      updated_at: Some(timestamp),
+                    )
+                  let #(_, store_final) =
+                    store.upsert_staged_validation(store, validation)
+                  let payload =
+                    serializers.validation_mutation_payload(
+                      store_final,
+                      field,
+                      fragments,
+                      Some(validation),
+                      [],
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [
+                        validation.id,
+                      ],
+                    ),
+                    store_final,
+                    identity_after_metafields,
+                  )
+                }
               }
-              let function_handle = case reference.function_handle {
-                Some(_) -> reference.function_handle
-                None -> shopify_fn.handle
-              }
-              let validation =
-                ValidationRecord(
-                  id: validation_id,
-                  title: final_title,
-                  enable: enable,
-                  block_on_failure: block_on_failure,
-                  function_id: reference.function_id,
-                  function_handle: function_handle,
-                  shopify_function_id: Some(shopify_fn.id),
-                  metafields: metafields,
-                  created_at: Some(timestamp),
-                  updated_at: Some(timestamp),
-                )
-              let #(_, store_final) =
-                store.upsert_staged_validation(store, validation)
-              let payload =
-                serializers.validation_mutation_payload(
-                  store_final,
-                  field,
-                  fragments,
-                  Some(validation),
-                  [],
-                )
-              #(
-                MutationFieldResult(
-                  key: key,
-                  payload: payload,
-                  staged_resource_ids: [
-                    validation.id,
-                  ],
-                ),
-                store_final,
-                identity_after_metafields,
-              )
             }
           }
         }
@@ -654,36 +1070,18 @@ fn handle_validation_update(
         Some(d) -> d
         None -> dict.new()
       }
-      let #(maybe_shopify_fn, store_after_fn, identity_after_fn) = case
-        current.shopify_function_id
+      case
+        dict.has_key(input, "metafields"),
+        validate_validation_metafields_input(store, input)
       {
-        Some(fn_id) -> #(
-          store.get_effective_shopify_function_by_id(store, fn_id),
-          store,
-          identity,
-        )
-        None -> #(None, store, identity)
-      }
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_fn)
-      let new_title = case graphql_helpers.read_arg_string(input, "title") {
-        Some(s) -> Some(s)
-        None -> current.title
-      }
-      let new_enable =
-        graphql_helpers.read_arg_bool(input, "enable")
-        |> option.or(Some(False))
-      case validation_enable_would_exceed_cap(store, current.id, new_enable) {
-        True -> {
+        True, [_, ..] as user_errors -> {
           let payload =
             serializers.validation_mutation_payload(
               store,
               field,
               fragments,
               None,
-              [
-                max_validations_activated_error(),
-              ],
+              user_errors,
             )
           #(
             MutationFieldResult(
@@ -695,63 +1093,110 @@ fn handle_validation_update(
             identity,
           )
         }
-        False -> {
-          let new_block_on_failure = case
-            graphql_helpers.read_arg_bool(input, "blockOnFailure")
+        _, _ -> {
+          let #(maybe_shopify_fn, store_after_fn, identity_after_fn) = case
+            current.shopify_function_id
           {
-            Some(b) -> Some(b)
-            None -> Some(False)
+            Some(fn_id) -> #(
+              store.get_effective_shopify_function_by_id(store, fn_id),
+              store,
+              identity,
+            )
+            None -> #(None, store, identity)
           }
-          let #(new_metafields, identity_after_metafields) = case
-            dict.has_key(input, "metafields")
+          let #(timestamp, identity_after_ts) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_fn)
+          let new_title = case graphql_helpers.read_arg_string(input, "title") {
+            Some(s) -> Some(s)
+            None -> current.title
+          }
+          let new_enable =
+            graphql_helpers.read_arg_bool(input, "enable")
+            |> option.or(Some(False))
+          case
+            validation_enable_would_exceed_cap(store, current.id, new_enable)
           {
-            True ->
-              read_validation_metafields(
-                input,
-                current.id,
-                timestamp,
-                identity_after_ts,
+            True -> {
+              let payload =
+                serializers.validation_mutation_payload(
+                  store,
+                  field,
+                  fragments,
+                  None,
+                  [
+                    max_validations_activated_error(),
+                  ],
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [],
+                ),
+                store,
+                identity,
               )
-            False -> #(current.metafields, identity_after_ts)
+            }
+            False -> {
+              let new_block_on_failure = case
+                graphql_helpers.read_arg_bool(input, "blockOnFailure")
+              {
+                Some(b) -> Some(b)
+                None -> Some(False)
+              }
+              let #(new_metafields, identity_after_metafields) = case
+                dict.has_key(input, "metafields")
+              {
+                True ->
+                  upsert_validation_metafields(
+                    current.metafields,
+                    input,
+                    current.id,
+                    timestamp,
+                    identity_after_ts,
+                  )
+                False -> #(current.metafields, identity_after_ts)
+              }
+              let new_shopify_function_id = case maybe_shopify_fn {
+                Some(fn_record) -> Some(fn_record.id)
+                None -> current.shopify_function_id
+              }
+              let updated =
+                ValidationRecord(
+                  id: current.id,
+                  title: new_title,
+                  enable: new_enable,
+                  block_on_failure: new_block_on_failure,
+                  function_id: current.function_id,
+                  function_handle: current.function_handle,
+                  shopify_function_id: new_shopify_function_id,
+                  metafields: new_metafields,
+                  created_at: current.created_at,
+                  updated_at: Some(timestamp),
+                )
+              let #(_, store_final) =
+                store.upsert_staged_validation(store_after_fn, updated)
+              let payload =
+                serializers.validation_mutation_payload(
+                  store_final,
+                  field,
+                  fragments,
+                  Some(updated),
+                  [],
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [
+                    updated.id,
+                  ],
+                ),
+                store_final,
+                identity_after_metafields,
+              )
+            }
           }
-          let new_shopify_function_id = case maybe_shopify_fn {
-            Some(fn_record) -> Some(fn_record.id)
-            None -> current.shopify_function_id
-          }
-          let updated =
-            ValidationRecord(
-              id: current.id,
-              title: new_title,
-              enable: new_enable,
-              block_on_failure: new_block_on_failure,
-              function_id: current.function_id,
-              function_handle: current.function_handle,
-              shopify_function_id: new_shopify_function_id,
-              metafields: new_metafields,
-              created_at: current.created_at,
-              updated_at: Some(timestamp),
-            )
-          let #(_, store_final) =
-            store.upsert_staged_validation(store_after_fn, updated)
-          let payload =
-            serializers.validation_mutation_payload(
-              store_final,
-              field,
-              fragments,
-              Some(updated),
-              [],
-            )
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: payload,
-              staged_resource_ids: [
-                updated.id,
-              ],
-            ),
-            store_final,
-            identity_after_metafields,
-          )
         }
       }
     }
@@ -885,6 +1330,13 @@ fn handle_cart_transform_create(
                   identity_after_ts,
                   "CartTransform",
                 )
+              let #(metafields, metafield_errors, identity_after_metafields) =
+                read_cart_transform_metafields(
+                  input,
+                  cart_transform_id,
+                  timestamp,
+                  identity_final,
+                )
               let final_title = case title {
                 Some(t) -> Some(t)
                 None -> shopify_fn.title
@@ -899,38 +1351,61 @@ fn handle_cart_transform_create(
                 Some(b) -> Some(b)
                 None -> Some(False)
               }
-              let cart_transform =
-                CartTransformRecord(
-                  id: cart_transform_id,
-                  title: final_title,
-                  block_on_failure: block_on_failure,
-                  function_id: Some(shopify_fn.id),
-                  function_handle: function_handle,
-                  shopify_function_id: Some(shopify_fn.id),
-                  created_at: Some(timestamp),
-                  updated_at: Some(timestamp),
-                )
-              let #(_, store_final) =
-                store.upsert_staged_cart_transform(
-                  store_after_fn,
-                  cart_transform,
-                )
-              let payload =
-                serializers.cart_transform_mutation_payload(
-                  field,
-                  fragments,
-                  Some(cart_transform),
-                  [],
-                )
-              #(
-                MutationFieldResult(
-                  key: key,
-                  payload: payload,
-                  staged_resource_ids: [cart_transform.id],
-                ),
-                store_final,
-                identity_final,
-              )
+              case metafield_errors {
+                [_, ..] -> {
+                  let payload =
+                    serializers.cart_transform_mutation_payload(
+                      field,
+                      fragments,
+                      None,
+                      metafield_errors,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [],
+                    ),
+                    store_after_fn,
+                    identity_after_metafields,
+                  )
+                }
+                [] -> {
+                  let cart_transform =
+                    CartTransformRecord(
+                      id: cart_transform_id,
+                      title: final_title,
+                      block_on_failure: block_on_failure,
+                      function_id: Some(shopify_fn.id),
+                      function_handle: function_handle,
+                      shopify_function_id: Some(shopify_fn.id),
+                      metafields: metafields,
+                      created_at: Some(timestamp),
+                      updated_at: Some(timestamp),
+                    )
+                  let #(_, store_final) =
+                    store.upsert_staged_cart_transform(
+                      store_after_fn,
+                      cart_transform,
+                    )
+                  let payload =
+                    serializers.cart_transform_mutation_payload(
+                      field,
+                      fragments,
+                      Some(cart_transform),
+                      [],
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [cart_transform.id],
+                    ),
+                    store_final,
+                    identity_after_metafields,
+                  )
+                }
+              }
             }
           }
         }

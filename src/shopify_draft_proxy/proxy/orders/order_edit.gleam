@@ -1072,6 +1072,36 @@ pub fn order_edit_session_added_line_items(
 }
 
 @internal
+pub fn order_edit_session_all_line_items(
+  session: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  let line_items = order_edit_session_line_items(session)
+  let added_line_items =
+    order_edit_session_added_line_items(session)
+    |> list.filter(fn(added_line_item) {
+      !order_edit_line_item_list_has_id(
+        line_items,
+        captured_string_field(added_line_item, "id"),
+      )
+    })
+  list.append(line_items, added_line_items)
+}
+
+fn order_edit_line_item_list_has_id(
+  line_items: List(CapturedJsonValue),
+  id: Option(String),
+) -> Bool {
+  case id {
+    Some(id) ->
+      line_items
+      |> list.any(fn(line_item) {
+        captured_string_field(line_item, "id") == Some(id)
+      })
+    None -> False
+  }
+}
+
+@internal
 pub fn order_edit_session_shipping_lines(
   session: CapturedJsonValue,
 ) -> List(CapturedJsonValue) {
@@ -1441,20 +1471,12 @@ pub fn update_order_edit_session_with_line_item(
     None -> #(store, None)
     Some(match) -> {
       let #(order, session) = match
-      let line_items =
-        list.append(order_edit_session_line_items(session), [
-          calculated_line_item,
-        ])
       let added_line_items =
         list.append(order_edit_session_added_line_items(session), [
           calculated_line_item,
         ])
       let updated_session =
         replace_captured_object_fields(session, [
-          #(
-            "lineItems",
-            CapturedObject([#("nodes", CapturedArray(line_items))]),
-          ),
           #(
             "addedLineItems",
             CapturedObject([#("nodes", CapturedArray(added_line_items))]),
@@ -1513,9 +1535,9 @@ pub fn calculated_order_from_session(
   session: CapturedJsonValue,
   order: OrderRecord,
 ) -> CapturedJsonValue {
-  let line_items = order_edit_session_line_items(session)
+  let all_line_items = order_edit_session_all_line_items(session)
   let shipping_lines = order_edit_session_shipping_lines(session)
-  let subtotal = order_edit_line_items_total(line_items)
+  let subtotal = order_edit_line_items_total(all_line_items)
   let shipping_total = order_edit_shipping_lines_total(shipping_lines)
   CapturedObject([
     #("id", captured_field_or_null(session, "id")),
@@ -1539,7 +1561,7 @@ pub fn calculated_order_from_session(
     #("shippingLines", CapturedArray(shipping_lines)),
     #(
       "subtotalLineItemsQuantity",
-      CapturedInt(order_edit_line_items_quantity(line_items)),
+      CapturedInt(order_edit_line_items_quantity(all_line_items)),
     ),
     #("subtotalPriceSet", money_set(subtotal, "CAD")),
     #("totalPriceSet", money_set(subtotal +. shipping_total, "CAD")),
@@ -1555,7 +1577,7 @@ pub fn commit_order_edit_session(
   staff_note: Option(String),
   identity: SyntheticIdentityRegistry,
 ) -> #(OrderRecord, SyntheticIdentityRegistry) {
-  let session_line_items = order_edit_session_line_items(session)
+  let session_line_items = order_edit_session_all_line_items(session)
   let committed_line_items =
     session_line_items
     |> list.map(fn(line_item) { commit_order_edit_line_item(order, line_item) })

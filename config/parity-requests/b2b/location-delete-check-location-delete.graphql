@@ -1,0 +1,10 @@
+mutation B2BLocationDeleteCheckLocationDelete($companyLocationId: ID!) {
+  companyLocationDelete(companyLocationId: $companyLocationId) {
+    deletedCompanyLocationId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -54,8 +54,8 @@ import shopify_draft_proxy/state/types.{
   type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
   type StorePropertyValue, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebPresenceRecord,
-  type WebhookSubscriptionRecord,
+  type TranslationRecord, type UrlRedirectRecord, type ValidationRecord,
+  type WebPresenceRecord, type WebhookSubscriptionRecord,
 }
 
 pub type BaseState {
@@ -199,6 +199,9 @@ pub type BaseState {
     online_store_integrations: Dict(String, OnlineStoreIntegrationRecord),
     online_store_integration_order: List(String),
     deleted_online_store_integration_ids: Dict(String, Bool),
+    url_redirects: Dict(String, UrlRedirectRecord),
+    url_redirect_order: List(String),
+    deleted_url_redirect_ids: Dict(String, Bool),
     apps: Dict(String, AppRecord),
     app_order: List(String),
     app_installations: Dict(String, AppInstallationRecord),
@@ -452,6 +455,9 @@ pub type StagedState {
     online_store_integrations: Dict(String, OnlineStoreIntegrationRecord),
     online_store_integration_order: List(String),
     deleted_online_store_integration_ids: Dict(String, Bool),
+    url_redirects: Dict(String, UrlRedirectRecord),
+    url_redirect_order: List(String),
+    deleted_url_redirect_ids: Dict(String, Bool),
     apps: Dict(String, AppRecord),
     app_order: List(String),
     app_installations: Dict(String, AppInstallationRecord),

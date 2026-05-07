@@ -1,0 +1,242 @@
+{
+  "scenarioId": "metaobject-update-redirect-new-handle",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobjectUpdate",
+    "urlRedirects",
+    "urlRedirect"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "runtime-staging", "mutation-field-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-update-redirect-new-handle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-definition-create.graphql",
+    "variablesCapturePath": "$.cases.renderableWithRedirectTrue.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "renderable-true-definition-create",
+        "capturePath": "$.cases.renderableWithRedirectTrue.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.displayNameKey",
+          "$.metaobjectDefinition.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "renderable-true-entry-create",
+        "capturePath": "$.cases.renderableWithRedirectTrue.metaobjectCreate.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-entry-create.graphql",
+          "variablesCapturePath": "$.cases.renderableWithRedirectTrue.metaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobject.handle",
+          "$.metaobject.type",
+          "$.metaobject.displayName",
+          "$.metaobject.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "renderable-true-update",
+        "capturePath": "$.cases.renderableWithRedirectTrue.metaobjectUpdate.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renderable-true-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.cases.renderableWithRedirectTrue.metaobjectUpdate.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.displayName", "$.userErrors"]
+      },
+      {
+        "name": "renderable-true-url-redirects",
+        "capturePath": "$.cases.renderableWithRedirectTrue.urlRedirects.response.data.urlRedirects",
+        "proxyPath": "$.data.urlRedirects",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-url-redirects.graphql",
+          "variablesCapturePath": "$.cases.renderableWithRedirectTrue.urlRedirects.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.nodes[0].path", "$.nodes[0].target"]
+      },
+      {
+        "name": "renderable-true-url-redirect",
+        "capturePath": "$.cases.renderableWithRedirectTrue.urlRedirect.response.data.urlRedirect",
+        "proxyPath": "$.data.urlRedirect",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-url-redirect.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renderable-true-url-redirects",
+              "path": "$.data.urlRedirects.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.path", "$.target"]
+      },
+      {
+        "name": "renderable-false-definition-create",
+        "capturePath": "$.cases.renderableWithRedirectFalse.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-definition-create.graphql",
+          "variablesCapturePath": "$.cases.renderableWithRedirectFalse.definitionCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.displayNameKey",
+          "$.metaobjectDefinition.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "renderable-false-entry-create",
+        "capturePath": "$.cases.renderableWithRedirectFalse.metaobjectCreate.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-entry-create.graphql",
+          "variablesCapturePath": "$.cases.renderableWithRedirectFalse.metaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobject.handle",
+          "$.metaobject.type",
+          "$.metaobject.displayName",
+          "$.metaobject.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "renderable-false-update",
+        "capturePath": "$.cases.renderableWithRedirectFalse.metaobjectUpdate.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renderable-false-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.cases.renderableWithRedirectFalse.metaobjectUpdate.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.displayName", "$.userErrors"]
+      },
+      {
+        "name": "renderable-false-url-redirects",
+        "capturePath": "$.cases.renderableWithRedirectFalse.urlRedirects.response.data.urlRedirects",
+        "proxyPath": "$.data.urlRedirects",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-url-redirects.graphql",
+          "variablesCapturePath": "$.cases.renderableWithRedirectFalse.urlRedirects.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.nodes"]
+      },
+      {
+        "name": "non-renderable-definition-create",
+        "capturePath": "$.cases.nonRenderableWithRedirectTrue.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-definition-create.graphql",
+          "variablesCapturePath": "$.cases.nonRenderableWithRedirectTrue.definitionCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.displayNameKey",
+          "$.metaobjectDefinition.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "non-renderable-entry-create",
+        "capturePath": "$.cases.nonRenderableWithRedirectTrue.metaobjectCreate.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-entry-create.graphql",
+          "variablesCapturePath": "$.cases.nonRenderableWithRedirectTrue.metaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.metaobject.handle",
+          "$.metaobject.type",
+          "$.metaobject.displayName",
+          "$.metaobject.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "non-renderable-update",
+        "capturePath": "$.cases.nonRenderableWithRedirectTrue.metaobjectUpdate.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "non-renderable-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.cases.nonRenderableWithRedirectTrue.metaobjectUpdate.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.displayName", "$.userErrors"]
+      },
+      {
+        "name": "non-renderable-url-redirects",
+        "capturePath": "$.cases.nonRenderableWithRedirectTrue.urlRedirects.response.data.urlRedirects",
+        "proxyPath": "$.data.urlRedirects",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-redirect-new-handle-url-redirects.graphql",
+          "variablesCapturePath": "$.cases.nonRenderableWithRedirectTrue.urlRedirects.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.nodes"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for metaobjectUpdate `redirectNewHandle` nested in MetaobjectUpdateInput. A renderable online-store metaobject handle rename with `redirectNewHandle: true` creates a URL redirect that is visible through urlRedirects and urlRedirect; redirectNewHandle false and non-renderable definitions silently create no redirect."
+}

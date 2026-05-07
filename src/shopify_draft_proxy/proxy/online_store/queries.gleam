@@ -154,6 +154,10 @@ fn should_passthrough_in_live_hybrid(
       !has_local_online_store_content_query_state(proxy, variables)
     parse_operation.QueryOperation, "pagesCount" ->
       !has_local_online_store_content_query_state(proxy, variables)
+    parse_operation.QueryOperation, "urlRedirect" ->
+      !local_has_url_redirect_id(proxy, variables)
+    parse_operation.QueryOperation, "urlRedirects" ->
+      !has_any_url_redirect_state(proxy.store)
     _, _ -> False
   }
 }
@@ -203,6 +207,37 @@ fn has_any_online_store_content_state(store_in: Store) -> Bool {
   || dict.size(store_in.base_state.deleted_online_store_content_ids) > 0
   || dict.size(store_in.staged_state.online_store_content) > 0
   || dict.size(store_in.staged_state.deleted_online_store_content_ids) > 0
+}
+
+fn local_has_url_redirect_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || local_url_redirect_id_known(proxy.store, id)
+      _ -> False
+    }
+  })
+}
+
+fn local_url_redirect_id_known(store_in: Store, id: String) -> Bool {
+  case store.get_effective_url_redirect_by_id(store_in, id) {
+    Some(_) -> True
+    None ->
+      dict.has_key(store_in.staged_state.deleted_url_redirect_ids, id)
+      || dict.has_key(store_in.base_state.deleted_url_redirect_ids, id)
+  }
+}
+
+fn has_any_url_redirect_state(store_in: Store) -> Bool {
+  dict.size(store_in.base_state.url_redirects) > 0
+  || dict.size(store_in.base_state.deleted_url_redirect_ids) > 0
+  || dict.size(store_in.staged_state.url_redirects) > 0
+  || dict.size(store_in.staged_state.deleted_url_redirect_ids) > 0
 }
 
 fn handle_query_field(
@@ -357,6 +392,15 @@ fn handle_query_field(
             fragments,
             variables,
             "mobilePlatformApplication",
+          )
+        "urlRedirect" ->
+          serializers.singular_url_redirect(store, field, fragments, variables)
+        "urlRedirects" ->
+          serializers.url_redirect_connection(
+            store,
+            field,
+            fragments,
+            variables,
           )
         "shop" -> serializers.project_shop(store, field, fragments, variables)
         _ -> json.null()

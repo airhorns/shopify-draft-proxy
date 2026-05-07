@@ -22,6 +22,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 }
 import shopify_draft_proxy/proxy/online_store/types as online_store_types
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -29,9 +30,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type OnlineStoreContentRecord,
-  type OnlineStoreIntegrationRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  OnlineStoreContentRecord, OnlineStoreIntegrationRecord,
+  type OnlineStoreIntegrationRecord, type UrlRedirectRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, OnlineStoreContentRecord, OnlineStoreIntegrationRecord,
 }
 
 @internal
@@ -439,6 +440,126 @@ pub fn content_connection(
       page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
     ),
   )
+}
+
+@internal
+pub fn singular_url_redirect(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let id = input_string(graphql_helpers.field_args(field, variables), "id")
+  case id {
+    Some(id) ->
+      case store.get_effective_url_redirect_by_id(store, id) {
+        Some(record) -> project_url_redirect_record(record, field, fragments)
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+@internal
+pub fn url_redirect_connection(
+  store: Store,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let records =
+    store.list_effective_url_redirects(store)
+    |> filter_url_redirects_by_query(field, variables)
+  let window =
+    paginate_connection_items(
+      records,
+      field,
+      variables,
+      fn(record, _index) { option_string(record.cursor, record.id) },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(record, _index) {
+        option_string(record.cursor, record.id)
+      },
+      serialize_node: fn(record, node_field, _index) {
+        project_url_redirect_record(record, node_field, fragments)
+      },
+      selected_field_options: graphql_helpers.SelectedFieldOptions(True),
+      page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
+    ),
+  )
+}
+
+fn filter_url_redirects_by_query(
+  records: List(UrlRedirectRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(UrlRedirectRecord) {
+  search_query_parser.apply_search_query(
+    records,
+    input_string(graphql_helpers.field_args(field, variables), "query"),
+    search_query_parser.default_parse_options(),
+    url_redirect_matches_query_term,
+  )
+}
+
+fn url_redirect_matches_query_term(
+  record: UrlRedirectRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  case term.field {
+    Some(field) ->
+      case string.lowercase(field) {
+        "id" ->
+          search_query_parser.matches_search_query_text(Some(record.id), term)
+        "path" ->
+          search_query_parser.matches_search_query_text(Some(record.path), term)
+        "target" ->
+          search_query_parser.matches_search_query_text(
+            Some(record.target),
+            term,
+          )
+        _ -> False
+      }
+    None -> {
+      search_query_parser.matches_search_query_text(Some(record.path), term)
+      || search_query_parser.matches_search_query_text(
+        Some(record.target),
+        term,
+      )
+      || search_query_parser.matches_search_query_text(Some(record.id), term)
+    }
+  }
+}
+
+fn project_url_redirect_record(
+  record: UrlRedirectRecord,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    url_redirect_source(record),
+    child_selections(field),
+    fragments,
+  )
+}
+
+@internal
+pub fn url_redirect_source(
+  record: UrlRedirectRecord,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("__typename", SrcString("UrlRedirect")),
+    #("id", SrcString(record.id)),
+    #("path", SrcString(record.path)),
+    #("target", SrcString(record.target)),
+  ])
 }
 
 @internal

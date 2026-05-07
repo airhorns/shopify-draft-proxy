@@ -1,0 +1,20 @@
+mutation MetafieldDefinitionValidationJobCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      validations {
+        name
+        value
+      }
+      validationStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

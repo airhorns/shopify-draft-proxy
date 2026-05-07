@@ -1,0 +1,38 @@
+#graphql
+fragment LocationAddMetafieldFields on Location {
+  id
+  name
+  metafield(namespace: "custom", key: "har1041") {
+    id
+    namespace
+    key
+    value
+    type
+  }
+  metafields(first: 5, namespace: "custom") {
+    nodes {
+      id
+      namespace
+      key
+      value
+      type
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+
+mutation LocationAddMetafields($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      ...LocationAddMetafieldFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

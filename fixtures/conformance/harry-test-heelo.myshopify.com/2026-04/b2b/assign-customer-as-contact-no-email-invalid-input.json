@@ -1,0 +1,462 @@
+{
+  "scenarioId": "assign-customer-as-contact-no-email-invalid-input",
+  "capturedAt": "2026-05-07T04:50:53.255Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:assign-contact-known-1778129451017@example.com"
+      },
+      "query": "query CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) { nodes { id } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+16139451017"
+      },
+      "query": "query CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) { nodes { id } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "intent": {
+    "plan": "Create a disposable B2B company, a normal disposable customer, and a disposable customer with phone but no email; record companyAssignCustomerAsContact unknown-customer, duplicate-customer, and no-email-customer userError branches."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        contactsCount { count }\n        mainContact { id isMainContact }\n        contacts(first: 5) { nodes { id isMainContact } }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "Assign customer error branches 1778129451017",
+            "externalId": "assign-contact-errors-1778129451017"
+          },
+          "companyContact": {
+            "firstName": "Assign",
+            "lastName": "Primary",
+            "email": "assign-contact-primary-1778129451017@example.com"
+          },
+          "companyLocation": {
+            "name": "Assign customer error branches 1778129451017 HQ",
+            "billingAddress": {
+              "address1": "1 Error Branch Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5444731186",
+            "name": "Assign customer error branches 1778129451017",
+            "contactsCount": {
+              "count": 1
+            },
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10163355954",
+              "isMainContact": true
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10163355954",
+                  "isMainContact": true
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8271757618",
+                  "name": "Assign customer error branches 1778129451017 HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10680762674",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10680795442",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 27,
+          "actualQueryCost": 22,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "knownCustomerCreate": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer { id email defaultPhoneNumber { phoneNumber } }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "email": "assign-contact-known-1778129451017@example.com",
+          "firstName": "Assign",
+          "lastName": "Known",
+          "tags": ["assign-contact-error-branches"]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10587140522290",
+            "email": "assign-contact-known-1778129451017@example.com",
+            "defaultPhoneNumber": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unknownCustomerAssign": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchAssign($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact {\n        id\n        isMainContact\n        customer { id email }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5444731186",
+        "customerId": "gid://shopify/Customer/999999999999999"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["customerId"],
+              "message": "Customer does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "knownCustomerAssign": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchAssign($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact {\n        id\n        isMainContact\n        customer { id email }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5444731186",
+        "customerId": "gid://shopify/Customer/10587140522290"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10163388722",
+            "isMainContact": false,
+            "customer": {
+              "id": "gid://shopify/Customer/10587140522290",
+              "email": "assign-contact-known-1778129451017@example.com"
+            },
+            "company": {
+              "id": "gid://shopify/Company/5444731186",
+              "name": "Assign customer error branches 1778129451017"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateCustomerAssign": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchAssign($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact {\n        id\n        isMainContact\n        customer { id email }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5444731186",
+        "customerId": "gid://shopify/Customer/10587140522290"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["companyId"],
+              "message": "Customer is already associated with a company contact.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "noEmailCustomerCreate": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer { id email defaultPhoneNumber { phoneNumber } }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "firstName": "Assign",
+          "lastName": "No Email",
+          "phone": "+16139451017",
+          "tags": ["assign-contact-error-branches"]
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10587140555058",
+            "email": null,
+            "defaultPhoneNumber": {
+              "phoneNumber": "+16139451017"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "noEmailCustomerAssign": {
+    "request": {
+      "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchAssign($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact {\n        id\n        isMainContact\n        customer { id email }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5444731186",
+        "customerId": "gid://shopify/Customer/10587140555058"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["companyId"],
+              "message": "Customer must have an email address.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5444731186"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5444731186",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "knownCustomerDelete": {
+      "request": {
+        "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10587140522290"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10587140522290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "noEmailCustomerDelete": {
+      "request": {
+        "query": "#graphql\n  mutation AssignCustomerAsContactErrorBranchCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10587140555058"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10587140555058",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

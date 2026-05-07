@@ -1,0 +1,89 @@
+{
+  "scenarioId": "functions-validation-metafields-input-validation",
+  "operationNames": ["validationCreate", "validationUpdate", "validation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "functions-validation-metafields",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-metafields-input-validation-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.createSetup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-valid-metafield",
+        "capturePath": "$.createSetup.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
+          }
+        ]
+      },
+      {
+        "name": "validation-update-invalid-metafield-user-error",
+        "capturePath": "$.invalidUpdate.response.payload.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-metafields-input-validation-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "validation": {
+              "metafields": [
+                {
+                  "namespace": "custom",
+                  "type": "single_line_text_field",
+                  "value": "loose"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-read-after-rejected-update",
+        "capturePath": "$.postRejectedUpdateRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-metafields-input-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-create-invalid-metafields-user-errors",
+        "capturePath": "$.invalidCreateBatch.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-metafields-input-validation-invalid-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.invalidCreateBatch.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify parity evidence for validationCreate and validationUpdate validation-owned metafield input errors. Shopify returns resolver userErrors at field [\"validation\", \"metafields\", \"<index>\"] for missing key/value, missing or invalid type, reserved shopify namespace, and invalid value branches; the scenario also verifies validationUpdate leaves the existing staged metafield readable after rejection. The cassette contains only the ShopifyFunction lookup needed for local staging; supported mutations remain local-only under the proxy."
+}

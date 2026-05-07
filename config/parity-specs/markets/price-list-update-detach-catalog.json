@@ -1,0 +1,188 @@
+{
+  "scenarioId": "price-list-update-detach-catalog",
+  "operationNames": ["priceListCreate", "catalogCreate", "priceListUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-update-detach-catalog.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable price list and catalog attachment, proves variable catalogId: \"\" returns top-level INVALID_VARIABLE, detaches the price list with catalogId: null, verifies the former catalog no longer references the price list, and proves a new catalogCreate can claim the detached price list.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-setup",
+        "capturePath": "$.cases[1].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "catalog-setup",
+        "capturePath": "$.cases[2].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[2].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[2].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "price-list-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy stages a synthetic local catalog id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "empty-catalog-id-invalid-variable",
+        "capturePath": "$.cases[3].response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[3].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "detach-catalog",
+        "capturePath": "$.cases[4].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[4].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy updates the locally staged price list, whose id is synthetic."
+          }
+        ]
+      },
+      {
+        "name": "read-after-detach",
+        "capturePath": "$.cases[5].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-detach-catalog-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog id."
+          },
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          }
+        ]
+      },
+      {
+        "name": "reattach-detached-price-list",
+        "capturePath": "$.cases[6].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[6].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[6].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "price-list-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy stages a synthetic local catalog id for the reattach claim."
+          }
+        ]
+      }
+    ]
+  }
+}

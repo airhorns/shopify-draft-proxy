@@ -521,6 +521,28 @@ pub fn parse_query_keeps_open_paren_after_field_colon_test() {
   }
 }
 
+pub fn search_query_node_fields_traverses_boolean_tree_test() {
+  let opts =
+    SearchQueryParseOptions(
+      quote_characters: ["\"", "'"],
+      recognize_not_keyword: True,
+      preserve_quotes_in_terms: False,
+    )
+
+  case
+    search_query_parser.parse_search_query(
+      "status:active OR (times_used:>0 -discount_type:app NOT title:test)",
+      opts,
+    )
+  {
+    Some(node) -> {
+      assert search_query_parser.search_query_node_fields(node)
+        == ["status", "times_used", "discount_type", "title"]
+    }
+    None -> panic as "expected parsed query"
+  }
+}
+
 // ----------- Generic apply helpers -----------
 
 type Item {

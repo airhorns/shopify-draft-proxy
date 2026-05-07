@@ -1,0 +1,6 @@
+query DraftOrderTagValidationRead($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    tags
+  }
+}

@@ -1,0 +1,473 @@
+{
+  "capturedAt": "2026-05-07T09:22:04.531Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "Live Shopify evidence that persisted ORDER and DRAFT_ORDER default saved-search records can be updated and deleted through savedSearchUpdate/savedSearchDelete.",
+    "The capture verifies an update echoed the ORDER default record, a downstream orderSavedSearches read reflected the new name/query, deleting the DRAFT_ORDER default succeeded, and a downstream draftOrderSavedSearches read no longer returned the deleted default.",
+    "The cleanup path restores the ORDER default fields and recreates the deleted DRAFT_ORDER saved search by name/query/resourceType so the disposable conformance shop keeps a semantically equivalent default view, though Shopify assigns a new id to recreated records."
+  ],
+  "readBefore": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-default-records-read.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "orderSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634391515442",
+              "legacyResourceId": "3634391515442",
+              "name": "Unfulfilled",
+              "query": "status:open fulfillment_status:unshipped,partial",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "fulfillment_status",
+                  "value": "unshipped,partial"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391548210",
+              "legacyResourceId": "3634391548210",
+              "name": "Unpaid",
+              "query": "status:open financial_status:unpaid",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "financial_status",
+                  "value": "unpaid"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391580978",
+              "legacyResourceId": "3634391580978",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391613746",
+              "legacyResourceId": "3634391613746",
+              "name": "Archived",
+              "query": "status:closed",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "closed"
+                }
+              ]
+            }
+          ]
+        },
+        "draftOrderSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634390597938",
+              "legacyResourceId": "3634390597938",
+              "name": "Open and invoice sent",
+              "query": "status:open_and_invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open_and_invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390630706",
+              "legacyResourceId": "3634390630706",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390663474",
+              "legacyResourceId": "3634390663474",
+              "name": "Invoice sent",
+              "query": "status:invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390696242",
+              "legacyResourceId": "3634390696242",
+              "name": "Completed",
+              "query": "status:completed",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390729010",
+              "legacyResourceId": "3634390729010",
+              "name": "Submitted for review",
+              "query": "status:open source:online_store",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "source",
+                  "value": "online_store"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateOrderDefault": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-update-order.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/3634391515442",
+        "name": "Renamed default va1xj7",
+        "query": "status:closed"
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/3634391515442",
+            "legacyResourceId": "3634391515442",
+            "name": "Renamed default va1xj7",
+            "query": "status:closed",
+            "resourceType": "ORDER",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "status",
+                "value": "closed"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readOrderAfterUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-read-updated-order.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "orderSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634391515442",
+              "legacyResourceId": "3634391515442",
+              "name": "Renamed default va1xj7",
+              "query": "status:closed",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "closed"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391548210",
+              "legacyResourceId": "3634391548210",
+              "name": "Unpaid",
+              "query": "status:open financial_status:unpaid",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "financial_status",
+                  "value": "unpaid"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391580978",
+              "legacyResourceId": "3634391580978",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391613746",
+              "legacyResourceId": "3634391613746",
+              "name": "Archived",
+              "query": "status:closed",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "closed"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteDraftOrderDefault": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-delete-draft-order.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/3634390597938"
+      }
+    },
+    "response": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/3634390597938",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readDraftAfterDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-read-deleted-draft-order.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "draftOrderSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634390630706",
+              "legacyResourceId": "3634390630706",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390663474",
+              "legacyResourceId": "3634390663474",
+              "name": "Invoice sent",
+              "query": "status:invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390696242",
+              "legacyResourceId": "3634390696242",
+              "name": "Completed",
+              "query": "status:completed",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390729010",
+              "legacyResourceId": "3634390729010",
+              "name": "Submitted for review",
+              "query": "status:open source:online_store",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "source",
+                  "value": "online_store"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "restoreOrderDefault": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/3634391515442",
+            "legacyResourceId": "3634391515442",
+            "name": "Unfulfilled",
+            "query": "status:open fulfillment_status:unshipped,partial",
+            "resourceType": "ORDER",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "status",
+                "value": "open"
+              },
+              {
+                "key": "fulfillment_status",
+                "value": "unshipped,partial"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "recreateDraftOrderDefault": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4008890630450",
+            "name": "Open and invoice sent",
+            "query": "status:open_and_invoice_sent",
+            "resourceType": "DRAFT_ORDER"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

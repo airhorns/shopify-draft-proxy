@@ -1,0 +1,9 @@
+query MetaobjectUpdateRedirectNewHandleUrlRedirects($query: String!) {
+  urlRedirects(first: 5, query: $query) {
+    nodes {
+      id
+      path
+      target
+    }
+  }
+}
