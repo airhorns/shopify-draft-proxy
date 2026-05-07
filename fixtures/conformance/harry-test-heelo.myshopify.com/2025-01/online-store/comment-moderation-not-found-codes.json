@@ -21,9 +21,7 @@
             "comment": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Comment does not exist",
                 "code": "NOT_FOUND"
               }
@@ -33,9 +31,7 @@
             "comment": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Comment does not exist",
                 "code": "NOT_FOUND"
               }
@@ -45,9 +41,7 @@
             "comment": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Comment does not exist",
                 "code": "NOT_FOUND"
               }
@@ -57,9 +51,7 @@
             "deletedCommentId": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Comment does not exist",
                 "code": "NOT_FOUND"
               }
