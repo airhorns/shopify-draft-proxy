@@ -1,0 +1,294 @@
+{
+  "scenarioId": "customer-address-input-validation",
+  "operationNames": ["customerCreate", "customerSet", "customerAddressCreate", "customerAddressUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-address-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
+    "variablesCapturePath": "$.setupCustomer.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior across CustomerInput, CustomerSetInput, and dedicated address mutations. Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null; nested CustomerInput.addresses rejects an all-blank address entry.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.address.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages the setup customer locally and returns its stable synthetic Customer GID in the customerSet payload."
+      },
+      {
+        "path": "$.customer.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages the setup customer locally and returns a deterministic synthetic timestamp instead of Shopify's live timestamp."
+      },
+      {
+        "path": "$.customer.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy stages customerSet locally and returns a deterministic synthetic timestamp instead of Shopify's live timestamp."
+      },
+      {
+        "path": "$.customer.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customerSet replacement addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "address-create-trimmed-success",
+        "capturePath": "$.addressCreateTrimmedSuccess.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "firstName": "  Trim  ",
+              "lastName": "  Create  ",
+              "address1": " 100 Main ",
+              "address2": " Suite 4 ",
+              "city": " Ottawa ",
+              "company": " Acme ",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": " K1A 0B1 ",
+              "phone": " +14155550123 "
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "address-update-trimmed-success",
+        "capturePath": "$.addressUpdateTrimmedSuccess.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "address-create-trimmed-success",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "address1": " 200 Side ",
+              "city": " Toronto ",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": " M5H 2N2 ",
+              "phone": " +14155550124 "
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "address-create-too-long",
+        "capturePath": "$.addressCreateTooLong.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "address1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "countryCode": "CA",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-city-html",
+        "capturePath": "$.addressCreateCityHtml.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "city": "<script>",
+              "countryCode": "CA",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-city-url",
+        "capturePath": "$.addressCreateCityUrl.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "city": "https://evil.example",
+              "countryCode": "CA",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-zip-url",
+        "capturePath": "$.addressCreateZipUrl.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "zip": "H0H 0H0 https://x",
+              "countryCode": "CA",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-phone-html",
+        "capturePath": "$.addressCreatePhoneHtml.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "phone": "<a>+1 613",
+              "countryCode": "CA",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-address1-emoji",
+        "capturePath": "$.addressCreateAddressEmoji.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "address1": "100 Main 😀",
+              "countryCode": "CA",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-blank-accepted",
+        "capturePath": "$.addressCreateBlankAccepted.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "address1": " ",
+              "address2": " ",
+              "city": " ",
+              "company": " ",
+              "zip": " ",
+              "phone": " "
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "customer-create-nested-too-long",
+        "capturePath": "$.customerCreateNestedTooLong.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
+          "variablesCapturePath": "$.customerCreateNestedTooLong.variables"
+        }
+      },
+      {
+        "name": "customer-create-nested-blank",
+        "capturePath": "$.customerCreateNestedBlank.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
+          "variablesCapturePath": "$.customerCreateNestedBlank.variables"
+        }
+      },
+      {
+        "name": "customer-set-nested-blank",
+        "capturePath": "$.customerSetNestedBlank.response.data.customerSet",
+        "proxyPath": "$.data.customerSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerSet-parity.graphql",
+          "variables": {
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "input": {
+              "email": {
+                "fromCapturePath": "$.setupCustomer.variables.input.email"
+              },
+              "addresses": [
+                {
+                  "address1": " ",
+                  "address2": " ",
+                  "city": " ",
+                  "company": " ",
+                  "zip": " ",
+                  "phone": " "
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
