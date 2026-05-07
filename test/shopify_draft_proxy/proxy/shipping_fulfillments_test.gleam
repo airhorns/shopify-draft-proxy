@@ -1488,6 +1488,277 @@ pub fn delivery_profile_create_validation_returns_coded_errors_test() {
     == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate.0.zonesToCreate.1.countries.0\"],\"message\":\"Profile is invalid: zones cannot contain overlapping countries.\",\"code\":\"CANNOT_UPDATE_ZONES\"}]}}}"
 }
 
+pub fn delivery_profile_create_rejects_update_only_keys_test() {
+  let variants_to_dissociate =
+    delivery_profile_create_validation_outcome(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Bad dissociate")),
+          #(
+            "variantsToDissociate",
+            root_field.ListVal([
+              root_field.StringVal("gid://shopify/ProductVariant/1"),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert json.to_string(variants_to_dissociate.data)
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"variantsToDissociate\"],\"message\":\"Cannot disassociate variants when creating a new profile.\",\"code\":\"cannot_disassociate_variants\"}]}}}"
+  assert store.has_staged_delivery_profiles(variants_to_dissociate.store)
+    == False
+
+  let zones_to_update =
+    delivery_profile_create_validation_outcome(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Bad zone update")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #(
+                    "zonesToUpdate",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "id",
+                            root_field.StringVal("gid://shopify/DeliveryZone/1"),
+                          ),
+                          #("name", root_field.StringVal("Renamed")),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert json.to_string(zones_to_update.data)
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate\",\"0\",\"zonesToUpdate\"],\"message\":\"Cannot update zones when creating a new location group.\",\"code\":\"cannot_update_zones\"}]}}}"
+  assert store.has_staged_delivery_profiles(zones_to_update.store) == False
+
+  let empty_zones_to_update =
+    delivery_profile_create_validation_outcome(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Bad empty zone update")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #("zonesToUpdate", root_field.ListVal([])),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert json.to_string(empty_zones_to_update.data)
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate\",\"0\",\"zonesToUpdate\"],\"message\":\"Cannot update zones when creating a new location group.\",\"code\":\"cannot_update_zones\"}]}}}"
+  assert store.has_staged_delivery_profiles(empty_zones_to_update.store)
+    == False
+
+  let method_definitions_to_update =
+    delivery_profile_create_validation_outcome(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Bad method update")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #(
+                    "zonesToCreate",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("name", root_field.StringVal("Domestic")),
+                          #(
+                            "countries",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("code", root_field.StringVal("US")),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                          #(
+                            "methodDefinitionsToUpdate",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #(
+                                    "id",
+                                    root_field.StringVal(
+                                      "gid://shopify/DeliveryMethodDefinition/1",
+                                    ),
+                                  ),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert json.to_string(method_definitions_to_update.data)
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate\",\"0\",\"zonesToCreate\",\"0\",\"methodDefinitionsToUpdate\"],\"message\":\"Cannot update method definitions when creating a new zone.\",\"code\":\"cannot_update_method_definitions\"}]}}}"
+  assert store.has_staged_delivery_profiles(method_definitions_to_update.store)
+    == False
+
+  let empty_method_definitions_to_update =
+    delivery_profile_create_validation_outcome(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Bad empty method update")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #(
+                    "zonesToCreate",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("name", root_field.StringVal("Domestic")),
+                          #(
+                            "countries",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("code", root_field.StringVal("US")),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                          #("methodDefinitionsToUpdate", root_field.ListVal([])),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert json.to_string(empty_method_definitions_to_update.data)
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate\",\"0\",\"zonesToCreate\",\"0\",\"methodDefinitionsToUpdate\"],\"message\":\"Cannot update method definitions when creating a new zone.\",\"code\":\"cannot_update_method_definitions\"}]}}}"
+  assert store.has_staged_delivery_profiles(
+      empty_method_definitions_to_update.store,
+    )
+    == False
+}
+
+pub fn delivery_profile_create_allows_method_definition_create_test() {
+  let outcome =
+    delivery_profile_create_validation_outcome(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Allowed method create")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #(
+                    "zonesToCreate",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("name", root_field.StringVal("Domestic")),
+                          #(
+                            "countries",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("code", root_field.StringVal("US")),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                          #(
+                            "methodDefinitionsToCreate",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("name", root_field.StringVal("Standard")),
+                                  #("active", root_field.BoolVal(True)),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":{\"id\":\"gid://shopify/DeliveryProfile/1\",\"name\":\"Allowed method create\"},\"userErrors\":[]}}}"
+  assert store.has_staged_delivery_profiles(outcome.store) == True
+}
+
 pub fn delivery_profile_create_accepts_staged_location_test() {
   let #(_, store_with_staged_location) =
     store.upsert_staged_store_property_location(
@@ -1531,6 +1802,14 @@ fn delivery_profile_create_validation_json(
   draft_store: store.Store,
   profile: root_field.ResolvedValue,
 ) -> String {
+  delivery_profile_create_validation_outcome(draft_store, profile).data
+  |> json.to_string
+}
+
+fn delivery_profile_create_validation_outcome(
+  draft_store: store.Store,
+  profile: root_field.ResolvedValue,
+) -> MutationOutcome {
   let outcome =
     shipping_fulfillments.process_mutation(
       draft_store,
@@ -1540,7 +1819,7 @@ fn delivery_profile_create_validation_json(
       dict.from_list([#("profile", profile)]),
       empty_upstream_context(),
     )
-  json.to_string(outcome.data)
+  outcome
 }
 
 pub fn local_pickup_enable_disable_updates_downstream_location_read_test() {

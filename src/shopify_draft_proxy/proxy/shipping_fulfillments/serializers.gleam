@@ -208,14 +208,15 @@ pub fn delivery_profile_payload_json(
   profile: Option(DeliveryProfileRecord),
   user_errors: List(shipping_types.DeliveryProfileUserError),
 ) -> Json {
+  let user_error_source = case delivery_profile_payload_selects_code(field) {
+    True -> delivery_profile_user_error_source
+    False -> public_delivery_profile_user_error_source
+  }
   let source =
     src_object([
       #("__typename", SrcString(payload_typename)),
       #("profile", optional_delivery_profile_source(profile)),
-      #(
-        "userErrors",
-        SrcList(list.map(user_errors, delivery_profile_user_error_source)),
-      ),
+      #("userErrors", SrcList(list.map(user_errors, user_error_source))),
     ])
   case field {
     Field(
@@ -224,6 +225,75 @@ pub fn delivery_profile_payload_json(
     ) -> project_graphql_value(source, child_selections, fragments)
     _ -> json.object([])
   }
+}
+
+fn delivery_profile_payload_selects_code(field: Selection) -> Bool {
+  selected_selections(field)
+  |> selections_select_user_errors_code
+}
+
+fn selections_select_user_errors_code(selections: List(Selection)) -> Bool {
+  list.any(selections, fn(selection) {
+    case selection {
+      Field(
+        name: name,
+        selection_set: Some(SelectionSet(selections: children, ..)),
+        ..,
+      )
+        if name.value == "userErrors"
+      -> selections_select_field(children, "code")
+      Field(selection_set: Some(SelectionSet(selections: children, ..)), ..) ->
+        selections_select_user_errors_code(children)
+      _ -> False
+    }
+  })
+}
+
+fn selections_select_field(
+  selections: List(Selection),
+  field_name: String,
+) -> Bool {
+  list.any(selections, fn(selection) {
+    case selection {
+      Field(name: name, ..) -> name.value == field_name
+      _ -> False
+    }
+  })
+}
+
+fn public_delivery_profile_user_error_source(
+  error: shipping_types.DeliveryProfileUserError,
+) -> SourceValue {
+  case error.code {
+    Some("cannot_disassociate_variants") ->
+      delivery_profile_public_user_error_source(
+        "Cannot disassociate variants when creating a profile.",
+        error.code,
+      )
+    Some("cannot_update_zones") ->
+      delivery_profile_public_user_error_source(
+        "Cannot update zones when creating a profile.",
+        error.code,
+      )
+    Some("cannot_update_method_definitions") ->
+      delivery_profile_public_user_error_source(
+        "Profile is invalid: Input cannot include method_definitions_to_update on create.",
+        error.code,
+      )
+    _ -> delivery_profile_user_error_source(error)
+  }
+}
+
+fn delivery_profile_public_user_error_source(
+  message: String,
+  code: Option(String),
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("UserError")),
+    #("field", SrcNull),
+    #("message", SrcString(message)),
+    #("code", option_to_source(code)),
+  ])
 }
 
 @internal

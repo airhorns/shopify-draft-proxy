@@ -1,0 +1,45 @@
+mutation DeliveryProfileCreateDisallowedUpdateKeys($profile: DeliveryProfileInput!) {
+  deliveryProfileCreate(profile: $profile) {
+    profile {
+      id
+      name
+      version
+      originLocationCount
+      zoneCountryCount
+      activeMethodDefinitionsCount
+      profileLocationGroups {
+        locationGroup {
+          id
+        }
+        locationGroupZones(first: 5) {
+          nodes {
+            zone {
+              id
+              name
+            }
+            methodDefinitions(first: 5) {
+              nodes {
+                id
+                name
+                active
+                rateProvider {
+                  ... on DeliveryRateDefinition {
+                    id
+                    price {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

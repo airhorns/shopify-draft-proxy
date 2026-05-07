@@ -1043,6 +1043,50 @@ pub fn overlapping_delivery_profile_zone_error(
 }
 
 @internal
+pub fn delivery_profile_create_disassociate_variants_error() -> shipping_types.DeliveryProfileUserError {
+  shipping_types.DeliveryProfileUserError(
+    field: Some(["profile", "variantsToDissociate"]),
+    message: "Cannot disassociate variants when creating a new profile.",
+    code: Some("cannot_disassociate_variants"),
+  )
+}
+
+@internal
+pub fn delivery_profile_create_update_zones_error(
+  group_index: Int,
+) -> shipping_types.DeliveryProfileUserError {
+  shipping_types.DeliveryProfileUserError(
+    field: Some([
+      "profile",
+      "locationGroupsToCreate",
+      int.to_string(group_index),
+      "zonesToUpdate",
+    ]),
+    message: "Cannot update zones when creating a new location group.",
+    code: Some("cannot_update_zones"),
+  )
+}
+
+@internal
+pub fn delivery_profile_create_update_method_definitions_error(
+  group_index: Int,
+  zone_index: Int,
+) -> shipping_types.DeliveryProfileUserError {
+  shipping_types.DeliveryProfileUserError(
+    field: Some([
+      "profile",
+      "locationGroupsToCreate",
+      int.to_string(group_index),
+      "zonesToCreate",
+      int.to_string(zone_index),
+      "methodDefinitionsToUpdate",
+    ]),
+    message: "Cannot update method definitions when creating a new zone.",
+    code: Some("cannot_update_method_definitions"),
+  )
+}
+
+@internal
 pub fn delivery_profile_update_not_found() -> shipping_types.DeliveryProfileUserError {
   shipping_types.DeliveryProfileUserError(
     field: None,
