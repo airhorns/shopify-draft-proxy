@@ -1,0 +1,22 @@
+query DiscountBulkSearchEffectsReadCodeDelete($codeId: ID!, $automaticId: ID!) {
+  code: codeDiscountNode(id: $codeId) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+      }
+    }
+  }
+  automatic: automaticDiscountNode(id: $automaticId) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBasic {
+        title
+        status
+      }
+    }
+  }
+}
