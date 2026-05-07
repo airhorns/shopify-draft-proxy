@@ -22,6 +22,9 @@ pub fn file_json(record: types.FileRecord) -> Json {
     #("imageUrl", optional_string(record.image_url)),
     #("imageWidth", optional_int(record.image_width)),
     #("imageHeight", optional_int(record.image_height)),
+    #("previewImageUrl", optional_string(record.preview_image_url)),
+    #("previewImageWidth", optional_int(record.preview_image_width)),
+    #("previewImageHeight", optional_int(record.preview_image_height)),
     #(
       "updateFailureAcknowledgedAt",
       optional_string(record.update_failure_acknowledged_at),
