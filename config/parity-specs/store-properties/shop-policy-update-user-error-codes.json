@@ -1,0 +1,73 @@
+{
+  "scenarioId": "shop-policy-update-user-error-codes",
+  "operationNames": ["shopPolicyUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-coercion-parity", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-user-error-codes.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql",
+    "documentCapturePath": "$.invalidTypeValidation.query",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.invalidTypeValidation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 shopPolicyUpdate validation/code behavior. Current Shopify rejects invalid ShopPolicyType variables and missing/null ShopPolicyInput.body before resolver execution with top-level INVALID_VARIABLE errors. Blank REFUND_POLICY bodies are accepted and staged by Shopify, while oversized bodies reach ShopPolicyUserError with code TOO_BIG on [\"shopPolicy\", \"body\"].",
+  "comparison": {
+    "mode": "strict-json",
+    "targets": [
+      {
+        "name": "invalid-type-variable",
+        "capturePath": "$.invalidTypeValidation.response.errors",
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "missing-body-variable",
+        "capturePath": "$.missingBodyValidation.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql",
+          "documentCapturePath": "$.missingBodyValidation.query",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.missingBodyValidation.variables"
+        }
+      },
+      {
+        "name": "null-body-variable",
+        "capturePath": "$.nullBodyValidation.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql",
+          "documentCapturePath": "$.nullBodyValidation.query",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.nullBodyValidation.variables"
+        }
+      },
+      {
+        "name": "blank-refund-body-success",
+        "capturePath": "$.blankRefundMutation.response.data.shopPolicyUpdate",
+        "proxyPath": "$.data.shopPolicyUpdate",
+        "selectedPaths": ["$.shopPolicy.body", "$.shopPolicy.type", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql",
+          "documentCapturePath": "$.blankRefundMutation.query",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.blankRefundMutation.variables"
+        }
+      },
+      {
+        "name": "too-big-body-user-error",
+        "capturePath": "$.tooBigValidation.response.data.shopPolicyUpdate",
+        "proxyPath": "$.data.shopPolicyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-user-error-codes.graphql",
+          "documentCapturePath": "$.tooBigValidation.query",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.tooBigValidation.variables"
+        }
+      }
+    ],
+    "expectedDifferences": []
+  }
+}

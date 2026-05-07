@@ -1,0 +1,122 @@
+{
+  "scenarioId": "metafield-definitions-access-validation",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionUpdate", "standardMetafieldDefinitionEnable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["input-validation", "user-errors-parity", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-access-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definitions/access-validation-inline-grants.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inline-grants-schema-rejection",
+        "capturePath": "$.inlineGrants.response",
+        "proxyPath": "$"
+      },
+      {
+        "name": "create-merchant-admin-read-user-error",
+        "capturePath": "$.createMerchantAdminRead.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.createMerchantAdminRead.request.variables"
+        }
+      },
+      {
+        "name": "create-shopify-namespace-storefront-public-access-denied",
+        "capturePath": "$.createShopifyStorefrontPublic.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.createShopifyStorefrontPublic.request.variables"
+        },
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"]
+      },
+      {
+        "name": "update-setup-definition",
+        "capturePath": "$.setupDefinition.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.setupDefinition.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "update-merchant-admin-read-user-error",
+        "capturePath": "$.updateMerchantAdminRead.response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.updateMerchantAdminRead.request.variables"
+        }
+      },
+      {
+        "name": "standard-admin-read-user-error",
+        "capturePath": "$.standardAdminRead.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-standard-enable.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.standardAdminRead.request.variables"
+        }
+      },
+      {
+        "name": "standard-reserved-storefront-public-user-error",
+        "capturePath": "$.standardReservedStorefrontPublic.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-standard-enable.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.standardReservedStorefrontPublic.request.variables"
+        }
+      },
+      {
+        "name": "standard-reserved-setup-definition",
+        "capturePath": "$.standardReservedSetup.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-standard-enable.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.standardReservedSetup.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "update-shopify-namespace-storefront-public-access-denied",
+        "capturePath": "$.updateReservedStorefrontPublic.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/access-validation-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.updateReservedStorefrontPublic.request.variables"
+        },
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"]
+      }
+    ]
+  },
+  "notes": "Captured Shopify Admin API 2026-04 public access validation behavior for metafieldDefinitionCreate, metafieldDefinitionUpdate, and standardMetafieldDefinitionEnable. The public schema rejects access.grants as an argumentNotAccepted GraphQL error; merchant admin access must remain public_read_write, access controls cannot be set on the reserved shopify standard namespace, and direct create/update under shopify are blocked by namespace access checks."
+}

@@ -1,0 +1,18 @@
+mutation PublishableInputValidationPublishCurrent($id: ID!) {
+  publishablePublishToCurrentChannel(id: $id) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

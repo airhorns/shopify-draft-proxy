@@ -15,7 +15,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Definition, type Location, type Selection, type SelectionSet, Argument,
   Field, FragmentDefinition, FragmentSpread, InlineFragment, IntValue, NamedType,
-  SelectionSet,
+  SelectionSet, StringValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parser
@@ -222,6 +222,26 @@ pub fn read_arg_string(
 ) -> Option(String) {
   case dict.get(args, name) {
     Ok(root_field.StringVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+pub fn read_literal_string_arg(
+  field: Selection,
+  name: String,
+) -> Option(String) {
+  case field {
+    Field(arguments: arguments, ..) ->
+      arguments
+      |> list.find_map(fn(argument) {
+        case argument {
+          Argument(name: arg_name, value: StringValue(value: value, ..), ..)
+            if arg_name.value == name
+          -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
     _ -> None
   }
 }

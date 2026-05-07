@@ -979,19 +979,30 @@ fn validate_webhook_subscription_update_input(
   store: Store,
   requesting_api_client_id: Option(String),
 ) -> List(webhook_types.UserError) {
-  validate_webhook_subscription_input(
-    input,
-    store,
-    topic: existing.topic,
-    require_uri: False,
-    requesting_api_client_id: requesting_api_client_id,
-  )
-  |> list.append(validate_webhook_topic_format(
-    existing.topic,
-    resolved_webhook_uri(existing, input),
-    resolved_webhook_format(existing, input),
-  ))
-  |> list.append(validate_webhook_name_input(input))
+  let errors =
+    validate_webhook_subscription_input(
+      input,
+      store,
+      topic: existing.topic,
+      require_uri: False,
+      requesting_api_client_id: requesting_api_client_id,
+    )
+    |> list.append(validate_webhook_topic_format(
+      existing.topic,
+      resolved_webhook_uri(existing, input),
+      resolved_webhook_format(existing, input),
+    ))
+    |> list.append(validate_webhook_name_input(input))
+
+  case errors {
+    [] ->
+      validate_duplicate_webhook_subscription_name(
+        store,
+        read_optional_string(input, "name"),
+        Some(existing.id),
+      )
+    _ -> errors
+  }
 }
 
 fn validate_webhook_topic_format_input(
@@ -1167,6 +1178,7 @@ fn validate_duplicate_webhook_subscription(
     validate_duplicate_webhook_subscription_name(
       store,
       read_optional_string(input, "name"),
+      None,
     ),
   )
 }
@@ -1209,12 +1221,24 @@ fn normalize_webhook_filter(
 fn validate_duplicate_webhook_subscription_name(
   store: Store,
   name: Option(String),
+  excluded_id: Option(String),
 ) -> List(webhook_types.UserError) {
   case name {
-    Some(name) ->
+    Some(name) -> {
+      let normalized_name = string.lowercase(name)
       case
         store.list_effective_webhook_subscriptions(store)
-        |> list.any(fn(record) { record.name == Some(name) })
+        |> list.any(fn(record) {
+          case excluded_id {
+            Some(id) if record.id == id -> False
+            _ ->
+              case record.name {
+                Some(record_name) ->
+                  string.lowercase(record_name) == normalized_name
+                None -> False
+              }
+          }
+        })
       {
         True -> [
           webhook_types.UserError(
@@ -1224,6 +1248,7 @@ fn validate_duplicate_webhook_subscription_name(
         ]
         False -> []
       }
+    }
     None -> []
   }
 }

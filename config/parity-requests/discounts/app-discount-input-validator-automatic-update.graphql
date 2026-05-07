@@ -1,0 +1,15 @@
+mutation AppDiscountInputValidatorAutomaticUpdate($id: ID!, $input: DiscountAutomaticAppInput!) {
+  discountAutomaticAppUpdate(id: $id, automaticAppDiscount: $input) {
+    automaticAppDiscount {
+      discountId
+      title
+      startsAt
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

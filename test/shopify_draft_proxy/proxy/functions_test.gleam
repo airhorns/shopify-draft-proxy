@@ -58,6 +58,7 @@ fn cart_transform(id: String, fn_id: String) -> CartTransformRecord {
     function_id: None,
     function_handle: Some("cart-transformer"),
     shopify_function_id: Some(fn_id),
+    metafields: [],
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-02T00:00:00.000Z"),
   )

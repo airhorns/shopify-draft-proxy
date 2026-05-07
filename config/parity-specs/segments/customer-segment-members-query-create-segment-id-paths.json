@@ -1,0 +1,104 @@
+{
+  "scenarioId": "customer-segment-members-query-create-segment-id-paths",
+  "operationNames": ["segmentCreate", "customerSegmentMembersQueryCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "query-grammar", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-create-segment-id-paths.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-for-member-query-segment-id-paths.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that customerSegmentMembersQueryCreate(input: { segmentId }) does not revalidate the stored segment query. Strict parity stages broad segment query grammar through segmentCreate first, then creates member-query jobs from the local segment ID and checks Shopify's unknown Segment ID CDP error shape. The current live Admin API rejects the `country = 'CA'` alias at segmentCreate time, so this fixture records the accepted customer country spelling instead of fabricating the stale alias example.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-companies-null",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          }
+        ]
+      },
+      {
+        "name": "member-query-create-companies-null-segment-id",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
+          "variables": {
+            "input": {
+              "segmentId": {
+                "fromPrimaryProxyPath": "$.data.segmentCreate.segment.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSegmentMembersQueryCreate.customerSegmentMembersQuery.id",
+            "matcher": "shopify-gid:CustomerSegmentMembersQuery",
+            "reason": "The proxy generates stable local query-job IDs instead of Shopify's UUID-backed job IDs."
+          }
+        ]
+      },
+      {
+        "name": "segment-create-customer-countries-ca",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-for-member-query-segment-id-paths.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          }
+        ]
+      },
+      {
+        "name": "member-query-create-customer-countries-ca-segment-id",
+        "capturePath": "$.cases[3].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
+          "variables": {
+            "input": {
+              "segmentId": {
+                "fromProxyResponse": "segment-create-customer-countries-ca",
+                "path": "$.data.segmentCreate.segment.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSegmentMembersQueryCreate.customerSegmentMembersQuery.id",
+            "matcher": "shopify-gid:CustomerSegmentMembersQuery",
+            "reason": "The proxy generates stable local query-job IDs instead of Shopify's UUID-backed job IDs."
+          }
+        ]
+      },
+      {
+        "name": "member-query-create-unknown-segment-id",
+        "capturePath": "$.cases[4].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-segment-id-paths.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables"
+        }
+      }
+    ]
+  }
+}
