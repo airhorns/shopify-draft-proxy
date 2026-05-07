@@ -17,16 +17,19 @@ import shopify_draft_proxy/state/types.{
   type InventoryTransferRecord, type LocationRecord,
   type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
-  type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
-  type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
-  type ShopRecord, CapturedArray, CapturedObject, CapturedString, ChannelRecord,
-  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
-  CustomerRecord, DraftOrderRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryQuantityRecord,
+  type MetafieldDefinitionValidationRecord, type MetaobjectDefinitionRecord,
+  type ProductMediaRecord, type ProductRecord, type ProductVariantRecord,
+  type SellingPlanGroupRecord, type ShopRecord, CapturedArray, CapturedObject,
+  CapturedString, ChannelRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, CustomerRecord, DraftOrderRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
   InventoryTransferLineItemRecord, InventoryTransferRecord, LocationRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, OnlineStoreContentRecord, OrderRecord,
+  MetafieldDefinitionValidationRecord, MetaobjectDefinitionCapabilitiesRecord,
+  MetaobjectDefinitionCapabilityRecord, MetaobjectDefinitionRecord,
+  MetaobjectDefinitionTypeRecord, MetaobjectFieldDefinitionCapabilitiesRecord,
+  MetaobjectFieldDefinitionRecord, OnlineStoreContentRecord, OrderRecord,
   PaymentSettingsRecord, ProductCollectionRecord, ProductMediaRecord,
   ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
   ProductRecord, ProductSeoRecord, ProductVariantRecord,
@@ -1568,6 +1571,113 @@ pub fn product_options_create_stages_default_product_options_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_options_create_links_metaobject_definition_test() {
+  let metaobject_definition_id = "gid://shopify/MetaobjectDefinition/linked"
+  let metafield_definition =
+    metafield_definition(
+      "linked_option",
+      "choice",
+      "list.metaobject_reference",
+      [
+        MetafieldDefinitionValidationRecord(
+          name: "metaobject_definition_id",
+          value: Some(metaobject_definition_id),
+        ),
+      ],
+    )
+  let initial_store =
+    default_option_store()
+    |> store.upsert_base_metaobject_definitions([
+      product_option_metaobject_definition(metaobject_definition_id),
+    ])
+    |> store.upsert_base_metafield_definitions([metafield_definition])
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: initial_store)
+  let query =
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Linked Choice\\\", position: 1, linkedMetafield: { namespace: \\\"linked_option\\\", key: \\\"choice\\\", values: [\\\"gid://shopify/Metaobject/one\\\", \\\"gid://shopify/Metaobject/two\\\"] } }]) { product { id options { name linkedMetafield { namespace key } optionValues { name linkedMetafieldValue } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(query, "2026-04"),
+    )
+
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(
+    serialized,
+    "\"linkedMetafield\":{\"namespace\":\"linked_option\",\"key\":\"choice\"}",
+  )
+  assert string.contains(
+    serialized,
+    "\"linkedMetafieldValue\":\"gid://shopify/Metaobject/one\"",
+  )
+
+  let assert Some(definition) =
+    store.get_effective_metaobject_definition_by_id(
+      next_proxy.store,
+      metaobject_definition_id,
+    )
+  let assert [linked_metafield] = definition.linked_metafields
+  assert linked_metafield.owner_type == "PRODUCT"
+  assert linked_metafield.namespace == "linked_option"
+  assert linked_metafield.key == "choice"
+  assert linked_metafield.metafield_definition_id
+    == Some(metafield_definition.id)
+  assert linked_metafield.product_id == "gid://shopify/Product/optioned"
+}
+
+pub fn product_option_linked_definition_rejects_display_name_update_test() {
+  let metaobject_definition_id = "gid://shopify/MetaobjectDefinition/linked"
+  let metafield_definition =
+    metafield_definition(
+      "linked_option",
+      "choice",
+      "list.metaobject_reference",
+      [
+        MetafieldDefinitionValidationRecord(
+          name: "metaobject_definition_id",
+          value: Some(metaobject_definition_id),
+        ),
+      ],
+    )
+  let initial_store =
+    default_option_store()
+    |> store.upsert_base_metaobject_definitions([
+      product_option_metaobject_definition(metaobject_definition_id),
+    ])
+    |> store.upsert_base_metafield_definitions([metafield_definition])
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: initial_store)
+  let create_query =
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Linked Choice\\\", linkedMetafield: { namespace: \\\"linked_option\\\", key: \\\"choice\\\", values: [\\\"gid://shopify/Metaobject/one\\\"] } }]) { product { id } userErrors { field message code } } }"
+  let #(_, linked_proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(create_query, "2026-04"),
+    )
+  let update_query =
+    "mutation { metaobjectDefinitionUpdate(id: \\\""
+    <> metaobject_definition_id
+    <> "\\\", definition: { displayNameKey: \\\"alt\\\" }) { metaobjectDefinition { id displayNameKey } userErrors { field message code elementKey elementIndex } } }"
+
+  let #(Response(status: status, body: body, ..), after_update_proxy) =
+    draft_proxy.process_request(
+      linked_proxy,
+      graphql_request_for_version(update_query, "2026-04"),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"displayNameKey\"],\"message\":\"Cannot change display name field when metaobject is used in product options\",\"code\":\"IMMUTABLE\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+  let assert Some(definition) =
+    store.get_effective_metaobject_definition_by_id(
+      after_update_proxy.store,
+      metaobject_definition_id,
+    )
+  assert definition.display_name_key == Some("label")
 }
 
 pub fn product_options_create_rejects_invalid_option_inputs_test() {
@@ -5112,11 +5222,13 @@ fn default_option_store() -> store.Store {
       product_id: "gid://shopify/Product/optioned",
       name: "Title",
       position: 1,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/default-title",
           name: "Default Title",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
     ),
@@ -5345,6 +5457,61 @@ fn metafield_definition(
     constraints: None,
     pinned_position: None,
     validation_status: "ALL_VALID",
+  )
+}
+
+fn product_option_metaobject_definition(
+  id: String,
+) -> MetaobjectDefinitionRecord {
+  MetaobjectDefinitionRecord(
+    id: id,
+    type_: "linked_option_choice",
+    name: Some("Linked option choice"),
+    description: None,
+    display_name_key: Some("label"),
+    access: dict.new(),
+    capabilities: MetaobjectDefinitionCapabilitiesRecord(
+      publishable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+      translatable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+      renderable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+      online_store: Some(MetaobjectDefinitionCapabilityRecord(False)),
+    ),
+    field_definitions: [
+      MetaobjectFieldDefinitionRecord(
+        key: "label",
+        name: Some("Label"),
+        description: None,
+        required: Some(True),
+        type_: MetaobjectDefinitionTypeRecord(
+          name: "single_line_text_field",
+          category: Some("TEXT"),
+        ),
+        capabilities: MetaobjectFieldDefinitionCapabilitiesRecord(
+          admin_filterable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+        ),
+        validations: [],
+      ),
+      MetaobjectFieldDefinitionRecord(
+        key: "alt",
+        name: Some("Alt"),
+        description: None,
+        required: Some(False),
+        type_: MetaobjectDefinitionTypeRecord(
+          name: "single_line_text_field",
+          category: Some("TEXT"),
+        ),
+        capabilities: MetaobjectFieldDefinitionCapabilitiesRecord(
+          admin_filterable: Some(MetaobjectDefinitionCapabilityRecord(False)),
+        ),
+        validations: [],
+      ),
+    ],
+    has_thumbnail_field: Some(False),
+    metaobjects_count: Some(0),
+    standard_template: None,
+    linked_metafields: [],
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
 }
 
@@ -5689,16 +5856,19 @@ fn option_update_store() -> store.Store {
       product_id: "gid://shopify/Product/optioned",
       name: "Color",
       position: 1,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/red",
           name: "Red",
           has_variants: True,
+          linked_metafield_value: None,
         ),
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/green",
           name: "Green",
           has_variants: False,
+          linked_metafield_value: None,
         ),
       ],
     ),
@@ -5707,11 +5877,13 @@ fn option_update_store() -> store.Store {
       product_id: "gid://shopify/Product/optioned",
       name: "Size",
       position: 2,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/small",
           name: "Small",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
     ),
@@ -5726,11 +5898,13 @@ fn three_option_store() -> store.Store {
       product_id: "gid://shopify/Product/optioned",
       name: "Color",
       position: 1,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/red",
           name: "Red",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
     ),
@@ -5739,11 +5913,13 @@ fn three_option_store() -> store.Store {
       product_id: "gid://shopify/Product/optioned",
       name: "Size",
       position: 2,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/small",
           name: "Small",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
     ),
@@ -5752,11 +5928,13 @@ fn three_option_store() -> store.Store {
       product_id: "gid://shopify/Product/optioned",
       name: "Material",
       position: 3,
+      linked_metafield: None,
       option_values: [
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/cotton",
           name: "Cotton",
           has_variants: True,
+          linked_metafield_value: None,
         ),
       ],
     ),

@@ -1348,6 +1348,11 @@ pub fn metaobject_definition_decoder() -> Decoder(
     None,
     decode.optional(metaobject_standard_template_decoder()),
   )
+  use linked_metafields <- optional_field(
+    "linkedMetafields",
+    [],
+    decode.list(of: metaobject_definition_linked_metafield_decoder()),
+  )
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   decode.success(types.MetaobjectDefinitionRecord(
@@ -1362,8 +1367,29 @@ pub fn metaobject_definition_decoder() -> Decoder(
     has_thumbnail_field: has_thumbnail_field,
     metaobjects_count: metaobjects_count,
     standard_template: standard_template,
+    linked_metafields: linked_metafields,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+@internal
+pub fn metaobject_definition_linked_metafield_decoder() -> Decoder(
+  types.MetaobjectDefinitionLinkedMetafieldRecord,
+) {
+  use owner_type <- decode.field("ownerType", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use metafield_definition_id <- optional_string_field("metafieldDefinitionId")
+  use product_id <- decode.field("productId", decode.string)
+  use product_option_id <- decode.field("productOptionId", decode.string)
+  decode.success(types.MetaobjectDefinitionLinkedMetafieldRecord(
+    owner_type: owner_type,
+    namespace: namespace,
+    key: key,
+    metafield_definition_id: metafield_definition_id,
+    product_id: product_id,
+    product_option_id: product_option_id,
   ))
 }
 

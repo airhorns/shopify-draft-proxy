@@ -424,6 +424,7 @@ fn definition_record(
         ))
       False -> None
     },
+    linked_metafields: [],
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )

@@ -1880,6 +1880,7 @@ fn definition_from_json(
       value,
       "standardTemplate",
     )),
+    linked_metafields: [],
     created_at: json_get_string(value, "createdAt"),
     updated_at: json_get_string(value, "updatedAt"),
   ))

@@ -1223,8 +1223,29 @@ pub fn metaobject_definition_json(
         metaobject_standard_template_json,
       ),
     ),
+    #(
+      "linkedMetafields",
+      json.array(
+        record.linked_metafields,
+        metaobject_definition_linked_metafield_json,
+      ),
+    ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+@internal
+pub fn metaobject_definition_linked_metafield_json(
+  record: types.MetaobjectDefinitionLinkedMetafieldRecord,
+) -> Json {
+  json.object([
+    #("ownerType", json.string(record.owner_type)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("metafieldDefinitionId", optional_string(record.metafield_definition_id)),
+    #("productId", json.string(record.product_id)),
+    #("productOptionId", json.string(record.product_option_id)),
   ])
 }
 

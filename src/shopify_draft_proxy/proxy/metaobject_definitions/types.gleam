@@ -855,6 +855,7 @@ pub fn build_definition_from_create_input(
       has_thumbnail_field: Some(False),
       metaobjects_count: Some(0),
       standard_template: None,
+      linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
     ),
@@ -871,7 +872,7 @@ pub fn apply_definition_update(
   reset_field_order: Bool,
   requesting_api_client_id: Option(String),
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
-  case build_unrecoverable_definition_update_user_errors(existing) {
+  case build_unrecoverable_definition_update_user_errors(existing, input) {
     [_, ..] as user_errors -> #(existing, identity, user_errors)
     [] ->
       apply_mutable_definition_update(
@@ -1198,10 +1199,27 @@ fn renderable_data_storage_key(input_key: String) -> String {
 @internal
 pub fn build_unrecoverable_definition_update_user_errors(
   existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
   case is_standard_or_shopify_reserved_definition(existing) {
     True -> [standard_definition_immutable_user_error()]
-    False -> []
+    False ->
+      case linked_product_option_display_name_key_change(existing, input) {
+        True -> [linked_product_options_display_name_immutable_user_error()]
+        False -> []
+      }
+  }
+}
+
+fn linked_product_option_display_name_key_change(
+  existing: MetaobjectDefinitionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case read_string(input, "displayNameKey") {
+    Some(next_display_name_key) ->
+      !list.is_empty(existing.linked_metafields)
+      && Some(next_display_name_key) != existing.display_name_key
+    None -> False
   }
 }
 
@@ -1237,6 +1255,17 @@ pub fn standard_definition_immutable_user_error() -> UserError {
   UserError(
     Some(["definition"]),
     "Standard metaobject definitions can't be updated",
+    "IMMUTABLE",
+    None,
+    None,
+  )
+}
+
+@internal
+pub fn linked_product_options_display_name_immutable_user_error() -> UserError {
+  UserError(
+    Some(["definition", "displayNameKey"]),
+    "Cannot change display name field when metaobject is used in product options",
     "IMMUTABLE",
     None,
     None,
@@ -1359,6 +1388,7 @@ pub fn build_standard_definition(
         Some(template.type_),
         Some(template.name),
       )),
+      linked_metafields: [],
       created_at: Some(now),
       updated_at: Some(now),
     ),
