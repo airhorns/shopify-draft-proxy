@@ -1,0 +1,17 @@
+mutation MarketingActivityUpdateFromStorefrontGuard(
+  $marketingActivityId: ID!
+  $input: MarketingActivityUpdateExternalInput!
+) {
+  marketingActivityUpdateExternal(marketingActivityId: $marketingActivityId, input: $input) {
+    marketingActivity {
+      id
+      title
+      tactic
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
