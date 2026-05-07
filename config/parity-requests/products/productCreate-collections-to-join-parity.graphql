@@ -1,0 +1,20 @@
+mutation ProductCreateCollectionsToJoinParity($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      collections(first: 10) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

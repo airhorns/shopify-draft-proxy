@@ -1,0 +1,12 @@
+query LocationAddressCodeDerivationRead($id: ID!) {
+  location(id: $id) {
+    id
+    name
+    address {
+      country
+      countryCode
+      province
+      provinceCode
+    }
+  }
+}

@@ -101,6 +101,7 @@ pub type FileRecord {
     alt: Option(String),
     content_type: Option(String),
     created_at: String,
+    updated_at: String,
     file_status: String,
     filename: Option(String),
     original_source: String,
@@ -609,6 +610,7 @@ pub type ProductRecord {
     template_suffix: Option(String),
     seo: ProductSeoRecord,
     category: Option(ProductCategoryRecord),
+    requires_selling_plan: Option(Bool),
     publication_ids: List(String),
     contextual_pricing: Option(CapturedJsonValue),
     cursor: Option(String),
@@ -891,6 +893,7 @@ pub type ShopFeaturesRecord {
     live_view: Bool,
     paypal_express_subscription_gateway_status: String,
     reports: Bool,
+    b2b_deposits_enabled: Bool,
     discounts_by_market_enabled: Bool,
     markets_granted: Int,
     sells_subscriptions: Bool,
@@ -1364,6 +1367,7 @@ pub type MetaobjectDefinitionRecord {
     description: Option(String),
     display_name_key: Option(String),
     online_store_url_handle: Option(String),
+    online_store_create_redirects: Option(Bool),
     access: Dict(String, Option(String)),
     capabilities: MetaobjectDefinitionCapabilitiesRecord,
     field_definitions: List(MetaobjectFieldDefinitionRecord),
@@ -1930,6 +1934,10 @@ pub type StoreCreditAccountTransactionRecord {
     balance_after_transaction: Money,
     created_at: String,
     event: String,
+    notify: Option(Bool),
+    attribution_user_id: Option(String),
+    attribution_point_of_sale_device_id: Option(String),
+    attribution_location_id: Option(String),
   )
 }
 

@@ -1,0 +1,83 @@
+{
+  "scenarioId": "gift-card-template-suffix-prefix",
+  "operationNames": ["giftCardCreate", "giftCardUpdate", "giftCard", "giftCards"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-template-suffix-prefix.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-template-suffix-prefix-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures Shopify stripping one literal leading gift_card. prefix from giftCardCreate and giftCardUpdate templateSuffix inputs. Replay stages the same prefixed inputs locally and verifies mutation payloads plus downstream giftCard(id:) and giftCards query readback expose the stripped suffix.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "giftCardCreate strips template suffix prefix",
+        "capturePath": "$.setup[0].response.payload.data.giftCardCreate",
+        "proxyPath": "$.data.giftCardCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages giftCardCreate locally and returns a synthetic GiftCard GID."
+          }
+        ]
+      },
+      {
+        "name": "giftCardUpdate strips template suffix prefix",
+        "capturePath": "$.operations.update.response.payload.data.giftCardUpdate",
+        "proxyPath": "$.data.giftCardUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-template-suffix-prefix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "giftCardCreate strips template suffix prefix",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "templateSuffix": { "fromCapturePath": "$.proxyVariables.update.templateSuffix" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays giftCardUpdate against the locally staged synthetic gift card."
+          }
+        ]
+      },
+      {
+        "name": "downstream gift card reads expose stripped template suffix",
+        "capturePath": "$.operations.readAfterUpdate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-template-suffix-prefix-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "giftCardCreate strips template suffix prefix",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "query": { "fromCapturePath": "$.proxyVariables.readAfterUpdate.query" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy reads back the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.giftCards.nodes[0].id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy lists the locally staged synthetic gift card."
+          }
+        ]
+      }
+    ]
+  }
+}

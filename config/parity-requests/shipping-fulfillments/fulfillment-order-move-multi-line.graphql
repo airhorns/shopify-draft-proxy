@@ -1,0 +1,66 @@
+fragment FulfillmentOrderMoveMultiLineFields on FulfillmentOrder {
+  id
+  status
+  requestStatus
+  fulfillAt
+  fulfillBy
+  updatedAt
+  supportedActions {
+    action
+  }
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  fulfillmentHolds {
+    id
+    handle
+    reason
+    reasonNotes
+    displayReason
+    heldByApp {
+      id
+      title
+    }
+    heldByRequestingApp
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+        quantity
+        fulfillableQuantity
+      }
+    }
+  }
+}
+
+mutation FulfillmentOrderMoveMultiLine(
+  $id: ID!
+  $newLocationId: ID!
+  $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]
+) {
+  fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+    movedFulfillmentOrder {
+      ...FulfillmentOrderMoveMultiLineFields
+    }
+    originalFulfillmentOrder {
+      ...FulfillmentOrderMoveMultiLineFields
+    }
+    remainingFulfillmentOrder {
+      ...FulfillmentOrderMoveMultiLineFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

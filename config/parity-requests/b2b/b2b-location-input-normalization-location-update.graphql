@@ -1,0 +1,15 @@
+mutation B2BLocationInputNormalizationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+    companyLocation {
+      id
+      name
+      phone
+      locale
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

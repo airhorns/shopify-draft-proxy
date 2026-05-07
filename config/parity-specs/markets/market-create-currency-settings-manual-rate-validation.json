@@ -1,0 +1,28 @@
+{
+  "scenarioId": "market-create-currency-settings-manual-rate-validation",
+  "operationNames": ["marketCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/market-create-currency-settings.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-currency-settings.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases[4].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2025-01 capture proves marketCreate rejects currencySettings.baseCurrencyManualRate: 0 before creating a market. The captured userError uses field [\"input\", \"currencySettings\", \"baseCurrencyManualRate\"], message \"Enter a rate above 0.\", and null code.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-manual-rate-market-create",
+        "capturePath": "$.cases[4].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate"
+      }
+    ]
+  }
+}

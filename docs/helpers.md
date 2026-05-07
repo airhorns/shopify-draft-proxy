@@ -46,6 +46,16 @@ Shared helper for Shopify-like phone number normalization.
 
 Use this module when Admin API domain input accepts phone numbers and should stage or compare the normalized value instead of raw input text.
 
+## `src/shopify_draft_proxy/proxy/address_names.gleam`
+
+Shared helper for Shopify-like address country/province name derivation.
+
+- maps Shopify `CountryCode` values to English country names for local address staging
+- maps known province/region codes for US states/territories, Canadian provinces/territories, Australian states/territories, UK regions, and German states
+- falls back to the supplied code when a country or province mapping is not known locally
+
+Use this module when a domain stages Admin address inputs that carry `countryCode` / `provinceCode` but downstream reads expose human-readable `country` / `province` fields.
+
 ## `src/shopify_draft_proxy/proxy/admin_api_versions.gleam`
 
 Shared helper for versioned Shopify Admin API route parsing.

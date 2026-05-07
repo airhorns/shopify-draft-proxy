@@ -331,6 +331,7 @@ fn delivery_profile_lifecycle_store() -> store.Store {
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      requires_selling_plan: None,
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
@@ -1815,6 +1816,49 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
     == None
 }
 
+pub fn fulfillment_service_rejects_removed_public_arguments_test() {
+  let body =
+    json.object([
+      #(
+        "query",
+        json.string(
+          "mutation RemovedArgs($name: String!) { fulfillmentServiceCreate(name: $name, permitsSkuSharing: false, inventorySyncEnabled: true, fulfillmentOrdersOptIn: false) { fulfillmentService { id serviceName } userErrors { field message } } }",
+        ),
+      ),
+      #("variables", json.object([#("name", json.string("Removed Args FS"))])),
+    ])
+    |> json.to_string
+
+  let #(response, proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      proxy_state.Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: body,
+      ),
+    )
+  let serialized = json.to_string(response.body)
+
+  assert response.status == 200
+  assert string.contains(
+    serialized,
+    "Field 'fulfillmentServiceCreate' doesn't accept argument 'permitsSkuSharing'",
+  )
+  assert string.contains(
+    serialized,
+    "Field 'fulfillmentServiceCreate' doesn't accept argument 'inventorySyncEnabled'",
+  )
+  assert string.contains(
+    serialized,
+    "Field 'fulfillmentServiceCreate' doesn't accept argument 'fulfillmentOrdersOptIn'",
+  )
+  assert string.contains(serialized, "\"code\":\"argumentNotAccepted\"")
+  assert store.get_log(proxy.store) == []
+  assert store.list_effective_fulfillment_services(proxy.store) == []
+}
+
 pub fn fulfillment_service_create_rejects_case_insensitive_duplicate_name_test() {
   let first =
     fulfillment_service_create(store.new(), synthetic_identity.new(), "Acme")
@@ -3033,6 +3077,51 @@ pub fn fulfillment_order_move_validation_direct_handler_test() {
     == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
 }
 
+pub fn fulfillment_order_move_processes_multiple_line_item_inputs_test() {
+  let active_location_id = "gid://shopify/Location/move-multi-active"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/move-multi"
+  let first_line_item_id = "gid://shopify/FulfillmentOrderLineItem/move-multi-1"
+  let second_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/move-multi-2"
+  let base_store =
+    store.new()
+    |> store.upsert_base_store_property_location(location(
+      active_location_id,
+      "Move multi active location",
+      True,
+      False,
+    ))
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(fulfillment_order_id, [
+        #(first_line_item_id, "gid://shopify/LineItem/move-multi-1", 2),
+        #(second_line_item_id, "gid://shopify/LineItem/move-multi-2", 3),
+      ]),
+    ])
+
+  let move_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Move($id: ID!, $newLocationId: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) { fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $lineItems) { movedFulfillmentOrder { id lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } } originalFulfillmentOrder { id lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } } remainingFulfillmentOrder { id lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+        #(
+          "lineItems",
+          root_field.ListVal([
+            fulfillment_order_line_item_input(first_line_item_id, 2),
+            fulfillment_order_line_item_input(second_line_item_id, 1),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(move_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-1\",\"totalQuantity\":2,\"remainingQuantity\":2},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-2\",\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-multi\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-2\",\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-multi\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/move-multi-2\",\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"userErrors\":[]}}}"
+}
+
 pub fn fulfillment_orders_set_deadline_validation_errors_test() {
   let valid_order_id = "gid://shopify/FulfillmentOrder/deadline-valid"
   let unknown_order_id = "gid://shopify/FulfillmentOrder/deadline-missing"
@@ -3267,6 +3356,52 @@ pub fn fulfillment_order_hold_zeros_line_item_fulfillable_quantity_test() {
     == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/full-hold\",\"quantity\":2,\"fulfillableQuantity\":0}}]}},\"userErrors\":[]}}}"
 }
 
+pub fn fulfillment_order_hold_processes_multiple_line_item_inputs_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-multi"
+  let first_line_item_id = "gid://shopify/FulfillmentOrderLineItem/hold-multi-1"
+  let second_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-multi-2"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(fulfillment_order_id, [
+        #(first_line_item_id, "gid://shopify/LineItem/hold-multi-1", 2),
+        #(second_line_item_id, "gid://shopify/LineItem/hold-multi-2", 3),
+      ]),
+    ])
+
+  let hold_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) { fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) { fulfillmentOrder { status lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } } } } remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } } } } userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(fulfillment_order_id)),
+        #(
+          "fulfillmentHold",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("reason", root_field.StringVal("OTHER")),
+              #("handle", root_field.StringVal("hold-multi")),
+              #(
+                "fulfillmentOrderLineItems",
+                root_field.ListVal([
+                  fulfillment_order_line_item_input(first_line_item_id, 2),
+                  fulfillment_order_line_item_input(second_line_item_id, 1),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      api_client_upstream_context("app-a"),
+    )
+
+  assert json.to_string(hold_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/hold-multi-1\",\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/hold-multi-1\",\"quantity\":2,\"fulfillableQuantity\":0}},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/hold-multi-2\",\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/hold-multi-2\",\"quantity\":3,\"fulfillableQuantity\":2}}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/hold-multi-2\",\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/hold-multi-2\",\"quantity\":3,\"fulfillableQuantity\":2}}]}},\"userErrors\":[]}}}"
+}
+
 pub fn held_fulfillment_order_sets_shipping_order_display_status_test() {
   let order_id = "gid://shopify/Order/held-display-status"
   let fulfillment_order_id =
@@ -3471,6 +3606,62 @@ fn split_fulfillment_order_record(
   )
 }
 
+fn request_lifecycle_fulfillment_order_record(
+  id: String,
+  status: String,
+  request_status: String,
+  assignment_status: Option(String),
+) -> FulfillmentOrderRecord {
+  let line_item_id = id <> "/line-item"
+  let order =
+    split_fulfillment_order_record(id, [
+      #(line_item_id, id <> "/line", 1),
+    ])
+  let data = case order.data {
+    CapturedObject(fields) ->
+      CapturedObject(list.append(
+        [
+          #("status", CapturedString(status)),
+          #("requestStatus", CapturedString(request_status)),
+          #("merchantRequests", CapturedObject([#("nodes", CapturedArray([]))])),
+        ],
+        fields,
+      ))
+    other -> other
+  }
+  FulfillmentOrderRecord(
+    ..order,
+    status: status,
+    request_status: request_status,
+    assignment_status: assignment_status,
+    data: data,
+  )
+}
+
+fn assert_invalid_request_status(payload: json.Json) {
+  let body = json.to_string(payload)
+  assert string.contains(body, "\"field\":[\"id\"]")
+  assert string.contains(body, "\"code\":\"INVALID_REQUEST_STATUS\"")
+}
+
+fn assert_fulfillment_order_not_found(payload: json.Json) {
+  let body = json.to_string(payload)
+  assert string.contains(body, "\"field\":[\"id\"]")
+  assert string.contains(body, "\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"")
+}
+
+fn assert_fulfillment_order_state(
+  draft_store: store.Store,
+  id: String,
+  status: String,
+  request_status: String,
+) {
+  let assert Some(order) =
+    store.get_effective_fulfillment_order_by_id(draft_store, id)
+  assert order.status == status
+  assert order.request_status == request_status
+}
+
 fn split_input(
   fulfillment_order_id: String,
   line_items: List(#(String, Int)),
@@ -3492,6 +3683,18 @@ fn split_input(
           }),
         ),
       ),
+    ]),
+  )
+}
+
+fn fulfillment_order_line_item_input(
+  line_item_id: String,
+  quantity: Int,
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("id", root_field.StringVal(line_item_id)),
+      #("quantity", root_field.IntVal(quantity)),
     ]),
   )
 }
@@ -3821,6 +4024,188 @@ pub fn fulfillment_order_submit_request_splits_partial_line_item_test() {
   assert string.contains(read_json, "\"id\":\"" <> unsubmitted_id <> "\"")
   assert string.contains(read_json, "\"requestStatus\":\"UNSUBMITTED\"")
   assert string.contains(read_json, "\"remainingQuantity\":1")
+}
+
+pub fn fulfillment_order_request_lifecycle_rejects_ineligible_transitions_test() {
+  let invalid_accept_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-accept"
+  let invalid_reject_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-reject"
+  let invalid_reject_cancel_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-reject-cancel"
+  let invalid_accept_cancel_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-accept-cancel"
+  let invalid_submit_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-submit"
+  let invalid_submit_cancel_id =
+    "gid://shopify/FulfillmentOrder/request-precondition-submit-cancel"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      request_lifecycle_fulfillment_order_record(
+        invalid_accept_id,
+        "IN_PROGRESS",
+        "ACCEPTED",
+        Some("FULFILLMENT_ACCEPTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_reject_id,
+        "OPEN",
+        "UNSUBMITTED",
+        None,
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_reject_cancel_id,
+        "IN_PROGRESS",
+        "SUBMITTED",
+        Some("FULFILLMENT_ACCEPTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_accept_cancel_id,
+        "OPEN",
+        "ACCEPTED",
+        Some("CANCELLATION_REQUESTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_submit_id,
+        "OPEN",
+        "SUBMITTED",
+        Some("FULFILLMENT_REQUESTED"),
+      ),
+      request_lifecycle_fulfillment_order_record(
+        invalid_submit_cancel_id,
+        "OPEN",
+        "ACCEPTED",
+        Some("FULFILLMENT_ACCEPTED"),
+      ),
+    ])
+
+  let accept_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidAccept($id: ID!) { fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: \"again\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_accept_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(accept_outcome.data)
+  assert_fulfillment_order_state(
+    accept_outcome.store,
+    invalid_accept_id,
+    "IN_PROGRESS",
+    "ACCEPTED",
+  )
+
+  let reject_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidReject($id: ID!) { fulfillmentOrderRejectFulfillmentRequest(id: $id, reason: OTHER, message: \"reject\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_reject_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(reject_outcome.data)
+  assert_fulfillment_order_state(
+    reject_outcome.store,
+    invalid_reject_id,
+    "OPEN",
+    "UNSUBMITTED",
+  )
+
+  let reject_cancel_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidRejectCancel($id: ID!) { fulfillmentOrderRejectCancellationRequest(id: $id, message: \"reject cancel\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_reject_cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(reject_cancel_outcome.data)
+  assert_fulfillment_order_state(
+    reject_cancel_outcome.store,
+    invalid_reject_cancel_id,
+    "IN_PROGRESS",
+    "SUBMITTED",
+  )
+
+  let accept_cancel_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidAcceptCancel($id: ID!) { fulfillmentOrderAcceptCancellationRequest(id: $id, message: \"accept cancel\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_accept_cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(accept_cancel_outcome.data)
+  assert_fulfillment_order_state(
+    accept_cancel_outcome.store,
+    invalid_accept_cancel_id,
+    "OPEN",
+    "ACCEPTED",
+  )
+
+  let submit_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidSubmit($id: ID!) { fulfillmentOrderSubmitFulfillmentRequest(id: $id, message: \"submit\") { originalFulfillmentOrder { id } submittedFulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_submit_id))]),
+      empty_upstream_context(),
+    )
+  assert_invalid_request_status(submit_outcome.data)
+  assert_fulfillment_order_state(
+    submit_outcome.store,
+    invalid_submit_id,
+    "OPEN",
+    "SUBMITTED",
+  )
+
+  let submit_cancel_outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation InvalidSubmitCancel($id: ID!) { fulfillmentOrderSubmitCancellationRequest(id: $id, message: \"submit cancel\") { fulfillmentOrder { id } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(invalid_submit_cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert_fulfillment_order_not_found(submit_cancel_outcome.data)
+  assert_fulfillment_order_state(
+    submit_cancel_outcome.store,
+    invalid_submit_cancel_id,
+    "OPEN",
+    "ACCEPTED",
+  )
+}
+
+pub fn fulfillment_order_accept_request_preserves_valid_transition_test() {
+  let order_id = "gid://shopify/FulfillmentOrder/request-precondition-happy"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      request_lifecycle_fulfillment_order_record(
+        order_id,
+        "OPEN",
+        "SUBMITTED",
+        Some("FULFILLMENT_REQUESTED"),
+      ),
+    ])
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Accept($id: ID!) { fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: \"accepted\") { fulfillmentOrder { id status requestStatus } userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentOrderAcceptFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/request-precondition-happy\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"ACCEPTED\"},\"userErrors\":[]}}}"
 }
 
 pub fn fulfillment_order_merge_validates_inputs_and_preserves_success_test() {

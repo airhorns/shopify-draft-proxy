@@ -151,8 +151,26 @@
             "reason": "Shopify and the local proxy generate independent metafield timestamps."
           }
         ]
+      },
+      {
+        "name": "cart-transform-invalid-field-selection",
+        "capturePath": "$.cartTransformInvalidFields.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-shape-invalid-fields.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transform-create-invalid-wrapper",
+        "capturePath": "$.cartTransformCreateInvalidWrapper.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-shape-invalid-wrapper.graphql",
+          "apiVersion": "2026-04"
+        }
       }
     ]
   },
-  "notes": "Live Shopify Admin 2026-04 evidence for cartTransformCreate missing metafield value validation, malformed JSON metafield validation, valid cart-transform metafield persistence, singular metafield(namespace:, key:) lookup, and downstream cartTransforms read-after-write. The fixture starts with invalid branches so parity can then stage the success path from a cold local state without pre-seeding."
+  "notes": "Live Shopify Admin 2026-04 evidence for cartTransformCreate missing metafield value validation, malformed JSON metafield validation, valid cart-transform metafield persistence, singular metafield(namespace:, key:) lookup, downstream cartTransforms read-after-write, direct top-level cartTransformCreate arguments, and CartTransform schema rejection for non-existent fields/wrapper arguments. The fixture starts with invalid branches so parity can then stage the success path from a cold local state without pre-seeding."
 }

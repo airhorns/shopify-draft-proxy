@@ -33,6 +33,20 @@
           }
         },
         "proxyPath": "$.data"
+      },
+      {
+        "name": "product-variant-node-read-after-reorder",
+        "capturePath": "$.downstreamRead.data.product.variants.nodes[0]",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariant-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "downstream-read-data",
+              "path": "$.data.product.variants.nodes[0].id"
+            }
+          }
+        }
       }
     ]
   },

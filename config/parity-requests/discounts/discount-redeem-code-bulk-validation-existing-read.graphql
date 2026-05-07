@@ -1,0 +1,31 @@
+query DiscountRedeemCodeBulkValidationExistingRead(
+  $discountId: ID!
+  $sameDiscountCode: String!
+  $crossDiscountCode: String!
+  $freshCode: String!
+) {
+  codeDiscountNode(id: $discountId) {
+    codeDiscount {
+      ... on DiscountCodeBasic {
+        codes(first: 10) {
+          nodes {
+            code
+          }
+        }
+        codesCount {
+          count
+          precision
+        }
+      }
+    }
+  }
+  sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) {
+    id
+  }
+  crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) {
+    id
+  }
+  fresh: codeDiscountNodeByCode(code: $freshCode) {
+    id
+  }
+}

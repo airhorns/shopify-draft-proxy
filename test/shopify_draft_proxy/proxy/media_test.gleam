@@ -68,6 +68,7 @@ fn ready_image() -> FileRecord {
     alt: Some("Seed"),
     content_type: Some("IMAGE"),
     created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
     file_status: "READY",
     filename: Some("seed.jpg"),
     original_source: "https://cdn.example.com/seed.jpg",
@@ -87,9 +88,30 @@ fn ready_video() -> FileRecord {
     alt: None,
     content_type: Some("VIDEO"),
     created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
     file_status: "READY",
     filename: Some("clip.mp4"),
     original_source: "https://cdn.example.com/clip.mp4",
+    image_url: None,
+    image_width: None,
+    image_height: None,
+    preview_image_url: None,
+    preview_image_width: None,
+    preview_image_height: None,
+    update_failure_acknowledged_at: None,
+  )
+}
+
+fn ready_generic_file() -> FileRecord {
+  FileRecord(
+    id: "gid://shopify/GenericFile/3",
+    alt: Some("Generic seed"),
+    content_type: Some("FILE"),
+    created_at: "2026-05-05T00:00:00.000Z",
+    updated_at: "2026-05-05T00:00:00.000Z",
+    file_status: "READY",
+    filename: Some("seed.pdf"),
+    original_source: "https://cdn.example.com/seed.pdf",
     image_url: None,
     image_width: None,
     image_height: None,
@@ -137,6 +159,7 @@ fn seeded_variant_media_proxy() {
       template_suffix: None,
       seo: ProductSeoRecord(title: None, description: None),
       category: None,
+      requires_selling_plan: None,
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
@@ -207,6 +230,18 @@ pub fn files_returns_empty_connection_test() {
 pub fn files_with_edges_returns_empty_test() {
   let result = run("{ files(first: 10) { edges { cursor } } }")
   assert result == "{\"files\":{\"edges\":[]}}"
+}
+
+pub fn files_emit_file_interface_defaults_and_derived_fields_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image(), ready_generic_file()]),
+      "query { files(first: 5) { nodes { __typename id createdAt updatedAt displayName updateStatus fileErrors { code message } fileWarnings { code message } ... on MediaImage { mimeType mediaErrors { code message } mediaWarnings { code message } } ... on GenericFile { mimeType url } } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"files\":{\"nodes\":[{\"__typename\":\"MediaImage\",\"id\":\"gid://shopify/MediaImage/1\",\"createdAt\":\"2026-05-05T00:00:00.000Z\",\"updatedAt\":\"2026-05-05T00:00:00.000Z\",\"displayName\":\"seed.jpg\",\"updateStatus\":\"READY\",\"fileErrors\":[],\"fileWarnings\":[],\"mimeType\":\"image/jpeg\",\"mediaErrors\":[],\"mediaWarnings\":[]},{\"__typename\":\"GenericFile\",\"id\":\"gid://shopify/GenericFile/3\",\"createdAt\":\"2026-05-05T00:00:00.000Z\",\"updatedAt\":\"2026-05-05T00:00:00.000Z\",\"displayName\":\"seed.pdf\",\"updateStatus\":\"READY\",\"fileErrors\":[],\"fileWarnings\":[],\"mimeType\":\"application/pdf\",\"url\":\"https://cdn.example.com/seed.pdf\"}]}}}"
 }
 
 pub fn process_wraps_in_data_envelope_test() {
@@ -601,6 +636,53 @@ pub fn file_update_rejects_video_filename_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Updating the filename is only supported on images and generic files\",\"code\":\"UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE\"}]}}}"
 }
 
+pub fn file_update_image_original_source_updates_preview_only_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/v2.jpg\" }]) { files { id fileStatus alt __typename ... on MediaImage { image { url } preview { image { url } } } } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Seed\",\"__typename\":\"MediaImage\",\"image\":null,\"preview\":{\"image\":{\"url\":\"https://cdn.example.com/v2.jpg\"}}}],\"userErrors\":[]}}}"
+
+  let state_json =
+    draft_proxy.dump_state(proxy, "2026-05-05T10:15:00.000Z")
+    |> json.to_string
+  assert string.contains(
+    state_json,
+    "\"originalSource\":\"https://cdn.example.com/seed.jpg\"",
+  )
+  assert string.contains(state_json, "\"imageUrl\":null")
+  assert string.contains(
+    state_json,
+    "\"previewImageUrl\":\"https://cdn.example.com/v2.jpg\"",
+  )
+}
+
+pub fn file_update_generic_file_original_source_updates_original_source_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      registry_proxy_with_files([ready_generic_file()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/GenericFile/3\", originalSource: \"https://cdn.example.com/v2.pdf\" }]) { files { id fileStatus alt filename __typename ... on GenericFile { url } } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/GenericFile/3\",\"fileStatus\":\"READY\",\"alt\":\"Generic seed\",\"filename\":\"seed.pdf\",\"__typename\":\"GenericFile\",\"url\":\"https://cdn.example.com/v2.pdf\"}],\"userErrors\":[]}}}"
+
+  let state_json =
+    draft_proxy.dump_state(proxy, "2026-05-05T10:15:00.000Z")
+    |> json.to_string
+  assert string.contains(
+    state_json,
+    "\"originalSource\":\"https://cdn.example.com/v2.pdf\"",
+  )
+  assert string.contains(state_json, "\"imageUrl\":null")
+  assert string.contains(state_json, "\"previewImageUrl\":null")
+}
+
 pub fn file_update_rejects_filename_extension_mismatch_test() {
   let #(Response(status: status, body: body, ..), _) =
     graphql(
@@ -648,7 +730,7 @@ pub fn file_update_rejects_unknown_revert_version_id_test() {
     == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File version id 9999 does not exist\",\"code\":\"MEDIA_VERSION_DOES_NOT_EXIST\"}]}}}"
 }
 
-pub fn file_update_accepts_hydrated_revert_version_id_test() {
+pub fn file_update_rejects_revert_version_id_as_unmodeled_test() {
   let transport =
     upstream_client.SyncTransport(send: fn(_req) {
       Ok(commit.HttpOutcome(
@@ -668,7 +750,7 @@ pub fn file_update_accepts_hydrated_revert_version_id_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Seed\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"revertToVersionId\"],\"message\":\"revertToVersionId is not modeled by the draft proxy yet.\",\"code\":\"UNSUPPORTED\"}]}}}"
 }
 
 pub fn file_update_aggregates_missing_reference_targets_test() {
@@ -812,6 +894,18 @@ pub fn staged_uploads_create_bulk_variables_put_uses_captured_put_shape_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/jsonl\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
+}
+
+pub fn staged_uploads_create_omitted_method_uses_captured_put_shape_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: IMAGE, filename: \"image.png\", mimeType: \"image/png\" }, { resource: FILE, filename: \"file.txt\", mimeType: \"text/plain\" }]) { stagedTargets { parameters { name value } } userErrors { field message } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"parameters\":[{\"name\":\"content_type\",\"value\":\"image/png\"},{\"name\":\"acl\",\"value\":\"private\"}]},{\"parameters\":[{\"name\":\"content_type\",\"value\":\"text/plain\"},{\"name\":\"acl\",\"value\":\"private\"}]}],\"userErrors\":[]}}}"
 }
 
 pub fn staged_uploads_create_shop_image_uses_image_family_shape_test() {

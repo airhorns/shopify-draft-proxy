@@ -19,8 +19,8 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CollectionRecord, type DiscountRecord,
   type ProductRecord, type ProductVariantRecord, type SavedSearchRecord,
-  type ShopifyFunctionRecord, CapturedNull, CapturedObject, CapturedString,
-  CollectionRecord, DiscountRecord, MarketRecord, ProductRecord,
+  type ShopifyFunctionRecord, CapturedArray, CapturedNull, CapturedObject,
+  CapturedString, CollectionRecord, DiscountRecord, MarketRecord, ProductRecord,
   ProductSeoRecord, ProductVariantRecord, SavedSearchRecord,
   ShopifyFunctionRecord,
 }
@@ -124,6 +124,7 @@ fn discount_ref_product(id: String, handle: String) -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    requires_selling_plan: None,
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
@@ -239,11 +240,18 @@ fn graphql_request_body(body: String) -> Request {
 }
 
 fn price_rule_saved_search(id: String) -> SavedSearchRecord {
+  price_rule_saved_search_with_query(id, "status:active")
+}
+
+fn price_rule_saved_search_with_query(
+  id: String,
+  query: String,
+) -> SavedSearchRecord {
   SavedSearchRecord(
     id: id,
     legacy_resource_id: "98765",
     name: "Price rule search",
-    query: "status:active",
+    query: query,
     resource_type: "PRICE_RULE",
     search_terms: "",
     filters: [],
@@ -586,6 +594,137 @@ pub fn code_bulk_deactivate_preserves_status_override_on_reads_test() {
 
   assert json.to_string(data)
     == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"EXPIRED\",\"startsAt\":\"2020-01-01T00:00:00Z\",\"endsAt\":\"2099-01-01T00:00:00Z\"}},\"discountNodesCount\":{\"count\":1,\"precision\":\"EXACT\"}}"
+}
+
+pub fn code_bulk_search_activate_applies_to_matching_code_discounts_test() {
+  let create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Future\", code: \"FUTURE2099\", startsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let bulk =
+    run_mutation_from(
+      create.store,
+      create.identity,
+      "mutation { discountCodeBulkActivate(search: \"status:scheduled\") { job { done } userErrors { message } } }",
+    )
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bulk.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { status } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(bulk.data)
+    == "{\"data\":{\"discountCodeBulkActivate\":{\"job\":{\"done\":true},\"userErrors\":[]}}}"
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"ACTIVE\"}}}"
+  assert bulk_matched_ids(bulk.store)
+    == ["gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic"]
+}
+
+pub fn code_bulk_saved_search_deactivate_resolves_price_rule_query_test() {
+  let base_store =
+    store.upsert_base_saved_searches(store.new(), [
+      price_rule_saved_search_with_query(
+        "gid://shopify/SavedSearch/98765",
+        "code:SAVE*",
+      ),
+    ])
+  let create =
+    run_mutation_from(
+      base_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Saved\", code: \"SAVE10\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let bulk =
+    run_mutation_from(
+      create.store,
+      create.identity,
+      "mutation { discountCodeBulkDeactivate(savedSearchId: \"gid://shopify/SavedSearch/98765\") { job { done } userErrors { message } } }",
+    )
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bulk.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { status } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"EXPIRED\"}}}"
+  assert bulk_matched_ids(bulk.store)
+    == ["gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic"]
+}
+
+pub fn code_bulk_delete_search_scopes_to_code_discounts_test() {
+  let code =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Shared\", code: \"SHARED\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let automatic =
+    run_mutation_from(
+      code.store,
+      code.identity,
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Shared\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { message } } }",
+    )
+  let bulk =
+    run_mutation_from(
+      automatic.store,
+      automatic.identity,
+      "mutation { discountCodeBulkDelete(search: \"status:active\") { job { done } userErrors { message } } }",
+    )
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bulk.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { id } automaticDiscountNode(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\") { id automaticDiscount { ... on DiscountAutomaticBasic { title } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":null,\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\",\"automaticDiscount\":{\"title\":\"Shared\"}}}"
+  assert bulk_matched_ids(bulk.store)
+    == ["gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic"]
+}
+
+pub fn automatic_bulk_delete_search_scopes_to_automatic_discounts_test() {
+  let code =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Scheduled Shared\", code: \"SCHEDULED-CODE\", startsAt: \"2099-01-01T00:00:00Z\", endsAt: \"2099-12-31T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let automatic =
+    run_mutation_from(
+      code.store,
+      code.identity,
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Scheduled Shared\", startsAt: \"2099-01-01T00:00:00Z\", endsAt: \"2099-12-31T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { message } } }",
+    )
+  let bulk =
+    run_mutation_from(
+      automatic.store,
+      automatic.identity,
+      "mutation { discountAutomaticBulkDelete(search: \"status:scheduled\") { job { done } userErrors { message } } }",
+    )
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bulk.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { id codeDiscount { ... on DiscountCodeBasic { title } } } automaticDiscountNode(id: \"gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic\") { id } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"Scheduled Shared\"}},\"automaticDiscountNode\":null}"
+  assert bulk_matched_ids(bulk.store)
+    == ["gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic"]
+}
+
+fn bulk_matched_ids(source: store.Store) -> List(String) {
+  let assert [record] =
+    dict.values(source.staged_state.discount_bulk_operations)
+  let assert CapturedObject(fields) = record.payload
+  let assert Ok(CapturedArray(ids)) =
+    dict.get(dict.from_list(fields), "matchedIds")
+  list.map(ids, fn(id) {
+    let assert CapturedString(value) = id
+    value
+  })
 }
 
 pub fn code_basic_timestamps_use_synthetic_clock_and_sort_by_recency_test() {
@@ -1836,6 +1975,53 @@ pub fn code_basic_update_rejects_same_code_after_redeem_code_bulk_add_test() {
 
   assert json.to_string(update.data)
     == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot update the code of a bulk discount.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn redeem_code_bulk_add_rejects_existing_local_codes_test() {
+  let first =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"First\", code: \"EXISTING-A\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let second =
+    run_mutation_from(
+      first.store,
+      first.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Second\", code: \"EXISTING-B\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let bulk_added =
+    run_mutation_from(
+      second.store,
+      second.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [{ code: \"EXISTING-A\" }, { code: \"EXISTING-B\" }, { code: \"FRESH\" }]) { bulkCreation { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { id code } } } } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(bulk_added.data)
+    == "{\"data\":{\"discountRedeemCodeBulkAdd\":{\"bulkCreation\":{\"done\":false,\"codesCount\":3,\"importedCount\":0,\"failedCount\":0,\"codes\":{\"nodes\":[{\"code\":\"EXISTING-A\",\"errors\":[],\"discountRedeemCode\":null},{\"code\":\"EXISTING-B\",\"errors\":[],\"discountRedeemCode\":null},{\"code\":\"FRESH\",\"errors\":[],\"discountRedeemCode\":null}]}},\"userErrors\":[]}}}"
+
+  let assert [bulk_record] =
+    dict.values(bulk_added.store.staged_state.discount_bulk_operations)
+
+  let assert Ok(creation_read) =
+    discounts.handle_discount_query(
+      bulk_added.store,
+      "query { discountRedeemCodeBulkCreation(id: \""
+        <> bulk_record.id
+        <> "\") { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { code } } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(creation_read)
+    == "{\"discountRedeemCodeBulkCreation\":{\"done\":true,\"codesCount\":3,\"importedCount\":1,\"failedCount\":2,\"codes\":{\"nodes\":[{\"code\":\"EXISTING-A\",\"errors\":[{\"field\":[\"code\"],\"message\":\"must be unique. Please try a different code.\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"EXISTING-B\",\"errors\":[{\"field\":[\"code\"],\"message\":\"must be unique. Please try a different code.\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"FRESH\",\"errors\":[],\"discountRedeemCode\":{\"code\":\"FRESH\"}}]}}}"
+
+  let assert Ok(read) =
+    discounts.handle_discount_query(
+      bulk_added.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } fresh: codeDiscountNodeByCode(code: \"FRESH\") { id } }",
+      dict.new(),
+    )
+
+  assert json.to_string(read)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"codes\":{\"nodes\":[{\"code\":\"EXISTING-A\"},{\"code\":\"FRESH\"}]},\"codesCount\":{\"count\":2,\"precision\":\"EXACT\"}}},\"fresh\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"}}"
 }
 
 pub fn code_basic_update_rejects_code_taken_by_another_local_discount_test() {

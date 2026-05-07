@@ -31,8 +31,9 @@ import shopify_draft_proxy/proxy/products/publications_feeds.{
   product_source_with_relationships,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  count_source, empty_connection_source, read_non_empty_string_field,
-  read_string_argument, read_string_field, read_string_list_field,
+  count_source, empty_connection_source, read_bool_field,
+  read_non_empty_string_field, read_object_field, read_string_argument,
+  read_string_field, read_string_list_field,
 }
 
 import shopify_draft_proxy/state/store.{type Store}
@@ -40,8 +41,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type ProductOperationUserErrorRecord, type ProductRecord,
-  ProductOperationUserErrorRecord, ProductRecord, ProductSeoRecord,
+  type CapturedJsonValue, type ProductCategoryRecord,
+  type ProductOperationUserErrorRecord, type ProductRecord, CapturedObject,
+  CapturedString, ProductCategoryRecord, ProductOperationUserErrorRecord,
+  ProductRecord, ProductSeoRecord,
 }
 
 // ===== from products_l05 =====
@@ -101,6 +104,7 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     SrcList([]),
     empty_connection_source(),
     count_source(0),
+    product.requires_selling_plan |> option.unwrap(False),
     "USD",
     None,
   )
@@ -154,6 +158,7 @@ pub fn product_update_validation_errors(
 
 @internal
 pub fn updated_product_record(
+  store: Store,
   identity: SyntheticIdentityRegistry,
   product: ProductRecord,
   input: Dict(String, ResolvedValue),
@@ -179,6 +184,10 @@ pub fn updated_product_record(
       template_suffix: read_string_field(input, "templateSuffix")
         |> option.or(product.template_suffix),
       seo: updated_product_seo(product.seo, input),
+      category: product_category_from_input(store, input)
+        |> option.or(product.category),
+      requires_selling_plan: read_bool_field(input, "requiresSellingPlan")
+        |> option.or(product.requires_selling_plan),
       updated_at: Some(updated_at),
       combined_listing_role: read_string_field(input, "combinedListingRole")
         |> option.or(product.combined_listing_role),
@@ -218,7 +227,8 @@ pub fn created_product_record(
       handle: handle,
       status: read_product_status_field(input) |> option.unwrap("ACTIVE"),
       vendor: product_vendor_for_create(store, shopify_admin_origin, input),
-      product_type: read_string_field(input, "productType"),
+      product_type: read_string_field(input, "productType")
+        |> option.or(Some("")),
       tags: read_string_list_field(input, "tags")
         |> option.map(normalize_product_tags)
         |> option.unwrap([]),
@@ -240,7 +250,8 @@ pub fn created_product_record(
         ProductSeoRecord(title: None, description: None),
         input,
       ),
-      category: None,
+      category: product_category_from_input(store, input),
+      requires_selling_plan: read_bool_field(input, "requiresSellingPlan"),
       publication_ids: [],
       contextual_pricing: None,
       cursor: None,
@@ -250,4 +261,74 @@ pub fn created_product_record(
     ),
     next_identity,
   )
+}
+
+@internal
+pub fn product_category_input_id(
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  read_string_field(input, "category")
+  |> option.or(taxonomy_id_from_input_object(input, "productCategory"))
+  |> option.or(taxonomy_id_from_input_object(input, "standardProductType"))
+  |> option.or(taxonomy_id_from_input_object(input, "standardizedProductType"))
+}
+
+fn taxonomy_id_from_input_object(
+  input: Dict(String, ResolvedValue),
+  field: String,
+) -> Option(String) {
+  read_object_field(input, field)
+  |> option.then(fn(value) { read_string_field(value, "productTaxonomyNodeId") })
+}
+
+fn product_category_from_input(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductCategoryRecord) {
+  product_category_input_id(input)
+  |> option.map(fn(id) {
+    ProductCategoryRecord(
+      id: id,
+      full_name: product_category_full_name(store, id),
+    )
+  })
+}
+
+fn product_category_full_name(store: Store, id: String) -> String {
+  case store.get_effective_admin_platform_taxonomy_category_by_id(store, id) {
+    Some(category) ->
+      captured_string_field(category.data, "fullName")
+      |> option.unwrap(known_product_category_full_name(id))
+    None -> known_product_category_full_name(id)
+  }
+}
+
+fn known_product_category_full_name(id: String) -> String {
+  case id {
+    "gid://shopify/TaxonomyCategory/aa-1-1" ->
+      "Apparel & Accessories > Clothing > Activewear"
+    "gid://shopify/TaxonomyCategory/na" -> "Uncategorized"
+    _ -> id
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  key: String,
+) -> Option(String) {
+  case value {
+    CapturedObject(fields) -> captured_string_field_from_pairs(fields, key)
+    _ -> None
+  }
+}
+
+fn captured_string_field_from_pairs(
+  fields: List(#(String, CapturedJsonValue)),
+  key: String,
+) -> Option(String) {
+  case fields {
+    [] -> None
+    [#(field_key, CapturedString(value)), ..] if field_key == key -> Some(value)
+    [_, ..rest] -> captured_string_field_from_pairs(rest, key)
+  }
 }

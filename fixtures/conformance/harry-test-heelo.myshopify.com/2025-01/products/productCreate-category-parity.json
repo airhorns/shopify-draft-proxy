@@ -1,0 +1,244 @@
+{
+  "scenarioId": "productCreate-category-parity",
+  "capturedAt": "2026-05-07T14:09:47.647Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "mutation": {
+    "query": "mutation ProductCreateCategoryParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      productType\n      category {\n        id\n        fullName\n      }\n      requiresSellingPlan\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Product Category 1778162985783",
+        "status": "DRAFT",
+        "category": "gid://shopify/TaxonomyCategory/aa-1-1"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10179876880690",
+              "title": "Hermes Product Category 1778162985783",
+              "handle": "hermes-product-category-1778162985783",
+              "productType": "",
+              "category": {
+                "id": "gid://shopify/TaxonomyCategory/aa-1-1",
+                "fullName": "Apparel & Accessories > Clothing > Activewear"
+              },
+              "requiresSellingPlan": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ProductCreateCategoryDownstreamRead($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    productType\n    category {\n      id\n      fullName\n    }\n    requiresSellingPlan\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10179876880690"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10179876880690",
+            "title": "Hermes Product Category 1778162985783",
+            "handle": "hermes-product-category-1778162985783",
+            "productType": "",
+            "category": {
+              "id": "gid://shopify/TaxonomyCategory/aa-1-1",
+              "fullName": "Apparel & Accessories > Clothing > Activewear"
+            },
+            "requiresSellingPlan": false
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "invalidCategoryGid": {
+      "query": "mutation ProductCreateCategoryParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      productType\n      category {\n        id\n        fullName\n      }\n      requiresSellingPlan\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Product Bad Category 1778162985783",
+          "status": "DRAFT",
+          "category": "not-a-gid"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $product of type ProductCreateInput! was provided invalid value for category (Invalid global id 'not-a-gid')",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "Hermes Product Bad Category 1778162985783",
+                  "status": "DRAFT",
+                  "category": "not-a-gid"
+                },
+                "problems": [
+                  {
+                    "path": ["category"],
+                    "explanation": "Invalid global id 'not-a-gid'",
+                    "message": "Invalid global id 'not-a-gid'"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "unknownCategory": {
+      "query": "mutation ProductCreateCategoryParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      productType\n      category {\n        id\n        fullName\n      }\n      requiresSellingPlan\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Product Unknown Category 1778162985783",
+          "status": "DRAFT",
+          "category": "gid://shopify/TaxonomyCategory/not-a-real-node"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid product_taxonomy_node_id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID"
+              },
+              "path": ["productCreate"]
+            }
+          ],
+          "data": {
+            "productCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "categoryAndProductType": {
+      "query": "mutation ProductCreateCategoryParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      productType\n      category {\n        id\n        fullName\n      }\n      requiresSellingPlan\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Product Category Type 1778162985783",
+          "status": "DRAFT",
+          "category": "gid://shopify/TaxonomyCategory/aa-1-1",
+          "productType": "Boards"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10179876913458",
+                "title": "Hermes Product Category Type 1778162985783",
+                "handle": "hermes-product-category-type-1778162985783",
+                "productType": "Boards",
+                "category": {
+                  "id": "gid://shopify/TaxonomyCategory/aa-1-1",
+                  "fullName": "Apparel & Accessories > Clothing > Activewear"
+                },
+                "requiresSellingPlan": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "categoryAndProductTypeCleanup": {
+      "query": "mutation ProductCreateInputFieldsCleanup($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10179876913458"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10179876913458",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

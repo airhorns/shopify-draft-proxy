@@ -5,7 +5,6 @@ import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field.{
@@ -400,20 +399,39 @@ fn handle_file_update(
       inputs,
       version_hydration,
     ))
+    |> list.append(validate_file_update_revert_modeled(
+      inputs,
+      version_hydration,
+    ))
     |> list.append(validate_file_update_reference_targets(store, inputs))
   case errors {
     [] -> {
+      let #(updated, next_identity) =
+        map_with_identity(inputs, identity, fn(current_identity, input) {
+          case read_string_field_result(input, "id") {
+            Ok(id) ->
+              case get_effective_file_like_record(store, id) {
+                Some(existing) -> {
+                  let #(updated_at, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(
+                      current_identity,
+                    )
+                  #(
+                    Ok(update_file_record(existing, input, updated_at)),
+                    next_identity,
+                  )
+                }
+                None -> #(Error(Nil), current_identity)
+              }
+            Error(_) -> #(Error(Nil), current_identity)
+          }
+        })
       let updated =
-        inputs
-        |> list.filter_map(fn(input) {
-          use id <- result.try(read_string_field_result(input, "id"))
-          use existing <- result.try(
-            case get_effective_file_like_record(store, id) {
-              Some(file) -> Ok(file)
-              None -> Error(Nil)
-            },
-          )
-          Ok(update_file_record(existing, input))
+        list.filter_map(updated, fn(result) {
+          case result {
+            Ok(file) -> Ok(file)
+            Error(_) -> Error(Nil)
+          }
         })
       let next_store = store.upsert_staged_files(store, updated)
       let next_store =
@@ -440,7 +458,7 @@ fn handle_file_update(
           staged_resource_ids: list.map(updated, fn(file) { file.id }),
         ),
         next_store,
-        identity,
+        next_identity,
       )
     }
     _ -> #(
@@ -984,6 +1002,46 @@ fn validate_file_update_revert_versions(
   }
 }
 
+fn validate_file_update_revert_modeled(
+  inputs: List(Dict(String, ResolvedValue)),
+  hydration: FileVersionHydration,
+) -> List(media_types.FilesUserError) {
+  inputs
+  |> enumerate_objects
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    case
+      read_string_field(input, "id"),
+      has_source_update(input),
+      read_string_field(input, "revertToVersionId")
+    {
+      Some(file_id), False, Some(version_id)
+        if file_id != "" && version_id != ""
+      -> {
+        let version_known = case hydration.validation_enabled {
+          False -> True
+          True ->
+            file_version_evidence_matches(
+              hydration.evidence,
+              version_id,
+              file_id,
+            )
+        }
+        case version_known {
+          True ->
+            Ok(media_types.FilesUserError(
+              ["files", int.to_string(index), "revertToVersionId"],
+              "revertToVersionId is not modeled by the draft proxy yet.",
+              "UNSUPPORTED",
+            ))
+          False -> Error(Nil)
+        }
+      }
+      _, _, _ -> Error(Nil)
+    }
+  })
+}
+
 fn file_version_evidence_matches(
   evidence: List(FileVersionEvidence),
   version_id: String,
@@ -1397,6 +1455,7 @@ fn make_file_record(
       alt: read_string_field(input, "alt"),
       content_type: content_type,
       created_at: created_at,
+      updated_at: created_at,
       file_status: "UPLOADED",
       filename: read_string_field(input, "filename")
         |> option.or(derive_filename(original_source)),
@@ -1422,27 +1481,41 @@ fn make_file_record(
 fn update_file_record(
   file: FileRecord,
   input: Dict(String, ResolvedValue),
+  updated_at: String,
 ) -> FileRecord {
   let original_source = read_string_field(input, "originalSource")
   let preview_source = read_string_field(input, "previewImageSource")
-  let image_url =
-    option.then(original_source, non_empty_string)
-    |> option.or(file.image_url)
-  let #(next_image_url, next_image_width, next_image_height) = case
+  let source_as_preview = case file.content_type {
+    Some("IMAGE") -> option.then(original_source, non_empty_string)
+    _ -> None
+  }
+  let explicit_preview =
     option.then(preview_source, non_empty_string)
+    |> option.or(source_as_preview)
+  let #(next_image_url, next_image_width, next_image_height) = case
+    explicit_preview
   {
     Some(_) -> #(None, None, None)
-    None -> #(image_url, file.image_width, file.image_height)
+    None -> #(file.image_url, file.image_width, file.image_height)
+  }
+  let next_original_source = case file.content_type {
+    Some("FILE") ->
+      original_source
+      |> option.or(Some(file.original_source))
+      |> option.unwrap("")
+    _ -> file.original_source
   }
   FileRecord(
     ..file,
+    updated_at: updated_at,
     alt: read_string_field(input, "alt") |> option.or(file.alt),
     image_url: next_image_url,
     image_width: next_image_width,
     image_height: next_image_height,
-    original_source: original_source
-      |> option.or(Some(file.original_source))
-      |> option.unwrap(""),
+    preview_image_url: explicit_preview |> option.or(file.preview_image_url),
+    preview_image_width: file.preview_image_width,
+    preview_image_height: file.preview_image_height,
+    original_source: next_original_source,
     filename: read_string_field(input, "filename") |> option.or(file.filename),
   )
 }
@@ -1464,7 +1537,7 @@ fn make_staged_target(
     read_string_field(input, "mimeType")
     |> option.unwrap("application/octet-stream")
   let resource = read_string_field(input, "resource") |> option.unwrap("FILE")
-  let method = read_string_field(input, "httpMethod") |> option.unwrap("POST")
+  let method = read_string_field(input, "httpMethod") |> option.unwrap("PUT")
   let key = "shopify-draft-proxy/" <> id <> "/" <> filename
   let parameters = case resource {
     "IMAGE"
@@ -1741,6 +1814,7 @@ fn file_record_from_product_media(media: ProductMediaRecord) -> FileRecord {
       media.media_content_type,
     ),
     created_at: "2024-01-01T00:00:00.000Z",
+    updated_at: "2024-01-01T00:00:00.000Z",
     file_status: media.status |> option.unwrap("READY"),
     filename: derive_filename(original_source),
     original_source: original_source,
@@ -2107,6 +2181,9 @@ fn file_record_from_file_node(
         content_type: file_typename_to_content_type(typename),
         created_at: json_get_string(node, "createdAt")
           |> option.unwrap("2024-01-01T00:00:00.000Z"),
+        updated_at: json_get_string(node, "updatedAt")
+          |> option.or(json_get_string(node, "createdAt"))
+          |> option.unwrap("2024-01-01T00:00:00.000Z"),
         file_status: json_get_string(node, "fileStatus")
           |> option.or(json_get_string(node, "status"))
           |> option.unwrap("READY"),
@@ -2444,6 +2521,7 @@ fn product_record_from_node(
           template_suffix: None,
           seo: ProductSeoRecord(title: None, description: None),
           category: None,
+          requires_selling_plan: None,
           publication_ids: [],
           contextual_pricing: None,
           cursor: None,

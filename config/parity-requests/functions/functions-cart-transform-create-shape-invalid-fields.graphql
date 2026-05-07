@@ -1,0 +1,11 @@
+query CartTransformInvalidFields {
+  cartTransforms(first: 10) {
+    nodes {
+      id
+      title
+      functionHandle
+      createdAt
+      updatedAt
+    }
+  }
+}

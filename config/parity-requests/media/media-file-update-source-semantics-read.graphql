@@ -1,0 +1,25 @@
+query MediaFileUpdateSourceSemanticsRead {
+  files(first: 1, reverse: true) {
+    nodes {
+      id
+      __typename
+      alt
+      createdAt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+            width
+            height
+          }
+        }
+      }
+    }
+  }
+}

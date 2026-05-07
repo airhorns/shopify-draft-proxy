@@ -103,6 +103,29 @@ fn assert_product_option_user_error(
   assert entry.status == store_types.Failed
 }
 
+fn product_options_reorder_validation_query(options: String) -> String {
+  "mutation { productOptionsReorder(productId: \\\"gid://shopify/Product/optioned\\\", options: "
+  <> options
+  <> ") { product { id } userErrors { field message code } } }"
+}
+
+fn assert_product_options_reorder_user_error(
+  options: String,
+  code: String,
+) -> String {
+  let #(status, body, next_proxy) =
+    run_product_mutation(
+      option_update_store(),
+      product_options_reorder_validation_query(options),
+    )
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  body
+}
+
 fn assert_combined_listing_user_error(
   initial_store: store.Store,
   query: String,
@@ -2046,6 +2069,78 @@ pub fn product_options_reorder_reorders_variants_test() {
     == 1
 }
 
+pub fn product_options_reorder_reorders_used_option_values_and_variants_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: option_reorder_multi_variant_store())
+  let query =
+    "mutation { productOptionsReorder(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ id: \\\"gid://shopify/ProductOption/size\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/small\\\" }] }, { id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/green\\\" }, { id: \\\"gid://shopify/ProductOptionValue/red\\\" }] }]) { product { options { name position values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productOptionsReorder\":{\"product\":{\"options\":[{\"name\":\"Size\",\"position\":1,\"values\":[\"Small\"],\"optionValues\":[{\"name\":\"Small\",\"hasVariants\":true}]},{\"name\":\"Color\",\"position\":2,\"values\":[\"Green\",\"Red\"],\"optionValues\":[{\"name\":\"Green\",\"hasVariants\":true},{\"name\":\"Red\",\"hasVariants\":true}]}],\"variants\":{\"nodes\":[{\"title\":\"Small / Green\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Color\",\"value\":\"Green\"}]},{\"title\":\"Small / Red\",\"selectedOptions\":[{\"name\":\"Size\",\"value\":\"Small\"},{\"name\":\"Color\",\"value\":\"Red\"}]}]}},\"userErrors\":[]}}}"
+}
+
+pub fn product_options_reorder_emits_selector_validation_codes_test() {
+  assert_product_options_reorder_user_error(
+    "[{ name: \\\"Missing option\\\" }]",
+    "OPTION_NAME_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/missing\\\" }]",
+    "OPTION_ID_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ values: [] }]",
+    "MISSING_OPTION_NAME",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ name: \\\"Color\\\" }, { name: \\\"Color\\\" }]",
+    "DUPLICATED_OPTION_NAME",
+  )
+  let mixed_body =
+    assert_product_options_reorder_user_error(
+      "[{ id: \\\"gid://shopify/ProductOption/color\\\" }, { name: \\\"Size\\\" }]",
+      "MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED",
+    )
+  assert string.contains(
+    mixed_body,
+    "Only specify one of `id` or `name` fields for options.",
+  )
+  let position_body =
+    assert_product_options_reorder_user_error(
+      "[{ id: \\\"gid://shopify/ProductOption/color\\\", position: 2 }]",
+      "NO_KEY_ON_REORDER",
+    )
+  assert string.contains(position_body, "On reorder, this key cannot be used.")
+}
+
+pub fn product_options_reorder_emits_value_validation_codes_test() {
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ name: \\\"Missing value\\\" }] }]",
+    "OPTION_VALUE_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/missing\\\" }] }]",
+    "OPTION_VALUE_ID_DOES_NOT_EXIST",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{}] }]",
+    "MISSING_OPTION_VALUE",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Red\\\" }] }]",
+    "DUPLICATED_OPTION_VALUE",
+  )
+  assert_product_options_reorder_user_error(
+    "[{ id: \\\"gid://shopify/ProductOption/color\\\", values: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\" }, { name: \\\"Green\\\" }] }]",
+    "MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED",
+  )
+}
+
 pub fn product_change_status_stages_search_lagged_status_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -2641,6 +2736,31 @@ pub fn product_update_stages_fields_and_downstream_reads_test() {
     == 1
 }
 
+pub fn product_update_stages_category_and_requires_selling_plan_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", requiresSellingPlan: true }) { product { id category { id fullName } requiresSellingPlan } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id category { id fullName } requiresSellingPlan } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true}}}"
+}
+
 pub fn product_update_normalizes_tags_like_shopify_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -2788,6 +2908,28 @@ pub fn product_create_and_set_normalize_tags_like_shopify_test() {
   assert set_status == 200
   assert json.to_string(set_body)
     == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_stages_category_and_requires_selling_plan_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Set Category Probe\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", requiresSellingPlan: true }, synchronous: true) { product { id category { id fullName } requiresSellingPlan } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id category { id fullName } requiresSellingPlan } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true}}}"
 }
 
 pub fn product_set_variable_log_replays_product_set_input_type_test() {
@@ -2970,6 +3112,31 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
     == 1
 }
 
+pub fn product_create_stages_category_requires_selling_plan_and_collections_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let query =
+    "mutation { productCreate(product: { title: \\\"Subscription Board\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", requiresSellingPlan: true, collectionsToJoin: [\\\"gid://shopify/Collection/custom\\\"] }) { product { id category { id fullName } requiresSellingPlan collections(first: 10) { nodes { id title handle } } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true,\"collections\":{\"nodes\":[{\"id\":\"gid://shopify/Collection/custom\",\"title\":\"Custom\",\"handle\":\"custom\"}]}},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { collection(id: \\\"gid://shopify/Collection/custom\\\") { id products(first: 10) { nodes { id title handle } } productsCount { count precision } hasProduct(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") } product(id: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\") { id category { id fullName } requiresSellingPlan collections(first: 10) { nodes { id title handle } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"collection\":{\"id\":\"gid://shopify/Collection/custom\",\"products\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Subscription Board\",\"handle\":\"subscription-board\"}]},\"productsCount\":{\"count\":2,\"precision\":\"EXACT\"},\"hasProduct\":true},\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"requiresSellingPlan\":true,\"collections\":{\"nodes\":[{\"id\":\"gid://shopify/Collection/custom\",\"title\":\"Custom\",\"handle\":\"custom\"}]}}}}"
+}
+
 pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
   let proxy =
     draft_proxy.with_config(Config(
@@ -2990,6 +3157,54 @@ pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
     == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Origin Vendor\",\"vendor\":\"acme\"},\"userErrors\":[]}}}"
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Staged
+}
+
+pub fn product_create_category_validation_errors_are_top_level_test() {
+  let invalid_gid_query =
+    "mutation { productCreate(product: { title: \\\"Bad Category\\\", category: \\\"not-a-gid\\\" }) { product { id } userErrors { field message code } } }"
+  let #(Response(status: invalid_status, body: invalid_body, ..), invalid_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(invalid_gid_query),
+    )
+  assert invalid_status == 200
+  assert json.to_string(invalid_body)
+    == "{\"errors\":[{\"message\":\"Invalid global id 'not-a-gid'\",\"path\":[\"productCreate\"],\"extensions\":{\"code\":\"INVALID_VARIABLE\"}}],\"data\":{\"productCreate\":null}}"
+  assert store.get_log(invalid_proxy.store) == []
+
+  let unknown_taxonomy_query =
+    "mutation { productCreate(product: { title: \\\"Unknown Category\\\", category: \\\"gid://shopify/TaxonomyCategory/not-a-real-node\\\" }) { product { id } userErrors { field message code } } }"
+  let #(Response(status: unknown_status, body: unknown_body, ..), unknown_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(unknown_taxonomy_query),
+    )
+  assert unknown_status == 200
+  assert json.to_string(unknown_body)
+    == "{\"errors\":[{\"message\":\"Invalid product_taxonomy_node_id\",\"path\":[\"productCreate\"],\"extensions\":{\"code\":\"INVALID_PRODUCT_TAXONOMY_NODE_ID\"}}],\"data\":{\"productCreate\":null}}"
+  assert store.get_log(unknown_proxy.store) == []
+}
+
+pub fn product_create_keeps_category_and_product_type_like_shopify_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Category Type Probe\\\", category: \\\"gid://shopify/TaxonomyCategory/aa-1-1\\\", productType: \\\"Boards\\\" }) { product { id category { id fullName } productType } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"category\":{\"id\":\"gid://shopify/TaxonomyCategory/aa-1-1\",\"fullName\":\"Apparel & Accessories > Clothing > Activewear\"},\"productType\":\"Boards\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_create_ignores_unknown_collections_to_join_like_shopify_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Unknown Collection Probe\\\", collectionsToJoin: [\\\"gid://shopify/Collection/not-a-real-node\\\"] }) { product { id collections(first: 10) { nodes { id } } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"collections\":{\"nodes\":[]}},\"userErrors\":[]}}}"
 }
 
 pub fn product_variant_mutations_recompute_product_derived_fields_test() {
@@ -5812,6 +6027,7 @@ fn product_option_metaobject_definition(
     description: None,
     display_name_key: Some("label"),
     online_store_url_handle: None,
+    online_store_create_redirects: None,
     access: dict.new(),
     capabilities: MetaobjectDefinitionCapabilitiesRecord(
       publishable: Some(MetaobjectDefinitionCapabilityRecord(False)),
@@ -6238,6 +6454,72 @@ fn option_update_store() -> store.Store {
   ])
 }
 
+fn option_reorder_multi_variant_store() -> store.Store {
+  option_update_store()
+  |> store.upsert_base_product_variants([
+    option_update_variant(),
+    ProductVariantRecord(
+      ..option_update_variant(),
+      id: "gid://shopify/ProductVariant/optioned-green",
+      title: "Green / Small",
+      selected_options: [
+        ProductVariantSelectedOptionRecord(name: "Color", value: "Green"),
+        ProductVariantSelectedOptionRecord(name: "Size", value: "Small"),
+      ],
+      inventory_item: Some(
+        InventoryItemRecord(
+          id: "gid://shopify/InventoryItem/optioned-green",
+          tracked: Some(False),
+          requires_shipping: Some(True),
+          measurement: None,
+          country_code_of_origin: None,
+          province_code_of_origin: None,
+          harmonized_system_code: None,
+          inventory_levels: [],
+        ),
+      ),
+    ),
+  ])
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      linked_metafield: None,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+          linked_metafield_value: None,
+        ),
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/green",
+          name: "Green",
+          has_variants: True,
+          linked_metafield_value: None,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      linked_metafield: None,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+          linked_metafield_value: None,
+        ),
+      ],
+    ),
+  ])
+}
+
 fn three_option_store() -> store.Store {
   option_update_store()
   |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
@@ -6347,6 +6629,7 @@ fn default_product() -> ProductRecord {
     template_suffix: None,
     seo: ProductSeoRecord(title: None, description: None),
     category: None,
+    requires_selling_plan: None,
     publication_ids: [],
     contextual_pricing: None,
     cursor: None,
@@ -6466,6 +6749,7 @@ fn product_publication_shop() -> ShopRecord {
       live_view: True,
       paypal_express_subscription_gateway_status: "DISABLED",
       reports: True,
+      b2b_deposits_enabled: True,
       discounts_by_market_enabled: False,
       markets_granted: 50,
       sells_subscriptions: False,
