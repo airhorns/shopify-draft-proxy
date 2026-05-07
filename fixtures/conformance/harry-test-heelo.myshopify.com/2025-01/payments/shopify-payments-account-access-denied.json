@@ -1,7 +1,7 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-04-25T16:43:50.447Z",
+  "capturedAt": "2026-05-06T22:27:17.581Z",
   "request": {
     "query": "query ShopifyPaymentsAccountAccessProbe { shopifyPaymentsAccount { id activated country defaultCurrency onboardable payouts(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } disputes(first: 1) { edges { node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } balanceTransactions(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"
   },
@@ -11,8 +11,8 @@
       "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
       "locations": [
         {
-          "line": 1,
-          "column": 43
+          "line": 2,
+          "column": 3
         }
       ],
       "extensions": {

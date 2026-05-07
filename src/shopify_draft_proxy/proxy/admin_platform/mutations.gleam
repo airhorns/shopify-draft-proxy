@@ -17,7 +17,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, LogDraft, MutationOutcome,
+  type MutationOutcome, LogDraft, MutationOutcome, RequiredArgument,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -226,50 +226,74 @@ fn handle_flow_generate_signature(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
-  let args = graphql_helpers.field_args(field, variables)
-  let id = queries.read_string_arg(args, "id")
-  let payload = queries.read_string_arg(args, "payload")
-  case valid_flow_trigger_id(id) {
-    False ->
-      MutationFieldResult(
-        json.null(),
-        [resource_not_found_error(field, document, id)],
-        store,
-        identity,
-        [],
-        [],
-      )
-    True -> {
-      let signature =
-        crypto.sha256_hex(flow_signature_secret <> "|" <> id <> "|" <> payload)
-      let #(record_id, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "FlowGenerateSignature")
-      let #(created_at, identity_after_time) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let record =
-        AdminPlatformFlowSignatureRecord(
-          id: record_id,
-          flow_trigger_id: id,
-          payload_sha256: crypto.sha256_hex(payload),
-          signature_sha256: crypto.sha256_hex(signature),
-          created_at: created_at,
-        )
-      let #(_, next_store) =
-        store.stage_admin_platform_flow_signature(store, record)
-      MutationFieldResult(
-        queries.project_selection(
-          flow_generate_signature_source(payload, signature),
-          field,
-          fragments,
-        ),
-        [],
-        next_store,
-        identity_after_time,
-        [record_id],
-        [
-          "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
-        ],
-      )
+  let argument_errors =
+    mutation_helpers.validate_required_field_arguments(
+      field,
+      variables,
+      "flowGenerateSignature",
+      [
+        RequiredArgument("id", "ID!"),
+        RequiredArgument("payload", "String!"),
+      ],
+      "mutation",
+      document,
+    )
+
+  case argument_errors {
+    [_, ..] ->
+      MutationFieldResult(json.null(), argument_errors, store, identity, [], [])
+    [] -> {
+      let args = graphql_helpers.field_args(field, variables)
+      let id = queries.read_string_arg(args, "id")
+      let payload = queries.read_string_arg(args, "payload")
+      case valid_flow_trigger_id(id) {
+        False ->
+          MutationFieldResult(
+            json.null(),
+            [resource_not_found_error(field, document, id)],
+            store,
+            identity,
+            [],
+            [],
+          )
+        True -> {
+          let signature =
+            crypto.sha256_hex(
+              flow_signature_secret <> "|" <> id <> "|" <> payload,
+            )
+          let #(record_id, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "FlowGenerateSignature",
+            )
+          let #(created_at, identity_after_time) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_id)
+          let record =
+            AdminPlatformFlowSignatureRecord(
+              id: record_id,
+              flow_trigger_id: id,
+              payload_sha256: crypto.sha256_hex(payload),
+              signature_sha256: crypto.sha256_hex(signature),
+              created_at: created_at,
+            )
+          let #(_, next_store) =
+            store.stage_admin_platform_flow_signature(store, record)
+          MutationFieldResult(
+            queries.project_selection(
+              flow_generate_signature_source(payload, signature),
+              field,
+              fragments,
+            ),
+            [],
+            next_store,
+            identity_after_time,
+            [record_id],
+            [
+              "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
+            ],
+          )
+        }
+      }
     }
   }
 }

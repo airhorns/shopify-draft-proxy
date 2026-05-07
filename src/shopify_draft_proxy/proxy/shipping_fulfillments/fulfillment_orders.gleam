@@ -16,6 +16,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
   get_field_response_key, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string_array}
 import shopify_draft_proxy/proxy/shipping_fulfillments/carrier_services.{
   fulfillment_order_assigned_location_value,
 }
@@ -25,14 +26,18 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers
   first_fulfillment_order_line_item_total, fulfillment_hold_value,
   fulfillment_order_cancel_user_error_payload,
   fulfillment_order_has_manually_reported_progress,
-  fulfillment_order_hold_handle, fulfillment_order_hold_supported_actions,
+  fulfillment_order_hold_handle,
+  fulfillment_order_hold_supported_actions_for_requester,
   fulfillment_order_hold_user_error_source,
   fulfillment_order_hold_validation_errors, fulfillment_order_holds,
   fulfillment_order_line_items_after_split,
   fulfillment_order_line_items_for_split, fulfillment_order_line_items_total,
+  fulfillment_order_line_items_with_line_item_fulfillable,
   fulfillment_order_line_items_with_quantity,
   fulfillment_order_line_items_with_quantity_and_fulfillable,
   fulfillment_order_merge_ids, fulfillment_order_missing_mutation_result,
+  fulfillment_order_release_hold_validation_errors,
+  fulfillment_order_release_remaining_holds,
   fulfillment_order_single_payload_result,
   fulfillment_order_split_supported_actions, max_int,
   normalize_shopify_timestamp_to_seconds, sibling_fulfillment_order_quantity,
@@ -67,6 +72,7 @@ pub fn handle_fulfillment_order_hold(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = resolved_args(field, variables)
@@ -79,7 +85,13 @@ pub fn handle_fulfillment_order_hold(
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          case fulfillment_order_hold_validation_errors(order, hold_input) {
+          case
+            fulfillment_order_hold_validation_errors(
+              order,
+              hold_input,
+              requesting_api_client_id,
+            )
+          {
             [_, ..] as user_errors -> #(
               shipping_types.MutationFieldResult(
                 key: key,
@@ -117,18 +129,27 @@ pub fn handle_fulfillment_order_hold(
                   read_string(hold_input, "externalId"),
                   read_bool(hold_input, "notifyMerchant")
                     |> option.unwrap(False),
+                  requesting_api_client_id,
                 )
               let remaining_quantity =
                 max_int(
                   first_fulfillment_order_line_item_total(order.data) - quantity,
                   0,
                 )
-              let fulfillment_holds =
-                list.append(fulfillment_order_holds(order.data), [hold])
+              let existing_holds = fulfillment_order_holds(order.data)
+              let fulfillment_holds = list.append(existing_holds, [hold])
               let held_line_items = case line_item_inputs {
                 [] ->
-                  captured_field(order.data, "lineItems")
-                  |> option.unwrap(CapturedArray([]))
+                  case list.is_empty(existing_holds) {
+                    True ->
+                      fulfillment_order_line_items_with_line_item_fulfillable(
+                        order.data,
+                        0,
+                      )
+                    False ->
+                      captured_field(order.data, "lineItems")
+                      |> option.unwrap(CapturedArray([]))
+                  }
                 [_, ..] ->
                   fulfillment_order_line_items_with_quantity_and_fulfillable(
                     order.data,
@@ -143,8 +164,9 @@ pub fn handle_fulfillment_order_hold(
                   #(
                     "supportedActions",
                     captured_action_list(
-                      fulfillment_order_hold_supported_actions(
+                      fulfillment_order_hold_supported_actions_for_requester(
                         fulfillment_holds,
+                        requesting_api_client_id,
                       ),
                     ),
                   ),
@@ -275,56 +297,127 @@ pub fn handle_fulfillment_order_release_hold(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          let restored_quantity =
-            sibling_fulfillment_order_quantity(draft_store, order)
-            + first_fulfillment_order_line_item_total(order.data)
-          let updated =
-            update_fulfillment_order_fields(order, [
-              #("status", CapturedString("OPEN")),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #(
-                "supportedActions",
-                captured_action_list([
-                  "CREATE_FULFILLMENT",
-                  "REPORT_PROGRESS",
-                  "MOVE",
-                  "HOLD",
-                  "SPLIT",
-                ]),
-              ),
-              #("fulfillmentHolds", CapturedArray([])),
-              #(
-                "lineItems",
-                fulfillment_order_line_items_with_quantity(
-                  order.data,
-                  restored_quantity,
-                  True,
-                ),
-              ),
-            ])
-          let updated =
-            FulfillmentOrderRecord(
-              ..updated,
-              status: "OPEN",
-              manually_held: False,
+          let hold_ids = read_optional_string_array(args, "holdIds")
+          let holds = fulfillment_order_holds(order.data)
+          case
+            fulfillment_order_release_hold_validation_errors(
+              holds,
+              hold_ids,
+              requesting_api_client_id,
             )
-          let #(staged, next_store) =
-            store.stage_upsert_fulfillment_order(draft_store, updated)
-          let next_store = close_sibling_fulfillment_orders(next_store, staged)
-          fulfillment_order_single_payload_result(
-            next_store,
-            identity,
-            field,
-            fragments,
-            "FulfillmentOrderReleaseHoldPayload",
-            staged,
-          )
+          {
+            [_, ..] as user_errors ->
+              fulfillment_order_release_hold_user_error_result(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                user_errors,
+              )
+            [] -> {
+              let remaining_holds =
+                fulfillment_order_release_remaining_holds(
+                  holds,
+                  hold_ids,
+                  requesting_api_client_id,
+                )
+              case remaining_holds {
+                [] -> {
+                  let restored_quantity =
+                    sibling_fulfillment_order_quantity(draft_store, order)
+                    + first_fulfillment_order_line_item_total(order.data)
+                  let updated =
+                    update_fulfillment_order_fields(order, [
+                      #("status", CapturedString("OPEN")),
+                      #(
+                        "updatedAt",
+                        CapturedString(synthetic_timestamp_string()),
+                      ),
+                      #(
+                        "supportedActions",
+                        captured_action_list([
+                          "CREATE_FULFILLMENT",
+                          "REPORT_PROGRESS",
+                          "MOVE",
+                          "HOLD",
+                          "SPLIT",
+                        ]),
+                      ),
+                      #("fulfillmentHolds", CapturedArray([])),
+                      #(
+                        "lineItems",
+                        fulfillment_order_line_items_with_quantity(
+                          order.data,
+                          restored_quantity,
+                          True,
+                        ),
+                      ),
+                    ])
+                  let updated =
+                    FulfillmentOrderRecord(
+                      ..updated,
+                      status: "OPEN",
+                      manually_held: False,
+                    )
+                  let #(staged, next_store) =
+                    store.stage_upsert_fulfillment_order(draft_store, updated)
+                  let next_store =
+                    close_sibling_fulfillment_orders(next_store, staged)
+                  fulfillment_order_single_payload_result(
+                    next_store,
+                    identity,
+                    field,
+                    fragments,
+                    "FulfillmentOrderReleaseHoldPayload",
+                    staged,
+                  )
+                }
+                [_, ..] -> {
+                  let updated =
+                    update_fulfillment_order_fields(order, [
+                      #("status", CapturedString("ON_HOLD")),
+                      #(
+                        "updatedAt",
+                        CapturedString(synthetic_timestamp_string()),
+                      ),
+                      #(
+                        "supportedActions",
+                        captured_action_list(
+                          fulfillment_order_hold_supported_actions_for_requester(
+                            remaining_holds,
+                            requesting_api_client_id,
+                          ),
+                        ),
+                      ),
+                      #("fulfillmentHolds", CapturedArray(remaining_holds)),
+                    ])
+                  let updated =
+                    FulfillmentOrderRecord(
+                      ..updated,
+                      status: "ON_HOLD",
+                      manually_held: True,
+                    )
+                  let #(staged, next_store) =
+                    store.stage_upsert_fulfillment_order(draft_store, updated)
+                  fulfillment_order_single_payload_result(
+                    next_store,
+                    identity,
+                    field,
+                    fragments,
+                    "FulfillmentOrderReleaseHoldPayload",
+                    staged,
+                  )
+                }
+              }
+            }
+          }
         }
         None ->
           fulfillment_order_missing_mutation_result(
@@ -798,6 +891,36 @@ pub fn handle_fulfillment_order_simple_status(
         payload_typename,
       )
   }
+}
+
+fn fulfillment_order_release_hold_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(#(List(String), String, String)),
+) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  #(
+    shipping_types.MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString("FulfillmentOrderReleaseHoldPayload")),
+        #("fulfillmentOrder", SrcNull),
+        #(
+          "userErrors",
+          SrcList(list.map(
+            user_errors,
+            fulfillment_order_hold_user_error_source,
+          )),
+        ),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
 }
 
 @internal

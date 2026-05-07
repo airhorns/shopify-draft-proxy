@@ -1,0 +1,5 @@
+mutation FlowGenerateSignatureMissingIdRequiredArg {
+  flowGenerateSignature(payload: "{}") {
+    signature
+  }
+}

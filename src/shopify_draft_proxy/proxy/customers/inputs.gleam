@@ -661,11 +661,23 @@ pub fn split_tags(raw: String) -> List(String) {
 @internal
 pub fn normalize_tags(tags: List(String)) -> List(String) {
   tags
-  |> list.map(string.trim)
-  |> list.filter(fn(s) { s != "" })
-  |> dedupe()
+  |> list.flat_map(split_tags)
+  |> dedupe_case_insensitive()
   |> list.sort(fn(a, b) {
     string.compare(string.lowercase(a), string.lowercase(b))
+  })
+}
+
+@internal
+pub fn dedupe_case_insensitive(items: List(String)) -> List(String) {
+  list.fold(items, [], fn(acc, item) {
+    let lowered = string.lowercase(item)
+    let seen =
+      list.any(acc, fn(existing) { string.lowercase(existing) == lowered })
+    case seen {
+      True -> acc
+      False -> list.append(acc, [item])
+    }
   })
 }
 

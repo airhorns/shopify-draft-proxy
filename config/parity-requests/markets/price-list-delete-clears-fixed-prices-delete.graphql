@@ -1,0 +1,10 @@
+mutation PriceListDeleteClearsFixedPricesDelete($id: ID!) {
+  priceListDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

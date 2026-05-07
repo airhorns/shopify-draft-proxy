@@ -1,0 +1,8 @@
+#graphql
+query BulkOperationsSortKeyIdRejected {
+  bulkOperations(first: 5, sortKey: ID) {
+    nodes {
+      id
+    }
+  }
+}

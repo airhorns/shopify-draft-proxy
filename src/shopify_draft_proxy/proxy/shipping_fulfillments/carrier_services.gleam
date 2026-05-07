@@ -609,6 +609,7 @@ pub fn handle_fulfillment_service_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
   let name = read_trimmed_string(args, "name")
@@ -617,7 +618,7 @@ pub fn handle_fulfillment_service_create(
     list.append(
       list.append(
         validate_fulfillment_service_name(name),
-        validate_fulfillment_service_callback_url(callback_url),
+        validate_fulfillment_service_callback_url(callback_url, upstream_origin),
       ),
       validate_fulfillment_service_uniqueness(draft_store, name, None),
     )
@@ -697,6 +698,7 @@ pub fn handle_fulfillment_service_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = resolved_args(field, variables)
   case read_string(args, "id") {
@@ -710,6 +712,7 @@ pub fn handle_fulfillment_service_update(
             fragments,
             args,
             existing,
+            upstream_origin,
           )
         None ->
           fulfillment_service_validation_result(
@@ -741,6 +744,7 @@ pub fn update_existing_fulfillment_service(
   fragments: FragmentMap,
   args: Dict(String, root_field.ResolvedValue),
   existing: FulfillmentServiceRecord,
+  upstream_origin: String,
 ) -> #(shipping_types.MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let next_name = case read_trimmed_string(args, "name") {
     Some(value) -> Some(value)
@@ -754,7 +758,7 @@ pub fn update_existing_fulfillment_service(
     list.append(
       list.append(
         validate_fulfillment_service_name(next_name),
-        validate_fulfillment_service_callback_url(callback_url),
+        validate_fulfillment_service_callback_url(callback_url, upstream_origin),
       ),
       validate_fulfillment_service_uniqueness(
         draft_store,

@@ -1,5 +1,5 @@
-query SavedSearchLocalStagingReadAfterCreate($query: String!) {
-  productSavedSearches(first: 1, query: $query) {
+query SavedSearchLocalStagingReadAfterCreate {
+  productSavedSearches(first: 1) {
     nodes {
       id
       name
@@ -18,7 +18,7 @@ query SavedSearchLocalStagingReadAfterCreate($query: String!) {
       endCursor
     }
   }
-  customerSavedSearches(first: 3, query: $query) {
+  customerSavedSearches(first: 3) {
     nodes {
       id
       name
