@@ -875,6 +875,7 @@ pub fn cart_transform_create_rejects_duplicate_function_id_test() {
       function_id: Some(function_id),
       function_handle: Some("cart-transformer"),
       shopify_function_id: Some(function_id),
+      metafields: [],
       created_at: Some("2024-01-01T00:00:00.000Z"),
       updated_at: Some("2024-01-01T00:00:00.000Z"),
     )
@@ -893,6 +894,49 @@ pub fn cart_transform_create_rejects_duplicate_function_id_test() {
   let assert [_] = store.list_effective_cart_transforms(outcome.store)
   let assert [_] = store.list_effective_shopify_functions(outcome.store)
   assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_persists_metafields_for_downstream_reads_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      "CART_TRANSFORM",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\", title: \"Bundle transform\", metafields: [{ namespace: \"bundles\", key: \"config\", type: \"json\", value: \"{\\\"enabled\\\":true}\" }, { namespace: \"bundles\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }] }) { cartTransform { id metafield(namespace: \"bundles\", key: \"config\") { namespace key type value ownerType compareDigest createdAt updatedAt } metafields(first: 5) { nodes { namespace key type value ownerType compareDigest createdAt updatedAt } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":{\"id\":\"gid://shopify/CartTransform/1\",\"metafield\":{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"type\":\"json\",\"value\":\"{\\\"enabled\\\":true}\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwiY29uZmlnIiwianNvbiIsIntcImVuYWJsZWRcIjp0cnVlfSIsbnVsbCwiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIl0\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"type\":\"single_line_text_field\",\"value\":\"strict\",\"ownerType\":\"CARTTRANSFORM\",\"compareDigest\":\"draft:WyJidW5kbGVzIiwibW9kZSIsInNpbmdsZV9saW5lX3RleHRfZmllbGQiLCJzdHJpY3QiLG51bGwsIjIwMjQtMDEtMDFUMDA6MDA6MDAuMDAwWiJd\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}]}},\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      outcome.store,
+      "{ cartTransforms(first: 5) { nodes { id metafield(namespace: \"bundles\", key: \"mode\") { namespace key value } metafields(first: 5) { nodes { namespace key value } } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"cartTransforms\":{\"nodes\":[{\"id\":\"gid://shopify/CartTransform/1\",\"metafield\":{\"namespace\":\"bundles\",\"key\":\"mode\",\"value\":\"strict\"},\"metafields\":{\"nodes\":[{\"namespace\":\"bundles\",\"key\":\"config\",\"value\":\"{\\\"enabled\\\":true}\"},{\"namespace\":\"bundles\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
+}
+
+pub fn cart_transform_create_rejects_invalid_metafields_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      "CART_TRANSFORM",
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_function(store.new(), fn_record),
+      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\", metafields: [{ namespace: \"bundles\", key: \"missing_value\", type: \"single_line_text_field\" }, { namespace: \"bundles\", key: \"bad_json\", type: \"json\", value: \"not-json\" }] }) { cartTransform { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"value\"],\"message\":\"may not be empty\",\"code\":\"INVALID_METAFIELDS\"},{\"field\":[\"metafields\",\"1\",\"value\"],\"message\":\"is invalid JSON: unexpected token 'not-json' at line 1 column 1.\",\"code\":\"INVALID_METAFIELDS\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
 }
 
 // ----------- cartTransformDelete -----------
@@ -947,6 +991,7 @@ pub fn cart_transform_delete_bare_id_returns_canonical_deleted_id_test() {
       function_id: None,
       function_handle: Some("cart-transformer"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: None,
       updated_at: None,
     )
@@ -991,6 +1036,7 @@ pub fn cart_transform_delete_cross_app_function_emits_unauthorized_scope_test() 
       function_id: None,
       function_handle: Some("cart-transformer"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: None,
       updated_at: None,
     )

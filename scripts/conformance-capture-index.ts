@@ -4433,6 +4433,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-cart-transform-create-metafields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-cart-transform-metafields-conformance.ts',
+    purpose:
+      'cartTransformCreate metafield input validation, valid metafield persistence, singular metafield lookup, and downstream cartTransforms metafield readback.',
+    requiredAuthScopes: [
+      'shopifyFunctions read access',
+      'read_cart_transforms',
+      'write_cart_transforms for disposable cart-transform create/delete and cleanup',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-cart-transform-create-metafields.json`,
+      'config/parity-specs/functions/functions-cart-transform-create-metafields.json',
+      'config/parity-requests/functions/functions-cart-transform-create-metafields-invalid.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-metafields-success.graphql',
+      'config/parity-requests/functions/functions-cart-transform-create-metafields-read.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes pre-existing cartTransforms, captures invalid metafield branches without side effects, creates one disposable cartTransform with two metafields, captures downstream readback, then deletes the disposable cartTransform.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'platform-payments-orphaned-fixtures-functions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04', ORPHAN_FIXTURE_GROUP: 'functions' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
