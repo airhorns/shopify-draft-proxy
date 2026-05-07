@@ -1,0 +1,6 @@
+#graphql
+query BulkOperationNonBulkOperationGidValidation {
+  bulkOperation(id: "gid://shopify/Product/1") {
+    id
+  }
+}

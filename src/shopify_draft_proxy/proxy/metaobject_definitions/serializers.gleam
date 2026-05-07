@@ -34,7 +34,9 @@ import shopify_draft_proxy/state/store.{
 import shopify_draft_proxy/state/types.{
   type MetaobjectCapabilitiesRecord, type MetaobjectDefinitionCapabilitiesRecord,
   type MetaobjectDefinitionCapabilityRecord, type MetaobjectDefinitionRecord,
-  type MetaobjectDefinitionTypeRecord, type MetaobjectFieldDefinitionRecord,
+  type MetaobjectDefinitionTypeRecord,
+  type MetaobjectFieldDefinitionCapabilitiesRecord,
+  type MetaobjectFieldDefinitionRecord,
   type MetaobjectFieldDefinitionReferenceRecord,
   type MetaobjectFieldDefinitionValidationRecord, type MetaobjectFieldRecord,
   type MetaobjectRecord, type MetaobjectStandardTemplateRecord,
@@ -1235,8 +1237,24 @@ pub fn field_definition_source(
     #("required", graphql_helpers.option_bool_source(definition.required)),
     #("type", type_source(definition.type_)),
     #(
+      "capabilities",
+      field_definition_capabilities_source(definition.capabilities),
+    ),
+    #(
       "validations",
       SrcList(list.map(definition.validations, validation_source)),
+    ),
+  ])
+}
+
+@internal
+pub fn field_definition_capabilities_source(
+  capabilities: MetaobjectFieldDefinitionCapabilitiesRecord,
+) -> SourceValue {
+  src_object([
+    #(
+      "adminFilterable",
+      definition_capability_source(capabilities.admin_filterable),
     ),
   ])
 }

@@ -378,7 +378,11 @@ pub const list_effective_markets = markets.list_effective_markets
 
 pub const upsert_staged_market_localizations = markets.upsert_staged_market_localizations
 
+pub const delete_staged_market_localizations = markets.delete_staged_market_localizations
+
 pub const list_effective_market_localizations = markets.list_effective_market_localizations
+
+pub const remove_staged_market_localizations = markets.remove_staged_market_localizations
 
 pub const upsert_staged_market = markets.upsert_staged_market
 
@@ -403,6 +407,8 @@ pub const list_effective_price_lists = markets.list_effective_price_lists
 pub const upsert_staged_price_list = markets.upsert_staged_price_list
 
 pub const delete_staged_price_list = markets.delete_staged_price_list
+
+pub const clear_price_list_fixed_prices = markets.clear_price_list_fixed_prices
 
 pub const upsert_base_web_presences = markets.upsert_base_web_presences
 
@@ -452,11 +458,15 @@ pub const get_effective_shop = admin_platform.get_effective_shop
 
 pub const shop_sells_subscriptions = admin_platform.shop_sells_subscriptions
 
+pub const shop_discounts_by_market_enabled = admin_platform.shop_discounts_by_market_enabled
+
 pub const payment_gateway_by_id = admin_platform.payment_gateway_by_id
 
 pub const set_shop_payment_gateways = admin_platform.set_shop_payment_gateways
 
 pub const set_shop_sells_subscriptions = admin_platform.set_shop_sells_subscriptions
+
+pub const set_shop_discounts_by_market_enabled = admin_platform.set_shop_discounts_by_market_enabled
 
 pub const upsert_base_b2b_company = b2b.upsert_base_b2b_company
 

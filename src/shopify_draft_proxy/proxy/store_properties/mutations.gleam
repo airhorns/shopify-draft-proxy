@@ -2727,15 +2727,25 @@ fn validate_shop_policy_input(
   }
   let body_errors = case body {
     Some(value) ->
-      case string.byte_size(value) > shop_policy_body_limit_chars {
-        True -> [
+      case
+        type_ == Some("SUBSCRIPTION_POLICY") && string.trim(value) == "",
+        string.byte_size(value) > shop_policy_body_limit_chars
+      {
+        True, _ -> [
+          store_properties_types.ShopPolicyUserError(
+            field: Some(["shopPolicy", "body"]),
+            message: "Purchase options cancellation policy required",
+            code: None,
+          ),
+        ]
+        _, True -> [
           store_properties_types.ShopPolicyUserError(
             field: Some(["shopPolicy", "body"]),
             message: "Body is too big (maximum is 512 KB)",
             code: Some("TOO_BIG"),
           ),
         ]
-        False -> []
+        _, False -> []
       }
     None -> [
       store_properties_types.ShopPolicyUserError(

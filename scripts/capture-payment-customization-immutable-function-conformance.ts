@@ -124,6 +124,7 @@ const createVariables = {
     title: `HAR-629 immutable function ${runId}`,
     enabled: true,
     functionId: functionNode['id'],
+    metafields: [],
   },
 };
 const updateVariables = {

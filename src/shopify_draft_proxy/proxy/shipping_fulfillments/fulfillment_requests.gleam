@@ -27,8 +27,8 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
   append_reverse_delivery, calculated_order_shipping_lines, captured_array_field,
-  captured_connection, captured_string_field,
-  dispose_reverse_fulfillment_order_line_item,
+  captured_connection, captured_int_field, captured_string_field,
+  captured_upsert_fields, dispose_reverse_fulfillment_order_line_item,
   find_reverse_fulfillment_order_line_item, make_calculated_shipping_line,
   make_reverse_delivery_line_items, read_bool, read_int, read_object,
   read_object_array, read_string, resolved_args, reverse_delivery_value,
@@ -49,8 +49,9 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type FulfillmentRecord, CapturedBool, CapturedNull, CapturedObject,
-  CapturedString, FulfillmentOrderRecord, ReverseDeliveryRecord,
+  type CapturedJsonValue, type FulfillmentOrderRecord, type FulfillmentRecord,
+  CapturedBool, CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  FulfillmentOrderRecord, ReverseDeliveryRecord,
 }
 
 @internal
@@ -68,6 +69,16 @@ pub fn handle_fulfillment_order_submit_request(
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
           let message = read_string(args, "message")
+          let requested_line_items =
+            read_requested_fulfillment_order_line_items(args)
+          let #(submitted_line_items, unsubmitted_line_items, identity) =
+            split_submit_request_line_items(
+              identity,
+              captured_array_field(order.data, "lineItems", "nodes"),
+              requested_line_items,
+              [],
+              [],
+            )
           let request_options =
             CapturedObject([
               #("notify_customer", case read_bool(args, "notifyCustomer") {
@@ -85,6 +96,7 @@ pub fn handle_fulfillment_order_submit_request(
             update_fulfillment_order_fields(order, [
               #("status", CapturedString("OPEN")),
               #("requestStatus", CapturedString("SUBMITTED")),
+              #("lineItems", captured_connection(submitted_line_items)),
               #("merchantRequests", captured_connection([request])),
             ])
           let updated =
@@ -96,8 +108,13 @@ pub fn handle_fulfillment_order_submit_request(
             )
           let #(staged, next_store) =
             store.stage_upsert_fulfillment_order(draft_store, updated)
-          let unsubmitted =
-            find_unsubmitted_sibling_fulfillment_order(next_store, staged)
+          let #(unsubmitted, next_store, identity) =
+            maybe_stage_unsubmitted_fulfillment_order(
+              next_store,
+              staged,
+              unsubmitted_line_items,
+              identity,
+            )
           #(
             shipping_types.MutationFieldResult(
               key: key,
@@ -138,6 +155,162 @@ pub fn handle_fulfillment_order_submit_request(
         fragments,
         "FulfillmentOrderSubmitFulfillmentRequestPayload",
       )
+  }
+}
+
+fn read_requested_fulfillment_order_line_items(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(#(String, Int)) {
+  read_object_array(args, "fulfillmentOrderLineItems")
+  |> list.filter_map(fn(input) {
+    case read_string(input, "id"), read_int(input, "quantity") {
+      Some(id), Some(quantity) -> Ok(#(id, quantity))
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn split_submit_request_line_items(
+  identity: SyntheticIdentityRegistry,
+  line_items: List(CapturedJsonValue),
+  requested: List(#(String, Int)),
+  submitted: List(CapturedJsonValue),
+  unsubmitted: List(CapturedJsonValue),
+) -> #(
+  List(CapturedJsonValue),
+  List(CapturedJsonValue),
+  SyntheticIdentityRegistry,
+) {
+  case line_items {
+    [] -> #(submitted, unsubmitted, identity)
+    [line_item, ..rest] -> {
+      let remaining_quantity =
+        captured_int_field(line_item, "remainingQuantity", "")
+        |> option.or(captured_int_field(line_item, "totalQuantity", ""))
+        |> option.unwrap(0)
+      let requested_quantity = case list.is_empty(requested) {
+        True -> remaining_quantity
+        False ->
+          requested_fulfillment_order_line_item_quantity(
+            captured_string_field(line_item, "id"),
+            requested,
+          )
+      }
+      let submitted_quantity = int.min(requested_quantity, remaining_quantity)
+      let leftover_quantity = remaining_quantity - submitted_quantity
+      let next_submitted = case submitted_quantity > 0 {
+        True ->
+          list.append(submitted, [
+            fulfillment_order_line_item_with_quantity(
+              line_item,
+              submitted_quantity,
+              None,
+            ),
+          ])
+        False -> submitted
+      }
+      let #(next_unsubmitted, identity) = case leftover_quantity > 0 {
+        True -> {
+          let #(line_item_id, identity) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "FulfillmentOrderLineItem",
+            )
+          #(
+            list.append(unsubmitted, [
+              fulfillment_order_line_item_with_quantity(
+                line_item,
+                leftover_quantity,
+                Some(line_item_id),
+              ),
+            ]),
+            identity,
+          )
+        }
+        False -> #(unsubmitted, identity)
+      }
+      split_submit_request_line_items(
+        identity,
+        rest,
+        requested,
+        next_submitted,
+        next_unsubmitted,
+      )
+    }
+  }
+}
+
+fn requested_fulfillment_order_line_item_quantity(
+  id: Option(String),
+  requested: List(#(String, Int)),
+) -> Int {
+  case id {
+    Some(id) ->
+      requested
+      |> list.fold(0, fn(total, item) {
+        let #(requested_id, quantity) = item
+        case requested_id == id {
+          True -> total + quantity
+          False -> total
+        }
+      })
+    None -> 0
+  }
+}
+
+fn fulfillment_order_line_item_with_quantity(
+  line_item: CapturedJsonValue,
+  quantity: Int,
+  replacement_id: Option(String),
+) -> CapturedJsonValue {
+  let updates = [
+    #("totalQuantity", CapturedInt(quantity)),
+    #("remainingQuantity", CapturedInt(quantity)),
+    #("lineItemFulfillableQuantity", CapturedInt(quantity)),
+  ]
+  let updates = case replacement_id {
+    Some(id) -> list.append([#("id", CapturedString(id))], updates)
+    None -> updates
+  }
+  captured_upsert_fields(line_item, updates)
+}
+
+fn maybe_stage_unsubmitted_fulfillment_order(
+  draft_store: Store,
+  submitted: FulfillmentOrderRecord,
+  line_items: List(CapturedJsonValue),
+  identity: SyntheticIdentityRegistry,
+) -> #(Option(FulfillmentOrderRecord), Store, SyntheticIdentityRegistry) {
+  case line_items {
+    [] -> {
+      let unsubmitted =
+        find_unsubmitted_sibling_fulfillment_order(draft_store, submitted)
+      #(unsubmitted, draft_store, identity)
+    }
+    [_, ..] -> {
+      let #(id, identity) =
+        synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
+      let data =
+        captured_upsert_fields(submitted.data, [
+          #("id", CapturedString(id)),
+          #("status", CapturedString("OPEN")),
+          #("requestStatus", CapturedString("UNSUBMITTED")),
+          #("merchantRequests", captured_connection([])),
+          #("lineItems", captured_connection(line_items)),
+        ])
+      let unsubmitted =
+        FulfillmentOrderRecord(
+          ..submitted,
+          id: id,
+          status: "OPEN",
+          request_status: "UNSUBMITTED",
+          assignment_status: None,
+          data: data,
+        )
+      let #(staged, next_store) =
+        store.stage_upsert_fulfillment_order(draft_store, unsubmitted)
+      #(Some(staged), next_store, identity)
+    }
   }
 }
 

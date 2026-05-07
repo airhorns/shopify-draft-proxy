@@ -3085,6 +3085,7 @@ Captured facts:
 - empty `articles`, `articleAuthors`, and `comments` roots returned normal empty connections with false/null `pageInfo`
 - missing `article(id:)`, `blog(id:)`, and `page(id:)` returned `null`
 - missing `comment(id:)` returned a Shopify internal error for the sampled synthetic unknown ID
+- `comment(id:)` after public `commentDelete` also returned a Shopify internal error for the destroyed ID in the 2025-01/2026-04 public API, even though root `comments`, `Article.comments`, and `Article.commentsCount` reflected true deletion
 - unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal payload-level `userErrors`: `field: ["id"]`, message `Comment does not exist`
 - the disposable success capture for `blogCreate`/`blogUpdate`/`blogDelete`, `pageCreate`/`pageUpdate`/`pageDelete`, and `articleCreate`/`articleUpdate`/`articleDelete` confirmed the content mutation roots can be exercised with explicit cleanup evidence
 
@@ -3092,6 +3093,7 @@ Practical rule:
 
 - keep local snapshot `comment(id:)` missing behavior stable as `null` rather than reproducing Shopify's internal-error branch
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
+- model public `commentDelete` as true local deletion, not a `REMOVED` moderation transition; the `REMOVED` state is still useful for legacy snapshots and dependent-destroy guardrails
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
 ## 70. Fulfillment-order lifecycle roots split work into replacement orders
@@ -3347,3 +3349,29 @@ Practical rule:
   same-location inputs, unknown or origin-unstocked items, duplicate item rows,
   and negative quantities, but should not invent zero-quantity or
   over-available draft-create rejections without newer live evidence
+
+## 80. `marketLocalizationsRemove` treats unmatched filters as no-op removals
+
+Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
+found a disposable success path by creating a product-owned `money` metafield
+definition, setting a CAD money metafield, registering a market localization,
+then removing it.
+
+Observed behavior:
+
+- `single_line_text_field` product metafields and translatable metaobjects can
+  still return empty `marketLocalizableContent`; a definition-backed `money`
+  metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
+- successful remove returned a non-null `marketLocalizations` array containing
+  the removed `key`, `value`, `outdated`, and `market` payload
+- remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
+  and `userErrors: []`
+- remove with an unknown key or an unknown `marketIds` filter also returned
+  `marketLocalizations: null` and `userErrors: []` when no staged Shopify
+  localization matched that filter
+
+Practical rule:
+
+- model `marketLocalizationsRemove` as a filter/removal operation after
+  resource existence is established; do not invent resolver-level key or market
+  validation errors for unmatched filters without newer live evidence

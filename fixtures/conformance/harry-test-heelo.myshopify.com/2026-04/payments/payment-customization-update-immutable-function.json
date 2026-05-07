@@ -1,6 +1,6 @@
 {
   "scenarioId": "payment-customization-update-immutable-function",
-  "capturedAt": "2026-05-05T13:56:02.827Z",
+  "capturedAt": "2026-05-06T21:01:33.662Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "functionCatalog": {
@@ -12,6 +12,18 @@
             "title": "conformance-payment-customization",
             "handle": "conformance-payment-customization",
             "apiType": "payment_customization"
+          },
+          {
+            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+            "title": "conformance-validation",
+            "handle": "conformance-validation",
+            "apiType": "cart_checkout_validation"
+          },
+          {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "conformance-cart-transform",
+            "handle": "conformance-cart-transform",
+            "apiType": "cart_transform"
           }
         ]
       }
@@ -40,17 +52,18 @@
       "query": "#graphql\n  mutation PaymentCustomizationImmutableCreate($input: PaymentCustomizationInput!) {\n    paymentCustomizationCreate(paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-629 immutable function 1777989362325",
+          "title": "HAR-629 immutable function 1778101293092",
           "enabled": true,
-          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": []
         }
       },
       "response": {
         "data": {
           "paymentCustomizationCreate": {
             "paymentCustomization": {
-              "id": "gid://shopify/PaymentCustomization/164233522",
-              "title": "HAR-629 immutable function 1777989362325",
+              "id": "gid://shopify/PaymentCustomization/165118258",
+              "title": "HAR-629 immutable function 1778101293092",
               "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
             },
             "userErrors": []
@@ -72,7 +85,7 @@
     "paymentCustomizationUpdateImmutable": {
       "query": "#graphql\n  mutation PaymentCustomizationImmutableUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/PaymentCustomization/164233522",
+        "id": "gid://shopify/PaymentCustomization/165118258",
         "input": {
           "functionId": "gid://shopify/ShopifyFunction/HAR629DifferentFunction"
         }
@@ -108,13 +121,13 @@
     "afterImmutableUpdate": {
       "query": "#graphql\n  query PaymentCustomizationImmutableRead($id: ID!) {\n    paymentCustomization(id: $id) {\n      id\n      title\n      functionId\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/PaymentCustomization/164233522"
+        "id": "gid://shopify/PaymentCustomization/165118258"
       },
       "response": {
         "data": {
           "paymentCustomization": {
-            "id": "gid://shopify/PaymentCustomization/164233522",
-            "title": "HAR-629 immutable function 1777989362325",
+            "id": "gid://shopify/PaymentCustomization/165118258",
+            "title": "HAR-629 immutable function 1778101293092",
             "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
           }
         },
@@ -136,7 +149,7 @@
     "paymentCustomizationDelete": {
       "data": {
         "paymentCustomizationDelete": {
-          "deletedId": "gid://shopify/PaymentCustomization/164233522",
+          "deletedId": "gid://shopify/PaymentCustomization/165118258",
           "userErrors": []
         }
       },

@@ -1,0 +1,18 @@
+query CommentDeleteTrueDestroyRead($articleId: ID!, $commentQuery: String!) {
+  comments(first: 10, query: $commentQuery) {
+    nodes {
+      id
+    }
+  }
+  article(id: $articleId) {
+    comments(first: 10) {
+      nodes {
+        id
+      }
+    }
+    commentsCount {
+      count
+      precision
+    }
+  }
+}

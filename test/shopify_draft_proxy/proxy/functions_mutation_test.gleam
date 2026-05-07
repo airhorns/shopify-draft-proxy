@@ -125,6 +125,13 @@ fn seed_function(
   s
 }
 
+fn seed_base_function(
+  store_in: store.Store,
+  record: ShopifyFunctionRecord,
+) -> store.Store {
+  store.upsert_base_shopify_functions(store_in, [record])
+}
+
 fn seed_validation(
   store_in: store.Store,
   record: ValidationRecord,
@@ -779,9 +786,9 @@ pub fn cart_transform_create_unknown_function_id_errors_test() {
   assert list.is_empty(store.get_log(outcome.store))
 }
 
-pub fn cart_transform_create_rejects_non_cart_transform_function_test() {
+pub fn cart_transform_create_rejects_non_cart_transform_function_id_test() {
   let s =
-    seed_function(
+    seed_base_function(
       store.new(),
       shopify_fn(
         "gid://shopify/ShopifyFunction/checkout-validator",
@@ -796,9 +803,38 @@ pub fn cart_transform_create_rejects_non_cart_transform_function_test() {
     )
   let body = json.to_string(outcome.data)
   assert body
-    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_NOT_FOUND\"}]}}}"
   assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
   let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert outcome.staged_resource_ids == []
+  assert dict.size(outcome.store.staged_state.cart_transforms) == 0
+  assert dict.size(outcome.store.staged_state.shopify_functions) == 0
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_rejects_non_cart_transform_function_handle_test() {
+  let s =
+    seed_base_function(
+      store.new(),
+      shopify_fn(
+        "gid://shopify/ShopifyFunction/checkout-validator",
+        "checkout-validator",
+        "VALIDATION",
+      ),
+    )
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(cartTransform: { functionHandle: \"checkout-validator\" }) { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert outcome.staged_resource_ids == []
+  assert dict.size(outcome.store.staged_state.cart_transforms) == 0
+  assert dict.size(outcome.store.staged_state.shopify_functions) == 0
   assert list.is_empty(store.get_log(outcome.store))
 }
 

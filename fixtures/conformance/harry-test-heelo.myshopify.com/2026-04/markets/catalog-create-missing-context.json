@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T13:30:10.000Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
@@ -15,18 +15,30 @@
       "response": {
         "status": 200,
         "payload": {
-          "data": {
-            "catalogCreate": {
-              "catalog": null,
-              "userErrors": [
+          "errors": [
+            {
+              "message": "Variable $input of type CatalogCreateInput! was provided invalid value for context (Expected value to not be null)",
+              "locations": [
                 {
-                  "field": ["input", "context"],
-                  "message": "Context is required",
-                  "code": "INVALID"
+                  "line": 2,
+                  "column": 38
                 }
-              ]
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "EU Catalog",
+                  "status": "ACTIVE"
+                },
+                "problems": [
+                  {
+                    "path": ["context"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
             }
-          }
+          ]
         }
       }
     }

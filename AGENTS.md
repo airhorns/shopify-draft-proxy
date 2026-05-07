@@ -124,14 +124,16 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   scripts without adding an explicit conformance spec and executable test path
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
-- Do not manually author conformance parity fixtures or expected payloads as
-  Shopify fidelity evidence. If a parity spec claims captured Shopify behavior,
-  its fixture must come from a live capture script or from an existing recorded
-  Shopify interaction, and the capture path must be registered in the aggregate
-  conformance capture index when a new script is added. Local-runtime fixtures
-  may prove proxy-only mechanics, but they are not a substitute for real
-  Shopify evidence when the claim is about Shopify's validation, lifecycle, or
-  read-after-write behavior.
+- Do not hand-author or synthetically generate checked-in conformance fixture
+  data, parity fixtures, or expected payloads as Shopify fidelity evidence. If
+  a parity spec claims captured Shopify behavior, its fixture must be a recorded
+  real Shopify interaction produced by a committed capture script or an
+  existing recorded Shopify interaction, and the capture path must be registered
+  in the aggregate conformance capture index when a new script is added. If a
+  scenario cannot be recorded yet, keep the gap in Linear/workpad notes instead
+  of adding guessed fixture JSON. Local-runtime fixtures may prove proxy-only
+  mechanics, but they are not a substitute for real Shopify evidence when the
+  claim is about Shopify's validation, lifecycle, or read-after-write behavior.
 - Conformance parity scenarios are discovered by convention from
   `config/parity-specs/*.json` and executed by the Gleam parity runner
   (`test/parity_test.gleam`, surfaced through `pnpm gleam:test` on
@@ -256,14 +258,15 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
 The proxy runtime lives under `src/shopify_draft_proxy/` with tests under
 `test/`, and compiles to both Erlang/BEAM and JavaScript.
 
-- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables). Use
-  `GLEAM_PORT_LOG.md` only as historical context when older porting decisions
-  matter for the task.
+- **Read first:** `docs/gleam-runtime.md` for the public runtime surface.
+  Use `docs/GLEAM_PORT_LOG.md` only as historical context when older porting
+  decisions matter for the task.
 - **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
   `.agents/skills/gleam/SKILL.md`.
-- **Both targets, every change:** `gleam test --target erlang` AND
-  `gleam test --target javascript`. Drift between them is the most
-  expensive bug class.
+- **Runtime validation/toolchain workflow** (both JS/Erlang targets, Thompson
+  OTP 25, checked-in mise OTP 28, stale BEAM artifacts) lives in
+  `.agents/skills/gleam-runtime-validation/SKILL.md`. Use it before treating
+  local Erlang/OTP availability as a blocker or falling back to Docker.
 
 The legacy TypeScript runtime has been removed. Do not add TypeScript
 runtime behavior back under `src/`; new operation handling, fidelity

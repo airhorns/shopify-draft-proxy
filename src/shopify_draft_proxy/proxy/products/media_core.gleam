@@ -420,6 +420,7 @@ pub fn product_update_media_payload_with_media_value(
     src_object([
       #("__typename", SrcString("ProductUpdateMediaPayload")),
       #("media", media),
+      #("userErrors", user_errors_source(user_errors)),
       #("mediaUserErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
@@ -442,6 +443,7 @@ pub fn product_reorder_media_payload(
     src_object([
       #("__typename", SrcString("ProductReorderMediaPayload")),
       #("job", job_value),
+      #("userErrors", user_errors_source(user_errors)),
       #("mediaUserErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
