@@ -1,0 +1,738 @@
+{
+  "capturedAt": "2026-05-07T15:26:34.160Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "requestingApiClientId": "347082227713",
+  "notes": [
+    "Captures the deprecated dedicated Pub/Sub and EventBridge webhook subscription create/update roots against Shopify Admin GraphQL.",
+    "The dedicated Pub/Sub input stores the equivalent pubsub://project:topic URI and projects WebhookPubSubEndpoint on downstream reads.",
+    "The dedicated EventBridge input stores the ARN as the equivalent URI and projects WebhookEventBridgeEndpoint on downstream reads.",
+    "Validation cases capture dedicated input field paths for Pub/Sub project/topic and EventBridge ARN failures.",
+    "Temporary subscriptions are deleted during cleanup and the script does not trigger webhook delivery."
+  ],
+  "validation": {
+    "createPubSubBadProject": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "-bad-project",
+          "pubSubTopic": "topic-movn2mij-invalid-project",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubProject"],
+                  "message": "Google Cloud Pub/Sub project ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createPubSubBadTopic": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "goog-prefixed-topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubTopic"],
+                  "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatePubSubBadProject": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568649522",
+        "webhookSubscription": {
+          "pubSubProject": "-bad-project",
+          "pubSubTopic": "topic-movn2mij-bad-update-project",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubProject"],
+                  "message": "Google Cloud Pub/Sub project ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatePubSubBadTopic": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568649522",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "goog-prefixed-topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubTopic"],
+                  "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createEventBridgeMalformedArn": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is not a valid AWS ARN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createEventBridgeWrongApiClient": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-movn2mij",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateEventBridgeMalformedArn": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568715058",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is not a valid AWS ARN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateEventBridgeWrongApiClient": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568715058",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-movn2mij",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "pubSubLifecycle": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "topic-movn2mij",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929568649522",
+                "topic": "SHOP_UPDATE",
+                "uri": "pubsub://valid-project:topic-movn2mij",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-05-07T15:26:32Z",
+                "updatedAt": "2026-05-07T15:26:32Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "valid-project",
+                  "pubSubTopic": "topic-movn2mij"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568649522"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929568649522",
+              "topic": "SHOP_UPDATE",
+              "uri": "pubsub://valid-project:topic-movn2mij",
+              "format": "JSON",
+              "includeFields": [],
+              "metafieldNamespaces": [],
+              "filter": null,
+              "createdAt": "2026-05-07T15:26:32Z",
+              "updatedAt": "2026-05-07T15:26:32Z",
+              "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "valid-project",
+                "pubSubTopic": "topic-movn2mij"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568649522",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "topic-movn2mij-updated",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929568649522",
+                "topic": "SHOP_UPDATE",
+                "uri": "pubsub://valid-project:topic-movn2mij-updated",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-05-07T15:26:32Z",
+                "updatedAt": "2026-05-07T15:26:32Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "valid-project",
+                  "pubSubTopic": "topic-movn2mij-updated"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568649522"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929568649522",
+              "topic": "SHOP_UPDATE",
+              "uri": "pubsub://valid-project:topic-movn2mij-updated",
+              "format": "JSON",
+              "includeFields": [],
+              "metafieldNamespaces": [],
+              "filter": null,
+              "createdAt": "2026-05-07T15:26:32Z",
+              "updatedAt": "2026-05-07T15:26:32Z",
+              "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "valid-project",
+                "pubSubTopic": "topic-movn2mij-updated"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568649522"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929568649522",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "eventBridgeLifecycle": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-movn2mij",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929568715058",
+                "topic": "SHOP_UPDATE",
+                "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-movn2mij",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-05-07T15:26:32Z",
+                "updatedAt": "2026-05-07T15:26:32Z",
+                "endpoint": {
+                  "__typename": "WebhookEventBridgeEndpoint",
+                  "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-movn2mij"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568715058"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929568715058",
+              "topic": "SHOP_UPDATE",
+              "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-movn2mij",
+              "format": "JSON",
+              "includeFields": [],
+              "metafieldNamespaces": [],
+              "filter": null,
+              "createdAt": "2026-05-07T15:26:32Z",
+              "updatedAt": "2026-05-07T15:26:32Z",
+              "endpoint": {
+                "__typename": "WebhookEventBridgeEndpoint",
+                "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-movn2mij"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568715058",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-movn2mij-updated",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1929568715058",
+                "topic": "SHOP_UPDATE",
+                "uri": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-movn2mij-updated",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-05-07T15:26:32Z",
+                "updatedAt": "2026-05-07T15:26:33Z",
+                "endpoint": {
+                  "__typename": "WebhookEventBridgeEndpoint",
+                  "arn": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-movn2mij-updated"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568715058"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1929568715058",
+              "topic": "SHOP_UPDATE",
+              "uri": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-movn2mij-updated",
+              "format": "JSON",
+              "includeFields": [],
+              "metafieldNamespaces": [],
+              "filter": null,
+              "createdAt": "2026-05-07T15:26:32Z",
+              "updatedAt": "2026-05-07T15:26:33Z",
+              "endpoint": {
+                "__typename": "WebhookEventBridgeEndpoint",
+                "arn": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-movn2mij-updated"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1929568715058"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1929568715058",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

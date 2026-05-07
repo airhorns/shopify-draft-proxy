@@ -1,0 +1,60 @@
+{
+  "scenarioId": "fulfillment-order-hold-multi-line",
+  "operationNames": ["fulfillmentOrderHold"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "quantity-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-hold-multi-line.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-multi-line.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.workflow.hold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 fulfillmentOrderHold with two fulfillmentOrderLineItems entries. The first submitted line is fully held and the second is partially held, proving the held order and remainingFulfillmentOrder are derived from all submitted line-item inputs.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "hold-multi-line-success",
+        "capturePath": "$.workflow.hold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment holds; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment holds; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy keeps source line-item identities for local split projections; Shopify returns store-assigned fulfillment-order line-item IDs for the remaining order."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      }
+    ]
+  }
+}

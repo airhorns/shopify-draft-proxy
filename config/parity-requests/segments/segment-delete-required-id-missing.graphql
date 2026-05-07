@@ -1,0 +1,9 @@
+mutation SegmentDeleteMissingId {
+  segmentDelete {
+    deletedSegmentId
+    userErrors {
+      field
+      message
+    }
+  }
+}

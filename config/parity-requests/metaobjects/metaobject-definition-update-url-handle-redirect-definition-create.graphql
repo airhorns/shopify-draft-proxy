@@ -1,0 +1,31 @@
+mutation MetaobjectDefinitionUpdateUrlHandleRedirectDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      displayNameKey
+      capabilities {
+        publishable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+          data {
+            urlHandle
+            canCreateRedirects
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

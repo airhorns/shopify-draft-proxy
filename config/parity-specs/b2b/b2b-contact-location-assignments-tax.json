@@ -669,6 +669,71 @@
         ]
       },
       {
+        "name": "company-contact-node-read-after-update",
+        "capturePath": "$.readAfterAssignments.response.data.companyContact",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "contact-update-payload",
+              "path": "$.data.companyContactUpdate.companyContact.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.id", "$.title"],
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy reads the locally staged updated contact through generic Node dispatch."
+          }
+        ]
+      },
+      {
+        "name": "company-location-node-read-after-update",
+        "capturePath": "$.readAfterAssignments.response.data.singleAssignmentLocation",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "location-update-payload",
+              "path": "$.data.companyLocationUpdate.companyLocation.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.id", "$.name"],
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy reads the locally staged updated location through generic Node dispatch."
+          }
+        ]
+      },
+      {
+        "name": "company-contact-role-node-read-after-assignment",
+        "capturePath": "$.readAfterAssignments.response.data.singleAssignmentLocation.roleAssignments.nodes[0].role",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "assign-single-role-payload",
+              "path": "$.data.companyContactAssignRole.companyContactRoleAssignment.role.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The proxy reads the locally staged role through generic Node dispatch."
+          }
+        ]
+      },
+      {
         "name": "contact-partial-location-create-payload",
         "capturePath": "$.contactPartialLocationCreate.response.data.companyLocationCreate",
         "proxyPath": "$.data.companyLocationCreate",

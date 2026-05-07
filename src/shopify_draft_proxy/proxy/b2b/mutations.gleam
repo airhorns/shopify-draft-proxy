@@ -426,6 +426,14 @@ pub fn ensure_contact_locale(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
+  ensure_locale(store, input)
+}
+
+@internal
+pub fn ensure_locale(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
   case dict.has_key(input, "locale") {
     True -> input
     False ->
@@ -456,6 +464,15 @@ pub fn normalize_contact_phone_input(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  normalize_phone_input(store, input, ["input"])
+}
+
+@internal
+pub fn normalize_phone_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
   case dict.get(input, "phone") {
     Ok(root_field.StringVal(value)) ->
       case normalize_phone(store, value) {
@@ -465,7 +482,7 @@ pub fn normalize_contact_phone_input(
         )
         Error(_) -> #(input, [
           user_error(
-            Some(["input", "phone"]),
+            Some(field_path(prefix, "phone")),
             "Phone is invalid",
             user_error_code.invalid,
           ),
@@ -479,13 +496,21 @@ pub fn normalize_contact_phone_input(
 pub fn validate_contact_locale_input(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(b2b_types.UserError) {
+  validate_locale_input(input, ["input"])
+}
+
+@internal
+pub fn validate_locale_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(b2b_types.UserError) {
   case dict.get(input, "locale") {
     Ok(root_field.StringVal(value)) ->
       case valid_locale_format(value) {
         True -> []
         False -> [
           detailed_user_error(
-            Some(["input", "locale"]),
+            Some(field_path(prefix, "locale")),
             "Invalid locale format.",
             user_error_code.invalid,
             b2b_types.invalid_locale_format_detail,
@@ -494,6 +519,21 @@ pub fn validate_contact_locale_input(
       }
     _ -> []
   }
+}
+
+@internal
+pub fn prepare_location_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  default_locale: Bool,
+  prefix: List(String),
+) -> #(Dict(String, root_field.ResolvedValue), List(b2b_types.UserError)) {
+  let input = case default_locale {
+    True -> ensure_locale(store, input)
+    False -> input
+  }
+  let #(input, phone_errors) = normalize_phone_input(store, input, prefix)
+  #(input, phone_errors)
 }
 
 @internal
@@ -1103,11 +1143,17 @@ pub fn handle_company_create(
   let input = read_object(args, "input")
   let #(company_input, company_errors) =
     validate_company_input(read_object(input, "company"), ["input", "company"])
-  let #(location_input, location_errors) =
-    validate_location_create_input(read_object(input, "companyLocation"), [
+  let raw_location_input = read_object(input, "companyLocation")
+  let #(location_input, location_prepare_errors) =
+    prepare_location_input(store, raw_location_input, True, [
       "input",
       "companyLocation",
     ])
+  let #(location_input, location_errors) =
+    validate_location_create_input(location_input, ["input", "companyLocation"])
+  let location_errors =
+    location_prepare_errors
+    |> list.append(location_errors)
   let location_errors =
     location_errors
     |> list.append(validate_buyer_experience_configuration_input(
@@ -1230,7 +1276,12 @@ pub fn handle_company_create(
         _, _ -> #(store, identity, [])
       }
       let payload =
-        b2b_types.Payload(..empty_payload([]), company: Some(company))
+        b2b_types.Payload(
+          ..empty_payload([]),
+          company: Some(company),
+          company_contact: contact,
+          company_location: Some(location),
+        )
       b2b_types.RootResult(
         payload,
         store,
@@ -2358,8 +2409,13 @@ pub fn handle_location_create(
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
           let raw_input = read_object(args, "input")
+          let #(input, prepare_errors) =
+            prepare_location_input(store, raw_input, True, ["input"])
           let #(input, validation_errors) =
-            validate_location_create_input(raw_input, ["input"])
+            validate_location_create_input(input, ["input"])
+          let validation_errors =
+            prepare_errors
+            |> list.append(validation_errors)
           let validation_errors =
             validation_errors
             |> list.append(validate_buyer_experience_configuration_input(
@@ -2442,8 +2498,13 @@ pub fn handle_location_update(
                 [],
               )
             _, True -> {
+              let #(input, prepare_errors) =
+                prepare_location_input(store, raw_input, False, ["input"])
               let #(input, validation_errors) =
-                validate_location_input(raw_input, ["input"])
+                validate_location_input(input, ["input"])
+              let validation_errors =
+                prepare_errors
+                |> list.append(validation_errors)
               let validation_errors =
                 validation_errors
                 |> list.append(validate_buyer_experience_configuration_input(

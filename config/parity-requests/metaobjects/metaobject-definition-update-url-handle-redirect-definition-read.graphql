@@ -1,0 +1,15 @@
+query MetaobjectDefinitionUpdateUrlHandleRedirectDefinitionRead($id: ID!) {
+  metaobjectDefinition(id: $id) {
+    id
+    type
+    capabilities {
+      onlineStore {
+        enabled
+        data {
+          urlHandle
+          canCreateRedirects
+        }
+      }
+    }
+  }
+}

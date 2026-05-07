@@ -1,0 +1,69 @@
+{
+  "scenarioId": "orderUpdate-localization-and-staff",
+  "operationNames": ["orderUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "user-errors-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-localization-and-staff.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderUpdate-localization-and-staff.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin API 2026-04 orderUpdate localization read-after-write behavior for localizedFields and deprecated localizationExtensions on a disposable order, plus executable local-runtime coverage for the staffMemberId branch. The configured public 2026-04 conformance schema rejects OrderInput.staffMemberId as an undefined field before resolver execution, so the fixture records that schema blocker separately and the staffMemberId NOT_FOUND/code contract is enforced by focused runtime tests and a local-runtime parity target rather than live public-schema replay.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "localization-mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "localization-extension-mutation-data",
+        "capturePath": "$.localizationExtensionMutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-localization-and-staff.graphql",
+          "variablesCapturePath": "$.localizationExtensionMutation.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "localization-downstream-read",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-localization-and-staff-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "unknown-staff-member-id-local-runtime",
+        "capturePath": "$.localRuntimeStaffUnknown.expected.data.orderUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+              },
+              "staffMemberId": "gid://shopify/StaffMember/999999999999"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderUpdate.userErrors"
+      }
+    ]
+  }
+}

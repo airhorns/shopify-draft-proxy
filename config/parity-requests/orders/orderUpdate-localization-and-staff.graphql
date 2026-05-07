@@ -1,0 +1,23 @@
+mutation OrderUpdateLocalizationAndStaff($input: OrderInput!) {
+  orderUpdate(input: $input) {
+    order {
+      id
+      localizedFields(first: 5) {
+        nodes {
+          key
+          value
+        }
+      }
+      localizationExtensions(first: 5) {
+        nodes {
+          key
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

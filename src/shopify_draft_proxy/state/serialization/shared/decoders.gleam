@@ -1327,6 +1327,11 @@ pub fn metaobject_definition_decoder() -> Decoder(
   use description <- optional_string_field("description")
   use display_name_key <- optional_string_field("displayNameKey")
   use online_store_url_handle <- optional_string_field("onlineStoreUrlHandle")
+  use online_store_create_redirects <- optional_field(
+    "onlineStoreCreateRedirects",
+    None,
+    decode.optional(decode.bool),
+  )
   use access <- optional_field(
     "access",
     dict.new(),
@@ -1386,6 +1391,7 @@ pub fn metaobject_definition_decoder() -> Decoder(
     description: description,
     display_name_key: display_name_key,
     online_store_url_handle: online_store_url_handle,
+    online_store_create_redirects: online_store_create_redirects,
     access: access,
     capabilities: capabilities,
     field_definitions: field_definitions,

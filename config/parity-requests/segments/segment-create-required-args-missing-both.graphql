@@ -1,0 +1,11 @@
+mutation SegmentCreateMissingNameAndQuery {
+  segmentCreate {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

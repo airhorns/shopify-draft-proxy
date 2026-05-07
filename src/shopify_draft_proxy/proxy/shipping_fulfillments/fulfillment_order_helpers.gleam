@@ -1148,7 +1148,7 @@ pub fn fulfillment_order_line_items_after_split(
 ) -> CapturedJsonValue {
   let nodes =
     captured_array_field(data, "lineItems", "nodes")
-    |> list.map(fn(node) {
+    |> list.filter_map(fn(node) {
       let existing_quantity =
         captured_int_field(node, "totalQuantity", "") |> option.unwrap(0)
       let requested_quantity =
@@ -1157,10 +1157,54 @@ pub fn fulfillment_order_line_items_after_split(
           requested,
         )
       let next_quantity = max_int(existing_quantity - requested_quantity, 0)
-      captured_upsert_fields(node, [
-        #("totalQuantity", CapturedInt(next_quantity)),
-        #("remainingQuantity", CapturedInt(next_quantity)),
-      ])
+      case next_quantity > 0 {
+        True ->
+          Ok(
+            captured_upsert_fields(node, [
+              #("totalQuantity", CapturedInt(next_quantity)),
+              #("remainingQuantity", CapturedInt(next_quantity)),
+            ]),
+          )
+        False -> Error(Nil)
+      }
+    })
+  captured_connection(nodes)
+}
+
+@internal
+pub fn fulfillment_order_line_items_after_split_with_line_item_fulfillable(
+  data: CapturedJsonValue,
+  requested: List(#(String, Int)),
+) -> CapturedJsonValue {
+  let nodes =
+    captured_array_field(data, "lineItems", "nodes")
+    |> list.filter_map(fn(node) {
+      let existing_quantity =
+        captured_int_field(node, "totalQuantity", "") |> option.unwrap(0)
+      let requested_quantity =
+        fulfillment_order_requested_line_item_quantity(
+          captured_string_field(node, "id"),
+          requested,
+        )
+      let next_quantity = max_int(existing_quantity - requested_quantity, 0)
+      let line_item = case captured_field(node, "lineItem") {
+        Some(value) ->
+          captured_upsert_fields(value, [
+            #("fulfillableQuantity", CapturedInt(next_quantity)),
+          ])
+        None -> CapturedNull
+      }
+      case next_quantity > 0 {
+        True ->
+          Ok(
+            captured_upsert_fields(node, [
+              #("totalQuantity", CapturedInt(next_quantity)),
+              #("remainingQuantity", CapturedInt(next_quantity)),
+              #("lineItem", line_item),
+            ]),
+          )
+        False -> Error(Nil)
+      }
     })
   captured_connection(nodes)
 }
@@ -1186,6 +1230,45 @@ pub fn fulfillment_order_line_items_for_split(
               #("remainingQuantity", CapturedInt(requested_quantity)),
             ]),
           )
+        False -> Error(Nil)
+      }
+    })
+  captured_connection(nodes)
+}
+
+@internal
+pub fn fulfillment_order_line_items_for_split_with_line_item_fulfillable(
+  data: CapturedJsonValue,
+  requested: List(#(String, Int)),
+) -> CapturedJsonValue {
+  let nodes =
+    captured_array_field(data, "lineItems", "nodes")
+    |> list.filter_map(fn(node) {
+      let existing_quantity =
+        captured_int_field(node, "totalQuantity", "") |> option.unwrap(0)
+      let requested_quantity =
+        fulfillment_order_requested_line_item_quantity(
+          captured_string_field(node, "id"),
+          requested,
+        )
+      case requested_quantity > 0 {
+        True -> {
+          let next_quantity = max_int(existing_quantity - requested_quantity, 0)
+          let line_item = case captured_field(node, "lineItem") {
+            Some(value) ->
+              captured_upsert_fields(value, [
+                #("fulfillableQuantity", CapturedInt(next_quantity)),
+              ])
+            None -> CapturedNull
+          }
+          Ok(
+            captured_upsert_fields(node, [
+              #("totalQuantity", CapturedInt(requested_quantity)),
+              #("remainingQuantity", CapturedInt(requested_quantity)),
+              #("lineItem", line_item),
+            ]),
+          )
+        }
         False -> Error(Nil)
       }
     })

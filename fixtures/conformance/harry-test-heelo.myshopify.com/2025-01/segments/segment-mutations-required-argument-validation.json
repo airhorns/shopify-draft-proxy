@@ -1,0 +1,289 @@
+{
+  "capturedAt": "2026-05-07T15:53:27.861Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateMissingNameAndQuery",
+      "documentPath": "config/parity-requests/segments/segment-create-required-args-missing-both.graphql",
+      "request": {
+        "query": "mutation SegmentCreateMissingNameAndQuery {\n  segmentCreate {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'segmentCreate' is missing required arguments: name, query",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentCreateMissingNameAndQuery", "segmentCreate"],
+              "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "segmentCreate",
+                "arguments": "name, query"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentCreateMissingName",
+      "documentPath": "config/parity-requests/segments/segment-create-required-args-missing-name.graphql",
+      "request": {
+        "query": "mutation SegmentCreateMissingName {\n  segmentCreate(query: \"number_of_orders >= 1\") {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'segmentCreate' is missing required arguments: name",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentCreateMissingName", "segmentCreate"],
+              "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "segmentCreate",
+                "arguments": "name"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentCreateNullName",
+      "documentPath": "config/parity-requests/segments/segment-create-required-args-null-name.graphql",
+      "request": {
+        "query": "mutation SegmentCreateNullName {\n  segmentCreate(name: null, query: \"number_of_orders >= 1\") {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'name' on Field 'segmentCreate' has an invalid value (null). Expected type 'String!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentCreateNullName", "segmentCreate", "name"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "name"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentCreateMissingQuery",
+      "documentPath": "config/parity-requests/segments/segment-create-required-args-missing-query.graphql",
+      "request": {
+        "query": "mutation SegmentCreateMissingQuery {\n  segmentCreate(name: \"Required Arg Probe\") {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'segmentCreate' is missing required arguments: query",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentCreateMissingQuery", "segmentCreate"],
+              "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "segmentCreate",
+                "arguments": "query"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentCreateNullQuery",
+      "documentPath": "config/parity-requests/segments/segment-create-required-args-null-query.graphql",
+      "request": {
+        "query": "mutation SegmentCreateNullQuery {\n  segmentCreate(name: \"Required Arg Probe\", query: null) {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'query' on Field 'segmentCreate' has an invalid value (null). Expected type 'String!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentCreateNullQuery", "segmentCreate", "query"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "query"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateMissingId",
+      "documentPath": "config/parity-requests/segments/segment-update-required-id-missing.graphql",
+      "request": {
+        "query": "mutation SegmentUpdateMissingId {\n  segmentUpdate(name: \"Required Arg Probe\") {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'segmentUpdate' is missing required arguments: id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentUpdateMissingId", "segmentUpdate"],
+              "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "segmentUpdate",
+                "arguments": "id"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentUpdateNullId",
+      "documentPath": "config/parity-requests/segments/segment-update-required-id-null.graphql",
+      "request": {
+        "query": "mutation SegmentUpdateNullId {\n  segmentUpdate(id: null, name: \"Required Arg Probe\") {\n    segment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'id' on Field 'segmentUpdate' has an invalid value (null). Expected type 'ID!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentUpdateNullId", "segmentUpdate", "id"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "id"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteMissingId",
+      "documentPath": "config/parity-requests/segments/segment-delete-required-id-missing.graphql",
+      "request": {
+        "query": "mutation SegmentDeleteMissingId {\n  segmentDelete {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Field 'segmentDelete' is missing required arguments: id",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentDeleteMissingId", "segmentDelete"],
+              "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "segmentDelete",
+                "arguments": "id"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteNullId",
+      "documentPath": "config/parity-requests/segments/segment-delete-required-id-null.graphql",
+      "request": {
+        "query": "mutation SegmentDeleteNullId {\n  segmentDelete(id: null) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'id' on Field 'segmentDelete' has an invalid value (null). Expected type 'ID!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation SegmentDeleteNullId", "segmentDelete", "id"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "Field",
+                "argumentName": "id"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Required top-level segment mutation arguments are rejected by GraphQL coercion before resolver execution.",
+    "Omitted required arguments return missingRequiredArguments errors with no data payload.",
+    "Literal null required arguments return argumentLiteralsIncompatible errors with no data payload.",
+    "Validation-only capture; no live segment setup or cleanup is expected."
+  ],
+  "upstreamCalls": []
+}

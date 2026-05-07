@@ -1,0 +1,133 @@
+{
+  "scenarioId": "fulfillment-service-permits-sku-sharing-validation",
+  "operationNames": ["fulfillmentService", "fulfillmentServiceCreate", "fulfillmentServiceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-permits-sku-sharing-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-permits-sku-sharing-validation.graphql",
+    "variablesCapturePath": "$.removedArgumentValidation.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "permits-sku-sharing-removed-argument",
+        "capturePath": "$.removedArgumentValidation.response.payload",
+        "proxyPath": "$"
+      },
+      {
+        "name": "inventory-management-create-payload",
+        "capturePath": "$.createSuccess.response.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-create.graphql",
+          "variablesCapturePath": "$.createSuccess.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "inventory-management-read-after-create",
+        "capturePath": "$.readAfterCreate.response.payload.data.fulfillmentService",
+        "proxyPath": "$.data.fulfillmentService",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "inventory-management-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service ID."
+          },
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service location ID."
+          }
+        ]
+      },
+      {
+        "name": "inventory-management-update-payload",
+        "capturePath": "$.updateSuccess.response.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "inventory-management-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "name": {
+              "fromCapturePath": "$.updateSuccess.variables.name"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The update runs against the proxy-created synthetic fulfillment-service ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The update preserves the proxy-created synthetic location ID."
+          }
+        ]
+      },
+      {
+        "name": "inventory-management-read-after-update",
+        "capturePath": "$.readAfterUpdate.response.payload.data.fulfillmentService",
+        "proxyPath": "$.data.fulfillmentService",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-inventory-management-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "inventory-management-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service ID."
+          },
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy reads back its stable synthetic fulfillment-service location ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 public evidence shows fulfillmentServiceCreate/Update do not expose permitsSkuSharing, inventorySyncEnabled, or fulfillmentOrdersOptIn arguments for this app; permitsSkuSharing: false is rejected as a top-level argumentNotAccepted GraphQL error before resolver execution. The same public schema exposes FulfillmentService.inventoryManagement, and this scenario captures create/update read-after-write parity for that field. FulfillmentService permitsSkuSharing, inventorySyncEnabled, and fulfillmentOrdersOptIn are not selectable fields in the captured public schema, so downstream field projection scope is narrowed to inventoryManagement."
+}

@@ -22,7 +22,6 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/carrier_services.{
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers.{
   captured_action_list, close_merge_siblings, close_sibling_fulfillment_orders,
-  first_fulfillment_order_line_item_quantity,
   first_fulfillment_order_line_item_total, fulfillment_hold_value,
   fulfillment_order_cancel_user_error_payload,
   fulfillment_order_has_manually_reported_progress,
@@ -31,22 +30,24 @@ import shopify_draft_proxy/proxy/shipping_fulfillments/fulfillment_order_helpers
   fulfillment_order_hold_user_error_source,
   fulfillment_order_hold_validation_errors, fulfillment_order_holds,
   fulfillment_order_line_items_after_split,
-  fulfillment_order_line_items_for_split, fulfillment_order_line_items_total,
+  fulfillment_order_line_items_after_split_with_line_item_fulfillable,
+  fulfillment_order_line_items_for_split,
+  fulfillment_order_line_items_for_split_with_line_item_fulfillable,
+  fulfillment_order_line_items_total,
   fulfillment_order_line_items_with_line_item_fulfillable,
-  fulfillment_order_line_items_with_quantity,
-  fulfillment_order_line_items_with_quantity_and_fulfillable,
-  fulfillment_order_merge_ids, fulfillment_order_missing_mutation_result,
+  fulfillment_order_line_items_with_quantity, fulfillment_order_merge_ids,
+  fulfillment_order_missing_mutation_result,
   fulfillment_order_release_hold_validation_errors,
   fulfillment_order_release_remaining_holds,
   fulfillment_order_single_payload_result,
-  fulfillment_order_split_supported_actions, max_int,
+  fulfillment_order_split_supported_actions,
   normalize_shopify_timestamp_to_seconds, sibling_fulfillment_order_quantity,
   synthetic_timestamp_string, update_shipping_order_display_status,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/input_helpers.{
   captured_array_field, captured_connection, captured_field, captured_int_field,
-  captured_string_field, option_to_captured_string, read_bool, read_object,
-  read_object_array, read_string, read_string_array, resolved_args,
+  captured_string_field, option_to_captured_string, read_bool, read_int,
+  read_object, read_object_array, read_string, read_string_array, resolved_args,
   update_fulfillment_order_fields,
 }
 import shopify_draft_proxy/proxy/shipping_fulfillments/serializers.{
@@ -80,7 +81,8 @@ pub fn handle_fulfillment_order_hold(
     read_object(args, "fulfillmentHold") |> option.unwrap(dict.new())
   let line_item_inputs =
     read_object_array(hold_input, "fulfillmentOrderLineItems")
-  let quantity = first_fulfillment_order_line_item_quantity(line_item_inputs)
+  let requested_line_items =
+    read_fulfillment_order_line_item_inputs(line_item_inputs)
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
@@ -131,11 +133,16 @@ pub fn handle_fulfillment_order_hold(
                     |> option.unwrap(False),
                   requesting_api_client_id,
                 )
-              let remaining_quantity =
-                max_int(
-                  first_fulfillment_order_line_item_total(order.data) - quantity,
-                  0,
-                )
+              let remaining_quantity = case line_item_inputs {
+                [] -> 0
+                [_, ..] ->
+                  fulfillment_order_line_items_total(
+                    fulfillment_order_line_items_after_split(
+                      order.data,
+                      requested_line_items,
+                    ),
+                  )
+              }
               let existing_holds = fulfillment_order_holds(order.data)
               let fulfillment_holds = list.append(existing_holds, [hold])
               let held_line_items = case line_item_inputs {
@@ -151,10 +158,9 @@ pub fn handle_fulfillment_order_hold(
                       |> option.unwrap(CapturedArray([]))
                   }
                 [_, ..] ->
-                  fulfillment_order_line_items_with_quantity_and_fulfillable(
+                  fulfillment_order_line_items_for_split_with_line_item_fulfillable(
                     order.data,
-                    quantity,
-                    remaining_quantity,
+                    requested_line_items,
                   )
               }
               let held =
@@ -221,10 +227,9 @@ pub fn handle_fulfillment_order_hold(
                           #("fulfillmentHolds", CapturedArray([])),
                           #(
                             "lineItems",
-                            fulfillment_order_line_items_with_quantity(
+                            fulfillment_order_line_items_after_split_with_line_item_fulfillable(
                               order.data,
-                              remaining_quantity,
-                              True,
+                              requested_line_items,
                             ),
                           ),
                         ])
@@ -439,6 +444,28 @@ pub fn handle_fulfillment_order_release_hold(
   }
 }
 
+fn read_fulfillment_order_line_item_inputs(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(String, Int)) {
+  inputs
+  |> list.filter_map(fn(input) {
+    case read_string(input, "id"), read_int(input, "quantity") {
+      Some(id), Some(quantity) -> Ok(#(id, quantity))
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn fulfillment_order_move_supported_actions(
+  total_quantity: Int,
+) -> List(String) {
+  let actions = ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
+  case total_quantity > 1 {
+    True -> list.append(actions, ["SPLIT"])
+    False -> actions
+  }
+}
+
 @internal
 pub fn handle_fulfillment_order_move(
   draft_store: Store,
@@ -450,6 +477,8 @@ pub fn handle_fulfillment_order_move(
   let key = get_field_response_key(field)
   let args = resolved_args(field, variables)
   let line_item_inputs = read_object_array(args, "fulfillmentOrderLineItems")
+  let requested_line_items =
+    read_fulfillment_order_line_item_inputs(line_item_inputs)
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
@@ -471,35 +500,44 @@ pub fn handle_fulfillment_order_move(
                 )
               {
                 Some(destination) -> {
-                  let total_quantity =
-                    first_fulfillment_order_line_item_total(order.data)
-                  let quantity = case line_item_inputs {
-                    [] -> total_quantity
-                    _ ->
-                      first_fulfillment_order_line_item_quantity(
-                        line_item_inputs,
+                  let original_line_items = case line_item_inputs {
+                    [] ->
+                      fulfillment_order_line_items_with_quantity(
+                        order.data,
+                        0,
+                        False,
+                      )
+                    [_, ..] ->
+                      fulfillment_order_line_items_after_split(
+                        order.data,
+                        requested_line_items,
                       )
                   }
-                  let remaining_quantity = max_int(total_quantity - quantity, 0)
+                  let moved_line_items = case line_item_inputs {
+                    [] ->
+                      captured_field(order.data, "lineItems")
+                      |> option.unwrap(captured_connection([]))
+                    [_, ..] ->
+                      fulfillment_order_line_items_for_split(
+                        order.data,
+                        requested_line_items,
+                      )
+                  }
+                  let remaining_quantity =
+                    fulfillment_order_line_items_total(original_line_items)
+                  let moved_quantity =
+                    fulfillment_order_line_items_total(moved_line_items)
                   let original_updates = [
                     #("updatedAt", CapturedString(synthetic_timestamp_string())),
                     #(
                       "supportedActions",
-                      captured_action_list([
-                        "CREATE_FULFILLMENT",
-                        "REPORT_PROGRESS",
-                        "MOVE",
-                        "HOLD",
-                      ]),
-                    ),
-                    #(
-                      "lineItems",
-                      fulfillment_order_line_items_with_quantity(
-                        order.data,
-                        remaining_quantity,
-                        False,
+                      captured_action_list(
+                        fulfillment_order_move_supported_actions(
+                          remaining_quantity,
+                        ),
                       ),
                     ),
+                    #("lineItems", original_line_items),
                   ]
                   let original_updates = case remaining_quantity > 0 {
                     True -> original_updates
@@ -533,21 +571,13 @@ pub fn handle_fulfillment_order_move(
                       #("assignedLocation", destination.assigned_location),
                       #(
                         "supportedActions",
-                        captured_action_list([
-                          "CREATE_FULFILLMENT",
-                          "REPORT_PROGRESS",
-                          "MOVE",
-                          "HOLD",
-                        ]),
-                      ),
-                      #(
-                        "lineItems",
-                        fulfillment_order_line_items_with_quantity(
-                          order.data,
-                          quantity,
-                          False,
+                        captured_action_list(
+                          fulfillment_order_move_supported_actions(
+                            moved_quantity,
+                          ),
                         ),
                       ),
+                      #("lineItems", moved_line_items),
                     ])
                   let moved =
                     FulfillmentOrderRecord(

@@ -81,12 +81,8 @@
         "cartTransformCreate": {
           "cartTransform": {
             "id": "gid://shopify/CartTransform/3",
-            "title": "Owned cart function",
             "blockOnFailure": true,
-            "functionId": "gid://shopify/ShopifyFunction/cart-owned",
-            "functionHandle": "cart-owned",
-            "createdAt": "2024-01-01T00:00:02.000Z",
-            "updatedAt": "2024-01-01T00:00:02.000Z"
+            "functionId": "gid://shopify/ShopifyFunction/cart-owned"
           },
           "userErrors": []
         },

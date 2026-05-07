@@ -1,0 +1,11 @@
+mutation SegmentCreateMissingName {
+  segmentCreate(query: "number_of_orders >= 1") {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
