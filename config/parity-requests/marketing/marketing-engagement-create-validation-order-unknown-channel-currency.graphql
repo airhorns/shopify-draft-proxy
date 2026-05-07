@@ -1,0 +1,15 @@
+mutation MarketingEngagementCreateValidationOrderUnknownChannelCurrency(
+  $channelHandle: String!
+  $engagement: MarketingEngagementInput!
+) {
+  marketingEngagementCreate(channelHandle: $channelHandle, marketingEngagement: $engagement) {
+    marketingEngagement {
+      occurredOn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
