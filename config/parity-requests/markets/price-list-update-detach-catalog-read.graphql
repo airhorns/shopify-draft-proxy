@@ -1,0 +1,17 @@
+#graphql
+query PriceListUpdateDetachCatalogRead($catalogId: ID!, $priceListId: ID!) {
+  catalog(id: $catalogId) {
+    id
+    ... on MarketCatalog {
+      priceList {
+        id
+      }
+    }
+  }
+  priceList(id: $priceListId) {
+    id
+    catalog {
+      id
+    }
+  }
+}

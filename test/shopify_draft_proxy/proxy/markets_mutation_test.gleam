@@ -30,12 +30,16 @@ fn graphql(query: String) {
 }
 
 fn graphql_with_proxy(proxy: DraftProxy, query: String) {
+  graphql_body_with_proxy(proxy, "{\"query\":\"" <> escape(query) <> "\"}")
+}
+
+fn graphql_body_with_proxy(proxy: DraftProxy, body: String) {
   let request =
     Request(
       method: "POST",
       path: "/admin/api/2025-01/graphql.json",
       headers: dict.new(),
-      body: "{\"query\":\"" <> escape(query) <> "\"}",
+      body: body,
     )
   draft_proxy.process_request(proxy, request)
 }
@@ -160,6 +164,89 @@ pub fn price_list_update_revalidates_existing_parent_adjustment_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/400\"},\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
+}
+
+pub fn price_list_update_null_catalog_id_detaches_existing_catalog_test() {
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      catalog_price_list_proxy(),
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/300\", input: { catalogId: null }) { priceList { id catalog { id } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/200\") { id priceList { id } } priceList(id: \"gid://shopify/PriceList/300\") { id catalog { id } } }",
+    )
+  let #(Response(status: claim_status, body: claim_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Replacement Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/100\"] }, priceListId: \"gid://shopify/PriceList/300\" }) { catalog { id priceList { id } } userErrors { field message code } } }",
+    )
+
+  assert update_status == 200
+  assert read_status == 200
+  assert claim_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/300\",\"catalog\":null},\"userErrors\":[]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\",\"priceList\":null},\"priceList\":{\"id\":\"gid://shopify/PriceList/300\",\"catalog\":null}}}"
+  assert json.to_string(claim_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/2\",\"priceList\":{\"id\":\"gid://shopify/PriceList/300\"}},\"userErrors\":[]}}}"
+}
+
+pub fn price_list_update_null_catalog_id_detaches_locally_created_price_list_test() {
+  let #(Response(status: market_status, body: market_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListCreate(input: { name: \"EU Prices\", currency: DKK, catalogId: \"gid://shopify/MarketCatalog/3\", parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id catalog { id } } userErrors { field message code } } }",
+    )
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/5\", input: { catalogId: null }) { priceList { id catalog { id } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalog(id: \"gid://shopify/MarketCatalog/3\") { id priceList { id } } priceList(id: \"gid://shopify/PriceList/5\") { id catalog { id } } }",
+    )
+
+  assert market_status == 200
+  assert catalog_status == 200
+  assert create_status == 200
+  assert update_status == 200
+  assert read_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/3\"},\"userErrors\":[]}}}"
+  assert json.to_string(create_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/5\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/3\"}},\"userErrors\":[]}}}"
+  assert json.to_string(update_body)
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/5\",\"catalog\":null},\"userErrors\":[]}}}"
+  assert json.to_string(read_body)
+    == "{\"data\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/3\",\"priceList\":null},\"priceList\":{\"id\":\"gid://shopify/PriceList/5\",\"catalog\":null}}}"
+}
+
+pub fn price_list_update_empty_catalog_id_returns_captured_variable_error_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_body_with_proxy(
+      catalog_price_list_proxy(),
+      "{\"query\":\"mutation PriceListUpdateInputValidation($id: ID!, $input: PriceListUpdateInput!) { priceListUpdate(id: $id, input: $input) { priceList { id catalog { id } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/PriceList/300\",\"input\":{\"catalogId\":\"\"}}}",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Variable $input of type PriceListUpdateInput! was provided invalid value for catalogId (Invalid global id '')\",\"locations\":[{\"line\":1,\"column\":51}],\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":{\"catalogId\":\"\"},\"problems\":[{\"path\":[\"catalogId\"],\"explanation\":\"Invalid global id ''\",\"message\":\"Invalid global id ''\"}]}}]}"
 }
 
 pub fn quantity_rules_add_validates_numeric_inputs_test() {

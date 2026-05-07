@@ -419,6 +419,49 @@ pub fn upsert_staged_price_list(
   #(record, Store(..store, staged_state: new_staged))
 }
 
+pub fn sync_price_list_catalogs(
+  store: Store,
+  price_list: PriceListRecord,
+) -> Store {
+  let next_catalog_id = price_list_catalog_id(price_list)
+  store
+  |> list_effective_catalogs
+  |> list.fold(store, fn(acc, catalog) {
+    let currently_references_price_list =
+      catalog_price_list_id(catalog) == Some(price_list.id)
+    let should_reference_price_list = next_catalog_id == Some(catalog.id)
+    case currently_references_price_list, should_reference_price_list {
+      True, False -> {
+        let #(_, next_store) =
+          upsert_staged_catalog(
+            acc,
+            state_types.CatalogRecord(
+              ..catalog,
+              data: captured_object_upsert(catalog.data, [
+                #("priceList", CapturedNull),
+              ]),
+            ),
+          )
+        next_store
+      }
+      False, True -> {
+        let #(_, next_store) =
+          upsert_staged_catalog(
+            acc,
+            state_types.CatalogRecord(
+              ..catalog,
+              data: captured_object_upsert(catalog.data, [
+                #("priceList", price_list.data),
+              ]),
+            ),
+          )
+        next_store
+      }
+      _, _ -> acc
+    }
+  })
+}
+
 pub fn delete_staged_price_list(store: Store, id: String) -> Store {
   let staged = store.staged_state
   let new_staged =
