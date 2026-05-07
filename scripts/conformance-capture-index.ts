@@ -2329,6 +2329,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-display-name-conflict',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-display-name-conflict-conformance.ts',
+    purpose:
+      'metaobjectUpdate/metaobjectUpsert DISPLAY_NAME_CONFLICT when a display-name change collides with another same-type metaobject row used as a linked product option value.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-display-name-conflict.json`,
+      'config/parity-specs/metaobjects/metaobject-display-name-conflict.json',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-metafield-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-product-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-product-options-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-display-name-conflict-upsert.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition, two rows, one product metafield definition, and one product with linked option values; captures update/upsert conflict responses, then deletes the product, metafield definition, rows, and metaobject definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-update-redirect-new-handle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-update-redirect-new-handle-conformance.ts',

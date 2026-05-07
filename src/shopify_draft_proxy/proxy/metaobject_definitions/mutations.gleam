@@ -1467,7 +1467,7 @@ fn partition_upsert_user_errors(
       element_index,
     ) = error
     metaobject_definition_types.UserError(
-      partition_upsert_user_error_field(field),
+      partition_upsert_user_error_field(field, code),
       message,
       code,
       element_key,
@@ -1478,14 +1478,17 @@ fn partition_upsert_user_errors(
 
 fn partition_upsert_user_error_field(
   field: Option(List(String)),
+  code: String,
 ) -> Option(List(String)) {
-  case field {
-    Some(["metaobject", "handle", ..rest]) ->
+  case code, field {
+    "DISPLAY_NAME_CONFLICT", Some(["metaobject", "fields", _]) -> field
+    "DISPLAY_NAME_CONFLICT", Some(["metaobject", "handle"]) -> field
+    _, Some(["metaobject", "handle", ..rest]) ->
       Some(list.append(["handle", "handle"], rest))
-    Some(["metaobject", "fields", ..rest]) ->
+    _, Some(["metaobject", "fields", ..rest]) ->
       Some(list.append(["fields"], rest))
-    Some(["metaobject"]) -> Some([])
-    _ -> field
+    _, Some(["metaobject"]) -> Some([])
+    _, _ -> field
   }
 }
 

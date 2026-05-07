@@ -57,6 +57,8 @@ const execution_name = "stage-locally"
 
 const metaobject_handle_max_length = 255
 
+pub const display_name_conflict_message = "The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts."
+
 const definition_column_size_limit = 255
 
 // These mirror Shopify's default entitlement caps. The proxy cannot know shop-
@@ -2220,7 +2222,7 @@ fn metaobject_display_name_conflict_user_errors(
             True -> [
               UserError(
                 Some(field),
-                "Display name has already been taken",
+                display_name_conflict_message,
                 "DISPLAY_NAME_CONFLICT",
                 None,
                 None,
@@ -2251,12 +2253,13 @@ fn metaobject_display_name_change_field(
         ),
         input_field_index(input, display_key)
       {
-        True, Some(index) -> Some(["fields", int.to_string(index)])
+        True, Some(index) ->
+          Some(["metaobject", "fields", int.to_string(index)])
         _, _ -> None
       }
     None ->
       case existing.handle != handle {
-        True -> Some(["handle"])
+        True -> Some(["metaobject", "handle"])
         False -> None
       }
   }

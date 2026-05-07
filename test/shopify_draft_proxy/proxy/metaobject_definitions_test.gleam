@@ -2571,7 +2571,7 @@ pub fn metaobject_update_rejects_display_name_conflict_for_linked_product_option
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"fields\",\"0\"],\"message\":\"Display name has already been taken\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"fields\",\"0\"],\"message\":\"The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
   let assert Some(two) =
     store.get_effective_metaobject_by_id(
       after_update.store,
@@ -2601,7 +2601,7 @@ pub fn metaobject_upsert_rejects_display_name_conflict_for_linked_product_option
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"fields\",\"0\"],\"message\":\"Display name has already been taken\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"fields\",\"0\"],\"message\":\"The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
   let assert Some(two) =
     store.get_effective_metaobject_by_id(
       after_upsert.store,
@@ -2687,7 +2687,35 @@ pub fn metaobject_update_rejects_handle_derived_display_name_conflict_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Display name has already been taken\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"handle\"],\"message\":\"The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn metaobject_upsert_preserves_handle_derived_display_name_conflict_path_test() {
+  let linked =
+    linked_product_option_metaobject_proxy_with_display_name_key(
+      "codex_display_name_conflict_upsert_handle",
+      None,
+      [linked_metaobject_id("one")],
+    )
+  let update =
+    "mutation {
+      metaobjectUpsert(
+        handle: {
+          type: \"codex_display_name_conflict_upsert_handle\",
+          handle: \"two\"
+        },
+        metaobject: { handle: \"one-\" }
+      ) {
+        metaobject { id handle displayName }
+        userErrors { field message code elementKey elementIndex }
+      }
+    }"
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(linked, graphql_request(update))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"handle\"],\"message\":\"The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.\",\"code\":\"DISPLAY_NAME_CONFLICT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
 pub fn metaobject_create_continues_to_suffix_duplicate_handles_without_display_conflict_validation_test() {

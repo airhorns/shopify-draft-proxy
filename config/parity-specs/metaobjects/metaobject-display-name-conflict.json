@@ -1,0 +1,188 @@
+{
+  "scenarioId": "metaobject-display-name-conflict",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metafieldDefinitionCreate",
+    "productCreate",
+    "productOptionsCreate",
+    "metaobjectUpdate",
+    "metaobjectUpsert"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-field-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-display-name-conflict.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-definition-create.graphql",
+    "variablesCapturePath": "$.setup.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create-user-errors",
+        "capturePath": "$.setup.definitionCreate.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "one-entry-create",
+        "capturePath": "$.setup.entries[0].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-entry-create.graphql",
+          "variablesCapturePath": "$.setup.entries[0].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "two-entry-create",
+        "capturePath": "$.setup.entries[1].response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-entry-create.graphql",
+          "variablesCapturePath": "$.setup.entries[1].request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "metafield-definition-create",
+        "capturePath": "$.setup.metafieldDefinitionCreate.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-metafield-definition-create.graphql",
+          "variables": {
+            "definition": {
+              "ownerType": {
+                "fromCapturePath": "$.setup.metafieldDefinitionCreate.request.variables.definition.ownerType"
+              },
+              "namespace": {
+                "fromCapturePath": "$.setup.metafieldDefinitionCreate.request.variables.definition.namespace"
+              },
+              "key": {
+                "fromCapturePath": "$.setup.metafieldDefinitionCreate.request.variables.definition.key"
+              },
+              "name": {
+                "fromCapturePath": "$.setup.metafieldDefinitionCreate.request.variables.definition.name"
+              },
+              "type": {
+                "fromCapturePath": "$.setup.metafieldDefinitionCreate.request.variables.definition.type"
+              },
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": {
+                    "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product-create",
+        "capturePath": "$.setup.productCreate.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-product-create.graphql",
+          "variablesCapturePath": "$.setup.productCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product-options-create",
+        "capturePath": "$.setup.productOptionsCreate.response.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-product-options-create.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantStrategy": {
+              "fromCapturePath": "$.setup.productOptionsCreate.request.variables.variantStrategy"
+            },
+            "options": [
+              {
+                "name": {
+                  "fromCapturePath": "$.setup.productOptionsCreate.request.variables.options[0].name"
+                },
+                "linkedMetafield": {
+                  "namespace": {
+                    "fromCapturePath": "$.setup.productOptionsCreate.request.variables.options[0].linkedMetafield.namespace"
+                  },
+                  "key": {
+                    "fromCapturePath": "$.setup.productOptionsCreate.request.variables.options[0].linkedMetafield.key"
+                  },
+                  "values": [
+                    {
+                      "fromProxyResponse": "one-entry-create",
+                      "path": "$.data.metaobjectCreate.metaobject.id"
+                    },
+                    {
+                      "fromProxyResponse": "two-entry-create",
+                      "path": "$.data.metaobjectCreate.metaobject.id"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-display-name-conflict",
+        "capturePath": "$.cases.updateConflict.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "two-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.cases.updateConflict.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "upsert-display-name-conflict",
+        "capturePath": "$.cases.upsertConflict.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-display-name-conflict-upsert.graphql",
+          "variables": {
+            "handle": {
+              "fromCapturePath": "$.cases.upsertConflict.request.variables.handle"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.cases.upsertConflict.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for DISPLAY_NAME_CONFLICT on metaobjectUpdate and metaobjectUpsert when the changed displayNameKey field collides with another same-type row used as a product option value through productOptionsCreate.linkedMetafield. Setup is replayed through local supported mutations before the conflict assertions; no parity state is pre-seeded. A separate live probe showed the public 2026-04 API accepts the handle-derived one-a/one_a collision shape, so handle-derived placement remains runtime-test-backed rather than captured here."
+}
