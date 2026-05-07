@@ -1,0 +1,173 @@
+{
+  "scenarioId": "discount-title-validation",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountCodeBxgyCreate",
+    "discountCodeBxgyUpdate",
+    "discountCodeFreeShippingCreate",
+    "discountCodeFreeShippingUpdate",
+    "discountAutomaticBasicCreate",
+    "discountAutomaticBasicUpdate",
+    "discountAutomaticBxgyCreate",
+    "discountAutomaticBxgyUpdate",
+    "discountAutomaticFreeShippingCreate",
+    "discountAutomaticFreeShippingUpdate",
+    "discountCodeAppCreate",
+    "discountCodeAppUpdate",
+    "discountAutomaticAppCreate",
+    "discountAutomaticAppUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "title-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-title-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-title-validation-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-code-basic-userErrors",
+        "capturePath": "$.setup.response.data.codeBasic.userErrors",
+        "proxyPath": "$.data.codeBasic.userErrors"
+      },
+      {
+        "name": "setup-code-bxgy-userErrors",
+        "capturePath": "$.setup.response.data.codeBxgy.userErrors",
+        "proxyPath": "$.data.codeBxgy.userErrors"
+      },
+      {
+        "name": "setup-code-free-shipping-userErrors",
+        "capturePath": "$.setup.response.data.codeFreeShipping.userErrors",
+        "proxyPath": "$.data.codeFreeShipping.userErrors"
+      },
+      {
+        "name": "setup-automatic-basic-userErrors",
+        "capturePath": "$.setup.response.data.automaticBasic.userErrors",
+        "proxyPath": "$.data.automaticBasic.userErrors"
+      },
+      {
+        "name": "setup-automatic-bxgy-userErrors",
+        "capturePath": "$.setup.response.data.automaticBxgy.userErrors",
+        "proxyPath": "$.data.automaticBxgy.userErrors"
+      },
+      {
+        "name": "setup-automatic-free-shipping-userErrors",
+        "capturePath": "$.setup.response.data.automaticFreeShipping.userErrors",
+        "proxyPath": "$.data.automaticFreeShipping.userErrors"
+      },
+      {
+        "name": "setup-code-app-userErrors",
+        "capturePath": "$.setup.response.data.codeApp.userErrors",
+        "proxyPath": "$.data.codeApp.userErrors"
+      },
+      {
+        "name": "setup-automatic-app-userErrors",
+        "capturePath": "$.setup.response.data.automaticApp.userErrors",
+        "proxyPath": "$.data.automaticApp.userErrors"
+      },
+      {
+        "name": "create-title-validation-data",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-title-validation-create.graphql",
+          "variablesCapturePath": "$.create.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-title-validation-data",
+        "capturePath": "$.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-title-validation-update.graphql",
+          "variables": {
+            "codeBasicId": {
+              "fromPrimaryProxyPath": "$.data.codeBasic.codeDiscountNode.id"
+            },
+            "codeBxgyId": {
+              "fromPrimaryProxyPath": "$.data.codeBxgy.codeDiscountNode.id"
+            },
+            "codeFreeShippingId": {
+              "fromPrimaryProxyPath": "$.data.codeFreeShipping.codeDiscountNode.id"
+            },
+            "automaticBasicId": {
+              "fromPrimaryProxyPath": "$.data.automaticBasic.automaticDiscountNode.id"
+            },
+            "automaticBxgyId": {
+              "fromPrimaryProxyPath": "$.data.automaticBxgy.automaticDiscountNode.id"
+            },
+            "automaticFreeShippingId": {
+              "fromPrimaryProxyPath": "$.data.automaticFreeShipping.automaticDiscountNode.id"
+            },
+            "codeAppId": {
+              "fromPrimaryProxyPath": "$.data.codeApp.codeAppDiscount.discountId"
+            },
+            "automaticAppId": {
+              "fromPrimaryProxyPath": "$.data.automaticApp.automaticAppDiscount.discountId"
+            },
+            "codeBasicBlank": {
+              "fromCapturePath": "$.update.request.variables.codeBasicBlank"
+            },
+            "codeBasicTooLong": {
+              "fromCapturePath": "$.update.request.variables.codeBasicTooLong"
+            },
+            "codeBxgyBlank": {
+              "fromCapturePath": "$.update.request.variables.codeBxgyBlank"
+            },
+            "codeBxgyTooLong": {
+              "fromCapturePath": "$.update.request.variables.codeBxgyTooLong"
+            },
+            "codeFreeShippingBlank": {
+              "fromCapturePath": "$.update.request.variables.codeFreeShippingBlank"
+            },
+            "codeFreeShippingTooLong": {
+              "fromCapturePath": "$.update.request.variables.codeFreeShippingTooLong"
+            },
+            "automaticBasicBlank": {
+              "fromCapturePath": "$.update.request.variables.automaticBasicBlank"
+            },
+            "automaticBasicTooLong": {
+              "fromCapturePath": "$.update.request.variables.automaticBasicTooLong"
+            },
+            "automaticBxgyBlank": {
+              "fromCapturePath": "$.update.request.variables.automaticBxgyBlank"
+            },
+            "automaticBxgyTooLong": {
+              "fromCapturePath": "$.update.request.variables.automaticBxgyTooLong"
+            },
+            "automaticFreeShippingBlank": {
+              "fromCapturePath": "$.update.request.variables.automaticFreeShippingBlank"
+            },
+            "automaticFreeShippingTooLong": {
+              "fromCapturePath": "$.update.request.variables.automaticFreeShippingTooLong"
+            },
+            "codeAppBlank": {
+              "fromCapturePath": "$.update.request.variables.codeAppBlank"
+            },
+            "codeAppTooLong": {
+              "fromCapturePath": "$.update.request.variables.codeAppTooLong"
+            },
+            "automaticAppBlank": {
+              "fromCapturePath": "$.update.request.variables.automaticAppBlank"
+            },
+            "automaticAppTooLong": {
+              "fromCapturePath": "$.update.request.variables.automaticAppTooLong"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for discount title validation across code, automatic, and app-managed create/update roots. The scenario replays successful setup through the proxy, then compares captured blank-title and 256-character title userErrors for every supported title-bearing root."
+}

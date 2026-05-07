@@ -351,6 +351,92 @@ pub fn customer_gets_value_bounds_apply_to_update_and_automatic_basic_test() {
     == "{\"data\":{\"discountAutomaticBasicUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"customerGets\",\"value\",\"percentage\"],\"message\":\"Value must be between 0.0 and 1.0\",\"code\":\"VALUE_OUTSIDE_RANGE\",\"extraInfo\":null}]}}}"
 }
 
+pub fn native_discount_titles_reject_blank_and_too_long_values_test() {
+  let too_long = string.repeat("x", times: 256)
+  let code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"\", code: \"BLANKTITLE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_create =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_free_shipping_create =
+    run_mutation(
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let too_long_code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \""
+      <> too_long
+      <> "\", code: \"TOOLONGTITLE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_create.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_create.data)
+    == "{\"data\":{\"discountAutomaticBasicCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_free_shipping_create.data)
+    == "{\"data\":{\"discountAutomaticFreeShippingCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingAutomaticDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(too_long_code_create.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"extraInfo\":null}]}}}"
+}
+
+pub fn discount_update_titles_reject_blank_and_too_long_values_test() {
+  let too_long = string.repeat("x", times: 256)
+  let code_created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Valid\", code: \"TITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_blank =
+    run_mutation_from(
+      code_created.store,
+      code_created.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"\", code: \"TITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_created =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Valid auto\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_too_long =
+    run_mutation_from(
+      automatic_created.store,
+      automatic_created.identity,
+      "mutation { discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \""
+        <> too_long
+        <> "\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let app_created =
+    run_mutation_from(
+      discount_function_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", code: \"APPTITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let app_blank =
+    run_mutation_from(
+      app_created.store,
+      app_created.identity,
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"\", code: \"APPTITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+  let app_too_long =
+    run_mutation_from(
+      app_created.store,
+      app_created.identity,
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \""
+        <> too_long
+        <> "\", code: \"APPTITLEUP\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\", discountClasses: [ORDER] }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_blank.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_too_long.data)
+    == "{\"data\":{\"discountAutomaticBasicUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"extraInfo\":null}]}}}"
+  assert json.to_string(app_blank.data)
+    == "{\"data\":{\"discountCodeAppUpdate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"title\"],\"message\":\"can't be blank\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(app_too_long.data)
+    == "{\"data\":{\"discountCodeAppUpdate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"title\"],\"message\":\"is too long (maximum is 255 characters)\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
 pub fn discount_amount_non_numeric_variable_is_graphql_coercion_error_test() {
   let body =
     "{\"query\":\"mutation DiscountValueBoundsNonNumeric($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }\",\"variables\":{\"input\":{\"title\":\"Non numeric\",\"code\":\"NONNUMERIC\",\"startsAt\":\"2026-04-25T00:00:00Z\",\"customerGets\":{\"value\":{\"discountAmount\":{\"amount\":\"abc\",\"appliesOnEachItem\":false}},\"items\":{\"all\":true}}}}}"
