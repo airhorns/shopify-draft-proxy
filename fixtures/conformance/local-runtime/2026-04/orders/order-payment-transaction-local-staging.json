@@ -47,7 +47,7 @@
               "totalCapturable": "25.0",
               "totalOutstandingSet": {
                 "shopMoney": {
-                  "amount": "25.0",
+                  "amount": "0.0",
                   "currencyCode": "CAD"
                 }
               },
@@ -117,7 +117,7 @@
               },
               "totalOutstandingSet": {
                 "shopMoney": {
-                  "amount": "25.0",
+                  "amount": "0.0",
                   "currencyCode": "CAD"
                 }
               },

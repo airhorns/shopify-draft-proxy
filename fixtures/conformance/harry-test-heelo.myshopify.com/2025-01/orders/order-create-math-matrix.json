@@ -1,0 +1,1444 @@
+{
+  "scenarioId": "order-create-math-matrix",
+  "recordedAt": "2026-05-07T13:14:30.377Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "document": "mutation OrderCreateMathMatrix($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        displayFulfillmentStatus\n        paymentGatewayNames\n        subtotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentSubtotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalShippingPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalTaxSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalTaxSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalDiscountsSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalDiscountsSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalOutstandingSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalReceivedSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalCapturableSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        capturable\n        discountCodes\n        shippingLines(first: 5) {\n          nodes {\n            title\n            code\n            source\n            originalPriceSet {\n              shopMoney { amount currencyCode }\n              presentmentMoney { amount currencyCode }\n            }\n            taxLines {\n              title\n              rate\n              priceSet {\n                shopMoney { amount currencyCode }\n                presentmentMoney { amount currencyCode }\n              }\n            }\n          }\n        }\n        lineItems(first: 5) {\n          nodes {\n            title\n            quantity\n            sku\n            originalUnitPriceSet {\n              shopMoney { amount currencyCode }\n              presentmentMoney { amount currencyCode }\n            }\n            taxLines {\n              title\n              rate\n              priceSet {\n                shopMoney { amount currencyCode }\n                presentmentMoney { amount currencyCode }\n              }\n            }\n          }\n        }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "cases": {
+    "pendingNoTax": {
+      "label": "pendingNoTax",
+      "variables": {
+        "order": {
+          "email": "hermes-order-math-pending-no-tax-1778159666351@example.com",
+          "note": "orderCreate math matrix pending-no-tax",
+          "tags": ["order-create-math-matrix", "pending-no-tax"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Pending no tax",
+              "quantity": 2,
+              "sku": "MATH-PENDING",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "taxLines": []
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8734179754290",
+                "name": "#1334",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "paymentGatewayNames": [],
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalShippingPriceSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "20.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "capturable": false,
+                "discountCodes": [],
+                "shippingLines": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Pending no tax",
+                      "quantity": 2,
+                      "sku": "MATH-PENDING",
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": []
+                    }
+                  ]
+                },
+                "transactions": []
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "paidTaxShipping": {
+      "label": "paidTaxShipping",
+      "variables": {
+        "order": {
+          "email": "hermes-order-math-paid-tax-shipping-1778159666351@example.com",
+          "note": "orderCreate math matrix paid-tax-shipping",
+          "tags": ["order-create-math-matrix", "paid-tax-shipping"],
+          "test": true,
+          "currency": "CAD",
+          "financialStatus": "PAID",
+          "lineItems": [
+            {
+              "title": "Paid taxable line",
+              "quantity": 2,
+              "sku": "MATH-PAID-TAX",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true,
+              "taxLines": [
+                {
+                  "title": "Paid taxable line tax",
+                  "rate": 0.1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "2.40",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "2.40",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "shippingLines": [
+            {
+              "title": "Math Ground",
+              "code": "MATH_GROUND",
+              "source": "hermes-conformance",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "5.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "5.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "taxLines": [
+                {
+                  "title": "Math Ground tax",
+                  "rate": 0.1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "0.50",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "0.50",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "31.90",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "31.90",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8734179787058",
+                "name": "#1335",
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "paymentGatewayNames": ["manual"],
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "24.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "24.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "24.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "24.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalShippingPriceSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "2.9",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "2.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "2.9",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "2.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "capturable": false,
+                "discountCodes": [],
+                "shippingLines": {
+                  "nodes": [
+                    {
+                      "title": "Math Ground",
+                      "code": "MATH_GROUND",
+                      "source": "hermes-conformance",
+                      "originalPriceSet": {
+                        "shopMoney": {
+                          "amount": "5.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "5.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": [
+                        {
+                          "title": "Math Ground tax",
+                          "rate": 0.1,
+                          "priceSet": {
+                            "shopMoney": {
+                              "amount": "0.5",
+                              "currencyCode": "CAD"
+                            },
+                            "presentmentMoney": {
+                              "amount": "0.5",
+                              "currencyCode": "CAD"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Paid taxable line",
+                      "quantity": 2,
+                      "sku": "MATH-PAID-TAX",
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "12.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "12.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": [
+                        {
+                          "title": "Paid taxable line tax",
+                          "rate": 0.1,
+                          "priceSet": {
+                            "shopMoney": {
+                              "amount": "2.4",
+                              "currencyCode": "CAD"
+                            },
+                            "presentmentMoney": {
+                              "amount": "2.4",
+                              "currencyCode": "CAD"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10422782296370",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "31.9",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "31.9",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fixedDiscount": {
+      "label": "fixedDiscount",
+      "variables": {
+        "order": {
+          "email": "hermes-order-math-fixed-discount-1778159666351@example.com",
+          "note": "orderCreate math matrix fixed-discount",
+          "tags": ["order-create-math-matrix", "fixed-discount"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Fixed discount line",
+              "quantity": 1,
+              "sku": "MATH-DISCOUNT",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "30.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "30.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "taxLines": []
+            }
+          ],
+          "shippingLines": [
+            {
+              "title": "Discount Ground",
+              "code": "MATH_DISCOUNT_GROUND",
+              "source": "hermes-conformance",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "4.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "4.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "taxLines": []
+            }
+          ],
+          "discountCode": {
+            "itemFixedDiscountCode": {
+              "code": "MATH5",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "5.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "5.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          }
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8734179885362",
+                "name": "#1336",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "paymentGatewayNames": [],
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalShippingPriceSet": {
+                  "shopMoney": {
+                    "amount": "4.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "4.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "29.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "29.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "29.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "29.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "29.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "29.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "capturable": false,
+                "discountCodes": ["MATH5"],
+                "shippingLines": {
+                  "nodes": [
+                    {
+                      "title": "Discount Ground",
+                      "code": "MATH_DISCOUNT_GROUND",
+                      "source": "hermes-conformance",
+                      "originalPriceSet": {
+                        "shopMoney": {
+                          "amount": "4.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "4.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": []
+                    }
+                  ]
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Fixed discount line",
+                      "quantity": 1,
+                      "sku": "MATH-DISCOUNT",
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "30.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "30.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": []
+                    }
+                  ]
+                },
+                "transactions": []
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "authorization": {
+      "label": "authorization",
+      "variables": {
+        "order": {
+          "email": "hermes-order-math-authorization-1778159666351@example.com",
+          "note": "orderCreate math matrix authorization",
+          "tags": ["order-create-math-matrix", "authorization"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Authorization line",
+              "quantity": 1,
+              "sku": "MATH-AUTH",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "18.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "18.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "taxLines": []
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "18.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "18.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8734179950898",
+                "name": "#1337",
+                "displayFinancialStatus": "AUTHORIZED",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "paymentGatewayNames": ["manual"],
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalShippingPriceSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "capturable": true,
+                "discountCodes": [],
+                "shippingLines": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Authorization line",
+                      "quantity": 1,
+                      "sku": "MATH-AUTH",
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "18.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "18.0",
+                          "currencyCode": "CAD"
+                        }
+                      },
+                      "taxLines": []
+                    }
+                  ]
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10422782394674",
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "18.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "18.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "presentmentMoney": {
+      "label": "presentmentMoney",
+      "variables": {
+        "order": {
+          "email": "hermes-order-math-presentment-money-1778159666351@example.com",
+          "note": "orderCreate math matrix presentment-money",
+          "tags": ["order-create-math-matrix", "presentment-money"],
+          "test": true,
+          "currency": "CAD",
+          "presentmentCurrency": "USD",
+          "lineItems": [
+            {
+              "title": "Presentment line",
+              "quantity": 1,
+              "sku": "MATH-FX",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "7.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "taxLines": []
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "7.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8734180016434",
+                "name": "#1338",
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "paymentGatewayNames": ["manual"],
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "7.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentSubtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "7.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalShippingPriceSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalTaxSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalDiscountsSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "7.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "7.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "7.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "capturable": false,
+                "discountCodes": [],
+                "shippingLines": {
+                  "nodes": []
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "title": "Presentment line",
+                      "quantity": 1,
+                      "sku": "MATH-FX",
+                      "originalUnitPriceSet": {
+                        "shopMoney": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "presentmentMoney": {
+                          "amount": "7.0",
+                          "currencyCode": "USD"
+                        }
+                      },
+                      "taxLines": []
+                    }
+                  ]
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10422782427442",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "7.0",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/Order/8734179754290": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/0a3bce52-a6c4-4b9d-8880-76faf8d7f4a2",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8734179787058": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/0a3bce52-a6c4-4b9d-8880-76faf8d7f4a2",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8734179885362": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/0a3bce52-a6c4-4b9d-8880-76faf8d7f4a2",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8734179950898": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/0a3bce52-a6c4-4b9d-8880-76faf8d7f4a2",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8734180016434": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/0a3bce52-a6c4-4b9d-8880-76faf8d7f4a2",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
