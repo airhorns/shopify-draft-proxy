@@ -757,6 +757,18 @@ pub fn is_webhook_subscription_mutation_root_test() {
   assert webhooks.is_webhook_subscription_mutation_root(
     "webhookSubscriptionDelete",
   )
+  assert webhooks.is_webhook_subscription_mutation_root(
+    "pubSubWebhookSubscriptionCreate",
+  )
+  assert webhooks.is_webhook_subscription_mutation_root(
+    "pubSubWebhookSubscriptionUpdate",
+  )
+  assert webhooks.is_webhook_subscription_mutation_root(
+    "eventBridgeWebhookSubscriptionCreate",
+  )
+  assert webhooks.is_webhook_subscription_mutation_root(
+    "eventBridgeWebhookSubscriptionUpdate",
+  )
   assert !webhooks.is_webhook_subscription_mutation_root("webhookSubscription")
   assert !webhooks.is_webhook_subscription_mutation_root("savedSearchCreate")
 }
@@ -780,6 +792,16 @@ fn run_mutation_with_api_client_id(
   document: String,
   api_client_id: String,
 ) -> String {
+  let outcome =
+    run_mutation_outcome_with_headers(store_in, document, api_client_id)
+  json.to_string(outcome.data)
+}
+
+fn run_mutation_outcome_with_headers(
+  store_in: store.Store,
+  document: String,
+  api_client_id: String,
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let outcome =
     webhooks.process_mutation_with_headers(
@@ -790,7 +812,7 @@ fn run_mutation_with_api_client_id(
       dict.new(),
       dict.from_list([#("x-shopify-draft-proxy-api-client-id", api_client_id)]),
     )
-  json.to_string(outcome.data)
+  outcome
 }
 
 fn run_mutation_outcome(
@@ -841,6 +863,66 @@ pub fn webhook_subscription_create_stages_record_test() {
   // The store should now have one effective record
   let records = store.list_effective_webhook_subscriptions(outcome.store)
   assert list.length(records) == 1
+}
+
+pub fn pubsub_webhook_subscription_create_stages_record_test() {
+  let document =
+    "mutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id topic uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"pubSubWebhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"SHOP_UPDATE\",\"uri\":\"pubsub://valid-project:topic-1\",\"endpoint\":{\"__typename\":\"WebhookPubSubEndpoint\",\"pubSubProject\":\"valid-project\",\"pubSubTopic\":\"topic-1\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic"]
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\") { id uri endpoint { __typename ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic } } } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"uri\":\"pubsub://valid-project:topic-1\",\"endpoint\":{\"__typename\":\"WebhookPubSubEndpoint\",\"pubSubProject\":\"valid-project\",\"pubSubTopic\":\"topic-1\"}}}"
+}
+
+pub fn pubsub_webhook_subscription_update_uses_dedicated_field_paths_test() {
+  let document =
+    "mutation { pubSubWebhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"goog-prefixed\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body = run_mutation(seed_update_store(), document)
+  assert body
+    == "{\"data\":{\"pubSubWebhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"pubSubTopic\"],\"message\":\"Google Cloud Pub/Sub topic ID is not valid\"}]}}}"
+}
+
+pub fn eventbridge_webhook_subscription_create_and_update_stage_records_test() {
+  let create_document =
+    "mutation { eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { arn: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source\" }) { webhookSubscription { id topic uri endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } } userErrors { field message } } }"
+  let create_outcome =
+    run_mutation_outcome_with_headers(
+      store.new(),
+      create_document,
+      "347082227713",
+    )
+  assert json.to_string(create_outcome.data)
+    == "{\"data\":{\"eventBridgeWebhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"SHOP_UPDATE\",\"uri\":\"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source\",\"endpoint\":{\"__typename\":\"WebhookEventBridgeEndpoint\",\"arn\":\"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source\"}},\"userErrors\":[]}}}"
+
+  let update_document =
+    "mutation { eventBridgeWebhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\", webhookSubscription: { arn: \"arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-updated\" }) { webhookSubscription { id uri endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } } userErrors { field message } } }"
+  let update_outcome =
+    run_mutation_outcome_with_headers(
+      create_outcome.store,
+      update_document,
+      "347082227713",
+    )
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"eventBridgeWebhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"uri\":\"arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-updated\",\"endpoint\":{\"__typename\":\"WebhookEventBridgeEndpoint\",\"arn\":\"arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/source-updated\"}},\"userErrors\":[]}}}"
+}
+
+pub fn eventbridge_webhook_subscription_update_uses_arn_field_paths_test() {
+  let document =
+    "mutation { eventBridgeWebhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { arn: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body =
+    run_mutation_with_api_client_id(
+      seed_update_store(),
+      document,
+      "347082227713",
+    )
+  assert body
+    == "{\"data\":{\"eventBridgeWebhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"arn\"],\"message\":\"Address is invalid\"},{\"field\":[\"webhookSubscription\",\"arn\"],\"message\":\"Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'\"}]}}}"
 }
 
 pub fn webhook_subscription_create_omitted_filter_stores_null_test() {
