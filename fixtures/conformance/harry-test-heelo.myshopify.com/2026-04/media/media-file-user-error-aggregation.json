@@ -96,10 +96,7 @@
   "branches": {
     "fileDeleteMissing": {
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/900000000000001",
-          "gid://shopify/MediaImage/900000000000002"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/900000000000001", "gid://shopify/MediaImage/900000000000002"]
       },
       "response": {
         "data": {
@@ -107,9 +104,7 @@
             "deletedFileIds": null,
             "userErrors": [
               {
-                "field": [
-                  "fileIds"
-                ],
+                "field": ["fileIds"],
                 "message": "File ids gid://shopify/MediaImage/900000000000001,gid://shopify/MediaImage/900000000000002 do not exist.",
                 "code": "FILE_DOES_NOT_EXIST"
               }
@@ -148,9 +143,7 @@
             "files": [],
             "userErrors": [
               {
-                "field": [
-                  "files"
-                ],
+                "field": ["files"],
                 "message": "File ids [\"gid://shopify/MediaImage/900000000000003\", \"gid://shopify/MediaImage/900000000000004\"] do not exist.",
                 "code": "FILE_DOES_NOT_EXIST"
               }
@@ -172,10 +165,7 @@
     },
     "fileAcknowledgeMixed": {
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/900000000000005",
-          "gid://shopify/MediaImage/43679049023794"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/900000000000005", "gid://shopify/MediaImage/43679049023794"]
       },
       "response": {
         "data": {
@@ -183,9 +173,7 @@
             "files": null,
             "userErrors": [
               {
-                "field": [
-                  "fileIds"
-                ],
+                "field": ["fileIds"],
                 "message": "File id gid://shopify/MediaImage/900000000000005 does not exist.",
                 "code": "FILE_DOES_NOT_EXIST"
               }
@@ -207,10 +195,7 @@
     },
     "fileAcknowledgeNonReady": {
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/43679049023794",
-          "gid://shopify/MediaImage/43679049056562"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/43679049023794", "gid://shopify/MediaImage/43679049056562"]
       },
       "response": {
         "data": {
@@ -218,9 +203,7 @@
             "files": null,
             "userErrors": [
               {
-                "field": [
-                  "fileIds"
-                ],
+                "field": ["fileIds"],
                 "message": "Files with ids gid://shopify/MediaImage/43679049023794, gid://shopify/MediaImage/43679049056562 are not in the READY state.",
                 "code": "NON_READY_STATE"
               }
@@ -245,20 +228,14 @@
     {
       "operationName": "MediaFileReferencesHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/900000000000001",
-          "gid://shopify/MediaImage/900000000000002"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/900000000000001", "gid://shopify/MediaImage/900000000000002"]
       },
       "query": "sha:media-file-references-hydrate",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              null,
-              null
-            ]
+            "nodes": [null, null]
           }
         }
       }
@@ -266,20 +243,14 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": [
-          "gid://shopify/MediaImage/900000000000003",
-          "gid://shopify/MediaImage/900000000000004"
-        ]
+        "fileIds": ["gid://shopify/MediaImage/900000000000003", "gid://shopify/MediaImage/900000000000004"]
       },
       "query": "sha:media-file-update-hydrate",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              null,
-              null
-            ]
+            "nodes": [null, null]
           }
         }
       }
