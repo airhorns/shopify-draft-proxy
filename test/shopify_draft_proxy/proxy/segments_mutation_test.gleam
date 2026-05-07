@@ -53,17 +53,25 @@ fn run_mutation_with_variables(
   document: String,
   variables: dict.Dict(String, root_field.ResolvedValue),
 ) -> String {
+  json.to_string(
+    run_mutation_outcome_with_variables(store_in, document, variables).data,
+  )
+}
+
+fn run_mutation_outcome_with_variables(
+  store_in: store.Store,
+  document: String,
+  variables: dict.Dict(String, root_field.ResolvedValue),
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
-  let outcome =
-    segments.process_mutation(
-      store_in,
-      identity,
-      "/admin/api/2025-01/graphql.json",
-      document,
-      variables,
-      empty_upstream_context(),
-    )
-  json.to_string(outcome.data)
+  segments.process_mutation(
+    store_in,
+    identity,
+    "/admin/api/2025-01/graphql.json",
+    document,
+    variables,
+    empty_upstream_context(),
+  )
 }
 
 fn graphql_request(body: String) -> draft_proxy.Request {
@@ -81,6 +89,15 @@ fn run_proxy_mutation(
 ) -> #(Int, String, draft_proxy.DraftProxy) {
   let proxy = draft_proxy.new()
   let proxy = DraftProxy(..proxy, store: store_in)
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(document))
+  #(status, json.to_string(body), next_proxy)
+}
+
+fn run_proxy_graphql(
+  proxy: draft_proxy.DraftProxy,
+  document: String,
+) -> #(Int, String, draft_proxy.DraftProxy) {
   let #(Response(status: status, body: body, ..), next_proxy) =
     draft_proxy.process_request(proxy, graphql_request(document))
   #(status, json.to_string(body), next_proxy)
@@ -471,6 +488,63 @@ pub fn segment_create_overlong_name_emits_user_error_test() {
   assert store.list_effective_segments(outcome.store) == []
 }
 
+pub fn segment_create_accepts_name_when_stripped_length_is_within_limit_test() {
+  let padded_name =
+    string.repeat(" ", times: 250) <> "abc" <> string.repeat(" ", times: 10)
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { segmentCreate(name: \""
+        <> padded_name
+        <> "\", query: \"number_of_orders = 0\") { segment { id name query } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"name\":\"abc\",\"query\":\"number_of_orders = 0\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/Segment/1"]
+  let assert Some(record) =
+    store.get_effective_segment_by_id(outcome.store, "gid://shopify/Segment/1")
+  assert record.name == Some("abc")
+}
+
+pub fn segment_create_padded_name_reads_back_stripped_name_test() {
+  let padded_name =
+    string.repeat(" ", times: 250) <> "abc" <> string.repeat(" ", times: 10)
+  let create_document =
+    "mutation { segmentCreate(name: \""
+    <> padded_name
+    <> "\", query: \"number_of_orders = 0\") { segment { id name } userErrors { field message } } }"
+  let #(create_status, create_body, after_create) =
+    run_proxy_mutation(store.new(), create_document)
+  assert create_status == 200
+  assert create_body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"name\":\"abc\"},\"userErrors\":[]}}}"
+
+  let #(segment_status, segment_body, after_segment) =
+    run_proxy_graphql(
+      after_create,
+      "{ segment(id: \"gid://shopify/Segment/1\") { id name } }",
+    )
+  assert segment_status == 200
+  assert segment_body
+    == "{\"data\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"name\":\"abc\"}}}"
+
+  let #(segments_status, segments_body, after_segments) =
+    run_proxy_graphql(
+      after_segment,
+      "{ segments(first: 5) { nodes { id name } } }",
+    )
+  assert segments_status == 200
+  assert segments_body
+    == "{\"data\":{\"segments\":{\"nodes\":[{\"id\":\"gid://shopify/Segment/1\",\"name\":\"abc\"}]}}}"
+
+  let #(count_status, count_body, _) =
+    run_proxy_graphql(after_segments, "{ segmentsCount { count precision } }")
+  assert count_status == 200
+  assert count_body
+    == "{\"data\":{\"segmentsCount\":{\"count\":1,\"precision\":\"EXACT\"}}}"
+}
+
 pub fn segment_create_overlong_query_emits_length_error_before_grammar_test() {
   let long_query = "number_of_orders >= 5 " <> string.repeat("x", times: 5000)
   let outcome =
@@ -479,6 +553,24 @@ pub fn segment_create_overlong_query_emits_length_error_before_grammar_test() {
       "mutation { segmentCreate(name: \"Big\", query: \""
         <> long_query
         <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_segments(outcome.store) == []
+}
+
+pub fn segment_create_rejects_query_when_raw_length_exceeds_limit_test() {
+  let raw_over_limit_query =
+    string.repeat(" ", times: 4000)
+    <> "number_of_orders = 0"
+    <> string.repeat(" ", times: 1500)
+  let outcome =
+    run_mutation_outcome_with_variables(
+      store.new(),
+      "mutation SegmentCreateRawQueryLimit($query: String!) { segmentCreate(name: \"Big\", query: $query) { segment { id } userErrors { field message } } }",
+      dict.from_list([#("query", root_field.StringVal(raw_over_limit_query))]),
     )
   let body = json.to_string(outcome.data)
   assert body
@@ -656,6 +748,30 @@ pub fn segment_update_overlong_name_emits_user_error_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn segment_update_accepts_name_when_stripped_length_is_within_limit_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/107", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let padded_name = string.repeat(" ", times: 256) <> "x"
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/107\", name: \""
+        <> padded_name
+        <> "\") { segment { id name query } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/107\",\"name\":\"x\",\"query\":\"number_of_orders >= 2\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == ["gid://shopify/Segment/107"]
+  let assert Some(record) =
+    store.get_effective_segment_by_id(
+      outcome.store,
+      "gid://shopify/Segment/107",
+    )
+  assert record.name == Some("x")
+}
+
 pub fn segment_update_overlong_query_emits_length_error_before_grammar_test() {
   let existing =
     segment_record("gid://shopify/Segment/104", "Keep", "number_of_orders >= 2")
@@ -667,6 +783,26 @@ pub fn segment_update_overlong_query_emits_length_error_before_grammar_test() {
       "mutation { segmentUpdate(id: \"gid://shopify/Segment/104\", query: \""
         <> long_query
         <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn segment_update_rejects_query_when_raw_length_exceeds_limit_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/108", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let raw_over_limit_query =
+    string.repeat(" ", times: 4000)
+    <> "number_of_orders = 0"
+    <> string.repeat(" ", times: 1500)
+  let outcome =
+    run_mutation_outcome_with_variables(
+      s,
+      "mutation SegmentUpdateRawQueryLimit($query: String!) { segmentUpdate(id: \"gid://shopify/Segment/108\", query: $query) { segment { id } userErrors { field message } } }",
+      dict.from_list([#("query", root_field.StringVal(raw_over_limit_query))]),
     )
   let body = json.to_string(outcome.data)
   assert body

@@ -3281,6 +3281,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-length-edge-cases',
+    scriptPath: 'scripts/capture-segment-length-edge-cases-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate whitespace edge cases where name length is validated after stripping and query length is validated against raw input.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-create-update-length-edge-cases.json`,
+      'config/parity-specs/segments/segment-create-update-length-edge-cases.json',
+      'config/parity-requests/segments/segment-create-validation-limits.graphql',
+      'config/parity-requests/segments/segment-update-name-validation-limits.graphql',
+      'config/parity-requests/segments/segment-update-query-validation-limits.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for accepted padded-name create/update branches, records raw-query length validation failures, and deletes the disposable segment during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-update-delete-malformed-gid',
     scriptPath: 'scripts/capture-segment-update-delete-malformed-gid-conformance.ts',
     purpose:
