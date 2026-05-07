@@ -1080,16 +1080,53 @@ pub fn handle_customer_set(
   let #(input, phone_errors) =
     normalize_customer_phone_input(store, raw_input, ["input"])
   let identifier = normalize_customer_phone_identifier(store, raw_identifier)
-  case read_obj_string(identifier, "id") {
-    Some(customer_id) ->
-      case store.get_effective_customer_by_id(store, customer_id) {
-        Some(existing) ->
+  case customer_set_input_id_not_allowed_errors(input, identifier) {
+    [_, ..] as errors ->
+      customer_set_error_result(store, identity, field, fragments, errors)
+    [] ->
+      case read_obj_string(identifier, "id") {
+        Some(customer_id) ->
+          case store.get_effective_customer_by_id(store, customer_id) {
+            Some(existing) ->
+              case
+                customer_set_preflight_errors(
+                  store,
+                  input,
+                  identifier,
+                  Some(existing),
+                  phone_errors,
+                )
+              {
+                [_, ..] as errors ->
+                  customer_set_error_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    errors,
+                  )
+                [] ->
+                  update_from_set(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    input,
+                    existing,
+                  )
+              }
+            None ->
+              customer_set_unknown_id_result(store, identity, field, fragments)
+          }
+        None -> {
+          let existing =
+            find_customer_by_customer_set_identifier(store, identifier)
           case
             customer_set_preflight_errors(
               store,
               input,
               identifier,
-              Some(existing),
+              existing,
               phone_errors,
             )
           {
@@ -1102,46 +1139,22 @@ pub fn handle_customer_set(
                 errors,
               )
             [] ->
-              update_from_set(
-                store,
-                identity,
-                field,
-                fragments,
-                input,
-                existing,
-              )
+              case existing {
+                Some(existing) ->
+                  update_from_set(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    input,
+                    existing,
+                  )
+                None ->
+                  create_from_set(store, identity, field, fragments, input)
+              }
           }
-        None ->
-          customer_set_unknown_id_result(store, identity, field, fragments)
+        }
       }
-    None -> {
-      let existing = find_customer_by_customer_set_identifier(store, identifier)
-      case
-        customer_set_preflight_errors(
-          store,
-          input,
-          identifier,
-          existing,
-          phone_errors,
-        )
-      {
-        [_, ..] as errors ->
-          customer_set_error_result(store, identity, field, fragments, errors)
-        [] ->
-          case existing {
-            Some(existing) ->
-              update_from_set(
-                store,
-                identity,
-                field,
-                fragments,
-                input,
-                existing,
-              )
-            None -> create_from_set(store, identity, field, fragments, input)
-          }
-      }
-    }
   }
 }
 
@@ -1179,6 +1192,7 @@ pub fn customer_set_preflight_errors(
   phone_errors: List(UserError),
 ) -> List(UserError) {
   list.flatten([
+    customer_set_input_id_not_allowed_errors(input, identifier),
     phone_errors,
     validate_customer_address_inputs(input, ["input"]),
     customer_set_tag_note_validation_errors(input),
@@ -1188,6 +1202,35 @@ pub fn customer_set_preflight_errors(
     customer_set_create_identity_errors(input, existing),
     customer_set_duplicate_identity_errors(store, input, existing),
   ])
+}
+
+@internal
+pub fn customer_set_input_id_not_allowed_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  identifier: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case customer_set_identifier_supplied(identifier), dict.get(input, "id") {
+    True, Ok(root_field.NullVal) | True, Error(_) -> []
+    True, Ok(_) -> [
+      UserError(
+        ["input"],
+        "The id field is not allowed if identifier is provided.",
+        Some("ID_NOT_ALLOWED"),
+      ),
+    ]
+    False, _ -> []
+  }
+}
+
+fn customer_set_identifier_supplied(
+  identifier: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(identifier, "id")
+  || dict.has_key(identifier, "email")
+  || dict.has_key(identifier, "emailAddress")
+  || dict.has_key(identifier, "phone")
+  || dict.has_key(identifier, "customId")
+  || dict.has_key(identifier, "customAttributes")
 }
 
 @internal
