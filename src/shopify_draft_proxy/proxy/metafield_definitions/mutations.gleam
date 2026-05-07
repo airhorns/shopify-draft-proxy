@@ -359,14 +359,22 @@ pub fn cross_app_namespace_access_errors(
 ) -> List(Json) {
   case definition_types.read_optional_string(input, "namespace") {
     Some(namespace) ->
-      case
-        definition_types.namespace_belongs_to_requesting_api_client(
-          namespace,
-          requesting_api_client_id,
-        )
-      {
-        True -> []
-        False -> [metafield_definition_namespace_access_denied_error(root_name)]
+      case namespace {
+        "shopify" -> [
+          metafield_definition_namespace_access_denied_error(root_name),
+        ]
+        _ ->
+          case
+            definition_types.namespace_belongs_to_requesting_api_client(
+              namespace,
+              requesting_api_client_id,
+            )
+          {
+            True -> []
+            False -> [
+              metafield_definition_namespace_access_denied_error(root_name),
+            ]
+          }
       }
     None -> []
   }
@@ -726,6 +734,7 @@ pub fn validate_standard_enable_input(
 ) -> Result(Nil, List(definition_types.UserError)) {
   let errors =
     validate_standard_admin_access(raw_args, template)
+    |> list.append(validate_standard_reserved_access_input(args, template))
     |> list.append(validate_standard_unstructured_metafields(
       store_in,
       args,
@@ -753,13 +762,10 @@ fn validate_standard_admin_access(
   case
     dict.has_key(access, "admin")
     && !standard_template_allows_admin_access(template)
+    && !access_admin_is_public_read_write(access)
   {
     True -> [
-      definition_types.UserError(
-        field: Some(["access"]),
-        message: "Admin access input is not allowed for this standard metafield definition.",
-        code: "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
-      ),
+      access_control_not_permitted_error(Some(["access"]), "INVALID"),
     ]
     False -> []
   }
@@ -769,6 +775,93 @@ fn standard_template_allows_admin_access(
   template: definition_types.StandardMetafieldDefinitionTemplate,
 ) -> Bool {
   string.starts_with(template.namespace, "app--")
+}
+
+fn validate_definition_create_access_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  let access = definition_types.read_object(input, "access")
+  case access_admin_is_public_read_write(access) {
+    True -> []
+    False -> [
+      access_control_not_permitted_error(Some(["definition"]), "INVALID"),
+    ]
+  }
+}
+
+fn validate_definition_update_access_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(definition_types.UserError) {
+  case definition_types.has_field(input, "access") {
+    False -> []
+    True -> {
+      let access = definition_types.read_object(input, "access")
+      case access_admin_is_public_read_write(access) {
+        True -> []
+        False -> [
+          access_control_not_permitted_error(
+            Some(["definition"]),
+            "INVALID_INPUT",
+          ),
+        ]
+      }
+    }
+  }
+}
+
+fn validate_standard_reserved_access_input(
+  args: Dict(String, root_field.ResolvedValue),
+  template: definition_types.StandardMetafieldDefinitionTemplate,
+) -> List(definition_types.UserError) {
+  case
+    access_input_is_present(args)
+    && definition_reserved_namespace(template.namespace)
+  {
+    True -> [
+      definition_types.UserError(
+        field: Some(["access"]),
+        message: "Setting access controls on a definition under this namespace is not permitted.",
+        code: "INVALID",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn access_input_is_present(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(args, "access") {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+}
+
+fn access_admin_is_public_read_write(
+  access: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case definition_types.read_optional_string(access, "admin") {
+    Some(admin) -> normalize_admin_access(admin) == "PUBLIC_READ_WRITE"
+    None -> True
+  }
+}
+
+fn normalize_admin_access(value: String) -> String {
+  case value {
+    "MERCHANT_READ_WRITE" -> "PUBLIC_READ_WRITE"
+    _ -> value
+  }
+}
+
+fn access_control_not_permitted_error(
+  field: Option(List(String)),
+  code: String,
+) -> definition_types.UserError {
+  definition_types.UserError(
+    field: field,
+    message: "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+    code: code,
+  )
 }
 
 fn validate_standard_unstructured_metafields(
@@ -902,6 +995,7 @@ pub fn build_standard_access(
       "admin",
       json.string(
         definition_types.read_optional_string(access, "admin")
+        |> option.map(normalize_admin_access)
         |> option.unwrap("PUBLIC_READ_WRITE"),
       ),
     ),
@@ -935,6 +1029,7 @@ pub fn build_input_access(
       "admin",
       json.string(
         definition_types.read_optional_string(access, "admin")
+        |> option.map(normalize_admin_access)
         |> option.unwrap("PUBLIC_READ_WRITE"),
       ),
     ),
@@ -1220,7 +1315,15 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
     [] -> validate_definition_validation_records(input, type_name)
     [_, ..] -> []
   }
-  let capability_errors = case list.append(input_errors, validation_errors) {
+  let access_errors = case list.append(input_errors, validation_errors) {
+    [] -> validate_definition_create_access_input(input)
+    [_, ..] -> []
+  }
+  let capability_errors = case
+    input_errors
+    |> list.append(validation_errors)
+    |> list.append(access_errors)
+  {
     [] ->
       validate_capability_inputs(
         store_in,
@@ -1235,6 +1338,7 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
   let errors =
     input_errors
     |> list.append(validation_errors)
+    |> list.append(access_errors)
     |> list.append(capability_errors)
   case errors {
     [_, ..] -> #(
@@ -1455,10 +1559,9 @@ pub fn serialize_definition_update_root_with_requesting_api_client_id(
     definition_types.read_object(args, "definition")
     |> definition_types.resolve_namespace_input(requesting_api_client_id)
   let errors =
-    list.append(
-      definition_types.validate_definition_input(input, False),
-      constraint_update_input_conflict_errors(input),
-    )
+    definition_types.validate_definition_input(input, False)
+    |> list.append(constraint_update_input_conflict_errors(input))
+    |> list.append(validate_definition_update_access_input(input))
   case errors {
     [_, ..] -> #(
       serializers.serialize_definition_mutation_payload(

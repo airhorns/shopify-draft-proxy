@@ -18,7 +18,8 @@ import shopify_draft_proxy/proxy/localization/types.{
   type AnyUserError, type TranslatableResource, type TranslationErrorCode,
   FailsResourceValidation, InvalidKeyForModel, InvalidLocaleForShop,
   InvalidTranslatableContent, ResourceNotFound, SameLocaleAsShopPrimary,
-  TooManyKeysForResource, max_keys_per_translation_mutation, translation_error,
+  TooManyKeysForResource, max_keys_per_translation_mutation,
+  proxy_translation_error, translation_error,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationFieldResult, type MutationOutcome, MutationFieldResult,
@@ -743,13 +744,25 @@ fn validate_resource(
     ])
     Some(resource_id) ->
       case serializers.resource_exists_for_validation(store_in, resource_id) {
-        None -> #(None, [
-          translation_error(
-            ["resourceId"],
-            "Resource " <> resource_id <> " does not exist",
-            ResourceNotFound,
-          ),
-        ])
+        None ->
+          case serializers.unsupported_translatable_resource_type(resource_id) {
+            Some(resource_type) -> #(None, [
+              proxy_translation_error(
+                ["resourceId"],
+                "Translatable resource type "
+                  <> resource_type
+                  <> " is not supported by the draft proxy yet",
+                "UNSUPPORTED_TRANSLATABLE_RESOURCE_TYPE",
+              ),
+            ])
+            None -> #(None, [
+              translation_error(
+                ["resourceId"],
+                "Resource " <> resource_id <> " does not exist",
+                ResourceNotFound,
+              ),
+            ])
+          }
         Some(record) -> #(Some(record), [])
       }
   }

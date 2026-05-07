@@ -3604,7 +3604,7 @@ pub fn b2b_assign_customer_as_contact_rejects_customer_without_email_test() {
   assert string.contains(assign_json, "\"companyContact\":null")
   assert string.contains(
     assign_json,
-    "\"field\":[\"companyId\"],\"message\":\"Customer must have an email address.\",\"code\":\"RESOURCE_NOT_FOUND\"",
+    "\"field\":[\"companyId\"],\"message\":\"Customer must have an email address.\",\"code\":\"INVALID_INPUT\"",
   )
   assert string.contains(
     assign_json,

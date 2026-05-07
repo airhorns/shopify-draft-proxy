@@ -1,0 +1,74 @@
+query LocalizationCollectionTranslationRead(
+  $first: Int!
+  $resourceType: TranslatableResourceType!
+  $ids: [ID!]!
+  $resourceId: ID!
+) {
+  allShopLocales: shopLocales {
+    locale
+    name
+    primary
+    published
+  }
+  resources: translatableResources(first: $first, resourceType: $resourceType) {
+    nodes {
+      resourceId
+      translatableContent {
+        key
+        value
+        digest
+        locale
+        type
+      }
+      translations(locale: "fr") {
+        key
+        value
+        locale
+        outdated
+        market {
+          id
+        }
+      }
+    }
+  }
+  byIds: translatableResourcesByIds(first: $first, resourceIds: $ids) {
+    nodes {
+      resourceId
+      translatableContent {
+        key
+        value
+        digest
+        locale
+        type
+      }
+      translations(locale: "fr") {
+        key
+        value
+        locale
+        outdated
+        market {
+          id
+        }
+      }
+    }
+  }
+  single: translatableResource(resourceId: $resourceId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+    translations(locale: "fr") {
+      key
+      value
+      locale
+      outdated
+      market {
+        id
+      }
+    }
+  }
+}

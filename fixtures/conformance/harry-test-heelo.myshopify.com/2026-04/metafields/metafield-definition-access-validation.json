@@ -1,0 +1,449 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-07T08:45:31.415Z",
+  "variables": {
+    "runId": "mov8qwqs",
+    "setupNamespace": "har1050_access_mov8qwqs",
+    "updateNamespace": "har1050_access_mov8qwqs_update"
+  },
+  "inlineGrants": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationInlineGrants {\n  metafieldDefinitionCreate(\n    definition: {\n      name: \"Explicit grants\"\n      namespace: \"har1050_grants\"\n      key: \"grant\"\n      ownerType: PRODUCT\n      type: \"single_line_text_field\"\n      access: { grants: [{ grantee: \"gid://shopify/App/1\", access: READ_WRITE }] }\n    }\n  ) {\n    createdDefinition {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "InputObject 'MetafieldAccessInput' doesn't accept argument 'grants'",
+          "locations": [
+            {
+              "line": 9,
+              "column": 17
+            }
+          ],
+          "path": [
+            "mutation MetafieldDefinitionAccessValidationInlineGrants",
+            "metafieldDefinitionCreate",
+            "definition",
+            "access",
+            "grants"
+          ],
+          "extensions": {
+            "code": "argumentNotAccepted",
+            "name": "MetafieldAccessInput",
+            "typeName": "InputObject",
+            "argumentName": "grants"
+          }
+        }
+      ]
+    }
+  },
+  "createMerchantAdminRead": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "Admin Read",
+          "namespace": "har1050_access_mov8qwqs_admin",
+          "key": "flag",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field",
+          "access": {
+            "admin": "MERCHANT_READ"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createShopifyStorefrontPublic": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "Shopify Public",
+          "namespace": "shopify",
+          "key": "har1050_access_mov8qwqs",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Access denied for metafieldDefinitionCreate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\n",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "API client to have access to the namespace and the resource type associated with the metafield definition.\n"
+          },
+          "path": ["metafieldDefinitionCreate"]
+        }
+      ],
+      "data": {
+        "metafieldDefinitionCreate": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setupDefinition": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "name": "Access Validation Setup",
+          "namespace": "har1050_access_mov8qwqs_update",
+          "key": "flag",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/207176335666",
+            "namespace": "har1050_access_mov8qwqs_update",
+            "key": "flag",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE",
+              "customerAccount": "NONE"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateMerchantAdminRead": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationUpdate($definition: MetafieldDefinitionUpdateInput!) {\n  metafieldDefinitionUpdate(definition: $definition) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "namespace": "har1050_access_mov8qwqs_update",
+          "key": "flag",
+          "ownerType": "PRODUCT",
+          "access": {
+            "admin": "MERCHANT_READ"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionUpdate": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardAdminRead": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationStandardEnable(\n  $ownerType: MetafieldOwnerType!\n  $namespace: String\n  $key: String\n  $id: ID\n  $access: StandardMetafieldDefinitionAccessInput\n) {\n  standardMetafieldDefinitionEnable(\n    ownerType: $ownerType\n    namespace: $namespace\n    key: $key\n    id: $id\n    access: $access\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "ownerType": "PRODUCT",
+        "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        "access": {
+          "admin": "MERCHANT_READ"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetafieldDefinitionEnable": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["access"],
+              "message": "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardReservedStorefrontPublic": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationStandardEnable(\n  $ownerType: MetafieldOwnerType!\n  $namespace: String\n  $key: String\n  $id: ID\n  $access: StandardMetafieldDefinitionAccessInput\n) {\n  standardMetafieldDefinitionEnable(\n    ownerType: $ownerType\n    namespace: $namespace\n    key: $key\n    id: $id\n    access: $access\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "ownerType": "PRODUCT",
+        "namespace": "shopify",
+        "key": "color-pattern",
+        "access": {
+          "storefront": "PUBLIC_READ"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetafieldDefinitionEnable": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["access"],
+              "message": "Setting access controls on a definition under this namespace is not permitted.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reservedBeforeSetup": {
+    "request": {
+      "query": "#graphql\n    query ReadReservedMetafieldDefinition($ownerType: MetafieldOwnerType!, $namespace: String!, $key: String!) {\n      metafieldDefinition(identifier: { ownerType: $ownerType, namespace: $namespace, key: $key }) {\n        id\n        namespace\n        key\n      }\n    }\n  ",
+      "variables": {
+        "ownerType": "PRODUCT",
+        "namespace": "shopify",
+        "key": "color-pattern"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinition": {
+          "id": "gid://shopify/MetafieldDefinition/206789771570",
+          "namespace": "shopify",
+          "key": "color-pattern"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardReservedSetup": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationStandardEnable(\n  $ownerType: MetafieldOwnerType!\n  $namespace: String\n  $key: String\n  $id: ID\n  $access: StandardMetafieldDefinitionAccessInput\n) {\n  standardMetafieldDefinitionEnable(\n    ownerType: $ownerType\n    namespace: $namespace\n    key: $key\n    id: $id\n    access: $access\n  ) {\n    createdDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "ownerType": "PRODUCT",
+        "namespace": "shopify",
+        "key": "color-pattern"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetafieldDefinitionEnable": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206789771570",
+            "namespace": "shopify",
+            "key": "color-pattern",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "PUBLIC_READ",
+              "customerAccount": "NONE"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateReservedStorefrontPublic": {
+    "request": {
+      "query": "mutation MetafieldDefinitionAccessValidationUpdate($definition: MetafieldDefinitionUpdateInput!) {\n  metafieldDefinitionUpdate(definition: $definition) {\n    updatedDefinition {\n      id\n      namespace\n      key\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "namespace": "shopify",
+          "key": "color-pattern",
+          "ownerType": "PRODUCT",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "errors": [
+        {
+          "message": "Access denied for metafieldDefinitionUpdate field. Required access: API client to have access to the namespace and the resource type associated with the metafield definition.\n",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "API client to have access to the namespace and the resource type associated with the metafield definition.\n"
+          },
+          "path": ["metafieldDefinitionUpdate"]
+        }
+      ],
+      "data": {
+        "metafieldDefinitionUpdate": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n        mutation DeleteMetafieldDefinitionAccessValidationSetup($id: ID!) {\n          metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n            deletedDefinitionId\n            userErrors {\n              field\n              message\n              code\n            }\n          }\n        }\n      ",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/207176335666"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207176335666",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": "Captured Shopify Admin API 2026-04 public access validation behavior. On this public schema, explicit access.grants is rejected as an unknown MetafieldAccessInput field before resolver execution; merchant admin access and reserved standard storefront access return resolver userErrors. Direct create/update under the shopify namespace are rejected by Shopify namespace access checks before resolver access validation."
+}
