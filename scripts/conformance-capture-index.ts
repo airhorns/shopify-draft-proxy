@@ -5638,6 +5638,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-create-rejects-nested-ids.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-delete-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-detail.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-email-normalization.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-addresses-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-validation-parity.json',
@@ -5715,6 +5716,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customerInputValidation-update.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-email-normalization',
+    scriptPath: 'scripts/capture-customer-email-normalization-conformance.ts',
+    purpose:
+      'Customer email whitespace stripping, RFC-style format validation, length cap, and normalized duplicate detection.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-email-normalization.json`,
+      'config/parity-specs/customers/customer-email-normalization.json',
+      'config/parity-requests/customers/customer-email-normalization-create.graphql',
+      'config/parity-requests/customers/customer-email-normalization-read.graphql',
+      'config/parity-requests/customers/customer-email-normalization-set.graphql',
+      'config/parity-requests/customers/customer-email-normalization-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customerCreate/customerSet records, records validation branches, and deletes created customers during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5824,6 +5844,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Captured evidence shows countryCode wins over conflicting country display text and SG province input is ignored because SG has no zones.',
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-address-input-validation',
+    scriptPath: 'scripts/capture-customer-address-input-validation-conformance.mts',
+    purpose: 'Customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-address-input-validation.json`,
+      'config/parity-specs/customers/customer-address-input-validation.json',
+      'config/parity-requests/customers/customerInputValidation-create.graphql',
+      'config/parity-requests/customers/customer-address-lifecycle-create-address.graphql',
+      'config/parity-requests/customers/customer-address-lifecycle-update-address.graphql',
+      'config/parity-requests/customers/customerSet-parity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer, records address validation and normalization branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null, while nested CustomerInput addresses reject an all-blank entry.',
   },
   {
     domain: 'customers',
