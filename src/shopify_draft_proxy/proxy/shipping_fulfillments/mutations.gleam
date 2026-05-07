@@ -174,6 +174,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream.origin,
               ))
             "fulfillmentServiceUpdate" ->
               Some(handle_fulfillment_service_update(
@@ -182,6 +183,7 @@ pub fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                upstream.origin,
               ))
             "fulfillmentServiceDelete" ->
               Some(handle_fulfillment_service_delete(

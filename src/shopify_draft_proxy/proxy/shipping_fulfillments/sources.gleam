@@ -817,28 +817,76 @@ pub fn blank_fulfillment_service_name_errors() -> List(
 @internal
 pub fn validate_fulfillment_service_callback_url(
   callback_url: Option(String),
+  upstream_origin: String,
 ) -> List(shipping_types.FulfillmentServiceUserError) {
   case callback_url {
     Some(value) ->
-      case is_allowed_fulfillment_service_callback_url(value) {
-        True -> []
-        False -> [
-          shipping_types.FulfillmentServiceUserError(
-            field: Some(["callbackUrl"]),
-            message: "Callback url is not allowed",
-            code: None,
-          ),
-        ]
-      }
+      fulfillment_service_callback_url_errors(value, upstream_origin)
     None -> []
   }
+}
+
+fn fulfillment_service_callback_url_errors(
+  callback_url: String,
+  upstream_origin: String,
+) -> List(shipping_types.FulfillmentServiceUserError) {
+  let url = string.trim(callback_url)
+  let scheme = carrier_service_callback_url_scheme(url)
+  let host = carrier_service_callback_url_host(url)
+  case scheme, host {
+    "", _ -> [fulfillment_service_callback_url_not_allowed_error()]
+    _, "" -> [fulfillment_service_callback_url_not_allowed_error()]
+    "http", _ ->
+      fulfillment_service_callback_url_host_errors(host, upstream_origin)
+    "https", _ ->
+      fulfillment_service_callback_url_host_errors(host, upstream_origin)
+    _, _ -> [
+      shipping_types.FulfillmentServiceUserError(
+        field: Some(["callbackUrl"]),
+        message: "Callback url protocol " <> scheme <> ":// is not supported",
+        code: None,
+      ),
+    ]
+  }
+}
+
+fn fulfillment_service_callback_url_host_errors(
+  host: String,
+  upstream_origin: String,
+) -> List(shipping_types.FulfillmentServiceUserError) {
+  case
+    fulfillment_service_callback_url_host_is_app_scoped(host, upstream_origin)
+  {
+    True -> []
+    False -> [fulfillment_service_callback_url_not_allowed_error()]
+  }
+}
+
+fn fulfillment_service_callback_url_not_allowed_error() -> shipping_types.FulfillmentServiceUserError {
+  shipping_types.FulfillmentServiceUserError(
+    field: Some(["callbackUrl"]),
+    message: "Callback url is not allowed",
+    code: None,
+  )
 }
 
 @internal
 pub fn is_allowed_fulfillment_service_callback_url(
   callback_url: String,
+  upstream_origin: String,
 ) -> Bool {
-  string.starts_with(callback_url, "https://mock.shop")
+  fulfillment_service_callback_url_errors(callback_url, upstream_origin) == []
+}
+
+fn fulfillment_service_callback_url_host_is_app_scoped(
+  host: String,
+  upstream_origin: String,
+) -> Bool {
+  string.starts_with(host, "mock.shop")
+  || {
+    let upstream_host = carrier_service_callback_url_host(upstream_origin)
+    upstream_host != "" && host == upstream_host
+  }
 }
 
 @internal

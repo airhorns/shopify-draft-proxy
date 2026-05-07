@@ -9,7 +9,9 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
+import shopify_draft_proxy/proxy/upstream_query.{
+  type UpstreamContext, UpstreamContext, empty_upstream_context,
+}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -51,6 +53,15 @@ fn flat_rate_package(id: String) -> ShippingPackageRecord {
   ShippingPackageRecord(
     ..package(id, "Carrier flat-rate box", False),
     box_type: Some("FLAT_RATE"),
+  )
+}
+
+fn upstream_context_for_origin(origin: String) -> UpstreamContext {
+  UpstreamContext(
+    transport: None,
+    origin: origin,
+    headers: dict.new(),
+    allow_upstream_reads: False,
   )
 }
 
@@ -1776,6 +1787,179 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment service could not be found.\"}]}}}"
+}
+
+pub fn fulfillment_service_callback_url_validation_accepts_app_scoped_urls_test() {
+  let mock_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Mock FS")),
+        #("callbackUrl", root_field.StringVal("http://mock.shop/fs-callback")),
+      ]),
+      empty_upstream_context(),
+    )
+  let assert [mock_service] =
+    store.list_effective_fulfillment_services(mock_outcome.store)
+  assert json.to_string(mock_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":{\"id\":\""
+    <> mock_service.id
+    <> "\",\"callbackUrl\":\"http://mock.shop/fs-callback\"},\"userErrors\":[]}}}"
+  assert list.length(mock_outcome.staged_resource_ids) == 2
+
+  let origin_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Origin FS")),
+        #(
+          "callbackUrl",
+          root_field.StringVal(
+            "https://harry-test-heelo.myshopify.com/fs-callback",
+          ),
+        ),
+      ]),
+      upstream_context_for_origin("https://harry-test-heelo.myshopify.com"),
+    )
+  let assert [origin_service] =
+    store.list_effective_fulfillment_services(origin_outcome.store)
+  assert json.to_string(origin_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":{\"id\":\""
+    <> origin_service.id
+    <> "\",\"callbackUrl\":\"https://harry-test-heelo.myshopify.com/fs-callback\"},\"userErrors\":[]}}}"
+  assert list.length(store.list_effective_store_property_locations(
+      origin_outcome.store,
+    ))
+    == 1
+}
+
+pub fn fulfillment_service_callback_url_validation_rejects_without_staging_test() {
+  let disallowed_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Disallowed FS")),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://example.com/fs-callback"),
+        ),
+      ]),
+      upstream_context_for_origin("https://harry-test-heelo.myshopify.com"),
+    )
+  assert json.to_string(disallowed_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
+  assert disallowed_outcome.staged_resource_ids == []
+  assert store.list_effective_fulfillment_services(disallowed_outcome.store)
+    == []
+  assert store.list_effective_store_property_locations(disallowed_outcome.store)
+    == []
+
+  let malformed_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Malformed FS")),
+        #("callbackUrl", root_field.StringVal("not-a-url")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(malformed_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
+  assert malformed_outcome.staged_resource_ids == []
+  assert store.list_effective_fulfillment_services(malformed_outcome.store)
+    == []
+  assert store.list_effective_store_property_locations(malformed_outcome.store)
+    == []
+
+  let unsupported_protocol_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes FTP FS")),
+        #("callbackUrl", root_field.StringVal("ftp://mock.shop/fs-callback")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(unsupported_protocol_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url protocol ftp:// is not supported\"}]}}}"
+  assert unsupported_protocol_outcome.staged_resource_ids == []
+}
+
+pub fn fulfillment_service_update_callback_url_validation_rejects_without_staging_test() {
+  let create_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!, $callbackUrl: URL!) { fulfillmentServiceCreate(name: $name, callbackUrl: $callbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("name", root_field.StringVal("Hermes Update FS")),
+        #("callbackUrl", root_field.StringVal("https://mock.shop/fs-callback")),
+      ]),
+      empty_upstream_context(),
+    )
+  let assert [created] =
+    store.list_effective_fulfillment_services(create_outcome.store)
+
+  let reject_outcome =
+    shipping_fulfillments.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation UpdateFs($id: ID!, $callbackUrl: URL!) { fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #(
+          "callbackUrl",
+          root_field.StringVal("https://example.com/fs-callback"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(reject_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
+  assert reject_outcome.staged_resource_ids == []
+  let assert Some(after_reject) =
+    store.get_effective_fulfillment_service_by_id(
+      reject_outcome.store,
+      created.id,
+    )
+  assert after_reject.callback_url == Some("https://mock.shop/fs-callback")
+
+  let accept_outcome =
+    shipping_fulfillments.process_mutation(
+      reject_outcome.store,
+      reject_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation UpdateFs($id: ID!, $callbackUrl: URL!) { fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) { fulfillmentService { id callbackUrl } userErrors { field message } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #(
+          "callbackUrl",
+          root_field.StringVal("http://mock.shop/fs-callback-updated"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(accept_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":{\"id\":\""
+    <> created.id
+    <> "\",\"callbackUrl\":\"http://mock.shop/fs-callback-updated\"},\"userErrors\":[]}}}"
 }
 
 pub fn fulfillment_service_delete_transfer_validates_destination_test() {
